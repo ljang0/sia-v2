@@ -11,6 +11,7 @@ interface SelectOption {
   id: string;
   label: string;
   detail?: string | undefined;
+  disabled?: boolean | undefined;
 }
 
 interface ThreadModelControlsProps {
@@ -81,7 +82,12 @@ export function ThreadModelControls({
             }}
           >
             {models.map((model) => (
-              <option key={model.id} value={model.id} title={model.detail}>
+              <option
+                key={model.id}
+                value={model.id}
+                title={model.detail}
+                disabled={model.disabled}
+              >
                 {model.label}
               </option>
             ))}

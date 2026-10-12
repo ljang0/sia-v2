@@ -10,9 +10,11 @@ describe('Use my Mac power and lock handling', () => {
   /** A runtime whose first turn keeps working until it is stopped; later turns complete. */
   function holdingRuntime(fail?: Error) {
     const requests: string[] = [];
+    const configurations: RuntimeTurnInput['thread'][] = [];
     const runtime = {
       async *runTurn(input: RuntimeTurnInput, signal: AbortSignal) {
         requests.push(input.text);
+        configurations.push(input.thread);
         if (fail) throw fail;
         if (requests.length === 1)
           await new Promise((_, reject) =>
@@ -35,7 +37,7 @@ describe('Use my Mac power and lock handling', () => {
       cancel: vi.fn(async () => undefined),
       respondToRequest: vi.fn(async () => undefined),
     };
-    return { runtime, requests };
+    return { runtime, requests, configurations };
   }
 
   /** Stands in for the macOS memory engine so these checks run on any platform. */
@@ -340,7 +342,7 @@ describe('Use my Mac power and lock handling', () => {
     await controller.shutdown();
   });
 
-  it('stops a background task with a next step when the window-control driver is unavailable', async () => {
+  it('allows chat when the window-control driver is unavailable and explains computer limitations', async () => {
     const { runtime, requests } = holdingRuntime();
     const unavailable = {
       ...computer,
@@ -351,28 +353,25 @@ describe('Use my Mac power and lock handling', () => {
         detail: "Cannot find package '@trycua/cua-driver'",
       }),
     };
-    const { controller, keepAwake, threadId, status } = await macThread({
+    const { controller, keepAwake, threadId } = await macThread({
       runtime,
       computer: unavailable,
     });
     expect(controller.macBackgroundControl()).toBe(true);
     await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
-    await vi.waitFor(() => expect(status()).toBe('failed'));
-    expect(requests).toEqual([]);
-    expect(controller.snapshot().timeline.at(-1)?.text).toBe(
-      'Working in the background isn’t available on this Mac right now. Choose On my screen in Settings → Computer, then press Continue task.',
-    );
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.cancel', { threadId });
     await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
 
     await controller.invoke('computer.setAccessMode', { mode: 'mac', background: false });
-    await controller.invoke('threads.retry', { threadId });
-    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    await controller.invoke('threads.send', { threadId, text: 'Try with on-screen access' });
+    await vi.waitFor(() => expect(requests).toHaveLength(2));
     await controller.invoke('threads.cancel', { threadId });
     await controller.shutdown();
   });
 
-  it('asks for missing permissions before a background task starts', async () => {
-    const { runtime, requests } = holdingRuntime();
+  it('lets ordinary chat reach the model when Mac permission is missing', async () => {
+    const { runtime, requests, configurations } = holdingRuntime();
     const { controller, threadId, status } = await macThread({
       runtime,
       computer: {
@@ -384,12 +383,17 @@ describe('Use my Mac power and lock handling', () => {
         }),
       },
     });
-    await controller.invoke('threads.send', { threadId, text: 'Tidy my desktop' });
-    await vi.waitFor(() => expect(status()).toBe('failed'));
-    expect(requests).toEqual([]);
-    expect(controller.snapshot().timeline.at(-1)?.text).toBe(
+    await controller.invoke('threads.send', {
+      threadId,
+      text: 'What is 2 + 2? Do not use my computer.',
+    });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    expect(status()).toBe('running');
+    expect(configurations[0]?.instructions).toContain(
       'To work in the background, Sia needs permission to see your screen (Screen Recording). Allow it in Settings → Computer, then press Continue task.',
     );
+    expect(configurations[0]?.instructions).toContain('Answer ordinary questions');
+    await controller.invoke('threads.cancel', { threadId });
     await controller.shutdown();
   });
 });

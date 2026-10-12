@@ -112,6 +112,7 @@ describe('Use my Mac native execution', () => {
       invoke: vi.fn(async () => ({ outcome: 'verified' as const, summary: 'done' })),
     };
     let passes = 0;
+    const schemas: unknown[] = [];
     const adapter: ProviderAdapter = {
       id: 'meta',
       productionEnabled: true,
@@ -128,6 +129,7 @@ describe('Use my Mac native execution', () => {
       },
       async *sendTurn(session, input) {
         passes++;
+        schemas.push(input.outputSchema);
         if (['mac', 'mac-background'].includes(created.at(-1)?.nativeTools ?? '')) {
           expect(input.text).toContain('Current request time:');
           expect(input.outputSchema).toMatchObject({
@@ -241,11 +243,12 @@ describe('Use my Mac native execution', () => {
       },
     };
     const onMacResult = vi.fn();
-    const run = async () => {
+    const run = async (scheduled = false) => {
       const events: ThreadEventEnvelope[] = [];
       for await (const e of runtime.runTurn({
         thread,
         turnId: 'turn',
+        scheduled,
         text: 'Make a document',
         onMacResult,
       }))
@@ -337,6 +340,16 @@ describe('Use my Mac native execution', () => {
       expect(created[5]?.tools.map((t) => t.name)).toContain('browser_tabs');
       expect(created[5]?.tools.map((t) => t.name)).not.toContain('memory_vault');
       expect(created[5]?.tools.map((t) => t.name)).not.toContain('computer_task_complete');
+      expect(schemas.at(-1)).toBeUndefined();
+      onMacResult.mockClear();
+      const scheduledEvents = await run(true);
+      expect(schemas.at(-1)).toMatchObject({
+        properties: { type: { enum: expect.arrayContaining(['no_change']) } },
+      });
+      expect(onMacResult).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ success: true }),
+      );
+      expect(JSON.stringify(scheduledEvents)).not.toContain('success');
     } finally {
       await runtime.dispose();
     }

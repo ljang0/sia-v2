@@ -1,0 +1,32 @@
+{
+  "fictional": true,
+  "subscriptions": [
+    {
+      "id": "sub1",
+      "name": "Music service",
+      "monthly_usd": 12,
+      "last_used": "2026-10-03",
+      "usage_evidence": "app usage export",
+      "cancel": false
+    },
+    {
+      "id": "sub2",
+      "name": "Unused fitness app",
+      "monthly_usd": 29,
+      "last_used": "2026-06-02",
+      "usage_evidence": "service activity export",
+      "next_renewal": "2026-10-09",
+      "cancel": "only after explicit approval",
+      "cancellation_effect": "access remains until 2026-10-09",
+      "confirmation_fixture": "DEMO-CANCEL-002"
+    },
+    {
+      "id": "sub3",
+      "name": "Video service",
+      "monthly_usd": 18,
+      "last_used": null,
+      "usage_evidence": "unknown",
+      "cancel": "ask about household use; absence of evidence is not non-use"
+    }
+  ]
+}

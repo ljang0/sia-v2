@@ -225,8 +225,10 @@ function hostedModelCatalogEntry(
     }),
   );
   for (const route of config.harnessRoutes ?? []) {
-    if (models.includes(route.model)) {
-      routeByModelAndHarness.set(`${route.model}\0${route.harnessId}`, route);
+    const key = `${route.model}\0${route.harnessId}`;
+    // Lab routes add to the managed Codex baseline; they never replace it.
+    if (models.includes(route.model) && !routeByModelAndHarness.has(key)) {
+      routeByModelAndHarness.set(key, route);
     }
   }
   const routes = [...routeByModelAndHarness.values()];

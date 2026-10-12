@@ -2,7 +2,7 @@
 
 _Prepared 2026-08-28 ET_
 
-This file records the most recent signed build and is replaced at each release; earlier records
+This file records the most recent published signed build and is replaced at each release; earlier records
 remain at their release tags. Behavior described here is the alpha.24 build, not current `main`.
 
 ## Decision

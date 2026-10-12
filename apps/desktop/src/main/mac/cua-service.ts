@@ -43,7 +43,8 @@ export type CuaAuthorizationContext =
   | { readonly kind: 'turn'; readonly threadId: string; readonly turnId: string }
   | {
       readonly kind: 'direct_user';
-      readonly operation: 'browser_attach' | 'browser_navigate' | 'browser_detach';
+      readonly operation:
+        'browser_attach' | 'browser_navigate' | 'browser_detach' | 'access_check';
     };
 
 interface DriverResult {
@@ -81,6 +82,10 @@ interface CuaServiceOptions {
    */
   readonly freshPermissions?: () => Promise<CorePermissionStatus | undefined>;
   readonly callTimeoutMs?: number;
+  /** Process id that owns Sia's windows; the driver refuses to inspect its own process. */
+  readonly hostPid?: number;
+  /** Confirms granted access by reading another app's window through the driver. */
+  readonly verifyAccess?: boolean;
   /** Test seam; receives the same authorization callback the native driver would use. */
   readonly driverFactory?: (
     authorize: (request: AuthorizationRequest) => Promise<'allow' | 'deny' | 'cancel'>,
@@ -120,6 +125,13 @@ export class CuaService {
   #driver: DriverLike | undefined;
   #driverGeneration = 0;
   #permissionRequest: Promise<ComputerView> | undefined;
+  #verification:
+    | { result: 'confirmed' | 'unconfirmed' }
+    | { result: 'failed'; checkedAt: number }
+    | undefined;
+  #verifying: Promise<'confirmed' | 'unconfirmed' | 'failed'> | undefined;
+  readonly #hostPid: number;
+  readonly #verifyAccessEnabled: boolean;
   #callTail: Promise<void> = Promise.resolve();
   #authorizationContext: CuaAuthorizationContext | undefined;
   /** The running call's timeout, paused while an approval waits on the person. */
@@ -146,6 +158,8 @@ export class CuaService {
         };
       });
     this.#freshPermissions = options.freshPermissions;
+    this.#hostPid = options.hostPid ?? process.pid;
+    this.#verifyAccessEnabled = options.verifyAccess ?? false;
   }
 
   async permissions(): Promise<ComputerView> {
@@ -161,7 +175,7 @@ export class CuaService {
         status: 'unavailable',
         accessibility: false,
         screenRecording: false,
-        detail: 'The Sia alpha supports computer use on macOS only.',
+        detail: 'Sia supports computer use on macOS only.',
       };
     }
     try {
@@ -175,8 +189,26 @@ export class CuaService {
             (name) => fresh[name] && !{ accessibility, screenRecording }[name],
           )
         : [];
+      if (accessibility && screenRecording) {
+        if (!this.#verifyAccessEnabled)
+          return { status: 'ready', accessibility, screenRecording };
+        // The grants decide what Sia may attempt; the check only tells setup whether it works.
+        const verified = await this.#verifyAccess();
+        return {
+          status: 'ready',
+          accessibility,
+          screenRecording,
+          verified,
+          ...(verified === 'failed'
+            ? {
+                detail:
+                  'macOS lists Sia as allowed, but Sia could not read the screen yet. Reopen Sia; if that does not help, turn Accessibility and Screen Recording off and on again for Sia.',
+              }
+            : {}),
+        };
+      }
       return {
-        status: accessibility && screenRecording ? 'ready' : 'needs_permission',
+        status: 'needs_permission',
         accessibility,
         screenRecording,
         ...(relaunchFor.length ? { relaunchFor: [...relaunchFor] } : {}),
@@ -212,6 +244,8 @@ export class CuaService {
   }
 
   async #requestPermissions(permission?: CorePermission): Promise<ComputerView> {
+    // An explicit request re-checks a failed functional check right away.
+    if (this.#verification?.result === 'failed') this.#verification = undefined;
     const current = await this.permissions();
     if (current.status === 'ready' || current.status === 'unavailable') return current;
     const missing = (name: CorePermission) =>
@@ -222,6 +256,9 @@ export class CuaService {
       // Request one permission at a time. Opening Screen Recording while the
       // Accessibility prompt is still pending hides the first step on macOS.
       if (target === 'accessibility') {
+        // macOS shows its prompt only the first time an app asks; an app already listed (but
+        // off) gets no prompt at all. Always open the Accessibility pane too, so there is
+        // something to act on either way.
         systemPreferences.isTrustedAccessibilityClient(true);
         await shell.openExternal(
           'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
@@ -244,6 +281,62 @@ export class CuaService {
       }
     }
     return this.permissions();
+  }
+
+  /**
+   * Reads one window of another app through the driver Sia's tools use, then discards it.
+   * macOS can list a grant that the running process cannot use yet; this is what turns
+   * "allowed" into "works". Nothing is stored or sent anywhere.
+   */
+  #verifyAccess(): Promise<'confirmed' | 'unconfirmed' | 'failed'> {
+    const cached = this.#verification;
+    if (cached?.result === 'confirmed' || cached?.result === 'unconfirmed')
+      return Promise.resolve(cached.result);
+    if (cached?.result === 'failed' && Date.now() - cached.checkedAt < 15_000)
+      return Promise.resolve('failed');
+    this.#verifying ??= this.#runAccessCheck()
+      .then((result) => {
+        this.#verification =
+          result === 'failed' ? { result, checkedAt: Date.now() } : { result };
+        return result;
+      })
+      .finally(() => {
+        this.#verifying = undefined;
+      });
+    return this.#verifying;
+  }
+
+  async #runAccessCheck(): Promise<'confirmed' | 'unconfirmed' | 'failed'> {
+    const context: CuaAuthorizationContext = { kind: 'direct_user', operation: 'access_check' };
+    const signal = AbortSignal.timeout(10_000);
+    try {
+      const windows = findWindows(
+        await this.call('list_windows', { on_screen_only: true }, context, signal),
+      ).filter(({ pid }) => pid !== this.#hostPid);
+      // Finder is always running and holds no secure fields; prefer it when visible.
+      const target =
+        windows.find(({ appName }) => appName === 'Finder') ?? windows.find(() => true);
+      if (!target) return 'unconfirmed';
+      const state = await this.call(
+        'get_window_state',
+        { pid: target.pid, window_id: target.windowId, include_screenshot: true },
+        context,
+        signal,
+      );
+      const images = isCuaCallResult(state) ? state.images.length : 0;
+      const refused =
+        typeof state === 'object' &&
+        state !== null &&
+        ((isCuaCallResult(state) &&
+          typeof state.value === 'object' &&
+          state.value !== null &&
+          'status' in state.value &&
+          state.value.status === 'refused') ||
+          ('status' in state && state.status === 'refused'));
+      return !refused && images > 0 ? 'confirmed' : 'failed';
+    } catch {
+      return 'failed';
+    }
   }
 
   async call(
@@ -491,4 +584,21 @@ function withDriverImages(value: unknown, images: DriverResult['images']): unkno
   );
   if (!safeImages?.length) return value;
   return { value, images: safeImages.slice(0, 4) } satisfies CuaCallResult;
+}
+
+function findWindows(value: unknown): { pid: number; windowId: number; appName: string }[] {
+  const root = isCuaCallResult(value) ? value.value : value;
+  const windows =
+    typeof root === 'object' && root !== null && 'windows' in root ? root.windows : undefined;
+  if (!Array.isArray(windows)) return [];
+  return windows.flatMap((window: unknown) => {
+    if (typeof window !== 'object' || window === null) return [];
+    const record = window as Record<string, unknown>;
+    const pid = record.pid;
+    const windowId = record.window_id ?? record.windowId;
+    if (typeof pid !== 'number' || typeof windowId !== 'number') return [];
+    return [
+      { pid, windowId, appName: typeof record.app_name === 'string' ? record.app_name : '' },
+    ];
+  });
 }

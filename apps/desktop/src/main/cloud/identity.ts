@@ -140,6 +140,8 @@ export class CognitoIdentityManager implements IdTokenSource {
     const email = normalizeEmail(emailValue);
     const generation = ++this.#authGeneration;
     this.#refreshing = undefined;
+    // A failed resend must not discard a code that is already in the inbox.
+    const previous = this.#pending?.email === email ? this.#pending : undefined;
     this.#pending = undefined;
     let response: Record<string, unknown>;
     try {
@@ -178,6 +180,7 @@ export class CognitoIdentityManager implements IdTokenSource {
         this.#pending = { kind: 'password', email, username: email };
         return this.status();
       }
+      this.#pending = previous;
       throw error;
     }
     if (generation !== this.#authGeneration) return this.status();
@@ -208,12 +211,25 @@ export class CognitoIdentityManager implements IdTokenSource {
       throw new Error('Request a new email code first.');
     const code = codeValue.replaceAll(/\s/g, '');
     if (!/^\d{6,10}$/.test(code)) throw new Error('Enter the numeric code from your email.');
-    const response = await this.#cognito('RespondToAuthChallenge', {
-      ChallengeName: 'EMAIL_OTP',
-      ClientId: this.#clientId,
-      ChallengeResponses: { USERNAME: pending.username, EMAIL_OTP_CODE: code },
-      Session: requiredString(pending.session, 'Cognito session'),
-    });
+    let response: Record<string, unknown>;
+    try {
+      response = await this.#cognito('RespondToAuthChallenge', {
+        ChallengeName: 'EMAIL_OTP',
+        ClientId: this.#clientId,
+        ChallengeResponses: { USERNAME: pending.username, EMAIL_OTP_CODE: code },
+        Session: requiredString(pending.session, 'Cognito session'),
+      });
+    } catch (error) {
+      // Cognito reports an expired sign-in session as NotAuthorized, not ExpiredCode.
+      if (error instanceof CognitoApiError && /NotAuthorized/i.test(error.type)) {
+        throw new CognitoApiError(
+          'That code expired. Request a new one.',
+          error.type,
+          error.detail,
+        );
+      }
+      throw error;
+    }
     if (this.#pending !== pending) return this.status();
     if (response.ChallengeName === 'SOFTWARE_TOKEN_MFA') {
       this.#pending = {
@@ -449,15 +465,22 @@ export class CognitoIdentityManager implements IdTokenSource {
     body: Record<string, unknown>,
   ): Promise<Record<string, unknown>> {
     if (!this.#region) throw new Error('Sia cloud sign-in is not configured.');
-    const response = await fetch(`https://cognito-idp.${this.#region}.amazonaws.com/`, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/x-amz-json-1.1',
-        'x-amz-target': `AWSCognitoIdentityProviderService.${operation}`,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15_000),
-    });
+    let response: Response;
+    try {
+      response = await fetch(`https://cognito-idp.${this.#region}.amazonaws.com/`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/x-amz-json-1.1',
+          'x-amz-target': `AWSCognitoIdentityProviderService.${operation}`,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch {
+      throw new Error(
+        'Sia could not reach the sign-in service. Check your internet connection and try again.',
+      );
+    }
     if (!response.ok) {
       let type = '';
       let detail = '';

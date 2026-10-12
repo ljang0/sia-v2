@@ -1,3 +1,4 @@
+import type { LocalConnectorService } from '../connectors/local-connectors.js';
 /**
  * Host capabilities the desktop controller is constructed with, and the in-memory records its
  * collaborators share.
@@ -67,11 +68,29 @@ export interface ControllerOptions {
   fakeServices: boolean;
   fakeTurnDelayMs?: number;
   openExternal(url: string): Promise<void>;
+  /** Signs in to Outlook, Notion, and GitHub from this Mac; absent where unsupported. */
+  localConnectors?: LocalConnectorService;
   openMessages?(): Promise<void>;
   openMessagesPermissions?(): Promise<void>;
   requestMicrophonePermission?(): Promise<void>;
   restartApp?(): void;
-  installCodex?(): Promise<void>;
+  installCodex?(onProgress: (message: string) => void): Promise<void>;
+  /**
+   * The person's own model API key. The key is write-only from here on: it is validated,
+   * checked against the endpoint, and stored encrypted; only the model and host come back.
+   */
+  /** Lab harnesses from a verified testing manifest; absent in every ordinary build. */
+  labHarnesses?: readonly {
+    id: string;
+    name: string;
+    disclosure: string;
+    models: readonly { id: string; label: string }[];
+  }[];
+  byok?: {
+    summary(): { model: string; host: string } | undefined;
+    save(input: { baseUrl?: string; model: string; apiKey: string }): Promise<void>;
+    clear(): void;
+  };
   /** Always-on local trajectory log; absent in unit tests that do not care about it. */
   trajectory?: TrajectoryRecorder;
   /** Runs a read-only shell command (lsof); injectable for tests. */

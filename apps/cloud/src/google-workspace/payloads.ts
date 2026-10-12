@@ -201,3 +201,57 @@ export function parseSlides(markdown: string): Array<{ title: string; body: stri
   });
   return slides.length ? slides : [{ title: 'Untitled', body: '' }];
 }
+
+export function recordInput(
+  input: Record<string, unknown>,
+  key: string,
+): Record<string, unknown> {
+  const value = input[key];
+  if (!isRecord(value))
+    throw new CloudError(400, 'invalid_connector_input', `${key} is invalid`);
+  return value;
+}
+
+/** The fields a person needs to recognize an event; raw Google metadata stays out of turns. */
+export function compactCalendarEvent(event: Record<string, unknown>): Record<string, unknown> {
+  const attendees = Array.isArray(event.attendees)
+    ? event.attendees.flatMap((attendee) =>
+        isRecord(attendee) && typeof attendee.email === 'string'
+          ? [
+              {
+                email: attendee.email,
+                ...(typeof attendee.responseStatus === 'string'
+                  ? { responseStatus: attendee.responseStatus }
+                  : {}),
+              },
+            ]
+          : [],
+      )
+    : [];
+  return {
+    id: event.id,
+    summary: event.summary,
+    start: event.start,
+    end: event.end,
+    location: event.location,
+    attendees,
+    htmlLink: event.htmlLink,
+    status: event.status,
+  };
+}
+
+export function compactTask(task: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: task.id,
+    title: task.title,
+    notes: task.notes,
+    status: task.status,
+    due: task.due,
+    completed: task.completed,
+    webViewLink: task.webViewLink,
+  };
+}
+
+export function recordsFromArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter(isRecord) : [];
+}

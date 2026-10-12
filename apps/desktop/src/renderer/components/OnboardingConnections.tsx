@@ -1,6 +1,7 @@
 import { ConnectionChecklist } from './ConnectionChecklist';
 import type { RendererApi, RendererSnapshot } from '../types';
 import styles from './Onboarding.module.css';
+import { isGoogleConnection, isLocalConnection } from '../../shared/bridge/connections';
 
 type SetupProps = {
   snapshot: RendererSnapshot;
@@ -10,9 +11,11 @@ type SetupProps = {
 };
 
 export function SetupConnections({ snapshot, api, pending, run }: SetupProps) {
-  const google = snapshot.apps.filter(({ id }) => id !== 'slack');
+  const google = snapshot.apps.filter(({ id }) => isGoogleConnection(id));
   const googleReady = google.length > 0 && google.every((app) => app.status === 'connected');
-  const connecting = snapshot.apps.some((app) => app.status === 'connecting');
+  const connecting = snapshot.apps.some(
+    (app) => !isLocalConnection(app.id) && app.status === 'connecting',
+  );
   return (
     <>
       <ConnectionChecklist
@@ -20,6 +23,7 @@ export function SetupConnections({ snapshot, api, pending, run }: SetupProps) {
         pending={pending}
         connect={(apps) => run(() => api.connectSelectedApps(apps))}
         cancel={(app, grant) => run(() => api.disconnectApp(app, grant))}
+        reconnect={(app) => run(() => api.connectApp(app))}
       />
       {googleReady && google.some((app) => app.googleAccess !== 'read_write') ? (
         <button

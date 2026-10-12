@@ -109,7 +109,7 @@ describe('access dialog', () => {
     expect(browserTab.tabIndex).toBe(-1);
     expect(document.activeElement).toBe(computerTab);
     expect(screen.getByRole('tabpanel').getAttribute('aria-labelledby')).toBe(computerTab.id);
-    expect(screen.getByText(/complete window inventory is unavailable/i)).toBeTruthy();
+    expect(screen.getByText(/complete window inventory is not available/i)).toBeTruthy();
     expect(screen.getByTestId('computer-approval-mode').textContent).toContain(
       'Asks before each action',
     );

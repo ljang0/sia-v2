@@ -227,6 +227,11 @@ export function makeActionPreview(
     case 'sheets.append':
     case 'slides.create':
     case 'slides.append':
+    case 'calendar.create_event':
+    case 'calendar.update_event':
+    case 'calendar.delete_event':
+    case 'tasks.create':
+    case 'tasks.update':
     case 'slack.post':
       // The approval digest binds the complete input. Returning that same
       // canonical JSON value makes the preview exact: no execution-affecting

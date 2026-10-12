@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
 
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { AttachmentPreview, ThreadDetail } from '../types';
 import { Conversation } from './Conversation';
+import { AttachmentPreviewDialog } from './ConversationAttachments';
 
 afterEach(cleanup);
 
@@ -75,4 +76,92 @@ it('warns above the composer once most of the plan usage window is used', () => 
   expect(screen.getByTestId('usage-warning').textContent).toContain(
     'You’ve used 86% of your plan’s usage limit.',
   );
+});
+
+it('previews and opens generated assistant results through their host grant', async () => {
+  const { fireEvent } = await import('@testing-library/react');
+  const preview = vi.fn(async (): Promise<AttachmentPreview> => ({
+    kind: 'text',
+    content: 'food,25',
+    format: 'csv',
+    language: 'CSV',
+  }));
+  const open = vi.fn(async () => {});
+  const reveal = vi.fn(async () => {});
+  const result: ThreadDetail = {
+    ...thread,
+    events: [
+      {
+        id: 'result',
+        type: 'message',
+        role: 'assistant',
+        content: 'Your report is ready.',
+        timestamp: '2030-01-01',
+        attachments: [
+          {
+            id: 'result-grant',
+            name: 'Family résumé.csv',
+            bytes: 7,
+            kind: 'file',
+            generated: true,
+          },
+        ],
+      },
+    ],
+  };
+  render(
+    <Conversation
+      thread={result}
+      onSend={async () => {}}
+      onStop={async () => {}}
+      onRetry={async () => {}}
+      onResolveApproval={async () => {}}
+      onPreviewAttachment={preview}
+      onOpenAttachment={open}
+      onRevealAttachment={reveal}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Preview result: Family résumé.csv' }));
+  await screen.findByText('food,25');
+  expect(preview).toHaveBeenCalledWith('result-grant');
+  expect(screen.getByText(/Saved result/)).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Open file' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Reveal in Finder' }));
+  expect(open).toHaveBeenCalledWith('result-grant');
+  expect(reveal).toHaveBeenCalledWith('result-grant');
+});
+
+it('renders Markdown results as readable documents without loading HTML or remote images', () => {
+  const close = vi.fn();
+  const { container, rerender } = render(
+    <AttachmentPreviewDialog
+      preview={{
+        attachment: {
+          id: 'report',
+          name: 'Plan.MD',
+          kind: 'file',
+          bytes: 120,
+          generated: true,
+        },
+        result: {
+          kind: 'text',
+          format: 'text',
+          content:
+            '# Family plan\n\nLeave by **4:25**.\n\n| Child | Activity |\n|---|---|\n| Riley | Soccer |\n\n<img src="https://private.example/track">\n\n![tracker](https://private.example/pixel)\n\n[unsafe](javascript:alert(1))',
+        },
+      }}
+      onOpenChange={close}
+    />,
+  );
+  expect(screen.getByRole('heading', { name: 'Family plan' })).toBeTruthy();
+  expect(screen.getByRole('table').textContent).toContain('Riley');
+  expect(screen.getByText('4:25').tagName).toBe('STRONG');
+  expect(document.querySelector('[role="dialog"] img')).toBeNull();
+  expect(document.querySelector('[role="dialog"] a[href^="javascript:"]')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Close preview' }));
+  expect(close).toHaveBeenCalledWith(false);
+  expect(container.querySelector('script')).toBeNull();
+  rerender(<AttachmentPreviewDialog onOpenChange={close} />);
+  expect(screen.queryByRole('dialog')).toBeNull();
+  expect(screen.queryByLabelText('Loading preview')).toBeNull();
 });

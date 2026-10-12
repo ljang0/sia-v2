@@ -105,6 +105,15 @@ export const demoSnapshot: RendererSnapshot = {
       billedBy: 'Provided by model labs through Sia; shared preview limits apply.',
     },
     {
+      id: 'byok',
+      name: 'Your API key',
+      plan: 'Your API key',
+      model: '',
+      description: 'Add an API key to use your own model.',
+      status: 'needs-login',
+      billedBy: 'Billed by your model provider to your own API key.',
+    },
+    {
       id: 'grok',
       name: 'Grok',
       model: 'grok-code-fast',
@@ -112,7 +121,7 @@ export const demoSnapshot: RendererSnapshot = {
       status: 'disabled',
       billedBy: 'Uses an eligible xAI subscription or API account when enabled.',
       restriction:
-        'Not in the external alpha because inherited plugins, skills, and MCP cannot yet be excluded safely.',
+        'Not available yet because inherited plugins, skills, and MCP cannot yet be excluded safely.',
     },
     {
       id: 'gemini',

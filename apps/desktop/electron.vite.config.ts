@@ -47,6 +47,9 @@ export default defineConfig({
     root: resolve(import.meta.dirname, 'src/renderer'),
     plugins: [react()],
     build: {
+      // electron-vite leaves the renderer unminified by default; every window parses this code.
+      minify: 'esbuild',
+      cssMinify: true,
       rollupOptions: {
         input: resolve(import.meta.dirname, 'src/renderer/index.html'),
       },

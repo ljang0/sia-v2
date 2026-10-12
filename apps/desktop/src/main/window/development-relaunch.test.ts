@@ -1,5 +1,8 @@
 import { expect, it } from 'vitest';
-import { developmentRelaunchArguments } from './development-relaunch.js';
+import {
+  developmentRelaunchArguments,
+  packagedRelaunchArguments,
+} from './development-relaunch.js';
 
 it('keeps a development restart in the same profile without putting credentials in arguments', () => {
   expect(
@@ -28,4 +31,17 @@ it('keeps a development restart in the same profile without putting credentials 
     '--args',
     '/my app',
   ]);
+});
+
+it('restarts the exact packaged bundle with its original arguments', () => {
+  expect(
+    packagedRelaunchArguments('/Users/me/Builds/Sia.app/Contents/MacOS/Sia', [
+      '/Users/me/Builds/Sia.app/Contents/MacOS/Sia',
+      '-psn_0_12345',
+      '--user-data-dir=/tmp/profile',
+    ]),
+  ).toEqual(['-n', '-a', '/Users/me/Builds/Sia.app', '--args', '--user-data-dir=/tmp/profile']);
+  expect(packagedRelaunchArguments('/Applications/Sia.app/Contents/MacOS/Sia', ['/x'])).toEqual(
+    ['-n', '-a', '/Applications/Sia.app'],
+  );
 });

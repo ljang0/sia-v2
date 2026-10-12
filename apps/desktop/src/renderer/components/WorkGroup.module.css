@@ -107,7 +107,17 @@
 
 .workingSpinner {
   color: var(--agent-color, var(--text-secondary));
-  animation: working-spin 1.1s linear infinite;
+  animation: working-spin var(--motion-spin) linear infinite;
+}
+
+/* The spinner keeps its space so the line does not shift as phases change. */
+.workingStatus[data-quiet] .workingSpinner {
+  animation: none;
+  opacity: 0;
+}
+
+.workingStatus[data-quiet] .workingLabel {
+  animation: workingLabelIn 240ms var(--ease-out-soft) both;
 }
 
 @keyframes working-spin {

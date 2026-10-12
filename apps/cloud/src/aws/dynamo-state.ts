@@ -334,6 +334,7 @@ export class DynamoState
     next: ResearchExportState,
     updatedAt: string,
     detail: { objectKey?: string; failureCode?: string } = {},
+    expectedUpdatedAt?: string,
   ): Promise<boolean> {
     if (expected.length === 0) return false;
     const values: Record<string, unknown> = { ':next': next, ':updated': updatedAt };
@@ -343,6 +344,7 @@ export class DynamoState
     });
     const set = ['#state = :next', 'updatedAt = :updated'];
     const remove = ['objectKey', 'failureCode'];
+    if (expectedUpdatedAt !== undefined) values[':expectedUpdated'] = expectedUpdatedAt;
     if (detail.objectKey) {
       values[':objectKey'] = detail.objectKey;
       set.push('objectKey = :objectKey');
@@ -359,7 +361,7 @@ export class DynamoState
           TableName: this.tableName,
           Key: { PK: userPk(userId), SK: `EXPORT#${exportId}` },
           UpdateExpression: `SET ${set.join(', ')}${remove.length ? ` REMOVE ${remove.join(', ')}` : ''}`,
-          ConditionExpression: `#state IN (${expectedTokens.join(', ')})`,
+          ConditionExpression: `#state IN (${expectedTokens.join(', ')})${expectedUpdatedAt === undefined ? '' : ' AND updatedAt = :expectedUpdated'}`,
           ExpressionAttributeNames: { '#state': 'state' },
           ExpressionAttributeValues: values,
         }),
@@ -472,6 +474,7 @@ export class DynamoState
     next: DeletionState,
     updatedAt: string,
     failureCode?: string,
+    expectedUpdatedAt?: string,
   ): Promise<boolean> {
     if (expected.length === 0) return false;
     const values: Record<string, unknown> = { ':next': next, ':updated': updatedAt };
@@ -484,13 +487,14 @@ export class DynamoState
         ? 'SET #state = :next, updatedAt = :updated REMOVE failureCode'
         : 'SET #state = :next, updatedAt = :updated, failureCode = :failure';
     if (failureCode !== undefined) values[':failure'] = failureCode;
+    if (expectedUpdatedAt !== undefined) values[':expectedUpdated'] = expectedUpdatedAt;
     try {
       await this.client.send(
         new UpdateCommand({
           TableName: this.tableName,
           Key: { PK: userPk(userId), SK: `DELETION#${jobId}` },
           UpdateExpression: update,
-          ConditionExpression: `#state IN (${expectedTokens.join(', ')})`,
+          ConditionExpression: `#state IN (${expectedTokens.join(', ')})${expectedUpdatedAt === undefined ? '' : ' AND updatedAt = :expectedUpdated'}`,
           ExpressionAttributeNames: { '#state': 'state' },
           ExpressionAttributeValues: values,
         }),

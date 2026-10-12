@@ -1,3 +1,4 @@
+import { isLocalConnection } from './connection-ids.js';
 import type { BridgeRequestMap, DesktopSnapshot } from '../../shared/bridge.js';
 import {
   isTextSize,
@@ -65,7 +66,9 @@ export class AppSettings {
     if (!this.ctx.deps.restartApp) throw new Error('Restart is unavailable in this build.');
     if (
       this.ctx.connections.setup ||
-      this.ctx.state.connections.some((app) => app.status === 'connecting')
+      this.ctx.state.connections.some(
+        (app) => !isLocalConnection(app.id) && app.status === 'connecting',
+      )
     )
       throw new Error('Finish or cancel account approval before restarting.');
     if (this.ctx.turns.running.size || this.ctx.speech.pushToTalk?.busy)

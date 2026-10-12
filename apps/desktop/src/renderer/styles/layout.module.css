@@ -17,7 +17,6 @@
   flex: 1;
   flex-direction: column;
   background: var(--bg-canvas);
-  animation: pageEnter var(--motion-surface) var(--ease-out-soft) both;
 }
 
 .conversationAurora {
@@ -65,17 +64,6 @@
   animation-play-state: paused;
 }
 
-@keyframes pageEnter {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .activityPage {
   display: flex;
   min-width: 0;
@@ -84,7 +72,6 @@
   flex-direction: column;
   overflow: hidden;
   background: var(--bg-canvas);
-  animation: pageEnter var(--motion-standard) var(--ease-out-soft) both;
 }
 
 .activityPageHeader {

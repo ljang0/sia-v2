@@ -16,6 +16,10 @@ import { refused } from './action-results.js';
 import { requiredString, withoutKey } from './arguments.js';
 import type { ActionBackendContext } from './context.js';
 import type { ConnectorApp } from './types.js';
+import type { LocalConnectionId } from '../../shared/bridge.js';
+import { connectorAppForTool as appForTool } from '../controller/connection-ids.js';
+import { ConnectorRequestError } from '../connectors/http.js';
+import { appLabel } from '../connectors/local-connectors.js';
 
 const CONNECTOR_TOOLS = {
   mail_search: 'mail.search',
@@ -41,9 +45,46 @@ const CONNECTOR_TOOLS = {
   slack_open_dm: 'slack.open_dm',
   slack_read_thread: 'slack.read_thread',
   slack_post: 'slack.post',
+  calendar_list_events: 'calendar.list_events',
+  calendar_read_event: 'calendar.read_event',
+  calendar_create_event: 'calendar.create_event',
+  calendar_update_event: 'calendar.update_event',
+  calendar_delete_event: 'calendar.delete_event',
+  tasks_list: 'tasks.list',
+  tasks_create: 'tasks.create',
+  tasks_update: 'tasks.update',
 } as const;
 
-export type ConnectorTool = keyof typeof CONNECTOR_TOOLS;
+/** Tools served by apps this Mac signs in to directly. */
+const LOCAL_CONNECTOR_TOOLS = [
+  'outlook_search',
+  'outlook_read',
+  'outlook_create_draft',
+  'outlook_send',
+  'outlook_reply',
+  'outlook_move',
+  'outlook_mark',
+  'notion_search',
+  'notion_fetch',
+  'notion_create_page',
+  'notion_query_database',
+  'notion_edit_page',
+  'notion_comment',
+  'github_search',
+  'github_read_file',
+  'github_read_issue',
+  'github_create_issue',
+  'github_comment',
+  'github_create_pull_request',
+] as const;
+
+export type CloudConnectorTool = keyof typeof CONNECTOR_TOOLS;
+export type LocalConnectorTool = (typeof LOCAL_CONNECTOR_TOOLS)[number];
+export type ConnectorTool = CloudConnectorTool | LocalConnectorTool;
+
+function isLocalConnectorTool(name: ConnectorTool): name is LocalConnectorTool {
+  return (LOCAL_CONNECTOR_TOOLS as readonly string[]).includes(name);
+}
 
 const MAX_CONNECTOR_UPLOAD_BYTES = 5_000_000;
 const CONNECTOR_UPLOAD_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
@@ -75,8 +116,9 @@ const CONNECTOR_UPLOAD_MIME_BY_EXTENSION: Readonly<Record<string, string>> = {
 };
 
 /**
- * Google Workspace and Slack tools through the Sia control plane. Reads execute directly;
- * mutations commit only the exact previewed input, under the action's approval.
+ * Google Workspace and Slack tools through the Sia control plane, where reads execute directly
+ * and mutations commit only the exact previewed input, under the action's approval. Outlook,
+ * Notion, and GitHub run through the local connector service with the approved input.
  */
 export class ConnectorActions {
   constructor(private readonly ctx: ActionBackendContext) {}
@@ -85,6 +127,7 @@ export class ConnectorActions {
     request: ValidatedActionInvocation,
     name: ConnectorTool,
   ): Promise<ActionExecutionResult> {
+    if (isLocalConnectorTool(name)) return this.#runLocal(request, name);
     if (!this.ctx.options.cloud || this.ctx.options.cloud.configured === false) {
       return refused('Sia cloud services are not configured for connected-app tools.');
     }
@@ -156,6 +199,50 @@ export class ConnectorActions {
     } catch (error) {
       if (isConnectionReconnectRequired(error)) {
         this.ctx.options.onConnectionReconnectRequired?.(connectorApp, connectionId);
+      }
+      throw error;
+    }
+  }
+
+  async #runLocal(
+    request: ValidatedActionInvocation,
+    name: LocalConnectorTool,
+  ): Promise<ActionExecutionResult> {
+    const service = this.ctx.options.localConnectors;
+    if (!service) return refused('Connected apps are unavailable in this build.');
+    const app = connectorAppForTool(name);
+    if (request.descriptor.annotations.requiresApproval && !request.approvalId) {
+      return refused('This connector mutation is missing its exact action authorization.');
+    }
+    const connectionId = this.ctx.options.resolveConnectionId?.(
+      app,
+      requiredString(request.arguments.account_id, 'account_id'),
+      request.approvalId,
+    );
+    if (!connectionId) return refused(connectorBrowserFallback(app));
+    if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
+    try {
+      const data = await service.execute(
+        app as LocalConnectionId,
+        connectionId,
+        name,
+        withoutKey(request.arguments, 'account_id'),
+        request.context.signal,
+      );
+      return {
+        outcome: 'verified',
+        summary: `${humanToolName(name)} completed through ${appLabel(app as LocalConnectionId)}.`,
+        data,
+        verification: {
+          evidence: `${appLabel(app as LocalConnectionId)} accepted the request from this Mac's connection.`,
+        },
+      };
+    } catch (error) {
+      if (error instanceof ConnectorRequestError) {
+        if (error.reconnectRequired) {
+          this.ctx.options.onConnectionReconnectRequired?.(app, connectionId);
+        }
+        return refused(error.message);
       }
       throw error;
     }
@@ -318,12 +405,9 @@ function humanToolName(name: ConnectorTool): string {
 }
 
 function connectorAppForTool(name: ConnectorTool): ConnectorApp {
-  if (name.startsWith('mail_')) return 'gmail';
-  if (name.startsWith('drive_')) return 'drive';
-  if (name.startsWith('docs_')) return 'docs';
-  if (name.startsWith('sheets_')) return 'sheets';
-  if (name.startsWith('slides_')) return 'slides';
-  return 'slack';
+  const app = appForTool(name);
+  if (!app) throw new Error(`Unknown connector tool ${name}.`);
+  return app;
 }
 
 function connectorBrowserFallback(app: ConnectorApp): string {
@@ -333,8 +417,13 @@ function connectorBrowserFallback(app: ConnectorApp): string {
     docs: ['Google Docs', 'https://docs.google.com'],
     sheets: ['Google Sheets', 'https://sheets.google.com'],
     slides: ['Google Slides', 'https://slides.google.com'],
+    calendar: ['Google Calendar', 'https://calendar.google.com'],
+    tasks: ['Google Tasks', 'https://tasks.google.com'],
     slack: ['Slack', 'https://app.slack.com'],
-  } as const;
+    outlook: ['Outlook', 'https://outlook.office.com/mail'],
+    notion: ['Notion', 'https://www.notion.so'],
+    github: ['GitHub', 'https://github.com'],
+  } as const satisfies Record<ConnectorApp, readonly [string, string]>;
   const [label, url] = destinations[app];
   return `${label} is not connected. Continue now in signed-in Chrome at ${url} with browser or computer use, handing control to the user if sign-in is required. For reliable API and background access, the user can connect it later in Settings > Connections; after connection use account_id "${app}".`;
 }

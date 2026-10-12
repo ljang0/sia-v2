@@ -96,6 +96,34 @@ describe('harness registry', () => {
     });
   });
 
+  it('falls back to the Codex baseline when a lab default harness is not admitted', () => {
+    const admitted = admitHostedRoutes({
+      provider: 'meta',
+      defaultHarnessId: 'unadmitted_lab_harness',
+      routes: [
+        {
+          model: 'lab/spark',
+          harnessId: 'codex_app_server',
+          harnessModelId: 'lab/spark',
+          credentialSource: 'sia_managed',
+          apiProtocol: 'openai_responses',
+        },
+        {
+          model: 'lab/spark',
+          harnessId: 'unadmitted_lab_harness',
+          harnessModelId: 'spark',
+          credentialSource: 'sia_managed',
+          apiProtocol: 'openai_responses',
+        },
+      ],
+    });
+
+    expect(admitted.backendDefault).toBeUndefined();
+    expect(admitted.defaultRoutes).toEqual([
+      expect.objectContaining({ model: 'lab/spark', harnessId: 'codex_app_server' }),
+    ]);
+  });
+
   it.each(['opencode_acp', 'pi_rpc'] as const)(
     'recognizes %s as protocol-compatible with a Codex subscription before release admission',
     (harnessId) => {

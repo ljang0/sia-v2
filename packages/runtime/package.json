@@ -19,7 +19,7 @@
     "test:claude-isolation:real": "SIA_CLAUDE_REAL_SMOKE=1 vitest run src/claude-isolation.smoke.test.ts",
     "test:codex-isolation:real": "SIA_CODEX_REAL_SMOKE=1 vitest run src/codex-isolation.smoke.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "vitest run src"
   },
   "dependencies": {
     "@sia/protocol": "workspace:*"
@@ -27,6 +27,6 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.2.0"
+    "vitest": "^4.1.11"
   }
 }

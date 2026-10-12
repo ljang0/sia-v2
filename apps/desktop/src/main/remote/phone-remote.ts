@@ -49,6 +49,10 @@ interface Dependencies {
   network?: () => RemoteNetwork | undefined;
   port?: number;
   outbox?: string;
+  readGeneratedResult?: (
+    threadId: string,
+    attachmentId: string,
+  ) => Promise<{ name: string; data: Buffer }>;
 }
 const ipv4 = (address: string) =>
   address.split('.').reduce((result, part) => (result << 8) | Number(part), 0) >>> 0;
@@ -402,6 +406,34 @@ export class PhoneRemote {
         );
         return;
       }
+      if (route.startsWith('results/')) {
+        const id = route.slice('results/'.length);
+        const state = this.#state();
+        if (
+          !state.session ||
+          !this.#deps.readGeneratedResult ||
+          !state.turns.some((turn) => Object.values(turn.fileIds ?? {}).includes(id))
+        ) {
+          unavailable();
+          return;
+        }
+        const result = await this.#deps.readGeneratedResult(state.session.split(':')[0]!, id);
+        if (
+          !this.#available() ||
+          generation !== this.#generation ||
+          this.#state().session !== state.session
+        ) {
+          unavailable();
+          return;
+        }
+        response.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
+        response.writeHead(200, {
+          'Content-Type': 'application/octet-stream',
+          'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(result.name)}`,
+        });
+        response.end(result.data);
+        return;
+      }
       if (route.startsWith('outbox/')) {
         let name: string;
         try {
@@ -620,8 +652,6 @@ function remoteStartError(error: unknown): RemoteError {
   const message = error instanceof Error ? error.message : '';
   if (message.startsWith('Codex setup is in progress')) return new RemoteError(message);
   if (message.startsWith('Sign in to Sia')) return new RemoteError(message);
-  if (message.startsWith('Review and accept the current raw research consent'))
-    return new RemoteError(message);
   if (message.startsWith('Raw research capture could not be stored'))
     return new RemoteError(message);
   return new RemoteError(

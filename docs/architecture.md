@@ -15,6 +15,8 @@ Electron main -------------- Sia cloud API
   |       |       |
   |       |       `-- ActionGateway -- CUA / authenticated Chrome
   |       |                         |-- Apple Messages read/send capabilities
+  |       |                         |-- Outlook (Graph), Notion (hosted MCP), GitHub (REST)
+  |       |                         |   signed in from this Mac; tokens Keychain-encrypted
   |       |                         `-- authorized schedule mutations
   |       `---------- encrypted local SQLite + macOS Keychain
   |                    |-- app-open schedules + Activity
@@ -29,7 +31,7 @@ Electron main -------------- Sia cloud API
                          `-- legacy included-model direct adapter (persisted threads only)
 ```
 
-The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. Confirmation mode (`computer.trust === 'ask'`) renders a request tied to the exact action digest. Its card can also answer **Allow for this task**: the controller keeps a per-turn grant for the same action kind on the same app, site, account, recipients, or item (never saved skills or uploads, and never phone turns), and the grant ends with the turn. Hard safety denials run before any grant. Autonomous mode (`computer.trust === 'auto'`) is the default whenever the person has not explicitly chosen confirmations; in it the controller authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation. Eligible action results, timeline items, and automatic authorizations are appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). A Google Workspace invocation atomically removes earlier diagnostic rows for that turn and suppresses later rows; only the normal local user-facing transcript remains. Complete thread directories roll off after 90 days or when the local trajectory store exceeds 128 MiB, oldest first; this is separate from the encrypted consented-research outbox. New `once` schedules are bounded to one run; recurring cadences repeat until paused or deleted unless the person sets an optional run limit (`schedules.update` with `maxRuns: null` clears it). Recurring schedules saved with the old ten-run default are made unlimited once, on the first load after the change (`unlimitedRecurringSchedules` marks it done). The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Codex provider-native work uses `approvalPolicy: never` inside the verified workspace-write sandbox, while host-side effects still cross the ActionGateway.
+The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. Confirmation mode (`computer.trust === 'ask'`) renders a request tied to the exact action digest. Answered and expired approval cards collapse to a status row; expanding the row preserves the exact action and target for review. Pending approvals stay fully visible. Its card can also answer **Allow for this task**: the controller keeps a per-turn grant for the same action kind on the same app, site, account, recipients, or item (never saved skills or uploads, and never phone turns), and the grant ends with the turn. Hard safety denials run before any grant. Autonomous mode (`computer.trust === 'auto'`) is the default whenever the person has not explicitly chosen confirmations; in it the controller authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation. Eligible action results, timeline items, and automatic authorizations are appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). A Google Workspace invocation atomically removes earlier diagnostic rows for that turn and suppresses later rows; only the normal local user-facing transcript remains. Complete thread directories roll off after 90 days or when the local trajectory store exceeds 128 MiB, oldest first; this is separate from the encrypted consented-research outbox. New `once` schedules are bounded to one run; recurring cadences repeat until paused or deleted unless the person sets an optional run limit (`schedules.update` with `maxRuns: null` clears it). Recurring schedules saved with the old ten-run default are made unlimited once, on the first load after the change (`unlimitedRecurringSchedules` marks it done). The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekdays/weekly/monthly/yearly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Codex provider-native work uses `approvalPolicy: never` inside the verified workspace-write sandbox, while host-side effects still cross the ActionGateway.
 
 There is no generic renderer IPC, generic connector catalog, raw CUA server, arbitrary CDP/JavaScript route, cookie API, visualization tool, or cross-provider subagent abstraction.
 
@@ -51,6 +53,10 @@ The rest of the main process is grouped by domain under `apps/desktop/src/main/`
   tool-bridge entry, approval copy and native Mac execution/automation also live here.
 - `mac/` — macOS integrations: the Cua Driver service, browser-window inspection, Chrome
   discovery, installed apps, Messages, permissions, keep-awake and the screen-control indicator.
+- `connectors/` — Outlook, Notion, and GitHub signed in from this Mac: loopback PKCE and device-flow
+  sign-in, the Keychain-encrypted per-connection credential store, and the curated tool adapters.
+  `ConnectorActions` routes their tools here after ActionGateway authorization; Google Workspace
+  and Slack keep going through the cloud connector gateway.
 - `providers/` — the provider runtime coordinator, provider probing, Codex installation and the
   hosted Responses relay.
 - `cloud/` — the cloud control-plane client, packaged cloud configuration, identity and signed
@@ -64,6 +70,19 @@ The rest of the main process is grouped by domain under `apps/desktop/src/main/`
 - `research/` — the local trajectory recorder.
 - `notch/` — the ported native-learning prompts and vault.
 
+Provider reset revokes loopback model capabilities, cancels active relay requests and closes their
+connections; an interrupted startup cannot install an old relay after reset. JSON-RPC transport
+errors settle outstanding requests, and both complete and incomplete incoming lines have a size
+bound. Turn and resource leases reject cancellation before granting even an immediately available
+slot. Background terminal disposal prevents delayed starts and terminates the owned process group,
+including descendants that outlive their parent.
+
+Local connector refreshes share one in-flight request per connection. A refresh can save its new
+token only while the original credential is still present; disconnect and account deletion cannot
+be undone by a late refresh or sign-in callback. Provider HTTP requests have a 30-second timeout.
+The Notion client shares initialization and reads bounded SSE messages incrementally, returning
+when its matching response arrives instead of waiting for the server to close the stream.
+
 The cloud shown above is a control plane only. The alpha has no remote provider runtime, persistent
 cloud filesystem/browser, or offline cloud scheduler. Local schedules are persisted by the desktop
 app and are evaluated only while Sia is running and the Mac is awake. The acceptance boundary for
@@ -72,21 +91,40 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
 ## State ownership
 
 - SQLite stores agents, immutable thread snapshots, normalized events, approval history, connection identifiers, Sia tokens, and capture/sync records as payloads encrypted by macOS Keychain-backed `safeStorage`.
-- Streaming text publishes UI snapshots at 50ms while encrypted desktop-state checkpoints run
-  at 500ms. Composer drafts use the same 500ms checkpoint and push no snapshot. Other
+- Streaming text publishes UI updates at 50ms while encrypted desktop-state checkpoints run
+  every 2s (each one encrypts all saved state). Each streaming update is a patch with only the
+  streaming threads, their previews and the open thread's items from the streaming turn, so its
+  size does not grow with history; the renderer applies it to its last snapshot and the next full
+  snapshot replaces both. Composer drafts checkpoint after 500ms and push no snapshot. Other
   non-streaming changes, completion and graceful shutdown persist immediately. An abrupt
   termination may lose the last checkpoint interval of an unfinished response or draft.
+- A bridge call that returns the snapshot it just pushed sends a marker instead of a second
+  copy; the preload restores the pushed snapshot and the renderer skips re-rendering it.
+  Delayed bridge replies cannot replace a newer renderer snapshot, including the cleared
+  snapshot after sign-out.
+- Attachment picker, drop and paste results belong to the current composer lifetime. Navigating
+  away, clearing the composer or unmounting it discards late results, even after returning to the
+  same conversation.
 - Settled approvals that no transcript row refers to (such as computer-use requests) are dropped
   at launch a week after they expired.
 - UI snapshots pushed to the renderer, and snapshots returned by its bridge calls, carry only the
   open thread's history and approvals plus a one-line preview per thread. In-process callers
   (Scotty, the launcher, phone remote, tests) read the full state from the controller.
+- At launch the window loads as soon as the encrypted store is open and shows its startup screen
+  while provider, permission and account checks run side by side. Renderer bridge calls wait for
+  those checks and earlier pushes are dropped, so the first snapshot is always complete.
 
 - Browser/tab capabilities, one-shot action grants, and turn/resource leases are process-local and are never restored after Sia restarts.
 - Chrome and Messages reuse accounts already configured by their owning Mac applications. Chrome
   attaches to a signed-in window without copying cookies. Messages read capabilities access bounded
   local `chat.db` rows only with Full Disk Access, and exact sends follow the autonomous/confirmation setting.
 - Provider authentication stays in each official CLI. Sia does not inspect, copy, or store provider API keys or consumer-login files.
+  The one exception is a key the person types into **Settings → AI → Your own API key**: it is
+  validated, checked against the endpoint's `GET /models`, and stored encrypted with
+  `safeStorage` at `<appData>/Sia/models/byok.enc` (mode 0600). Snapshots carry only the model and
+  host. A second loopback Responses proxy issues Codex a model-scoped capability and adds the key
+  while forwarding to `<endpoint>/responses`, so the `byok` provider and its `user_byok` credential
+  source never place the key in Codex configuration, its environment, IPC results, or logs.
 - Local macOS builds without cloud configuration use installed system voices through `AVSpeechSynthesizer`,
   returning bounded WAV audio in memory. Dictation uses `SFSpeechRecognizer` with on-device
   recognition required and checked for the current locale. Read aloud works without cloud setup or
@@ -431,6 +469,54 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   It preserves drafts and rejects concurrent connections or stale/active/archived requests.
   No model turn starts until the user chooses a window and the host verifies an HTTP(S) grant.
 
+- **Text Sia** (`MessagesRelay`) is an optional iMessage channel on the Phone remote page. It is
+  off until the person adds at least one of their own phone numbers or iCloud emails and turns it
+  on. It polls the local `chat.db` (Full Disk Access) every two seconds from a cursor taken at
+  enable time. It accepts only one-to-one iMessage rows (no SMS, groups or reactions) from those
+  numbers, or sent to them from this Mac's Apple ID (texting yourself). Replies start with
+  `Sia › ` and are remembered so Sia never reads its own replies; duplicate self-chat copies are
+  ignored for a minute. Each number continues one thread. Every texted message is sent as a
+  phone turn (`fromPhone`), so `trustForTurn` resolves to `ask` regardless of Full bypass and
+  task grants are unavailable, exactly as for the phone remote. The relay texts the final answer, pending
+  questions and "needs your OK on your Mac" notices back to the same number. `STOP` cancels, `NEW`
+  starts a fresh thread. Photos and files in a text are granted to that thread through
+  `attachments.drop` from Messages' own attachment copies. Voice notes are converted with `/usr/bin/afconvert` to 16 kHz WAV and transcribed through `voice.transcribe`; without a transcription-capable voice service Sia asks for a typed text. Saved results (generated attachments)
+  of the finished turn are read with `readGeneratedResult`, staged in a private temporary folder
+  and sent back with Messages. With "Text me when scheduled tasks finish" on (the default), scheduled
+  turns of the texting assistant that start after Sia opens are texted to the first number when
+  they finish, ask a question or wait for approval. Settings uses one validated `messages.relay`
+  preload route. With "Approve steps by replying YES or NO" on (the default), an approval notice
+  binds the pending approval only after its complete notice was sent successfully. Notices that
+  would truncate the action details instead require review on the Mac. A later YES or NO from that same
+  number resolves exactly that approval once (`approve` or `deny`, never `approve_task`), and only
+  while it is still pending. Other numbers, stale approvals and replies with attachments do not
+  resolve anything. Pending transcription, result reads and queued delivery are bound to the
+  current messaging route and recipient; disabling texting, removing trust, changing assistants,
+  sign-out and shutdown invalidate old work before its next dispatch or send. Already submitted
+  external sends cannot be recalled. **Trusted people** (as in Instinct) are other Sia users the person adds by
+  name and number; both sides add each other. Approved `messages_send` calls to a trusted person
+  are prefixed `Sia ⇄ ` by `MessagesRelay.sendFromSia`. An incoming one-to-one iMessage from a
+  trusted person that carries that prefix starts a phone turn (never full bypass, no task grants)
+  in that person's own thread, framed as information rather than instructions, and the person's
+  first number is told about it. Any answer is an approved `messages_send`, and texted approvals
+  name the person and show the exact text. Unmarked texts, unknown senders and paused connections
+  are ignored; each person is limited to 12 messages an hour, and messages that arrive while their
+  thread is busy are combined into the next turn. **Telegram and Discord** (`bot-channels.ts`)
+  use a bot the person owns. "Paste token" reads the token from the clipboard in the main
+  process, clears the clipboard, verifies it (`getMe` / `/users/@me`) and stores it in the
+  encrypted repository; it never crosses IPC or reaches the renderer, and settings show only the
+  bot's name. Telegram uses `getUpdates` long polling; Discord uses the gateway with only the
+  DIRECT_MESSAGES intent. Pending setup and reconnects are cancelled on disconnect; received
+  attachment messages retain arrival order. Private messages only; response streams are cancelled
+  once they exceed 20 MB, and network calls have timeouts. Accepted files are saved to a private
+  `chat-attachments` folder and pruned after an hour. A six-digit code shown for ten minutes
+  links the sender's account (`telegram:<id>` / `discord:<id>`) as one of the person's own
+  handles; unlinked accounts are ignored, and linked ones follow every iMessage rule above
+  (phone turns, STATUS, YES/NO, STOP/NEW). Disconnecting removes the token and the linked
+  accounts. Telegram voice notes (Ogg Opus) go to `voice.transcribe` unchanged. When a request
+  was a voice note on any channel, the answer is also spoken with `voice.speak` (converted to AAC
+  with `afconvert`) and sent as audio. The relay exposes no generic IPC, shell or credential path.
+
 - **Phone remote** is an optional, separate local web surface built into `out/remote`.
   `PhoneRemote` ports Notch's `/t/<token>/` command/state/cancel/outbox/vault/note flow, with
   a Core Image QR and Bonjour helper. Settings uses one validated `phone.remote` preload route;
@@ -513,6 +599,13 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   those reads are integrity-checked and audited to an Object-Locked metadata bucket. Participant
   exports run asynchronously through SQS and multipart S3 so the API request is not responsible for
   buffering the full archive. Electron receives no AWS credential.
+- Export and deletion workers atomically claim the observed job revision. Live work cannot be
+  claimed again; abandoned states become retryable after six minutes, beyond the five-minute
+  Lambda timeout. Failed queue submission records a retryable failure. An account request never
+  silently resolves as research-only deletion. Research upload preserves content-addressed objects
+  when metadata persistence has an unknown outcome: a lost acknowledgement or competing upload
+  may already have claimed them. Retries reconcile metadata; user deletion and bucket retention
+  still cover unclaimed objects.
 - The desktop research outbox is fail-closed: only AWS-acknowledged batches can be pruned, pending
   byte count/age/errors are visible, and a durable-write failure blocks new signed-in turns. Cloud
   kill switches can pause uploads, archive reads, connectors, or schedules independently without
@@ -527,9 +620,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
 - **Undo changes** under a finished reply plays back the `fileChange` items Codex reported for that
   reply (an added file's content, a deleted file's content, or an edit's line diff), which the
   thread already stores; no folder copy or Git snapshot is taken. `main/workspace/turn-changes.ts` applies the
-  record backwards or forwards only when every file still matches it exactly, writes all files or
-  none, stays inside the thread's folder or the home folder (never through a symlink, into `.git`,
-  `~/.ssh`, `~/.gnupg` or `~/Library/Keychains`), and refuses while a task runs in that thread.
+  record backwards or forwards only when every file still matches it exactly, checks again before
+  each write, and attempts to restore its earlier writes if a later one fails. Rollback preserves
+  observed edits from other programs and reports incomplete recovery. It stays inside the thread's
+  folder or home folder, checks canonical targets against `.git`, `~/.ssh`, `~/.gnupg` and
+  `~/Library/Keychains`, rejects symlink files and hard links, and refuses while a task runs in that thread.
   Changes made by shell commands, and anything sent or done in other apps, are not undone.
 
 ## Concurrency
@@ -538,3 +633,26 @@ The turn scheduler admits at most four turns. A thread has one active turn; work
 browser tabs, and app windows are exclusive; foreground takeover is one global lane. Conflicts
 remain visible and queued rather than racing. Closing the renderer window does not stop the main
 process on macOS, so admitted work continues and appears in Activity after the window reopens.
+
+## Scheduled outcomes and generated results
+
+Monthly and yearly schedules retain an original calendar anchor in encrypted state. A short
+month uses its last day; later months return to the original day. February 29 returns in leap
+years. Calendar schedules use this Mac's timezone, including after a timezone change. Sia must
+stay open and the Mac awake; this is not an offline cloud scheduler.
+
+Scheduled turns request the structured completion schema on both computer and connected-app
+routes. A successful `no_change` result with no output file or action steps is recorded in run
+history without setting unread or sending a completion notification. Reports, reminders, new
+findings, failed checks, and manual replies retain normal notifications. The model is instructed
+to use `no_change` only after complete source coverage. This is not independent verification of
+coverage or a durable per-source deduplication engine.
+
+Structured `output_file` results receive host-validated attachment controls. Eligible document
+and media files must be ordinary files (maximum 25 MB) inside the conversation workspace or
+`~/SiaOutbox`, excluding sensitive paths, hidden subpaths, symlinks, hard links, and executables.
+The encrypted grant is scoped to its thread and checked again against the saved file identity
+when previewed, opened, revealed, or downloaded. Deleting the conversation removes its grants.
+Markdown result previews use the same safe document renderer as replies: wrapped prose, headings and tables, with no raw HTML or remote images. Markdown remains HTTPS-only. The phone downloads only generated results currently visible in
+its authorized conversation, up to 20 MB, as inert attachments; changing/revoking the phone
+session invalidates access. File controls do not establish that an artifact's contents are correct.

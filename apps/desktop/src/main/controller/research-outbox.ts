@@ -45,11 +45,6 @@ export class ResearchOutbox {
     ) {
       throw new Error('Research capture is not enabled for this Sia account.');
     }
-    if (!input.enabled && !input.consentVersion && this.requiredForCurrentAccount()) {
-      throw new Error(
-        'Research capture is required while signed in. Sign out to stop capture.',
-      );
-    }
     const consentVersion = input.consentVersion ?? this.ctx.state.capture.consentVersion;
     if (
       input.enabled &&
@@ -120,7 +115,7 @@ export class ResearchOutbox {
   }
 
   async exportResearch(): Promise<BridgeResultMap['research.export']> {
-    if (!this.ctx.deps.fakeServices && this.requiredForCurrentAccount()) {
+    if (!this.ctx.deps.fakeServices && this.cloudResearchAvailableForCurrentAccount()) {
       const { downloadUrl } = await this.ctx.deps.cloud.requestResearchExport();
       await this.ctx.deps.openExternal(downloadUrl);
       return { path: null };
@@ -151,7 +146,7 @@ export class ResearchOutbox {
         this.retryTimer = undefined;
       }
       await inFlightResearchSync?.catch(() => undefined);
-      if (!this.ctx.deps.fakeServices && this.requiredForCurrentAccount()) {
+      if (!this.ctx.deps.fakeServices && this.cloudResearchAvailableForCurrentAccount()) {
         try {
           await this.ctx.deps.cloud.deleteResearchData();
         } catch {
@@ -252,7 +247,7 @@ export class ResearchOutbox {
       });
       return true;
     } catch {
-      // Do not continue taking research-required turns after the encrypted outbox fails. If the
+      // Do not continue taking consented research turns after the encrypted outbox fails. If the
       // batch write succeeded but its sync marker did not, the absent marker already means
       // "unsynced", so the raw batch remains eligible for a later upload.
       this.blockCapture(
@@ -387,7 +382,7 @@ export class ResearchOutbox {
     this.retryTimer.unref();
   }
 
-  requiredForCurrentAccount(): boolean {
+  private cloudResearchAvailableForCurrentAccount(): boolean {
     return (
       this.ctx.deps.cloud.configured &&
       this.ctx.deps.identity.status().state === 'signed_in' &&

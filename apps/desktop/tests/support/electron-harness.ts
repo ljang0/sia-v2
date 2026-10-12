@@ -39,7 +39,15 @@ export async function launchIsolatedSia(
   ]);
 
   const application = await electron.launch({
-    args: [desktopRoot],
+    // Match CI's sRGB, 1x screenshots on Retina/wide-gamut Mac displays. Otherwise Chromium
+    // applies the host display profile and backing scale, changing colors and text edges.
+    // Real-provider probes keep the production display behavior.
+    args: [
+      desktopRoot,
+      ...(options.fakeServices === false
+        ? []
+        : ['--force-color-profile=srgb', '--force-device-scale-factor=1']),
+    ],
     env: {
       ...process.env,
       SIA_FAKE_SERVICES: options.fakeServices === false ? '0' : '1',
@@ -80,8 +88,21 @@ export async function launchIsolatedSia(
     async completeSetup(this: IsolatedSia) {
       if (options.fakeServices === false)
         throw new Error('Automatic setup is restricted to deterministic permission fixtures.');
+      const connected = await this.page
+        .getByRole('radio', { name: /Connected apps only/, includeHidden: true })
+        .isChecked({ timeout: 1000 })
+        .catch(() => false);
       // Setup finishes in place: the fixtures grant access immediately, so no relaunch is offered.
       await this.page.getByRole('button', { name: 'Set up Sia', exact: true }).click();
+      if (connected) {
+        await expect(
+          this.page.getByRole('heading', { name: 'Connect the apps you use.' }),
+        ).toBeVisible();
+        await expect(
+          this.page.getByRole('region', { name: 'Guided Mac permissions' }),
+        ).toHaveCount(0);
+        await this.page.getByRole('button', { name: 'Start using Sia' }).click();
+      }
       await expect(
         this.page.getByRole('textbox', { name: 'Message', exact: true }),
       ).toBeVisible();

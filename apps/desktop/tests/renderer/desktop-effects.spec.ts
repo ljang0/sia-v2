@@ -5,6 +5,39 @@ async function openAppearance(page: Page) {
   await page.getByRole('menuitem', { name: 'Appearance', exact: true }).click();
 }
 
+for (const surface of ['agent', 'menu', 'access'] as const) {
+  test(`${surface} closes without a running exit animation`, async ({ page }) => {
+    await page.goto('/#demo');
+    // Hidden/occluded Electron windows can suspend CSS animations indefinitely.
+    // A dismissed surface must release focus and pointer input without animationend.
+    await page.addStyleTag({
+      content: '[data-state="closed"] { animation-play-state: paused !important; }',
+    });
+    if (surface === 'agent') {
+      await page.getByRole('button', { name: 'Create agent', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'New agent' });
+      await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+      await expect(dialog).toHaveCount(0, { timeout: 1500 });
+    } else if (surface === 'menu') {
+      await page.getByRole('button', { name: 'Settings', exact: true }).click();
+      await page.getByRole('button', { name: 'More settings' }).click();
+      await page.getByRole('menuitem', { name: 'Appearance', exact: true }).click();
+      await expect(page.getByRole('menu')).toHaveCount(0, { timeout: 1500 });
+      await page.getByRole('button', { name: 'Close settings', exact: true }).click();
+    } else {
+      await page.getByRole('button', { name: 'Access', exact: true }).click();
+      const dialog = page.getByRole('dialog', { name: 'Access', exact: true });
+      await dialog.getByRole('button', { name: 'Close access', exact: true }).click();
+      await expect(dialog).toHaveCount(0, { timeout: 1500 });
+    }
+    await expect(page.locator('body')).not.toHaveCSS('pointer-events', 'none');
+    await page.getByRole('textbox', { name: 'Message', exact: true }).fill('Input still works');
+    await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue(
+      'Input still works',
+    );
+  });
+}
+
 test('personal welcome opens existing work and finished replies retain their controls', async ({
   page,
 }, info) => {

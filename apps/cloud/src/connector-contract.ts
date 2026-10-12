@@ -1,4 +1,4 @@
-import type { ToolName } from './contracts.js';
+import type { ComposioToolName, ToolName } from './contracts.js';
 import { CloudError, isRecord } from './domain.js';
 import type { ComposioConfig } from './ports.js';
 
@@ -30,7 +30,7 @@ export const COMPOSIO_TOOL_SLUGS = {
   'slack.open_dm': 'SLACK_OPEN_DM',
   'slack.read_thread': 'SLACK_FETCH_MESSAGE_THREAD_FROM_A_CONVERSATION',
   'slack.post': 'SLACK_SEND_MESSAGE',
-} as const satisfies Record<ToolName, string>;
+} as const satisfies Record<ComposioToolName, string>;
 
 export const COMPOSIO_TOOL_VERSIONS = {
   'mail.search': COMPOSIO_GMAIL_TOOL_VERSION,
@@ -56,10 +56,10 @@ export const COMPOSIO_TOOL_VERSIONS = {
   'slack.open_dm': '20260819_00',
   'slack.read_thread': '20260819_00',
   'slack.post': '20260819_00',
-} as const satisfies Record<ToolName, string>;
+} as const satisfies Record<ComposioToolName, string>;
 
-export function assertComposioContract(config: ComposioConfig, tool?: ToolName): void {
-  const tools = tool ? [tool] : (Object.keys(COMPOSIO_TOOL_SLUGS) as ToolName[]);
+export function assertComposioContract(config: ComposioConfig, tool?: ComposioToolName): void {
+  const tools = tool ? [tool] : (Object.keys(COMPOSIO_TOOL_SLUGS) as ComposioToolName[]);
   for (const canonical of tools) {
     if (config.toolSlugs[canonical] !== COMPOSIO_TOOL_SLUGS[canonical]) {
       throw new CloudError(
@@ -286,6 +286,156 @@ export function mapCanonicalConnectorInput(
         markdown_text: boundedString(input.markdown, 'markdown', 500_000),
       };
     }
+    case 'calendar.list_events': {
+      exactKeys(input, ['time_min', 'time_max', 'query', 'limit', 'calendar_id'], []);
+      const timeMin = optionalTimestamp(input.time_min, 'time_min');
+      const timeMax = optionalTimestamp(input.time_max, 'time_max');
+      if (timeMin && timeMax && Date.parse(timeMax) <= Date.parse(timeMin)) {
+        invalid('time_max must be after time_min');
+      }
+      // The adapter supplies timeMin=now when neither bound is present, so validation never
+      // depends on the clock.
+      return {
+        calendar_id: calendarId(input.calendar_id),
+        max_results:
+          input.limit === undefined ? 25 : boundedInteger(input.limit, 'limit', 1, 100),
+        ...(timeMin === undefined ? {} : { time_min: timeMin }),
+        ...(timeMax === undefined ? {} : { time_max: timeMax }),
+        ...(input.query === undefined
+          ? {}
+          : { query: boundedString(input.query, 'query', 1_000) }),
+      };
+    }
+    case 'calendar.read_event':
+    case 'calendar.delete_event': {
+      exactKeys(input, ['resource_id', 'calendar_id'], ['resource_id']);
+      return {
+        calendar_id: calendarId(input.calendar_id),
+        event_id: opaqueId(input.resource_id, 'resource_id', 1_024),
+      };
+    }
+    case 'calendar.create_event': {
+      exactKeys(
+        input,
+        [
+          'summary',
+          'start',
+          'end',
+          'description',
+          'location',
+          'attendees',
+          'time_zone',
+          'calendar_id',
+        ],
+        ['summary', 'start', 'end'],
+      );
+      const timeZone =
+        input.time_zone === undefined ? undefined : ianaTimeZone(input.time_zone, 'time_zone');
+      const { start, end } = eventTimes(input.start, input.end, timeZone);
+      const attendees =
+        input.attendees === undefined ? [] : emailArray(input.attendees, 'attendees', 0, 50);
+      return {
+        calendar_id: calendarId(input.calendar_id),
+        send_updates: attendees.length > 0 ? 'all' : 'none',
+        event: {
+          summary: boundedString(input.summary, 'summary', 1_024),
+          start,
+          end,
+          ...eventDetails(input),
+          ...(attendees.length > 0
+            ? { attendees: attendees.map((value) => ({ email: value })) }
+            : {}),
+        },
+      };
+    }
+    case 'calendar.update_event': {
+      exactKeys(
+        input,
+        ['resource_id', 'calendar_id', 'summary', 'start', 'end', 'description', 'location'],
+        ['resource_id'],
+      );
+      const patch: Record<string, unknown> = {
+        ...(input.summary === undefined
+          ? {}
+          : { summary: boundedString(input.summary, 'summary', 1_024) }),
+        ...eventDetails(input),
+      };
+      if (input.start !== undefined || input.end !== undefined) {
+        // Google merges a PATCH into the stored event, so a lone start or end can leave an
+        // all-day/timed mix or an end before the start. Times always change together.
+        if (input.start === undefined || input.end === undefined) {
+          invalid('change start and end together');
+        }
+        const times = eventTimes(input.start, input.end, undefined);
+        const clearOther = (time: EventTime) =>
+          'date' in time
+            ? { dateTime: null, timeZone: null, ...time }
+            : { date: null, ...time };
+        patch.start = clearOther(times.start);
+        patch.end = clearOther(times.end);
+      }
+      if (Object.keys(patch).length === 0) invalid('at least one event change is required');
+      return {
+        calendar_id: calendarId(input.calendar_id),
+        event_id: opaqueId(input.resource_id, 'resource_id', 1_024),
+        patch,
+      };
+    }
+    case 'tasks.list': {
+      exactKeys(input, ['list_id', 'show_completed', 'limit'], []);
+      if (input.show_completed !== undefined && typeof input.show_completed !== 'boolean') {
+        invalid('show_completed must be true or false');
+      }
+      return {
+        list_id: taskListId(input.list_id),
+        show_completed: input.show_completed === true,
+        max_results:
+          input.limit === undefined ? 50 : boundedInteger(input.limit, 'limit', 1, 100),
+      };
+    }
+    case 'tasks.create': {
+      exactKeys(input, ['title', 'notes', 'due', 'list_id'], ['title']);
+      return {
+        list_id: taskListId(input.list_id),
+        task: {
+          title: boundedString(input.title, 'title', 1_024),
+          ...(input.notes === undefined
+            ? {}
+            : { notes: boundedString(input.notes, 'notes', 8_192, true) }),
+          ...(input.due === undefined ? {} : { due: taskDue(input.due) }),
+        },
+      };
+    }
+    case 'tasks.update': {
+      exactKeys(
+        input,
+        ['task_id', 'list_id', 'title', 'notes', 'due', 'completed'],
+        ['task_id'],
+      );
+      if (input.completed !== undefined && typeof input.completed !== 'boolean') {
+        invalid('completed must be true or false');
+      }
+      const patch: Record<string, unknown> = {
+        ...(input.title === undefined
+          ? {}
+          : { title: boundedString(input.title, 'title', 1_024) }),
+        ...(input.notes === undefined
+          ? {}
+          : { notes: boundedString(input.notes, 'notes', 8_192, true) }),
+        ...(input.due === undefined ? {} : { due: taskDue(input.due) }),
+        ...(input.completed === undefined
+          ? {}
+          : input.completed
+            ? { status: 'completed' }
+            : { status: 'needsAction', completed: null }),
+      };
+      if (Object.keys(patch).length === 0) invalid('at least one task change is required');
+      return {
+        list_id: taskListId(input.list_id),
+        task_id: opaqueId(input.task_id, 'task_id', 1_024),
+        patch,
+      };
+    }
     case 'slack.search': {
       exactKeys(input, ['query', 'limit'], ['query']);
       return {
@@ -332,6 +482,126 @@ export function mapCanonicalConnectorInput(
       };
     }
   }
+}
+
+const RFC3339_TIMESTAMP =
+  /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.\d{1,9})?)?(Z|[+-]\d{2}:\d{2})?$/i;
+const TIME_ZONE_OFFSET = /(?:Z|[+-]\d{2}:\d{2})$/i;
+const CALENDAR_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+function calendarId(value: unknown): string {
+  return value === undefined ? 'primary' : opaqueId(value, 'calendar_id', 1_024);
+}
+
+function taskListId(value: unknown): string {
+  return value === undefined ? '@default' : opaqueId(value, 'list_id', 1_024);
+}
+
+function validCalendarDate(year: string, month: string, day: string): boolean {
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  return (
+    date.getUTCFullYear() === Number(year) &&
+    date.getUTCMonth() === Number(month) - 1 &&
+    date.getUTCDate() === Number(day)
+  );
+}
+
+/** RFC 3339 with an explicit offset unless the caller supplies a separate IANA time zone. */
+function timestamp(value: unknown, label: string, offsetRequired = true): string {
+  const candidate = boundedString(value, label, 64);
+  const match = RFC3339_TIMESTAMP.exec(candidate);
+  if (
+    !match ||
+    !validCalendarDate(match[1]!, match[2]!, match[3]!) ||
+    Number(match[4]) > 23 ||
+    Number(match[5]) > 59 ||
+    Number(match[6] ?? 0) > 59 ||
+    (offsetRequired && match[7] === undefined)
+  ) {
+    invalid(
+      `${label} must be an RFC 3339 date and time${offsetRequired ? ' with a time zone offset' : ''}`,
+    );
+  }
+  return candidate;
+}
+
+function optionalTimestamp(value: unknown, label: string): string | undefined {
+  return value === undefined ? undefined : timestamp(value, label);
+}
+
+function calendarDate(value: string): string | undefined {
+  const match = CALENDAR_DATE.exec(value);
+  return match && validCalendarDate(match[1]!, match[2]!, match[3]!) ? value : undefined;
+}
+
+function ianaTimeZone(value: unknown, label: string): string {
+  const candidate = boundedString(value, label, 100);
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: candidate });
+  } catch {
+    invalid(`${label} must be an IANA time zone such as America/New_York`);
+  }
+  return candidate;
+}
+
+type EventTime = { date: string } | { dateTime: string; timeZone?: string };
+
+function eventTime(value: unknown, label: string, timeZone: string | undefined): EventTime {
+  const candidate = boundedString(value, label, 64);
+  const date = calendarDate(candidate);
+  if (date !== undefined) return { date };
+  const dateTime = timestamp(candidate, label, timeZone === undefined);
+  return timeZone === undefined ? { dateTime } : { dateTime, timeZone };
+}
+
+/** Both bounds must be the same kind. All-day events use Google's exclusive end date. */
+function eventTimes(
+  startValue: unknown,
+  endValue: unknown,
+  timeZone: string | undefined,
+): { start: EventTime; end: EventTime } {
+  const start = eventTime(startValue, 'start', timeZone);
+  let end = eventTime(endValue, 'end', timeZone);
+  if ('date' in start && 'date' in end) {
+    if (end.date < start.date) invalid('end must not be before start');
+    if (end.date === start.date) {
+      // A person asking for a one-day event naturally gives the same day twice.
+      const next = new Date(`${start.date}T00:00:00.000Z`);
+      next.setUTCDate(next.getUTCDate() + 1);
+      end = { date: next.toISOString().slice(0, 10) };
+    }
+    return { start, end };
+  }
+  if ('dateTime' in start && 'dateTime' in end) {
+    const bothOffset =
+      TIME_ZONE_OFFSET.test(start.dateTime) && TIME_ZONE_OFFSET.test(end.dateTime);
+    // Without explicit offsets both wall-clock times share `time_zone`, so compare them as-is.
+    const comparable = (time: string) =>
+      bothOffset ? Date.parse(time) : Date.parse(`${time.replace(TIME_ZONE_OFFSET, '')}Z`);
+    if (comparable(end.dateTime) <= comparable(start.dateTime)) {
+      invalid('end must be after start');
+    }
+    return { start, end };
+  }
+  invalid('start and end must both be dates (YYYY-MM-DD) or both be dates with times');
+}
+
+function eventDetails(input: Record<string, unknown>): Record<string, string> {
+  return {
+    ...(input.description === undefined
+      ? {}
+      : { description: boundedString(input.description, 'description', 16_000, true) }),
+    ...(input.location === undefined
+      ? {}
+      : { location: boundedString(input.location, 'location', 1_024, true) }),
+  };
+}
+
+/** Google Tasks stores only the date portion of `due`; a bare date becomes UTC midnight. */
+function taskDue(value: unknown): string {
+  const candidate = boundedString(value, 'due', 64);
+  const date = calendarDate(candidate);
+  return date === undefined ? timestamp(candidate, 'due') : `${date}T00:00:00.000Z`;
 }
 
 function sheetInputOption(value: unknown): 'RAW' | 'USER_ENTERED' {

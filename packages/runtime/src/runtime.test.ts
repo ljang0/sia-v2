@@ -22,6 +22,7 @@ import { CodexAppServerAdapter } from './providers/codex.js';
 import {
   AcpAdapter,
   createGeminiAdapter,
+  createAcpAdapter,
   createGrokAdapter,
   defaultAcpCommandArgs,
 } from './providers/acp.js';
@@ -143,6 +144,62 @@ function codexIsolationResponse(method: string, _params: unknown): unknown {
 }
 
 describe('JSON-RPC transport and peer', () => {
+  it('rejects oversized complete lines without dispatching their contents', async () => {
+    const input = new PassThrough();
+    const transport = new JsonLinesTransport(input, new PassThrough(), {
+      maxBufferCharacters: 32,
+    });
+    const messages = vi.fn();
+    const closed = vi.fn();
+    transport.onMessage(messages);
+    transport.onClose(closed);
+    input.write(`${JSON.stringify({ method: 'oversized', params: 'x'.repeat(40) })}\n`);
+    expect(messages).not.toHaveBeenCalled();
+    expect(closed).toHaveBeenCalledWith(
+      expect.objectContaining({ message: expect.stringContaining('size limit') }),
+    );
+    transport.close();
+  });
+
+  it('settles pending requests on output errors without an uncaught stream error', async () => {
+    const input = new PassThrough();
+    const output = new PassThrough();
+    const peer = new JsonRpcPeer(new JsonLinesTransport(input, output));
+    const result = peer
+      .request('waiting', undefined, { timeoutMs: 30 })
+      .catch((error: unknown) => error);
+    let thrown: unknown;
+    try {
+      output.emit('error', new Error('broken pipe'));
+    } catch (error) {
+      thrown = error;
+    }
+    const error = await result;
+    await peer.close();
+    expect(thrown).toBeUndefined();
+    expect(error).toMatchObject({ message: 'broken pipe' });
+  });
+
+  it('cleans up request timers when a transport throws synchronously', async () => {
+    vi.useFakeTimers();
+    const peer = new JsonRpcPeer({
+      send() {
+        throw new Error('closed writer');
+      },
+      onMessage: () => () => undefined,
+      close: () => undefined,
+    });
+    try {
+      await expect(peer.request('waiting', undefined, { timeoutMs: 1000 })).rejects.toThrow(
+        'closed writer',
+      );
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      await peer.close();
+      vi.useRealTimers();
+    }
+  });
+
   it('frames split JSON lines and ignores invalid lines', async () => {
     const input = new PassThrough();
     const output = new PassThrough();
@@ -1271,6 +1328,32 @@ describe('ACP adapter', () => {
     expect(gemini.productionEnabled).toBe(false);
     expect(grok.productionEnabled).toBe(false);
     await Promise.all([gemini.dispose(), grok.dispose()]);
+  });
+
+  it('admits a signed lab ACP harness only when its manifest enables it', async () => {
+    const runner = { run: vi.fn(async () => ({ code: 0, stdout: '1.2.0', stderr: '' })) };
+    const lab = createAcpAdapter({
+      provider: 'lab',
+      command: '/opt/example/acp',
+      supportedVersions: { minimum: '0.0.0' },
+      commandRunner: runner,
+      productionEnabled: true,
+      accountOverride: { state: 'authenticated', label: 'Example Lab', billing: 'api' },
+    });
+    expect(lab.productionEnabled).toBe(true);
+    await expect(lab.account()).resolves.toEqual({
+      state: 'authenticated',
+      label: 'Example Lab',
+      billing: 'api',
+    });
+    const unsigned = createAcpAdapter({
+      provider: 'lab',
+      command: '/opt/example/acp',
+      supportedVersions: { minimum: '0.0.0' },
+      commandRunner: runner,
+    });
+    expect(unsigned.productionEnabled).toBe(false);
+    await Promise.all([lab.dispose(), unsigned.dispose()]);
   });
 });
 

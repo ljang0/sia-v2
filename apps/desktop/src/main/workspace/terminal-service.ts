@@ -148,6 +148,7 @@ export class DirectUserBackgroundTerminalService {
   readonly #environment: NodeJS.ProcessEnv;
   readonly #maxOutputBytes: number;
   readonly #sessions = new Map<string, BackgroundTerminalState>();
+  #disposed = false;
 
   constructor(options: DirectUserTerminalServiceOptions = {}) {
     this.#shellExecutable = options.shellExecutable ?? '/bin/zsh';
@@ -163,7 +164,11 @@ export class DirectUserBackgroundTerminalService {
   }
 
   async start(workspace: string, command: string): Promise<BackgroundTerminalView> {
+    if (this.#disposed)
+      throw new WorkspaceOperationError('command_failed', 'This terminal service is closed.');
     const cwd = await resolveDirectory(workspace, 'invalid_workspace');
+    if (this.#disposed)
+      throw new WorkspaceOperationError('command_failed', 'This terminal service is closed.');
     validateTerminalCommand(command);
     const id = randomUUID();
     const now = new Date().toISOString();
@@ -202,6 +207,8 @@ export class DirectUserBackgroundTerminalService {
       },
     };
     this.#sessions.set(id, state);
+    // write() observes the callback error; Node also emits it on stdin itself.
+    child.stdin?.on('error', () => undefined);
     const capture = (value: Buffer | string) => this.#capture(state, value);
     child.stdout?.on('data', capture);
     child.stderr?.on('data', capture);
@@ -264,6 +271,7 @@ export class DirectUserBackgroundTerminalService {
   }
 
   dispose(): void {
+    this.#disposed = true;
     for (const state of this.#sessions.values()) {
       if (state.view.status !== 'running') continue;
       state.stopRequested = true;

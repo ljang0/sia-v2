@@ -8,6 +8,7 @@ import type {
   TimelineItemView,
 } from '../../shared/bridge.js';
 import type { PhoneRemoteApi } from '../../shared/phone-remote.js';
+import type { MessagesRelayApi } from '../../shared/messages-relay.js';
 import type { ScottySettingsApi } from '../../shared/scotty.js';
 import { probeProviders } from '../providers/provider-probe.js';
 import type { RuntimeCoordinator } from '../providers/runtime-coordinator.js';
@@ -77,6 +78,9 @@ type ServiceName =
  * Everything the desktop controller knows and does. DesktopController is the public facade;
  * this context holds the shared state and wires the domain collaborators.
  */
+/** How often a streaming reply is checkpointed to encrypted storage. */
+const STREAM_CHECKPOINT_MS = 2_000;
+
 export class ControllerContext {
   readonly deps: ControllerDeps;
   // Domain collaborators, created by DesktopController through the wire callback.
@@ -109,11 +113,14 @@ export class ControllerContext {
   readonly rendererCall = new AsyncLocalStorage<true>();
   readonly workspaceGrants = new Set<string>();
   streamCommitTimer: NodeJS.Timeout | undefined;
+  /** Turns whose streamed text changed since the last push. */
+  readonly streamTurns = new Set<string>();
   streamPersistTimer: NodeJS.Timeout | undefined;
   runtime: RuntimeCoordinator | undefined;
   browserCapabilitySink: BrowserCapabilitySink | undefined;
   scotty: ScottySettingsApi | undefined;
   phoneRemote: PhoneRemoteApi | undefined;
+  messagesRelay: MessagesRelayApi | undefined;
   state: PersistedState = structuredClone(INITIAL_STATE);
   revision = 0;
   shuttingDown = false;
@@ -145,6 +152,10 @@ export class ControllerContext {
     this.phoneRemote = handler;
   }
 
+  attachMessagesRelay(handler: MessagesRelayApi): void {
+    this.messagesRelay = handler;
+  }
+
   remoteAccessAllowed(): boolean {
     return (
       !this.shuttingDown &&
@@ -165,6 +176,9 @@ export class ControllerContext {
     ]) {
       if (isAbsolute(workspace)) this.workspaceGrants.add(normalizeWorkspace(workspace));
     }
+    // Independent startup checks run side by side; the window shows its startup screen until
+    // they finish. The Codex model list still follows the account check, which can restart
+    // provider sessions.
     const [providers, computer] = await Promise.all([
       // Fake-services mode must not inspect or depend on host CLI installs or
       // authentication. An empty PATH produces deterministic placeholder views;
@@ -173,17 +187,21 @@ export class ControllerContext {
         ? probeProviders(undefined, { PATH: '' })
         : this.deps.providerProbe(),
       this.deps.computer.permissions(),
-      this.deps.identity.initialize(),
+      this.deps.identity.initialize().then(async () => {
+        await this.account.reconcileIdentityBoundState();
+        await this.account.refreshCloudSession();
+      }),
+      this.computerAccess.refreshCapabilityStatuses().catch(() => undefined),
     ]);
     this.providers.setInitialViews(providers);
-    await this.computerAccess.refreshCapabilityStatuses().catch(() => undefined);
-    await this.providers.refreshProviderModels();
-    await this.account.reconcileIdentityBoundState();
-    await this.account.refreshCloudSession();
-    await this.providers.refreshMetaProviderState();
-    if (this.deps.identity.status().state === 'signed_in') {
-      await this.deps.voice?.refresh().catch(() => undefined);
-    }
+    await Promise.all([
+      this.providers
+        .refreshProviderModels()
+        .then(() => this.providers.refreshMetaProviderState()),
+      this.deps.identity.status().state === 'signed_in'
+        ? this.deps.voice?.refresh().catch(() => undefined)
+        : undefined,
+    ]);
     this.computerAccess.state = computer;
     this.researchOutbox.refreshPendingCount();
     this.persist();
@@ -292,20 +310,26 @@ export class ControllerContext {
     return thread;
   }
 
-  commit(deferStreamDelta = false): void {
+  /**
+   * Persists and pushes the state. A streamed delta passes its turn: it is pushed within 50ms as
+   * a patch carrying only that turn's items, not a copy of the whole conversation.
+   */
+  commit(streamingTurnId?: string): void {
     this.revision += 1;
     this.mac.syncKeepAwake();
-    if (deferStreamDelta) {
+    if (streamingTurnId) {
+      this.streamTurns.add(streamingTurnId);
       if (!this.streamCommitTimer) {
         this.streamCommitTimer = setTimeout(() => {
           this.streamCommitTimer = undefined;
-          this.emit();
+          this.emitStream();
         }, 50);
         this.streamCommitTimer.unref();
       }
-      // Keep the visible stream responsive without encrypting the entire history
-      // at UI cadence. Completion, actions and shutdown still persist immediately.
-      this.persistSoon();
+      // Keep the visible stream responsive without encrypting the entire history at UI
+      // cadence. Each checkpoint encrypts all saved state, so a long reply checkpoints every
+      // 2s; completion, actions and shutdown still persist immediately.
+      this.persistSoon(STREAM_CHECKPOINT_MS);
       return;
     }
     this.cancelStreamCommit();
@@ -313,12 +337,12 @@ export class ControllerContext {
     this.emit();
   }
 
-  persistSoon(): void {
+  persistSoon(delayMs = 500): void {
     if (this.streamPersistTimer) return;
     this.streamPersistTimer = setTimeout(() => {
       this.streamPersistTimer = undefined;
       this.persist();
-    }, 500);
+    }, delayMs);
     this.streamPersistTimer.unref();
   }
 
@@ -327,6 +351,7 @@ export class ControllerContext {
     if (this.streamPersistTimer) clearTimeout(this.streamPersistTimer);
     this.streamCommitTimer = undefined;
     this.streamPersistTimer = undefined;
+    this.streamTurns.clear();
   }
 
   persist(): void {
@@ -340,7 +365,21 @@ export class ControllerContext {
   emit(): void {
     this.speech.pushToTalk?.syncAccess();
     this.speech.pushToTalk?.syncTasks();
+    this.streamTurns.clear();
     const event: DesktopPushEvent = { type: 'snapshot', snapshot: this.snapshots.renderer() };
+    for (const listener of this.listeners) listener(event);
+  }
+
+  private emitStream(): void {
+    const patch = this.snapshots.streamPatch(this.streamTurns);
+    this.streamTurns.clear();
+    if (!patch) {
+      this.emit();
+      return;
+    }
+    this.speech.pushToTalk?.syncAccess();
+    this.speech.pushToTalk?.syncTasks();
+    const event: DesktopPushEvent = { type: 'stream', patch };
     for (const listener of this.listeners) listener(event);
   }
 }

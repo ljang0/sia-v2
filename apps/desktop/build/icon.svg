@@ -1,41 +1,23 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <rect x="32" y="32" width="960" height="960" rx="224" fill="#315f78" />
-  <rect
-    x="43"
-    y="43"
-    width="938"
-    height="938"
-    rx="214"
-    fill="none"
-    stroke="#577f92"
-    stroke-width="5"
-  />
-  <path
-    d="M512 224c171-7 280 106 270 284-10 176-118 285-289 276-174-9-267-124-252-296 14-164 113-258 271-264Z"
-    fill="none"
-    stroke="#214b60"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    stroke-width="70"
-    opacity="0.42"
-    transform="translate(0 16)"
-  />
-  <path
-    d="M512 224c171-7 280 106 270 284-10 176-118 285-289 276-174-9-267-124-252-296 14-164 113-258 271-264Z"
-    fill="none"
-    stroke="#f6f2e9"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-    stroke-width="66"
-  />
-  <path
-    d="M320 324c-65 77-92 178-70 278"
-    fill="none"
-    stroke="#8cabb8"
-    stroke-linecap="round"
-    stroke-width="18"
-  />
-  <circle cx="522" cy="526" r="92" fill="#214b60" opacity="0.38" />
-  <circle cx="522" cy="510" r="92" fill="#e5b678" />
-  <circle cx="489" cy="477" r="19" fill="#fff8ea" opacity="0.78" />
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024">
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="14"/>
+      <feOffset dy="12" result="b"/>
+      <feComponentTransfer><feFuncA type="linear" slope="0.32"/></feComponentTransfer>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.14"/>
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#1f4d44"/><stop offset="1" stop-color="#0d2925"/></linearGradient>
+<linearGradient id="mint" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="256" y2="256"><stop offset="0" stop-color="#f6fcf9"/><stop offset="1" stop-color="#76e3a8"/></linearGradient>
+  </defs>
+  <g filter="url(#shadow)">
+    <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bg)"/>
+  </g>
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#sheen)"/>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="#ffffff" stroke-opacity="0.1" stroke-width="3"/>
+  <g transform="translate(242.1 243.2) scale(2.1)" fill="url(#mint)">
+    <path id="u" d="M212 18 Q222 18 222 28 V58 Q222 68 212 68 H104 L168 104 Q173 108 167 111 L82 139 C52 137 35 116 35 92 V84 C35 47 64 18 100 18 Z"/><use href="#u" transform="rotate(180 128 128)"/></g>
 </svg>

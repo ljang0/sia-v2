@@ -236,3 +236,45 @@
     min-width: 0;
   }
 }
+.textCard {
+  margin-top: 18px;
+}
+.numbers {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 12px;
+}
+.numbers li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--text-md);
+}
+.numberForm {
+  margin-top: 0;
+  margin-bottom: 18px;
+}
+.numberForm input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+}
+.toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+.channel {
+  margin-top: 12px;
+}
+.people {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-subtle);
+}

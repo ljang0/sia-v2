@@ -26,6 +26,7 @@ type BridgeRouterContext = Pick<
   | 'connections'
   | 'deps'
   | 'phoneRemote'
+  | 'messagesRelay'
   | 'providers'
   | 'releaseAccessLocked'
   | 'rendererCall'
@@ -51,6 +52,7 @@ export class BridgeRouter {
     bootstrap: () => this.ctx.resultSnapshot(),
     'scotty.configure': (input) => this.configureScotty(input),
     'phone.remote': (input) => this.phoneRemoteCommand(input),
+    'messages.relay': (input) => this.messagesRelayCommand(input),
     'agents.save': (input) => this.ctx.agents.saveAgent(input),
     'assistant.library': (input) => this.ctx.assistant.assistantLibraryCommand(input),
     'agents.delete': ({ agentId }) => this.ctx.agents.deleteAgent(agentId),
@@ -116,6 +118,8 @@ export class BridgeRouter {
     'providers.probe': ({ providerId }) => this.ctx.providers.probeProviders(providerId),
     'providers.login': ({ providerId }) => this.ctx.providers.providerLogin(providerId),
     'providers.cancelLogin': () => this.ctx.providers.cancelProviderLogin(),
+    'providers.setApiKey': (input) => this.ctx.providers.saveApiKey(input),
+    'providers.clearApiKey': () => this.ctx.providers.clearApiKey(),
     'settings.openDirectory': async () => ({
       path: await this.ctx.workspace.grantChosenDirectory(),
     }),
@@ -233,5 +237,12 @@ export class BridgeRouter {
   ): Promise<BridgeResultMap['phone.remote']> {
     if (!this.ctx.phoneRemote) throw new Error('Phone remote is unavailable in this build.');
     return await this.ctx.phoneRemote(input);
+  }
+
+  private async messagesRelayCommand(
+    input: BridgeRequestMap['messages.relay'],
+  ): Promise<BridgeResultMap['messages.relay']> {
+    if (!this.ctx.messagesRelay) throw new Error('Texting Sia is unavailable in this build.');
+    return await this.ctx.messagesRelay(input);
   }
 }

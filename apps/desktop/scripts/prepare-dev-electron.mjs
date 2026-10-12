@@ -14,6 +14,7 @@ import { createRequire } from 'node:module';
 import { dirname, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { rememberDevelopmentLaunch } from './development-launch.mjs';
+import { cleanSigningMetadata } from './signing-metadata.mjs';
 
 // TCC attributes a child helper's permission request to the responsible app. The
 // downloaded development Electron bundle needs the same descriptions as Sia.app.
@@ -59,13 +60,6 @@ export function prepareDevElectron(executable, descriptions) {
   }
 }
 
-// Apple's QA1940 disallows Finder/resource-fork metadata in signed bundles.
-// Keep other attributes, including quarantine, intact on the staged copy.
-export function cleanSigningMetadata(app) {
-  for (const attribute of ['com.apple.FinderInfo', 'com.apple.ResourceFork'])
-    execFileSync('/usr/bin/xattr', ['-dr', attribute, app]);
-}
-
 export function prepareDevelopmentApp(executable, descriptions) {
   const identity = devIdentity();
   const source = resolve(executable, '../../..');
@@ -80,6 +74,10 @@ export function prepareDevelopmentApp(executable, descriptions) {
         identity: identity.hash,
         version: readFileSync(resolve(source, 'Contents/Info.plist'), 'utf8'),
         script: readFileSync(new URL(import.meta.url), 'utf8'),
+        signingMetadata: readFileSync(
+          new URL('./signing-metadata.mjs', import.meta.url),
+          'utf8',
+        ),
         bootstrap: readFileSync(
           new URL('./prepare-dev-bootstrap.mjs', import.meta.url),
           'utf8',

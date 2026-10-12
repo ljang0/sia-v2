@@ -7,17 +7,21 @@ import type {
 import { phoneAssistantBlocker } from '../../../shared/phone-remote';
 import type { AgentView } from '../../../shared/bridge';
 import type { ProviderSetup } from '../../types';
+import type { MessagesRelayApi } from '../../../shared/messages-relay';
 import { SettingsSectionHeader, InlineSettingsError } from './SettingsShared';
+import { TextSiaSettings } from './TextSiaSettings';
 import buttons from '../../styles/buttons.module.css';
 import phone from './PhoneRemoteSettings.module.css';
 import { errorMessage } from '../../plainErrors';
 
 export function PhoneRemoteSettings({
   api,
+  messagesApi,
   agents,
   providers,
 }: {
   api: PhoneRemoteApi;
+  messagesApi?: MessagesRelayApi | undefined;
   agents: readonly Pick<AgentView, 'id' | 'name' | 'provider' | 'model'>[];
   providers: readonly ProviderSetup[];
 }) {
@@ -215,6 +219,7 @@ export function PhoneRemoteSettings({
           </>
         )}
       </div>
+      {messagesApi && <TextSiaSettings api={messagesApi} agents={agents} />}
       <div className={phone.footnotes}>
         <p>
           <strong>The same Sia, with you in charge.</strong> Phone requests use this assistant’s

@@ -21,7 +21,7 @@ import {
   type TextSize,
   type ThemePreference,
 } from '../../shared/display.js';
-import { EMPTY_CONNECTIONS } from './connection-ids.js';
+import { EMPTY_CONNECTIONS, isGoogleConnection } from './connection-ids.js';
 import { legacyResolvedExecutionTarget } from './execution-routes.js';
 import { LEGACY_RECURRING_RUN_LIMIT, scheduleRuleFields } from './schedule-rules.js';
 
@@ -187,12 +187,46 @@ export function recoverPersistedState(state: PersistedState): PersistedState {
   );
   // No turn survives a relaunch, so no activity row may keep spinning.
   for (const item of recovered.timeline)
-    if (item.status === 'running') item.status = 'complete';
+    if (item.status === 'running')
+      item.status = item.activity?.kind === 'file_change' ? 'failed' : 'complete';
   const recoveredConnections = new Map(
     recovered.connections.map((connection) => [connection.id, connection]),
   );
+  // Calendar and Tasks joined the one Google Workspace grant later. Give saved Workspace grants
+  // their rows so the unified grant is not mistaken for older per-app grants; the cloud reports
+  // per tool whether the grant includes each scope.
+  const workspaceGrant = recovered.connections.find(
+    (connection) =>
+      isGoogleConnection(connection.id) && connection.connectionId?.startsWith('gw_'),
+  );
+  const workspaceOwner = workspaceGrant
+    ? recovered.connectionOwners?.[workspaceGrant.id]
+    : undefined;
   recovered.connections = EMPTY_CONNECTIONS.map((fallback) => {
-    const connection = recoveredConnections.get(fallback.id) ?? fallback;
+    let connection = recoveredConnections.get(fallback.id) ?? fallback;
+    if (
+      !recoveredConnections.has(fallback.id) &&
+      workspaceGrant &&
+      isGoogleConnection(fallback.id)
+    ) {
+      connection = {
+        ...fallback,
+        status: workspaceGrant.status,
+        connectionId: workspaceGrant.connectionId!,
+        ...(workspaceGrant.account ? { account: workspaceGrant.account } : {}),
+        ...(workspaceGrant.googleAccess ? { googleAccess: workspaceGrant.googleAccess } : {}),
+        ...(workspaceGrant.detail ? { detail: workspaceGrant.detail } : {}),
+      };
+      if (workspaceOwner && recovered.connectionOwners) {
+        recovered.connectionOwners[fallback.id] = workspaceOwner;
+      }
+    }
+    if (connection.status === 'connecting' && !connection.connectionId) {
+      // A sign-in that never produced a grant (a Mac-connected app waiting in the browser) has
+      // nothing saved to verify; start it fresh instead of asking about a "saved grant".
+      const { userCode: _code, detail: _detail, ...rest } = connection;
+      return { ...rest, status: 'disconnected' as const };
+    }
     return connection.status === 'connecting'
       ? {
           ...connection,

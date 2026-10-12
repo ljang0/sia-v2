@@ -41,3 +41,23 @@ it('bounds replies and uses friendly activity labels without exposing tool paylo
     text: 'Searching your mail',
   });
 });
+it('marks a running step or a reply still being written as active', () => {
+  const previews = threadPreviews([
+    item(1, { kind: 'user', turnId: 'live', text: 'Find the invoice' }),
+    item(2, {
+      turnId: 'live',
+      kind: 'activity',
+      toolName: 'mail_search',
+      status: 'running',
+    }),
+    item(3, { threadId: 'writing', kind: 'assistant', status: 'running', text: 'Here is' }),
+    item(4, { threadId: 'done', kind: 'assistant', status: 'complete', text: 'All done' }),
+  ]);
+  expect(previews.get('task')).toEqual({
+    label: 'Latest activity',
+    text: 'Searching your mail',
+    active: true,
+  });
+  expect(previews.get('writing')?.active).toBe(true);
+  expect(previews.get('done')?.active).toBeUndefined();
+});

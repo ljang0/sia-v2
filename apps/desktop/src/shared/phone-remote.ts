@@ -53,6 +53,8 @@ export interface RemoteTurn {
   steps: string[];
   error: string;
   files: string[];
+  /** Host-minted result grants, keyed by the displayed filename. Old outbox replies omit this. */
+  fileIds?: Record<string, string>;
   /** What the Mac is waiting to approve, when a phone task is paused on an approval. */
   approval?: string;
 }

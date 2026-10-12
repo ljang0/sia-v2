@@ -23,9 +23,20 @@ Provider availability is a legal and product boundary as well as an engineering 
   Internal model acceptance uses the separate `MetaTesters` Cognito group. That group grants the
   signed release and hosted-model relay only; it must not imply participant, research-upload, schedule,
   connector, or archive access.
+- **Your own API key (`byok`):** optional, in Settings → AI only. One OpenAI Responses-compatible
+  endpoint and model, billed by the person's provider. The key is checked once against
+  `GET /models`, stored encrypted on the Mac, and attached only by Sia's loopback proxy; Codex
+  receives a model-scoped capability, never the key. `https` is required except for a loopback
+  endpoint on the same Mac.
 - **Google Workspace:** use Sia's production Web OAuth client with authorization code + PKCE.
   Connect Google with the fixed read-only Gmail/Drive/Docs/Sheets/Slides scopes first; request the
-  fixed editor/sender scopes only after the person chooses **Enable editing**. Encrypt refresh
+  fixed editor/sender scopes only after the person chooses **Enable editing**. Calendar and Tasks
+  are built but switched off (`GOOGLE_CALENDAR_AND_TASKS_ENABLED` in the cloud scopes module and the
+  desktop's shared connections module) until their scopes are added to Google Auth Platform Data
+  Access. Once switched on, each grant also requests Calendar and Tasks (`calendar.events.readonly` and `tasks.readonly` when connecting,
+  `calendar.events` and `tasks` when enabling editing). Those scopes are optional: grants saved
+  before they existed stay connected at their current level, and only the Calendar or Tasks tools
+  fail, before calling Google, with a plain-language reconnect message. Encrypt refresh
   tokens with AWS KMS in the dedicated credential vault, never return them to the desktop, remove
   the superseded read credential only after the editor grant succeeds, and allow calls only to the
   fixed Google API origin set. Local service switches are enforced before an opaque connection ID
@@ -41,8 +52,22 @@ Provider availability is a legal and product boundary as well as an engineering 
 - **Slack:** use the Sia-owned manifest in `infra/slack-app-manifest.yaml`, never Composio's broad
   managed Slack grant. The user-token scopes are limited to workspace search (`search:read`), person
   lookup without email access (`users:read`), opening one-to-one DMs (`im:write`), reviewed sends
-  (`chat:write`), and the four conversation-history scopes needed by the explicit thread-read tool.
-  Do not add administrative, file, profile-write, channel-write, or email-directory scopes.
+  (`chat:write`), the four conversation-history scopes needed by the explicit thread-read tool,
+  and, for Instinct parity, reactions (`reactions:write`), reminders (`reminders:write`), and
+  canvases (`canvases:read`, `canvases:write`). The last four take effect only after the Slack app
+  and the Composio auth config are updated and people reconnect Slack. Do not add administrative, file, profile-write, channel-write, or email-directory scopes.
+
+- **Outlook, Notion, and GitHub:** connected from the Mac, not the control plane, using public
+  OAuth clients with no shipped secret. Outlook uses a Sia-owned Microsoft Entra app (personal and
+  work accounts) with authorization code + PKCE on a loopback redirect and the delegated
+  `offline_access User.Read Mail.ReadWrite Mail.Send` scopes, calling only Microsoft Graph. Notion uses
+  its hosted MCP server (`https://mcp.notion.com/mcp`) with OAuth dynamic client registration and
+  PKCE; Notion's page picker decides what Sia can see. GitHub uses a Sia-owned OAuth app with the
+  device flow and the `repo read:user` scopes, calling only `api.github.com`. Client ids live in
+  `apps/desktop/src/main/connectors/clients.ts`; an empty id hides that app's Connect button. Tokens
+  are encrypted with the Keychain-held safeStorage key in one file per connection and never reach the
+  renderer or model. Only the curated tools in `packages/action-gateway` are exposed; Notion's wider
+  MCP tool list is never forwarded.
 
 Provider settings keep the release choice to included access or a Codex plan. Codex's supported
 range is pinned above and enforced by the main process. Sia starts the official App Server ChatGPT
@@ -50,4 +75,4 @@ browser flow, accepts only trusted OpenAI/ChatGPT HTTPS authorization URLs, wait
 completion event, and re-verifies the ChatGPT plan. Credentials and sign-out remain owned by Codex;
 Sia never silently installs, updates, or logs a provider out.
 
-Provider CLIs remain separate user-installed products under their own authentication, billing, and license terms. Sia preserves each approved provider's native protocol/runtime boundary, while its own model-visible additions are limited to the curated browser, computer, Gmail, Drive, Docs, Sheets, Slides, Slack, Messages, and scheduling tools. Sia does not expose a visualization, canvas, raw-CDP, cookie-store, shell, or terminal tool through that added gateway.
+Provider CLIs remain separate user-installed products under their own authentication, billing, and license terms. Sia preserves each approved provider's native protocol/runtime boundary, while its own model-visible additions are limited to the curated browser, computer, Gmail, Calendar, Drive, Docs, Sheets, Slides, Tasks, Slack, Outlook, Notion, GitHub, Messages, and scheduling tools. Sia does not expose a visualization, canvas, raw-CDP, cookie-store, shell, or terminal tool through that added gateway.

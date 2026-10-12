@@ -227,6 +227,43 @@ describe('ApprovalCard', () => {
     expect(screen.queryByText(/Preview expire/)).toBeNull();
   });
 
+  it.each(['approved', 'rejected', 'expired'] as const)(
+    'keeps %s approvals compact while preserving their exact details',
+    (status) => {
+      const resolve = vi.fn();
+      const { container } = render(
+        <ApprovalCard
+          event={{ ...nativeApproval('Run a command: git status'), status }}
+          onResolve={resolve}
+        />,
+      );
+      const disclosure = container.querySelector('details')!;
+      const summary = disclosure.querySelector('summary')!;
+      expect(disclosure.open).toBe(false);
+      expect(summary.textContent).toContain(status);
+      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+      fireEvent.click(summary);
+      expect(disclosure.open).toBe(true);
+      expect(screen.getByRole('heading', { name: 'Allow Mac action' })).toBeTruthy();
+      expect(screen.getByText('git status')).toBeTruthy();
+      expect(screen.queryByText(/before Sia continues/)).toBeNull();
+      expect(resolve).not.toHaveBeenCalled();
+    },
+  );
+
+  it('folds an answered request without hiding a later pending request', () => {
+    const event = nativeApproval('Run a command: git status');
+    const { container, rerender } = render(<ApprovalCard event={event} onResolve={vi.fn()} />);
+    expect(container.querySelector('details')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
+    rerender(<ApprovalCard event={{ ...event, status: 'approved' }} onResolve={vi.fn()} />);
+    expect(container.querySelector('details')?.open).toBe(false);
+    rerender(<ApprovalCard event={event} onResolve={vi.fn()} />);
+    expect(container.querySelector('details')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
+    expect(screen.getByText('git status')).toBeTruthy();
+  });
+
   it('shows a native shell command in a monospace block', () => {
     render(
       <ApprovalCard

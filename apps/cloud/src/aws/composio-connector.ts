@@ -1,4 +1,4 @@
-import type { AppId, ToolName } from '../contracts.js';
+import { isComposioTool, type AppId, type ToolName } from '../contracts.js';
 import { assertComposioContract } from '../connector-contract.js';
 import { CloudError, isRecord } from '../domain.js';
 import { ConnectorReconnectRequiredError } from '../ports.js';
@@ -143,6 +143,13 @@ export class ComposioConnector implements ConnectorProvider {
     input: Record<string, unknown>,
     idempotencyKey: string,
   ): Promise<ConnectorExecution> {
+    if (!isComposioTool(tool)) {
+      throw new CloudError(
+        400,
+        'tool_connection_mismatch',
+        'That tool is available only through the Google Workspace connection',
+      );
+    }
     const config = await this.secrets.composio();
     assertComposioContract(config, tool);
     const slug = config.toolSlugs[tool];

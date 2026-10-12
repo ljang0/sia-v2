@@ -119,7 +119,8 @@ export function emptyProcessResult(flags: {
 }
 
 export function killProcess(child: ChildProcess, processGroup: boolean): void {
-  if (child.exitCode !== null || child.signalCode !== null) return;
+  // Descendants can outlive the direct child and keep its output pipes open.
+  // Kill the owned process group even when the parent has already exited.
   if (processGroup && child.pid) {
     try {
       process.kill(-child.pid, 'SIGKILL');
@@ -128,5 +129,6 @@ export function killProcess(child: ChildProcess, processGroup: boolean): void {
       // Fall back to the direct child if its process group has already disappeared.
     }
   }
+  if (child.exitCode !== null || child.signalCode !== null) return;
   child.kill('SIGKILL');
 }

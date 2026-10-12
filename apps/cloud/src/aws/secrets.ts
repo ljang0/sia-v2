@@ -9,6 +9,8 @@ import {
   LEGACY_GOOGLE_APP_IDS,
   TOOL_POLICIES,
   VOICE_TOKEN_TYPES,
+  isComposioTool,
+  type ComposioToolName,
   type ToolName,
   type VoiceTokenType,
 } from '../contracts.js';
@@ -291,18 +293,21 @@ function parseComposioConfig(value: unknown): ComposioConfig {
       configString(authConfigIdsValue[app], `authConfigIds.${app}`),
     ]),
   ) as ComposioConfig['authConfigIds'];
+  // Calendar and Tasks run only through the direct Google adapter, so existing Composio secrets
+  // stay valid without entries for them.
+  const composioTools = (Object.keys(TOOL_POLICIES) as ToolName[]).filter(isComposioTool);
   const toolSlugs = Object.fromEntries(
-    (Object.keys(TOOL_POLICIES) as ToolName[]).map((tool) => [
+    composioTools.map((tool) => [
       tool,
       configString(toolSlugsValue[tool], `toolSlugs.${tool}`),
     ]),
-  ) as Record<ToolName, string>;
+  ) as Record<ComposioToolName, string>;
   const toolVersions = Object.fromEntries(
-    (Object.keys(TOOL_POLICIES) as ToolName[]).map((tool) => [
+    composioTools.map((tool) => [
       tool,
       configString(toolVersionsValue[tool], `toolVersions.${tool}`),
     ]),
-  ) as Record<ToolName, string>;
+  ) as Record<ComposioToolName, string>;
   const config: ComposioConfig = {
     apiKey: secretString(value.apiKey),
     baseUrl: configString(value.baseUrl, 'baseUrl'),

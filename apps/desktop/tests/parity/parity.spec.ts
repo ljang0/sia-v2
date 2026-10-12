@@ -444,6 +444,7 @@ test('two worktrees can run independent deterministic tasks concurrently', async
     await initializeGitWorkspace(workspace);
     // The worktree option is a developer tool.
     await enableDeveloperTools(harness.page);
+    const tasks: { threadId: string; text: string }[] = [];
     for (const name of ['parity-alpha', 'parity-beta']) {
       if (name === 'parity-beta') {
         await harness.page.evaluate((id) => window.sia.threads.select(id), sourceThreadId);
@@ -455,12 +456,21 @@ test('two worktrees can run independent deterministic tasks concurrently', async
       await harness.page.getByTestId(parityContract.worktreeParallelism.testIds[1]).check();
       await harness.page.getByLabel('Name', { exact: true }).fill(name);
       await harness.page.getByRole('button', { name: 'Duplicate', exact: true }).click();
-      await harness.page
-        .getByRole('textbox', { name: 'Message' })
-        .fill(`PARITY_WORKTREE: ${name}`);
-      await harness.page.getByRole('textbox', { name: 'Message' }).press('Enter');
+      await expect
+        .poll(
+          async () =>
+            (await harness.page.evaluate(() => window.sia.bootstrap())).activeThreadId,
+        )
+        .not.toBe(sourceThreadId);
+      const fork = await harness.page.evaluate(() => window.sia.bootstrap());
+      tasks.push({ threadId: fork.activeThreadId!, text: `PARITY_WORKTREE: ${name}` });
     }
     await harness.page.getByTestId(parityContract.worktreeParallelism.testIds[2]).click();
+    // Create both worktrees before starting either turn. Otherwise the first deterministic
+    // turn can finish while a slow Mac is still navigating the second fork's UI.
+    await harness.page.evaluate(async (pending) => {
+      await Promise.all(pending.map((task) => window.sia.threads.send(task)));
+    }, tasks);
     const rows = harness.page.getByTestId(parityContract.worktreeParallelism.testIds[3]);
     await expect(
       rows

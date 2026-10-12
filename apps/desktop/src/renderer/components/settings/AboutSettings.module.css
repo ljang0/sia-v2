@@ -1,0 +1,31 @@
+/* The company behind Sia, signed at the foot of About. */
+.maker {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 28px 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.makerArt {
+  width: 112px;
+  height: auto;
+  flex: none;
+  padding: 10px 12px;
+  border-radius: var(--radius-surface);
+  user-select: none;
+}
+
+.maker strong {
+  display: block;
+  color: var(--text-primary);
+  font-weight: var(--weight-medium);
+}
+
+/* The mascot is drawn with dark outlines; a paper backing keeps them visible in dark mode. */
+@media (prefers-color-scheme: dark) {
+  .makerArt {
+    background: #f4f1ea;
+  }
+}

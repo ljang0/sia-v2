@@ -2,20 +2,29 @@ import { useState } from 'react';
 import type { AppConnection, RendererSnapshot } from '../types';
 import buttons from '../styles/buttons.module.css';
 import styles from './ConnectionChecklist.module.css';
+import {
+  GOOGLE_CALENDAR_AND_TASKS_ENABLED,
+  isGoogleConnection,
+  isLocalConnection,
+} from '../../shared/bridge/connections';
 
 export function ConnectionChecklist({
   snapshot,
   pending,
   connect,
   cancel,
+  reconnect,
 }: {
   snapshot: RendererSnapshot;
   pending: boolean;
   connect(apps: ('google' | 'slack')[]): Promise<void>;
   cancel(app: AppConnection['id'], expectedConnectionId?: string): Promise<void>;
+  reconnect(app: AppConnection['id']): Promise<void>;
 }) {
   const [selected, setSelected] = useState({ google: true, slack: true });
-  const connecting = snapshot.apps.find((app) => app.status === 'connecting');
+  const connecting = snapshot.apps.find(
+    (app) => !isLocalConnection(app.id) && app.status === 'connecting',
+  );
   const cloudReady =
     snapshot.cloudAuth.state === 'signed-in' &&
     snapshot.cloudAuth.features?.connectors !== false;
@@ -29,8 +38,10 @@ export function ConnectionChecklist({
     {
       id: 'google' as const,
       name: 'Google Workspace',
-      detail: 'Gmail, Drive, Docs, Sheets, and Slides. Read access.',
-      apps: snapshot.apps.filter((app) => app.id !== 'slack'),
+      detail: GOOGLE_CALENDAR_AND_TASKS_ENABLED
+        ? 'Gmail, Calendar, Drive, Docs, Sheets, Slides, and Tasks. Read access.'
+        : 'Gmail, Drive, Docs, Sheets, and Slides. Read access.',
+      apps: snapshot.apps.filter((app) => isGoogleConnection(app.id)),
     },
     {
       id: 'slack' as const,
@@ -106,10 +117,25 @@ export function ConnectionChecklist({
         </p>
       ) : null}
       {snapshot.apps.some((app) => app.status === 'error') ? (
-        <p className={styles.error} role="alert">
-          An account connection needs attention. Review it in Settings → Connections. Connected
-          accounts are kept.
-        </p>
+        <div>
+          <p className={styles.error} role="alert">
+            An account connection needs attention. Reconnect it here; your other connected
+            accounts are kept.
+          </p>
+          {choices
+            .filter((choice) => choice.needsRepair)
+            .map(({ id, name }) => (
+              <button
+                key={id}
+                type="button"
+                className={buttons.secondaryButton}
+                disabled={!cloudReady || pending || Boolean(connecting)}
+                onClick={() => void reconnect(id === 'google' ? 'gmail' : 'slack')}
+              >
+                Reconnect {name}
+              </button>
+            ))}
+        </div>
       ) : null}
     </div>
   );

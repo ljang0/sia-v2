@@ -39,17 +39,9 @@ test('settings and personal-library surfaces remain readable at supported window
     await page.setViewportSize({ width: 960, height: 640 });
     await expect(page.getByRole('heading', { name: 'Let’s set up Sia.' })).toBeVisible();
     await capture(page, info, 'setup-compact');
-    const setup = await page
-      .getByRole('button', { name: 'Set up Sia', exact: true })
-      .boundingBox();
-    const option = await page
-      .getByRole('checkbox', { name: /Prepare everyday apps now/ })
-      .locator('..')
-      .boundingBox();
-    expect(setup!.y - (option!.y + option!.height)).toBeGreaterThanOrEqual(16);
-    await expect(
-      page.getByRole('checkbox', { name: /Prepare everyday apps now/ }),
-    ).toBeChecked();
+    await expect(page.getByRole('checkbox', { name: /Prepare everyday apps now/ })).toHaveCount(
+      0,
+    );
     await expect(
       page.getByRole('button', { name: 'Set up Sia', exact: true }),
     ).toBeInViewport();

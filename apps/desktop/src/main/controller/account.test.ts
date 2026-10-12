@@ -445,6 +445,9 @@ describe('DesktopController', () => {
     await controller.invoke('auth.start', { email: 'person@example.com' });
     expect(registerAccount).toHaveBeenCalledWith('person@example.com');
     expect(controller.snapshot().cloud.auth).toBe('code_sent');
+    await controller.invoke('auth.start', { email: 'person@example.com' });
+    expect(registerAccount).toHaveBeenCalledOnce();
+    expect(controller.snapshot().cloud.auth).toBe('code_sent');
     await controller.invoke('auth.complete', { code: '12345678' });
 
     expect(controller.snapshot()).toMatchObject({

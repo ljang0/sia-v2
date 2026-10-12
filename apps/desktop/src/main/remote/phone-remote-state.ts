@@ -59,7 +59,12 @@ export function remoteState(
         .filter(Boolean),
     );
     let response = [...responseParts].join('\n\n').slice(-24000);
-    const files: string[] = [];
+    const resultFiles = attempt
+      .filter((entry) => entry.kind === 'assistant')
+      .flatMap((entry) => entry.attachments ?? [])
+      .filter((file) => file.generated);
+    const fileIds = Object.fromEntries(resultFiles.map((file) => [file.name, file.id]));
+    const files: string[] = Object.keys(fileIds);
     response = response.replace(/\[Open result\]\(<([^>]+)>\)/g, (_match, path: string) => {
       const decoded = path.replaceAll('%3C', '<').replaceAll('%3E', '>');
       if (dirname(resolve(decoded)) === resolve(outbox)) files.push(basename(decoded));
@@ -100,7 +105,8 @@ export function remoteState(
       response: response.trim(),
       status,
       error,
-      files,
+      files: [...new Set(files)],
+      ...(resultFiles.length ? { fileIds } : {}),
       steps: current
         .filter((entry) => entry.kind === 'activity')
         .slice(-16)

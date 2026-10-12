@@ -16,6 +16,8 @@ export const CADENCE_OPTIONS: readonly { value: ScheduleCadence; label: string }
   { value: 'daily', label: 'Every day' },
   { value: 'weekdays', label: 'Weekdays' },
   { value: 'weekly', label: 'On certain days' },
+  { value: 'monthly', label: 'Every month' },
+  { value: 'yearly', label: 'Every year' },
   { value: 'hourly', label: 'Every few hours' },
 ];
 
@@ -84,6 +86,10 @@ function listOf(items: readonly string[]): string {
 
 /** "Every day", "Weekdays", "Mondays and Thursdays", "Every 3 hours". */
 function cadencePhrase(rule: ScheduleRule, anchor: Date): string {
+  const date = rule.anchorAt ? new Date(rule.anchorAt) : anchor;
+  if (rule.cadence === 'monthly') return `Every month on day ${date.getDate()}`;
+  if (rule.cadence === 'yearly')
+    return `Every year on ${new Intl.DateTimeFormat(undefined, { month: 'long', day: 'numeric' }).format(date)}`;
   if (rule.cadence === 'once') return 'Once';
   if (rule.cadence === 'hourly') {
     const hours = everyHoursOf(rule);

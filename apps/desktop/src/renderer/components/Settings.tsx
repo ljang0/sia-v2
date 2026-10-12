@@ -55,6 +55,7 @@ export type SettingsSection =
 interface SettingsProps {
   scottyApi?: import('../../shared/scotty').ScottySettingsApi | undefined;
   phoneRemoteApi?: import('../../shared/phone-remote').PhoneRemoteApi | undefined;
+  messagesRelayApi?: import('../../shared/messages-relay').MessagesRelayApi | undefined;
   assistantApi?: Pick<RendererApi, 'assistantLibrary'>;
   onRunWorkflow?: (threadId: string) => void;
   snapshot: RendererSnapshot;
@@ -64,6 +65,8 @@ interface SettingsProps {
   onProbeProvider(provider: ProviderId): Promise<void>;
   onOpenProviderSetup(provider: ProviderId): Promise<void>;
   onCancelProviderSetup?(provider: ProviderId): Promise<void>;
+  onSaveApiKey?(input: { baseUrl?: string; model: string; apiKey: string }): Promise<void>;
+  onClearApiKey?(): Promise<void>;
   onCheckForUpdates(): Promise<void>;
   onOpenUpdateDownload(): Promise<void>;
   onConnectSelectedApps(apps: ('google' | 'slack')[]): Promise<void>;
@@ -116,6 +119,7 @@ interface SettingsProps {
 export function Settings({
   scottyApi,
   phoneRemoteApi,
+  messagesRelayApi,
   assistantApi,
   onRunWorkflow,
   snapshot,
@@ -125,6 +129,8 @@ export function Settings({
   onProbeProvider,
   onOpenProviderSetup,
   onCancelProviderSetup,
+  onSaveApiKey,
+  onClearApiKey,
   onCheckForUpdates,
   onOpenUpdateDownload,
   onConnectSelectedApps,
@@ -376,6 +382,7 @@ export function Settings({
           {section === 'phone' && phoneRemoteApi && (
             <PhoneRemoteSettings
               api={phoneRemoteApi}
+              messagesApi={messagesRelayApi}
               agents={snapshot.agents}
               providers={snapshot.providers}
             />
@@ -395,6 +402,7 @@ export function Settings({
               onProbe={onProbeProvider}
               onOpenProviderSetup={onOpenProviderSetup}
               {...(onCancelProviderSetup ? { onCancelProviderSetup } : {})}
+              {...(onSaveApiKey && onClearApiKey ? { onSaveApiKey, onClearApiKey } : {})}
               onOpenCloudSettings={() => setSection('apps')}
             />
           ) : null}

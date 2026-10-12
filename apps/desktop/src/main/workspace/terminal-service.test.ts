@@ -1,9 +1,10 @@
 import { mkdtemp, realpath } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { WorkspaceOperationError } from './operation-guards.js';
+import { runCapturedProcess } from './captured-process.js';
 import {
   DirectUserBackgroundTerminalService,
   DirectUserTerminalService,
@@ -13,6 +14,26 @@ import { removeTemporaryRoots, temporaryRoots } from './test-support.js';
 afterEach(removeTemporaryRoots);
 
 describe('DirectUserTerminalService', () => {
+  it('enforces the timeout after the parent exits but a descendant keeps its pipes open', async () => {
+    const result = await runCapturedProcess(
+      process.execPath,
+      [
+        '-e',
+        "require('node:child_process').spawn(process.execPath, ['-e', 'setTimeout(() => {}, 2000)'], { stdio: 'inherit' }); process.exit(0)",
+      ],
+      {
+        cwd: tmpdir(),
+        environment: { PATH: '/usr/bin:/bin' },
+        timeoutMs: 250,
+        maxOutputBytes: 1024,
+        killOnOutputLimit: true,
+        detachedProcessGroup: true,
+      },
+    );
+    expect(result.timedOut).toBe(true);
+    expect(result.exitCode).toBe(0);
+  }, 1500);
+
   it('binds a single command to the validated workspace and captures both streams', async () => {
     const root = await mkdtemp(join(tmpdir(), 'sia-user-terminal-'));
     temporaryRoots.push(root);
@@ -73,6 +94,31 @@ describe('DirectUserTerminalService', () => {
 });
 
 describe('DirectUserBackgroundTerminalService', () => {
+  it('does not start a process after disposal during workspace resolution', async () => {
+    const terminal = new DirectUserBackgroundTerminalService();
+    const starting = terminal.start(tmpdir(), 'sleep 1');
+    terminal.dispose();
+    try {
+      await expect(starting).rejects.toThrow('closed');
+      expect(terminal.busy).toBe(false);
+    } finally {
+      terminal.dispose();
+    }
+  });
+
+  it('reports a closed input pipe without an uncaught error', async () => {
+    const terminal = new DirectUserBackgroundTerminalService();
+    try {
+      const started = await terminal.start(tmpdir(), 'exec 0<&-; echo READY; sleep 5');
+      await vi.waitFor(async () =>
+        expect((await terminal.list(tmpdir()))[0]!.output).toContain('READY'),
+      );
+      await expect(terminal.write(tmpdir(), started.id, 'input\n')).rejects.toThrow();
+    } finally {
+      terminal.dispose();
+    }
+  });
+
   it('keeps a workspace-scoped process running, accepts input, and stops its process group', async () => {
     const root = await mkdtemp(join(tmpdir(), 'sia-background-terminal-'));
     temporaryRoots.push(root);

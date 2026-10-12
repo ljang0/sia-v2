@@ -68,10 +68,15 @@ describe('cloud account settings', () => {
     fireEvent.change(code, { target: { value: '12a 34-5678901' } });
     expect((code as HTMLInputElement).value).toBe('1234567890');
     fireEvent.submit(code.closest('form')!);
+    fireEvent.submit(code.closest('form')!);
     await waitFor(() => expect(onComplete).toHaveBeenCalledWith('1234567890'));
 
     fireEvent.click(screen.getByRole('button', { name: 'Send a new code' }));
     await waitFor(() => expect(onStart).toHaveBeenCalledWith('lawrence@example.com'));
+    await waitFor(() => expect(document.activeElement).toBe(code));
+    expect((code as HTMLInputElement).value).toBe('');
+    expect(screen.getByText(/A new code was sent/)).toBeTruthy();
+    expect(onComplete).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: 'Use another email' }));
     await waitFor(() => expect(onSignOut).toHaveBeenCalledOnce());
   });

@@ -12,13 +12,14 @@ the pinned harness and model for audit attribution.
 
 ## Current matrix
 
-| Harness          | Protocol                   | Release state        | Credential rule                    |
-| ---------------- | -------------------------- | -------------------- | ---------------------------------- |
-| Codex App Server | official app-server        | enabled              | included Sia relay or ChatGPT plan |
-| Sia direct       | authenticated cloud stream | legacy threads only  | Sia-managed, server-side lab key   |
-| Claude Code      | isolated CLI stream        | legacy compatibility | provider-owned Claude subscription |
-| OpenCode         | ACP over nd-JSON           | hidden, fail-closed  | no route approved yet              |
-| Pi               | JSONL RPC over stdio       | hidden, fail-closed  | no route approved yet              |
+| Harness          | Protocol                   | Release state                | Credential rule                                                                         |
+| ---------------- | -------------------------- | ---------------------------- | --------------------------------------------------------------------------------------- |
+| Codex App Server | official app-server        | enabled                      | included Sia relay, ChatGPT plan, or the person's own key (`user_byok`, loopback proxy) |
+| Sia direct       | authenticated cloud stream | legacy threads only          | Sia-managed, server-side lab key                                                        |
+| Claude Code      | isolated CLI stream        | legacy compatibility         | provider-owned Claude subscription                                                      |
+| OpenCode         | ACP over nd-JSON           | hidden, fail-closed          | no route approved yet                                                                   |
+| Pi               | JSONL RPC over stdio       | hidden, fail-closed          | no route approved yet                                                                   |
+| Lab harness test | ACP over stdio             | signed testing manifest only | lab-owned; see [model lab integration](./model-lab-integration.md)                      |
 
 OpenCode documents `opencode acp` as an nd-JSON stdin/stdout server and supports explicit permission
 configuration, but it also merges global, project, and plugin configuration. Pi documents a strict

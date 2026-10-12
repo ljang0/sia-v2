@@ -182,8 +182,15 @@ test('theme and text size apply to the window at once and at the next launch', a
     electronApp = undefined;
 
     electronApp = await launchSia(userData, workspace);
-    // Dark is in force before the renderer loads, so launch paints no light frame.
+    // launch() can resolve before app.whenReady() applies the saved theme. Wait for the
+    // window whose initial background uses that theme, not merely the Electron process.
+    await electronApp.firstWindow();
     expect(await themeSource()).toBe('dark');
+    expect(
+      await electronApp.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0]!.getBackgroundColor(),
+      ),
+    ).toBe('#0D1915');
     page = await readyPage(electronApp);
     await expect(page.locator('html')).toHaveAttribute('data-text-size', 'large');
     await page.evaluate(() => window.sia.settings.setTheme('system'));

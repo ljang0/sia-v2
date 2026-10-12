@@ -10,6 +10,8 @@ import buttons from '../../styles/buttons.module.css';
 import settings from './SettingsShared.module.css';
 import primitives from '../../styles/primitives.module.css';
 import { SettingsSectionHeader } from './SettingsShared';
+import styles from './AboutSettings.module.css';
+import makerArt from '../../assets/superintelligent-agents.png';
 
 type Updates = RendererSnapshot['updates'];
 
@@ -117,6 +119,13 @@ export function AboutSettings({
           </div>
         ) : null}
       </div>
+      <figure className={styles.maker}>
+        <img className={styles.makerArt} src={makerArt} alt="" draggable={false} />
+        <figcaption>
+          <strong>Made by Superintelligent Agents, Inc.</strong>
+          The team building Sia, your personal agent for the Mac.
+        </figcaption>
+      </figure>
     </SettingsSectionHeader>
   );
 }

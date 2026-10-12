@@ -1,0 +1,13 @@
+{
+  "net_posted_spending_usd": 2499,
+  "category_totals_usd": {
+    "Housing": 1800,
+    "Food": 255,
+    "Dining": 145,
+    "Subscriptions": 59,
+    "Utilities": 160,
+    "Shopping": 80
+  },
+  "exclude": ["Transfers", "Pending entries", "Duplicate transaction IDs"],
+  "rules": ["Refunds reduce their category", "Do not infer product usage from payment alone"]
+}

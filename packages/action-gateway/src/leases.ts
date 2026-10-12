@@ -107,6 +107,8 @@ export class LocalLeaseCoordinator {
     readonly threadId: string;
     readonly signal?: AbortSignal;
   }): Promise<TurnLease> {
+    if (input.signal?.aborted)
+      return Promise.reject(input.signal.reason ?? new Error('Turn lease request aborted'));
     if (
       this.#activeTurns.has(input.turnId) ||
       this.#pendingTurns.some((item) => item.turnId === input.turnId)
@@ -141,6 +143,8 @@ export class LocalLeaseCoordinator {
     resource: LeaseResource,
     signal?: AbortSignal,
   ): Promise<ResourceLease> {
+    if (signal?.aborted)
+      return Promise.reject(signal.reason ?? new Error('Resource lease request aborted'));
     const turn = this.#activeTurns.get(turnId);
     if (!turn) return Promise.reject(new Error(`Turn ${turnId} is not active`));
     const key = resourceKey(resource);

@@ -132,7 +132,7 @@ export function PrivacySettings({
             ) : (
               <Pause size={15} weight="fill" aria-hidden="true" />
             )}
-            {pending === 'capture' ? 'Updating...' : paused ? 'Resume' : 'Pause'}
+            {pending === 'capture' ? 'Updating…' : paused ? 'Resume' : 'Pause'}
           </button>
         )}
       </section>
@@ -291,7 +291,7 @@ function DeleteResearchDialog({
                 }
               }}
             >
-              {deleting ? 'Deleting...' : 'Delete data'}
+              {deleting ? 'Deleting…' : 'Delete data'}
             </button>
           </div>
         </AlertDialog.Content>

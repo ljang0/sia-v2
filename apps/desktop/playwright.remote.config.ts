@@ -13,5 +13,6 @@ export default defineConfig({
     ...devices['iPhone 13'],
     headless: true,
     screenshot: 'only-on-failure',
+    trace: 'retain-on-failure',
   },
 });

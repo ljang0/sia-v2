@@ -20,13 +20,25 @@ function itemPreview(
     return {
       label: 'Latest activity',
       text: activityLabel(item.toolName, item.activity?.kind),
+      ...(item.status === 'running' ? { active: true as const } : {}),
     };
   if (item.kind !== 'user' && item.kind !== 'assistant') return undefined;
   const cached = memo?.get(item);
-  if (cached && cached.kind === item.kind && cached.text === item.text) return cached.preview;
+  const active = item.kind === 'assistant' && item.status === 'running';
+  if (
+    cached &&
+    cached.kind === item.kind &&
+    cached.text === item.text &&
+    Boolean(cached.preview?.active) === active
+  )
+    return cached.preview;
   const text = item.text && plainText(item.text);
   const preview: ThreadPreview | undefined = text
-    ? { label: item.kind === 'user' ? 'Request' : 'Latest reply', text: clipText(text, 420) }
+    ? {
+        label: item.kind === 'user' ? 'Request' : 'Latest reply',
+        text: clipText(text, 420),
+        ...(active ? { active: true as const } : {}),
+      }
     : undefined;
   memo?.set(item, { kind: item.kind, text: item.text, preview });
   return preview;

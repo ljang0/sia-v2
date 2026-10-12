@@ -19,6 +19,10 @@ function setup(step: OnboardingStep = 'welcome') {
   if (step === 'welcome' || step === 'agent') snapshot.agents = [];
   // A new profile starts with bypass, the product default.
   snapshot.computer.trust = 'auto';
+  // Every app permission is required to finish; tests that need one missing set it.
+  snapshot.computer.automation = Object.fromEntries(
+    automationApps.map(({ id }) => [id, 'ready' as const]),
+  ) as NonNullable<typeof snapshot.computer.automation>;
   const api = {
     getSnapshot: vi.fn(async () => structuredClone(snapshot)),
     setComputerAccessMode: vi.fn(async () => {}),
@@ -53,7 +57,7 @@ it.each([
   ['connected', false],
   ['connected', true],
 ] as const)(
-  'one click creates the default agent and starts missing permissions in %s mode (confirmations: %s)',
+  'setup honors the selected %s route (confirmations: %s)',
   async (route, confirmActions) => {
     const { snapshot, api, props } = setup();
     const view = render(
@@ -112,16 +116,31 @@ it.each([
     });
     expect(confirmations.checked).toBe(false);
     if (confirmActions) fireEvent.click(confirmations);
+    // Use my Mac asks for every app permission in the same pass; there is nothing to opt into.
+    expect(screen.queryByRole('checkbox', { name: /Prepare everyday apps now/ })).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
-    await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
+    if (route === 'mac-bypass') {
+      await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
+      expect(snapshot.computer.accessibility).toBe('allowed');
+      await waitFor(() =>
+        expect(api.setOnboarding).toHaveBeenCalledWith('verify', {
+          includeApps: true,
+          active: false,
+        }),
+      );
+    } else {
+      await waitFor(() =>
+        expect(api.setOnboarding).toHaveBeenCalledWith('apps', {
+          includeApps: false,
+          active: false,
+        }),
+      );
+      expect(api.requestComputerPermissions).not.toHaveBeenCalled();
+      expect(screen.queryByRole('region', { name: 'Guided Mac permissions' })).toBeNull();
+      expect(screen.getByText('Connect the apps you use.')).toBeTruthy();
+      fireEvent.click(screen.getByRole('button', { name: 'Start using Sia' }));
+    }
     expect(api.createAgent).toHaveBeenCalledTimes(1);
-    expect(snapshot.computer.accessibility).toBe('allowed');
-    await waitFor(() =>
-      expect(api.setOnboarding).toHaveBeenCalledWith('verify', {
-        includeApps: route === 'mac-bypass',
-        active: false,
-      }),
-    );
     expect(api.createAgent).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ name: 'Sia', workspace: '', startOnboarding: true }),
     );
@@ -132,7 +151,9 @@ it.each([
     expect(api.createAgent.mock.invocationCallOrder[0]).toBeGreaterThan(
       api.setComputerTrust.mock.invocationCallOrder[0]!,
     );
-    expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
+    expect(api.requestComputerPermissions).toHaveBeenCalledTimes(
+      route === 'mac-bypass' ? 1 : 0,
+    );
     expect(api.requestAutomationPermission).toHaveBeenCalledTimes(
       route === 'mac-bypass' ? 7 : 0,
     );
@@ -145,7 +166,9 @@ it.each([
         <div>Conversation</div>
       </Onboarding>,
     );
-    expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
+    expect(api.requestComputerPermissions).toHaveBeenCalledTimes(
+      route === 'mac-bypass' ? 1 : 0,
+    );
     // A finished pass opens the conversation directly; no restart is part of setup.
     await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
     expect(api.restartForOnboarding).not.toHaveBeenCalled();
@@ -165,9 +188,7 @@ it('prefers an available Astra model for Use my Mac while honoring a model the u
   );
   const selector = screen.getByRole('combobox', { name: 'AI access' }) as HTMLSelectElement;
   expect(selector.value).toBe('codex:gpt-6-astra');
-  expect(
-    screen.getByText(/Sia works in the background while you keep using your Mac/),
-  ).toBeTruthy();
+  expect(screen.getByText(/Sia starts in the background/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
   await waitFor(() =>
     expect(api.createAgent).toHaveBeenCalledWith(
@@ -444,14 +465,29 @@ it('keeps existing profiles out of first-run and recovers a deleted starter', ()
   expect(onboardingStep(snapshot)).toBeUndefined();
 });
 
+it('keeps Start using Sia off until every Mac permission is on', async () => {
+  const { snapshot, api, props } = setup('verify');
+  snapshot.computer.accessMode = 'mac';
+  snapshot.computer.automation = { ...snapshot.computer.automation!, calendar: 'denied' };
+  const content = () => (
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>
+  );
+  const view = render(content());
+  await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalled());
+  const start = () =>
+    screen.getByRole<HTMLButtonElement>('button', { name: 'Start using Sia' }).disabled;
+  expect(start()).toBe(true);
+  snapshot.computer.automation = { ...snapshot.computer.automation!, calendar: 'ready' };
+  view.rerender(content());
+  await waitFor(() => expect(start()).toBe(false));
+});
+
 it('finishes a verified pass without restarting Sia', async () => {
   const { snapshot, api, props } = setup('voice');
   snapshot.computer.accessibility = 'not-requested';
   snapshot.computer.screenRecording = 'allowed';
-  snapshot.computer.messagesAccess = 'needs_full_disk_access';
-  snapshot.computer.automation = Object.fromEntries(
-    automationApps.map(({ id }) => [id, 'needs_permission']),
-  ) as typeof snapshot.computer.automation;
   snapshot.voice.pushToTalk = {
     enabled: false,
     available: false,
@@ -483,13 +519,13 @@ it('finishes a verified pass without restarting Sia', async () => {
   expect(api.startRealtimeVoice).not.toHaveBeenCalled();
 });
 
-it('resumes an active pass after the relaunch without asking again for skipped or granted rows', async () => {
+it('resumes an active pass after the relaunch without asking again for granted rows', async () => {
   const { snapshot, api, props } = setup('verify');
   snapshot.preferences.onboarding = {
     step: 'verify',
     agentId: snapshot.agents[0]!.id,
     restarted: true,
-    permissionSetup: { includeApps: true, active: true, skipped: ['safari'] },
+    permissionSetup: { includeApps: true, active: true },
   };
   snapshot.computer.accessMode = 'mac';
   snapshot.voice.dictationAvailable = false;
@@ -516,7 +552,7 @@ it('resumes an active pass after the relaunch without asking again for skipped o
   const asked = api.requestAutomationPermission.mock.calls.map(
     (call) => (call as unknown[])[0],
   );
-  expect(asked).not.toContain('safari');
+  expect(asked).toContain('safari');
   expect(asked).not.toContain('finder');
   expect(new Set(asked).size).toBe(asked.length);
   expect(api.requestComputerPermissions).not.toHaveBeenCalled();
@@ -579,6 +615,8 @@ it('shows progress through setup and a calm note after finishing', async () => {
 
   snapshot.agents = structuredClone(demoSnapshot.agents.slice(0, 1));
   snapshot.preferences.onboarding = { step: 'verify', agentId: snapshot.agents[0]!.id };
+  // A fresh setup opens an empty conversation; the note steps aside once one starts.
+  snapshot.activeThread = undefined;
   view.rerender(
     <Onboarding {...props}>
       <div>Conversation</div>

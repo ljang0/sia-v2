@@ -71,6 +71,9 @@ export const LEGACY_ROUTE_DEFAULTS: Readonly<Record<ProviderId, LegacyRouteDefau
   grok: { harnessId: 'legacy_acp', credentialSource: 'provider_subscription' },
   gemini: { harnessId: 'legacy_acp', credentialSource: 'provider_api' },
   meta: { harnessId: 'sia_direct', credentialSource: 'sia_managed' },
+  byok: { harnessId: 'codex_app_server', credentialSource: 'user_byok' },
+  // A lab harness is never a legacy default; its routes come only from a signed manifest.
+  lab: { harnessId: 'legacy_acp', credentialSource: 'provider_api' },
 };
 
 /** Produces the concrete route represented by a legacy provider/model pair. */

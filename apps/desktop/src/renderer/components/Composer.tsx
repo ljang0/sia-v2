@@ -102,6 +102,8 @@ export function Composer({
   // Which sent message ↑/↓ is showing, counted back from the newest; unset while typing.
   const recall = useRef<number | undefined>(undefined);
   const [sending, setSending] = useState(false);
+  // Stopping takes a round trip; one click shows it is underway and cannot be sent twice.
+  const [stopping, setStopping] = useState(false);
   const textArea = useRef<HTMLTextAreaElement>(null);
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pendingDraft = useRef<string | undefined>(undefined);
@@ -476,11 +478,15 @@ export function Composer({
               type="button"
               size="compact"
               className={styles.composerAction}
-              onClick={() => void onStop()}
+              onClick={() => {
+                setStopping(true);
+                void Promise.resolve(onStop()).finally(() => setStopping(false));
+              }}
+              disabled={stopping}
               aria-label="Stop current turn"
             >
               <Stop weight="fill" size={13} aria-hidden="true" />
-              Stop
+              {stopping ? 'Stopping…' : 'Stop'}
             </LiquidMetalButton>
           ) : null}
           <LiquidMetalButton

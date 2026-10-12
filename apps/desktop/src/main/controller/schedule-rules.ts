@@ -32,7 +32,12 @@ export const LEGACY_RECURRING_RUN_LIMIT = 10;
 export function scheduleRuleFields(
   rule: ScheduleRule,
   firstRun: Date,
-): Pick<ScheduleView, 'cadence' | 'days' | 'everyHours'> {
+): Pick<ScheduleView, 'cadence' | 'days' | 'everyHours' | 'anchorAt'> {
+  if (rule.cadence === 'monthly' || rule.cadence === 'yearly')
+    return {
+      cadence: rule.cadence,
+      anchorAt: rule.anchorAt ? validScheduleTime(rule.anchorAt) : firstRun.toISOString(),
+    };
   if (rule.cadence === 'weekly') {
     const days = normalizeScheduleDays(rule.days);
     return { cadence: 'weekly', days: days.length ? days : [firstRun.getDay()] };

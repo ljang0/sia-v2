@@ -772,7 +772,14 @@ describe('research boundary', () => {
       ],
     };
 
-    for (const batch of [rawEvent, rawChunk]) {
+    const calendarEvent = structuredClone(rawEvent);
+    calendarEvent.batchId = 'google-calendar-event';
+    calendarEvent.events[0]!.payload.data.name = 'calendar_list_events';
+    const tasksEvent = structuredClone(rawEvent);
+    tasksEvent.batchId = 'google-tasks-event';
+    tasksEvent.events[0]!.payload.data.name = 'tasks_update';
+
+    for (const batch of [rawEvent, rawChunk, calendarEvent, tasksEvent]) {
       await assert.rejects(
         fixture.services.research.upload(user, batch),
         hasCode('google_workspace_research_forbidden'),
@@ -810,6 +817,47 @@ describe('research boundary', () => {
     ]);
     assert.equal(fixture.objects.objects.size, 1);
     assert.equal(fixture.state.batchRecords.size, 1);
+  });
+
+  it('preserves a claimed research object when the metadata acknowledgement is lost', async () => {
+    const fixture = makeFixture();
+    const put = fixture.state.putBatchIfAbsent.bind(fixture.state);
+    fixture.state.putBatchIfAbsent = async (metadata) => {
+      await put(metadata);
+      throw new Error('lost acknowledgement');
+    };
+    await assert.rejects(
+      fixture.services.research.upload(user, validBatch()),
+      /lost acknowledgement/,
+    );
+    fixture.state.putBatchIfAbsent = put;
+    assert.equal(
+      (await fixture.services.research.upload(user, validBatch())).status,
+      'already_uploaded',
+    );
+    const requested = await fixture.services.research.export(user);
+    await fixture.services.researchExportWorker.process(user.subject, requested.exportId);
+    assert.equal(
+      (await fixture.services.research.exportStatus(user, requested.exportId)).status,
+      'completed',
+    );
+  });
+
+  it('does not let a failed competing upload delete the successful upload’s object', async () => {
+    const fixture = makeFixture();
+    const put = fixture.state.putBatchIfAbsent.bind(fixture.state);
+    let calls = 0;
+    fixture.state.putBatchIfAbsent = async (metadata) => {
+      if (++calls === 2) throw new Error('temporary write failure');
+      return put(metadata);
+    };
+    const results = await Promise.allSettled([
+      fixture.services.research.upload(user, validBatch()),
+      fixture.services.research.upload(user, validBatch()),
+    ]);
+    assert.equal(results.filter(({ status }) => status === 'fulfilled').length, 1);
+    const metadata = (await fixture.state.listBatches(user.subject))[0]!;
+    assert.equal(fixture.objects.objects.has(metadata.objectKey), true);
   });
 
   it('rejects different content racing for the same batch ID', async () => {
@@ -869,6 +917,51 @@ describe('research boundary', () => {
 
     releaseSecondClaim();
     await assert.rejects(loser, hasCode('research_batch_conflict'));
+  });
+
+  it('does not let a duplicate delivery take over a live export worker', async () => {
+    const fixture = makeFixture();
+    const requested = await fixture.services.research.export(user);
+    await fixture.state.transitionResearchExport(
+      user.subject,
+      requested.exportId,
+      ['requested'],
+      'processing',
+      fixture.clock.now().toISOString(),
+    );
+    await assert.rejects(
+      fixture.services.researchExportWorker.process(user.subject, requested.exportId),
+      hasCode('research_export_not_claimed'),
+    );
+    fixture.clock.advance(361_000);
+    await fixture.services.researchExportWorker.process(user.subject, requested.exportId);
+    assert.equal(
+      (await fixture.services.research.exportStatus(user, requested.exportId)).status,
+      'completed',
+    );
+  });
+
+  it('allows only one worker to reclaim an abandoned export', async () => {
+    const fixture = makeFixture();
+    const requested = await fixture.services.research.export(user);
+    await fixture.state.transitionResearchExport(
+      user.subject,
+      requested.exportId,
+      ['requested'],
+      'processing',
+      fixture.clock.now().toISOString(),
+    );
+    fixture.clock.advance(361_000);
+    const results = await Promise.allSettled(
+      [1, 2].map(() =>
+        fixture.services.researchExportWorker.process(user.subject, requested.exportId),
+      ),
+    );
+    assert.equal(results.filter(({ status }) => status === 'fulfilled').length, 1);
+    assert.equal(
+      (await fixture.services.research.exportStatus(user, requested.exportId)).status,
+      'completed',
+    );
   });
 
   it('fails a corrupted export safely and can retry the same job after recovery', async () => {
@@ -1195,6 +1288,98 @@ describe('invites and deletion', () => {
     await fixture.services.deletionWorker.process(user.subject, requested.id, 'research');
   });
 
+  it('makes deletion queue failures retryable instead of leaving an unqueued job pending', async () => {
+    const fixture = makeFixture();
+    const enqueue = fixture.queue.enqueue.bind(fixture.queue);
+    fixture.queue.enqueue = async () => {
+      throw new Error('queue unavailable');
+    };
+    await assert.rejects(
+      fixture.services.research.requestDeletion(user, 'account'),
+      hasCode('deletion_queue_failed'),
+    );
+    assert.equal((await fixture.services.research.status(user))?.state, 'failed');
+    fixture.queue.enqueue = enqueue;
+    fixture.clock.advance(1);
+    const retried = await fixture.services.research.requestDeletion(user, 'account');
+    assert.equal(fixture.queue.messages[0]?.id, retried.id);
+  });
+
+  it('does not substitute a pending research-only deletion for account deletion', async () => {
+    const fixture = makeFixture();
+    await fixture.services.research.requestDeletion(user, 'research');
+    await assert.rejects(
+      fixture.services.research.requestDeletion(user, 'account'),
+      hasCode('deletion_scope_in_progress'),
+    );
+    assert.equal(fixture.queue.messages.length, 1);
+  });
+
+  for (const state of [
+    'processing',
+    'research_deleted',
+    'connections_revoked',
+    'identity_deleted',
+  ] as const) {
+    it(`recovers deletion abandoned in ${state} after the worker lease expires`, async () => {
+      const fixture = makeFixture();
+      fixture.identity.users.set(user.subject, user.email!);
+      const requested = await fixture.services.research.requestDeletion(user, 'account');
+      await fixture.state.transitionDeletion(
+        user.subject,
+        requested.id,
+        ['requested'],
+        state,
+        fixture.clock.now().toISOString(),
+      );
+      await assert.rejects(
+        fixture.services.deletionWorker.process(user.subject, requested.id, 'account'),
+        hasCode('deletion_not_claimed'),
+      );
+      fixture.clock.advance(361_000);
+      await fixture.services.deletionWorker.process(user.subject, requested.id, 'account');
+      assert.equal(
+        (await fixture.state.getDeletion(user.subject, requested.id))?.state,
+        'completed',
+      );
+      assert.equal(fixture.identity.users.has(user.subject), false);
+    });
+  }
+
+  it('rejects a queue message whose deletion scope differs from the saved request', async () => {
+    const fixture = makeFixture();
+    fixture.identity.users.set(user.subject, user.email!);
+    const requested = await fixture.services.research.requestDeletion(user, 'research');
+    await assert.rejects(
+      fixture.services.deletionWorker.process(user.subject, requested.id, 'account'),
+      hasCode('deletion_scope_mismatch'),
+    );
+    assert.equal(fixture.identity.users.has(user.subject), true);
+  });
+
+  it('allows only one worker to reclaim an abandoned deletion', async () => {
+    const fixture = makeFixture();
+    const requested = await fixture.services.research.requestDeletion(user, 'research');
+    await fixture.state.transitionDeletion(
+      user.subject,
+      requested.id,
+      ['requested'],
+      'processing',
+      fixture.clock.now().toISOString(),
+    );
+    fixture.clock.advance(361_000);
+    const results = await Promise.allSettled(
+      [1, 2].map(() =>
+        fixture.services.deletionWorker.process(user.subject, requested.id, 'research'),
+      ),
+    );
+    assert.equal(results.filter(({ status }) => status === 'fulfilled').length, 1);
+    assert.equal(
+      (await fixture.state.getDeletion(user.subject, requested.id))?.state,
+      'completed',
+    );
+  });
+
   it('account deletion revokes connections and deletes identity', async () => {
     const fixture = makeFixture();
     await connect(fixture, 'slack', 'connection-1');
@@ -1336,6 +1521,14 @@ describe('Meta relay service', () => {
             allowedModels: ['second/fast'],
             defaultHarnessId: 'second_lab_harness',
             harnessRoutes: [
+              {
+                // Cannot replace the managed Codex baseline route.
+                model: 'second/fast',
+                harnessId: 'codex_app_server',
+                harnessModelId: 'replacement',
+                credentialSource: 'provider_api',
+                apiProtocol: 'openai_responses',
+              },
               {
                 model: 'second/fast',
                 harnessId: 'second_lab_harness',

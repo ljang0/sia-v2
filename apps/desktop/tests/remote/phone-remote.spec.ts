@@ -60,9 +60,20 @@ const test = base.extend<{
           append(
             'assistant',
             input.text.toLowerCase().includes('report')
-              ? `Your report is ready.\n\n[Open result](<${join(root, 'report.txt')}>)`
+              ? 'Your report is ready.'
               : 'The answer is **42**.',
           );
+          if (input.text.toLowerCase().includes('report')) {
+            state.timeline.at(-1)!.attachments = [
+              {
+                id: randomUUID(),
+                name: 'report.txt',
+                kind: 'file',
+                bytes: 23,
+                generated: true,
+              },
+            ];
+          }
           thread.status = 'idle';
         };
         if (input.text.toLowerCase().includes('quick')) finish();
@@ -127,6 +138,10 @@ const test = base.extend<{
       } as unknown as RecordRepository,
       assets: resolve('out/remote'),
       outbox: root,
+      readGeneratedResult: async () => ({
+        name: 'report.txt',
+        data: await readFile(join(root, 'report.txt')),
+      }),
       qr: async () => '',
       network: () => ({ address: '127.0.0.1', netmask: '255.0.0.0' }),
       port: 0,
@@ -151,7 +166,11 @@ test('phone layout, send, immediate completion, persistence and result download'
   const errors: string[] = [];
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(remote.url);
-  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  // Cold WebKit startup on the hosted Mac can outlast the default five-second assertion.
+  // Keep the check bounded by the client's actual initial state-request deadline.
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible({
+    timeout: 10_000,
+  });
   await expect(page.getByRole('heading', { name: 'Your Mac, within reach.' })).toBeVisible();
   await expect(page.getByRole('textbox')).toBeVisible();
   await page.emulateMedia({ colorScheme: 'light' });
@@ -438,9 +457,7 @@ test('a working task preserves the follow-up and a waiting task accepts it', asy
     page.getByRole('button', { name: /Needs you Please keep working/ }),
   ).toBeVisible();
   await page.getByRole('button', { name: /Needs you Please keep working/ }).click();
-  await expect(
-    page.getByText('Reply below if Sia asked a question.', { exact: false }),
-  ).toBeVisible();
+  await expect(page.getByText('Reply below to answer Sia.', { exact: false })).toBeVisible();
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByRole('textbox')).toHaveValue('');
   expect(remote.sends).toEqual(['Please keep working', 'A quick follow-up']);
@@ -494,8 +511,6 @@ test('acknowledged commands survive a failed status refresh without claiming sen
   page,
   remote,
 }) => {
-  await page.goto(remote.url);
-  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
   let loseUpdates = false;
   await page.route('**/state', (route) =>
     loseUpdates ? route.abort('failed') : route.continue(),
@@ -505,7 +520,12 @@ test('acknowledged commands survive a failed status refresh without claiming sen
     loseUpdates = true;
     await route.fulfill({ response });
   });
-  await page.getByRole('textbox').fill('A quick answer');
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  const composer = page.getByRole('textbox');
+  // Exercise real key input and assert the draft before testing acknowledged delivery.
+  await composer.pressSequentially('A quick answer');
+  await expect(composer).toHaveValue('A quick answer');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByRole('textbox')).toHaveValue('');
   await expect(page.getByRole('status', { name: 'Mac disconnected' })).toBeVisible();
@@ -594,13 +614,18 @@ test('typing the next draft during an acknowledgement does not erase it', async 
     await acknowledgement;
     await route.fulfill({ response });
   });
-  await page.getByRole('textbox').fill('A quick answer');
+  const composer = page.getByRole('textbox');
+  // Use real key input and establish both drafts before testing acknowledgement timing.
+  await composer.pressSequentially('A quick answer');
+  await expect(composer).toHaveValue('A quick answer');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect.poll(() => remote.sends.length).toBe(1);
-  await page.getByRole('textbox').fill('This is my next draft');
+  await composer.fill('');
+  await composer.pressSequentially('This is my next draft');
+  await expect(composer).toHaveValue('This is my next draft');
   release();
   await expect(page.getByRole('button', { name: 'Send message' })).toBeEnabled();
-  await expect(page.getByRole('textbox')).toHaveValue('This is my next draft');
+  await expect(composer).toHaveValue('This is my next draft');
   expect(remote.sends).toEqual(['A quick answer']);
 });
 
@@ -717,20 +742,20 @@ test('phone keeps its fallback aurora and working controls when graphics are una
   expect(remote.sends).toEqual(['A quick answer']);
 });
 
-test('phone fallback remains visible in every view and both themes', async ({
-  page,
-  remote,
-}, info) => {
-  await page.goto(remote.url);
-  const aurora = page.locator('.phone-aurora');
-  await expect(aurora).toHaveAttribute('data-renderer', 'dither');
-  await expect(aurora.locator('.dither-container canvas')).toBeVisible();
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
-    document.dispatchEvent(new Event('visibilitychange'));
-  });
-  await expect(aurora).toHaveAttribute('data-renderer', 'still');
-  for (const colorScheme of ['light', 'dark'] as const) {
+for (const colorScheme of ['light', 'dark'] as const) {
+  test(`phone fallback remains visible in every view in ${colorScheme} theme`, async ({
+    page,
+    remote,
+  }, info) => {
+    await page.goto(remote.url);
+    const aurora = page.locator('.phone-aurora');
+    await expect(aurora).toHaveAttribute('data-renderer', 'dither');
+    await expect(aurora.locator('.dither-container canvas')).toBeVisible();
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect(aurora).toHaveAttribute('data-renderer', 'still');
     await page.emulateMedia({ colorScheme });
     await expect(aurora.locator('.aurora-fallback')).toHaveCSS('opacity', '1');
     for (const view of ['Chat', 'Tasks', 'Memory']) {
@@ -756,15 +781,15 @@ test('phone fallback remains visible in every view and both themes', async ({
       path: info.outputPath(`persistent-aurora-${colorScheme}.png`),
       animations: 'disabled',
     });
-  }
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
-    window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'hidden', { configurable: true, value: false });
+      window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }));
+    });
+    await expect(aurora).toHaveAttribute('data-paused', 'false');
+    await expect(aurora).toHaveAttribute('data-renderer', 'dither');
+    expect(remote.sends).toHaveLength(0);
   });
-  await expect(aurora).toHaveAttribute('data-paused', 'false');
-  await expect(aurora).toHaveAttribute('data-renderer', 'dither');
-  expect(remote.sends).toHaveLength(0);
-});
+}
 
 test('graphics context loss falls back and recovers without losing the draft', async ({
   page,
@@ -872,12 +897,22 @@ test('typing eases the welcome layout while preserving the Dither aurora and com
     Object.defineProperty(visualViewport!, 'offsetTop', { configurable: true, value: 120 });
     visualViewport!.dispatchEvent(new Event('resize'));
     visualViewport!.dispatchEvent(new Event('scroll'));
+    await new Promise(requestAnimationFrame);
+    // Sample the actual CSS transition at known times. A busy CI renderer can miss all
+    // intermediate frames in a wall-clock loop even when the transition is correct.
+    const transitions = hero.getAnimations();
+    const heightTransition = transitions.find(
+      (animation) => (animation as CSSTransition).transitionProperty === 'height',
+    );
+    if (!heightTransition) throw new Error('Keyboard resize did not animate the hero height');
+    for (const animation of transitions) animation.pause();
     const samples: ReturnType<typeof read>[] = [];
-    const start = performance.now();
-    while (performance.now() - start < 600) {
-      await new Promise(requestAnimationFrame);
+    for (const fraction of [0, 0.25, 0.5, 0.75, 1]) {
+      for (const animation of transitions)
+        animation.currentTime = Number(animation.effect!.getTiming().duration) * fraction;
       samples.push(read());
     }
+    for (const animation of transitions) animation.play();
     return {
       before,
       samples,

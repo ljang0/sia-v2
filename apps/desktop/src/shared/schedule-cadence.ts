@@ -6,7 +6,15 @@
  * calendar days in the Mac's time zone rather than adding 24 hours.
  */
 
-export const SCHEDULE_CADENCES = ['once', 'hourly', 'daily', 'weekdays', 'weekly'] as const;
+export const SCHEDULE_CADENCES = [
+  'once',
+  'hourly',
+  'daily',
+  'weekdays',
+  'weekly',
+  'monthly',
+  'yearly',
+] as const;
 export type ScheduleCadence = (typeof SCHEDULE_CADENCES)[number];
 
 /** 0 = Sunday … 6 = Saturday, as Date#getDay returns. */
@@ -29,10 +37,41 @@ export interface ScheduleRule {
   days?: readonly number[] | undefined;
   /** Hourly only: hours between runs. Missing means 1. */
   everyHours?: number | undefined;
+  /** Original calendar date, retained when a short month clamps the next run. */
+  anchorAt?: string | undefined;
 }
 
 const HOUR_MS = 60 * 60_000;
 const DAY_MS = 24 * HOUR_MS;
+
+function nextCalendarRun(rule: ScheduleRule, previous: Date, now: Date): Date {
+  const saved = rule.anchorAt ? new Date(rule.anchorAt) : previous;
+  const anchor = Number.isFinite(saved.getTime()) ? saved : previous;
+  const monthly = rule.cadence === 'monthly';
+  let year = Math.max(previous.getFullYear(), now.getFullYear());
+  let month = monthly
+    ? year === now.getFullYear()
+      ? now.getMonth()
+      : previous.getMonth()
+    : anchor.getMonth();
+  const candidate = () =>
+    new Date(
+      year,
+      month,
+      Math.min(anchor.getDate(), new Date(year, month + 1, 0).getDate()),
+      anchor.getHours(),
+      anchor.getMinutes(),
+      anchor.getSeconds(),
+      anchor.getMilliseconds(),
+    );
+  let next = candidate();
+  while (next <= previous || next <= now) {
+    if (monthly) month++;
+    else year++;
+    next = candidate();
+  }
+  return next;
+}
 
 /** Unique, sorted, whole days from 0 to 6. */
 export function normalizeScheduleDays(days: readonly number[] | undefined): ScheduleDay[] {
@@ -99,6 +138,8 @@ export function firstScheduleRunAt(
 export function defaultFirstScheduleRun(rule: ScheduleRule, now: Date): Date {
   if (rule.cadence === 'once') return new Date(now);
   if (rule.cadence === 'hourly') return new Date(now.getTime() + everyHoursOf(rule) * HOUR_MS);
+  if (rule.cadence === 'monthly' || rule.cadence === 'yearly')
+    return nextCalendarRun(rule, now, now);
   return alignScheduleStart(rule, new Date(now.getTime() + DAY_MS));
 }
 
@@ -112,6 +153,8 @@ export function nextScheduleRun(
   now: Date,
 ): Date | undefined {
   if (rule.cadence === 'once') return undefined;
+  if (rule.cadence === 'monthly' || rule.cadence === 'yearly')
+    return nextCalendarRun(rule, previous, now);
   if (rule.cadence === 'hourly') {
     const step = everyHoursOf(rule) * HOUR_MS;
     const behind = Math.max(0, now.getTime() - previous.getTime());

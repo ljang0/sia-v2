@@ -4,18 +4,6 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  animation: pageEnter var(--motion-standard) var(--ease-out-soft) both;
-}
-
-@keyframes pageEnter {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .settingsTopbar {
@@ -114,23 +102,6 @@
   padding: 24px clamp(24px, 4vw, 48px) 40px;
 }
 
-/* Each section fades in as it opens; the content is keyed by section, so this runs per switch.
-   Backwards fill leaves no transform behind, so fixed-position children still use the viewport. */
-.settingsContent > * {
-  animation: sectionEnter var(--motion-surface) var(--ease-out-soft) backwards;
-}
-
-@keyframes sectionEnter {
-  from {
-    opacity: 0;
-    transform: translateY(3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .settingsTopbar {
   min-height: var(--titlebar-height);
   padding-right: 28px;
@@ -219,13 +190,6 @@
 
   .settingsTopbar p {
     display: none;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .settingsPage,
-  .settingsContent {
-    animation: none;
   }
 }
 

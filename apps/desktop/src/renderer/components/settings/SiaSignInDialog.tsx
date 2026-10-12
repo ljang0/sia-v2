@@ -71,5 +71,5 @@ function signInHint(state: RendererSnapshot['cloudAuth']['state']): string {
     return 'Check your inbox for a one-time code. It can take a minute.';
   if (state === 'mfa-required') return 'Enter the code from your authenticator app.';
   if (state === 'password-required') return 'Enter the administrator password to continue.';
-  return 'Enter your email and we’ll send a one-time code. No password needed.';
+  return 'Sign in or create your account with an email code. No password needed.';
 }

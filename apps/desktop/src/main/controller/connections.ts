@@ -6,8 +6,17 @@ import type {
   DesktopSnapshot,
 } from '../../shared/bridge.js';
 import { abortableDelay } from './async-utils.js';
-import { GOOGLE_CONNECTION_IDS, isGoogleConnection } from './connection-ids.js';
+import { appLabel } from '../connectors/local-connectors.js';
+import {
+  GOOGLE_CONNECTION_IDS,
+  isGoogleConnection,
+  isLocalConnection,
+  type LocalConnectionId,
+} from './connection-ids.js';
 import type { ControllerContext } from './context.js';
+
+/** Owner of a Mac-connected app connected while no Sia cloud account was available. */
+export const LOCAL_DEVICE_OWNER = 'this-mac';
 
 /** The parts of the controller context ConnectorConnections uses. */
 type ConnectorConnectionsContext = Pick<
@@ -30,6 +39,8 @@ type ConnectorConnectionsContext = Pick<
 export class ConnectorConnections {
   readonly generations = new Map<ConnectionView['id'], number>();
   private readonly linkExpiries = new Map<string, number>();
+  /** Sign-ins to Mac-connected apps that are waiting on the person's browser. */
+  private readonly localSetups = new Map<LocalConnectionId, AbortController>();
   setup: { controller: AbortController; task: Promise<void> } | undefined;
 
   constructor(private readonly ctx: ConnectorConnectionsContext) {}
@@ -77,8 +88,9 @@ export class ConnectorConnections {
       if (candidate?.connectionId !== connectionId) continue;
       this.updateConnection(id, {
         status: 'error',
-        detail:
-          'This app connection expired. Reconnect Google Workspace, then retry the action.',
+        detail: `This app connection expired. Reconnect ${
+          isGoogleConnection(app) ? 'Google Workspace' : candidate.label
+        }, then retry the action.`,
       });
     }
     this.ctx.commit();
@@ -316,7 +328,7 @@ export class ConnectorConnections {
     options: { poll?: boolean; partOfBundle?: boolean } = {},
   ): Promise<BridgeResultMap['connections.start']> {
     if (!this.ctx.deps.fakeServices && this.ctx.state.cloudFeatures?.connectors === false) {
-      throw new Error('Connected apps are temporarily disabled by the alpha operator.');
+      throw new Error('Connected apps are temporarily unavailable. Try again later.');
     }
     if (this.setup && !options.partOfBundle) {
       throw new Error('Finish or cancel the guided work-app setup first.');
@@ -404,13 +416,150 @@ export class ConnectorConnections {
     }
   }
 
-  /** A Google app joins the one Workspace grant; Slack connects on its own. */
+  /**
+   * A Google app joins the one Workspace grant; Slack connects on its own through Sia cloud;
+   * Outlook, Notion, and GitHub sign in directly from this Mac.
+   */
   async startAppConnection(
     connectionId: BridgeRequestMap['connections.start']['connectionId'],
   ): Promise<BridgeResultMap['connections.start']> {
+    if (isLocalConnection(connectionId)) return this.startLocalConnection(connectionId);
     return await (isGoogleConnection(connectionId)
       ? this.startGoogleConnection(connectionId)
       : this.startConnection(connectionId));
+  }
+
+  /** Whose grant a Mac-connected app is: the signed-in Sia account, or this Mac without cloud. */
+  private localOwner(): string | undefined {
+    if (this.ctx.deps.fakeServices) {
+      return this.ctx.account.currentIdentityKey() ?? LOCAL_DEVICE_OWNER;
+    }
+    return this.ctx.deps.cloud.configured
+      ? this.ctx.account.currentIdentityKey()
+      : LOCAL_DEVICE_OWNER;
+  }
+
+  /** Stops sign-ins still waiting in the browser, for sign-out and account deletion. */
+  cancelLocalSetups(): void {
+    for (const [app, controller] of this.localSetups) {
+      controller.abort();
+      this.generations.set(app, (this.generations.get(app) ?? 0) + 1);
+      this.updateConnection(app, { status: 'disconnected' });
+      this.clearConnectionDetails(app);
+    }
+    this.localSetups.clear();
+  }
+
+  private async startLocalConnection(
+    app: LocalConnectionId,
+  ): Promise<BridgeResultMap['connections.start']> {
+    if (this.ctx.releaseAccessLocked())
+      throw new Error('Sign in to Sia before connecting an app.');
+    const service = this.ctx.deps.localConnectors;
+    if (!this.ctx.deps.fakeServices && !service?.available(app)) {
+      throw new Error(`${appLabel(app)} isn’t available in this version of Sia yet.`);
+    }
+    const owner = this.localOwner();
+    if (!owner) throw new Error('Sign in to Sia before connecting an app.');
+    const existing = this.ctx.state.connections.find(({ id }) => id === app);
+    if (existing?.status === 'connecting') {
+      throw new Error(`Finish signing in to ${appLabel(app)} in your browser first.`);
+    }
+    if (existing?.connectionId) {
+      if (existing.status !== 'error') {
+        throw new Error('Disconnect the existing connection before connecting again.');
+      }
+      await this.disconnectConnection({
+        connectionId: app,
+        expectedConnectionId: existing.connectionId,
+      });
+    }
+    this.generations.set(app, (this.generations.get(app) ?? 0) + 1);
+    this.updateConnection(app, { status: 'connecting', enabled: true });
+    this.clearConnectionDetails(app);
+    this.ctx.commit();
+    this.ctx.researchCapture.recordLifecycleEvent('connector.setup.started', {
+      app,
+      guided: false,
+    });
+    if (this.ctx.deps.fakeServices) {
+      this.finishLocalConnection(app, owner, {
+        connectionId: `lc_${app}_${randomUUID()}`,
+        account: `demo@${app}.test`,
+      });
+      return { opened: false, snapshot: this.ctx.resultSnapshot() };
+    }
+    const controller = new AbortController();
+    this.localSetups.set(app, controller);
+    const generation = this.generations.get(app);
+    const stillCurrent = () =>
+      this.localSetups.get(app) === controller && this.generations.get(app) === generation;
+    void service!
+      .connect(app, {
+        signal: controller.signal,
+        onUserCode: (userCode) => {
+          if (!stillCurrent()) return;
+          this.updateConnection(app, {
+            userCode,
+            detail: `Enter code ${userCode} on the GitHub page that opened in your browser.`,
+          });
+          this.ctx.commit();
+        },
+      })
+      .then(
+        (result) => {
+          if (!stillCurrent()) {
+            service!.forget(result.connectionId);
+            return;
+          }
+          this.finishLocalConnection(app, owner, result);
+        },
+        (error: unknown) => {
+          if (!stillCurrent()) return;
+          this.updateConnection(app, {
+            status: 'error',
+            detail:
+              error instanceof Error ? error.message : 'Sign-in didn’t finish. Try again.',
+          });
+          delete this.ctx.state.connections.find(({ id }) => id === app)?.userCode;
+          this.ctx.commit();
+          this.ctx.researchCapture.recordLifecycleEvent('connector.setup.failed', {
+            app,
+            reason: 'Local sign-in did not complete.',
+          });
+        },
+      )
+      .finally(() => {
+        if (this.localSetups.get(app) === controller) this.localSetups.delete(app);
+      });
+    return { opened: true, snapshot: this.ctx.resultSnapshot() };
+  }
+
+  private finishLocalConnection(
+    app: LocalConnectionId,
+    owner: string,
+    result: { connectionId: string; account: string },
+  ): void {
+    this.ctx.state.connectionOwners[app] = owner;
+    this.clearConnectionDetails(app);
+    this.updateConnection(app, {
+      status: 'connected',
+      connectionId: result.connectionId,
+      account: result.account,
+    });
+    this.ctx.commit();
+    this.ctx.researchCapture.recordLifecycleEvent('connector.connected', {
+      app,
+      account: result.account,
+      connectionId: result.connectionId,
+    });
+  }
+
+  private clearConnectionDetails(id: ConnectionView['id']): void {
+    const connection = this.ctx.state.connections.find((candidate) => candidate.id === id);
+    if (!connection) return;
+    delete connection.detail;
+    delete connection.userCode;
   }
 
   async disconnectConnection(
@@ -422,6 +571,9 @@ export class ConnectorConnections {
       throw new Error(
         `${current?.label ?? 'This app'} changed since this screen was shown. Review the current connection before disconnecting it.`,
       );
+    }
+    if (isLocalConnection(connectionId)) {
+      return this.disconnectLocalConnection(connectionId, current);
     }
     this.setup?.controller.abort();
     this.generations.set(connectionId, (this.generations.get(connectionId) ?? 0) + 1);
@@ -473,6 +625,42 @@ export class ConnectorConnections {
     this.ctx.commit();
     this.ctx.researchCapture.recordLifecycleEvent('connector.disconnected', {
       app: connectionId,
+      ...(current?.connectionId ? { connectionId: current.connectionId } : {}),
+    });
+    return this.ctx.resultSnapshot();
+  }
+
+  private disconnectLocalConnection(
+    app: LocalConnectionId,
+    current: ConnectionView | undefined,
+  ): DesktopSnapshot {
+    const owner = this.ctx.state.connectionOwners[app];
+    if (
+      !this.ctx.deps.fakeServices &&
+      current?.connectionId &&
+      owner &&
+      owner !== LOCAL_DEVICE_OWNER &&
+      owner !== this.localOwner()
+    ) {
+      throw new Error(
+        'Sign in with the account that created this connection before removing it.',
+      );
+    }
+    this.localSetups.get(app)?.abort();
+    this.localSetups.delete(app);
+    this.generations.set(app, (this.generations.get(app) ?? 0) + 1);
+    if (current?.connectionId) this.ctx.deps.localConnectors?.forget(current.connectionId);
+    this.updateConnection(app, { status: 'disconnected' });
+    this.clearConnectionDetails(app);
+    const disconnected = this.ctx.state.connections.find(({ id }) => id === app);
+    if (disconnected) {
+      delete disconnected.account;
+      delete disconnected.connectionId;
+    }
+    delete this.ctx.state.connectionOwners[app];
+    this.ctx.commit();
+    this.ctx.researchCapture.recordLifecycleEvent('connector.disconnected', {
+      app,
       ...(current?.connectionId ? { connectionId: current.connectionId } : {}),
     });
     return this.ctx.resultSnapshot();
@@ -678,6 +866,15 @@ export class ConnectorConnections {
   lockConnections(detail: string): void {
     for (const connection of this.ctx.state.connections) {
       if (!connection.connectionId) continue;
+      // Without Sia cloud there is no account to sign in with: a Mac-connected app belongs to
+      // this Mac and stays usable.
+      if (
+        !this.ctx.deps.cloud.configured &&
+        isLocalConnection(connection.id) &&
+        this.ctx.state.connectionOwners[connection.id] === LOCAL_DEVICE_OWNER
+      ) {
+        continue;
+      }
       connection.status = 'error';
       connection.detail = detail;
       delete connection.account;

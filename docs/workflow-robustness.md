@@ -1,9 +1,113 @@
 # Workflow robustness
 
-Source review of `codex/codex-setup`: robustness checkpoint `1fa1528`, incorporating
-the three subsequent `origin/romir` commits through `148b452`.
-This is a source and deterministic-test audit of the major user workflows. It is not an
+This is a continuing source and deterministic-test audit of the major user workflows. It is not an
 all-app live acceptance result. The public release remains gated by [public-release.md](./public-release.md).
+
+## Repository-wide continuation
+
+The continuation from `fa97fc6` inventories all 880 tracked files, including tests, documentation,
+native helpers, infrastructure, scripts and binary assets. Automated coverage includes the full
+source gate, text hygiene, script syntax, JSON/YAML/XML parsing, local documentation and site
+asset links, and asset signatures. Manual review concentrates on asynchronous lifetime boundaries,
+authorization, persistence, cloud jobs and user workflows; this is not a claim that every line was
+manually reviewed or that live external services have no defects. The new renderer test brings the
+tree to 881 files. The existing domain organization remains appropriate.
+
+The continuation fixes these reproduced failures:
+
+- **Cloud jobs:** a duplicate delivery could take over a live export, abandoned deletion jobs
+  could stay stuck, and failed queue submissions could leave deletion permanently pending. Claims
+  now compare the saved revision atomically and reclaim only after the configured six-minute
+  visibility interval. Queue failures permit retry. An account-deletion request cannot silently
+  reuse a research-only request, and worker scope must match the saved job.
+- **Research storage:** an uncertain metadata write or a failed competing upload could delete a
+  successfully claimed, content-addressed object. Unknown outcomes now preserve the object for
+  retry reconciliation, user deletion and the existing retention policy. Definitively losing
+  uploads with different content still remove their unclaimed object.
+- **Connectors:** delayed refreshes could restore disconnected credentials, and concurrent calls
+  could rotate the same refresh token twice. Refreshes now share one request and check the saved
+  credential before committing. Cancelled sign-in cannot restore credentials after account lookup.
+  Notion reads bounded SSE incrementally and shares initialization, resolving matching replies
+  even when the remote stream remains open. All local connector HTTP requests have a timeout.
+- **Model relay and transport:** reset now cancels streams and interrupted startup, while the
+  JSON-RPC transport handles output failure, synchronous send errors and oversized complete lines.
+- **Workspace and task cancellation:** terminal disposal prevents delayed starts, handles closed
+  stdin and kills surviving descendants. Undo checks canonical paths against protected locations,
+  rechecks staged writes, preserves observed concurrent edits and reports incomplete rollback
+  honestly. Already-cancelled turns cannot acquire capacity or computer-control leases.
+- **Composer:** late pick/drop/paste results cannot cross conversation or composer lifetimes.
+  Returning to the original conversation does not restore an obsolete selection.
+
+Focused regression evidence and the file inventory are retained outside Git under
+`release-verification-evidence/repository-audit-continuation` in the parent workspace. These source
+changes do not replace the installed signed demo, deploy cloud changes, or establish external
+connector, physical-handset or signed-release acceptance.
+
+## Messaging lifecycle and repository audit
+
+The October 12 review starts from `c256f71` on `codex/release-verification`. It examines the domain
+layout, renderer/main bridge, local persistence, authentication boundaries, scheduling and task
+cancellation, remote messaging, bot transport, release scripts, CI and contributor instructions.
+The existing desktop/cloud/package separation and typed controller collaborators remain the
+organization to build on; there is no need for a broad directory rewrite. The concrete changes are:
+
+- **Keep renderer state current.** A delayed bootstrap or action response could overwrite a
+  newer pushed snapshot, including restoring old conversation data after sign-out. The renderer
+  now retains its highest received revision. A deferred-bootstrap regression reproduces the
+  sign-out race and verifies that the cleared state stays visible.
+- **Revoke pending messaging work.** Voice transcription, result-file reads and queued replies
+  previously survived disabling texting, removing a recipient, changing the assistant, signing
+  out or disposing the relay. Eleven deterministic cases reproduced those paths. Pending work
+  now checks its original route and recipient after asynchronous work and before dispatch or
+  delivery. Re-enabling texting does not revive old queued replies. An external send already
+  handed to Messages or a bot cannot be recalled by this guard.
+- **Bind YES to delivered, complete details.** An approval becomes answerable by text only after
+  its notice was sent successfully. If its content or summary would be shortened, review stays
+  on the Mac. Tests cover failed delivery and both shortening cases alongside the existing
+  exact-request and stale-YES checks.
+- **Keep bot lifetimes explicit.** A late bot-token verification cannot reconnect a disconnected
+  bot. Discord gateway discovery and retry timers stop with their owning connection; late
+  downloads cannot deliver into a stopped channel. Attachment messages keep arrival order, so
+  a follow-up cannot overtake the photo it refers to.
+- **Bound downloads while reading.** Telegram and Discord now stop and cancel response streams
+  at the 20 MB limit, including chunked responses or inaccurate Content-Length metadata. Previously
+  the entire body was allocated before the size check. Network operations also have timeouts.
+- **Use one pilot gate.** `pnpm test:pilot` includes the Chromium/WebKit phone checks; CI invokes
+  that same command without rebuilding the entire workspace again for Electron E2E. The focused
+  `pnpm test:remote` alias is available from the repository root. Contributor instructions and
+  README now match the API-key option, Mac setup requirements, disabled connectors and phone
+  approval behavior.
+- **Patch the dependency graph.** Electron moves from 43.4.0 to 43.5.0, and the Vitest workspaces
+  share the patched 4.1 line instead of mixing versions 3 and 4. Narrow overrides keep vulnerable
+  transitive parsers, HTTP clients and build utilities on patched releases within their existing
+  major lines. The registry audit fell from 29 high / 2 critical / 15 moderate / 4 low findings to
+  zero high, critical or low and one moderate finding. CI runs `pnpm audit:dependencies` separately
+  from the deterministic pilot gate. Package test commands explicitly select `src`, so Vitest 4
+  does not also execute the compiled copies under `dist` and double the test counts.
+
+The remaining [sprintf-js precision advisory](https://github.com/advisories/GHSA-hp3w-g68c-fv3c)
+is in electron-builder's optional downloader logging chain (`@electron/get → global-agent →
+roarr → sprintf-js`), not Sia's production dependency set. On October 12 the registry still lists
+1.1.3 as the newest published version, and the upstream advisory lists no patched release. Do not
+hide it with an audit exclusion or pin the nonexistent 1.1.4 suggested by the audit metadata.
+The Electron update also covers the upstream
+[sandboxed-preload cache advisory](https://github.com/electron/electron/security/advisories/GHSA-qmv3-fv6v-rmhq).
+
+The final `pnpm test:pilot` passed with the updated dependency graph: build, formatting, lint,
+quality guard, types, 168 cloud tests, 143 shared-package tests, 1,234 desktop unit tests,
+45 Electron tests, 20 renderer tests and 62 phone-browser tests across Chromium and WebKit.
+Native screenshot/permission helpers and all six synthetic Fn scenarios also passed. Six runtime,
+seven desktop and four live Electron tests remain opt-in/skipped. This pass adds 19 regression
+cases across the renderer, messaging relay and bot transports. The frozen-lockfile install and
+`pnpm audit:dependencies` also passed. `pnpm package:mac:dir` built the unsigned universal app
+with Electron 43.5.0 and passed its packaged architecture, native dependency, tool-bridge and
+license-resource checks. Logs and before/after evidence are retained outside the
+repository under `release-verification-evidence/code-audit-2026-10-12` in the parent workspace.
+
+These changes are source fixes, not a replacement for signed-app or external-service acceptance.
+The installed Arena demo remains the separately verified alpha.25 runtime from `32a916c` until a
+new candidate is built, signed and rehearsed. Telegram/Discord live acceptance still requires
+configured test bots; physical-handset actions remain a separate release gate.
 
 ## Responsiveness and compact UI
 
@@ -20,13 +124,11 @@ restart a provider for each follow-up.
   initialization disposes its peer and the next request starts a fresh one. Session reset remains
   reusable; a late pre-reset factory cannot install its old connection over the replacement.
   Linked JSON-RPC peer tests reproduce both original failures and exercise reset recovery.
-- **Streaming:** renderer snapshots still publish at a 50ms cadence; full encrypted state is
-  checkpointed at most every 500ms for text deltas. Completion, actions, non-streaming changes and
-  shutdown persist immediately. In the same deterministic 30-delta / 20ms fixture, full-state
-  writes fell from 13 to 4 while 13 snapshots reached subscribers. SQLite plus an actual
-  AES-GCM test cipher exercises storage; this measures local write work, not model or network
-  latency. An abrupt process/OS failure can lose up to roughly 500ms of unfinished streamed text.
-  Graceful shutdown preserves the partial response and cancels both pending timers.
+- **Streaming:** renderer updates publish at a 50ms cadence; full encrypted state is checkpointed
+  every 2s while streaming. Composer drafts persist after 500ms. Completion, non-streaming changes
+  and graceful shutdown persist immediately. An abrupt process/OS failure can lose the latest
+  checkpoint interval of unfinished text or drafts. See the current ownership rules in
+  [architecture](./architecture.md#state-ownership).
 - **Task preparation:** initialize the provider before acquiring the GUI lease, and acquire fresh
   screen context after ownership. A competing-turn regression proves preparation can proceed
   while another task owns the screen, without permitting an early action. Duplicate memory-vault

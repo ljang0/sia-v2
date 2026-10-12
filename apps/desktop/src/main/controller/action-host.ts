@@ -1,5 +1,11 @@
 import type { ActionInvocationObserver, ActionResultObserver } from '@sia/action-gateway';
-import { GOOGLE_WORKSPACE_ACTION, isConnectorActionTool } from './connection-ids.js';
+import {
+  connectorAppForTool,
+  GOOGLE_WORKSPACE_ACTION,
+  isConnectorActionTool,
+  isLocalConnection,
+} from './connection-ids.js';
+import { isGoogleConnection, isOfferedGoogleConnection } from '../../shared/bridge.js';
 import type { ControllerContext } from './context.js';
 import { SAFE_RESEARCH_ACTIONS } from './research-records.js';
 
@@ -76,6 +82,17 @@ export class ActionHost {
 
   toolAvailable(name: string): boolean {
     if (this.ctx.releaseAccessLocked()) return false;
+    const app = connectorAppForTool(name);
+    if (app && isGoogleConnection(app) && !isOfferedGoogleConnection(app)) return false;
+    if (app && isLocalConnection(app)) {
+      // Mac-connected apps join the tool list only once connected, keeping prompts short.
+      return this.ctx.state.connections.some(
+        (connection) =>
+          connection.id === app &&
+          connection.status === 'connected' &&
+          connection.enabled !== false,
+      );
+    }
     if (isConnectorActionTool(name)) {
       return (
         this.ctx.deps.fakeServices ||

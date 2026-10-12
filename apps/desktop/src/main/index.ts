@@ -1,7 +1,13 @@
 import { BrowserWindowService } from './mac/browser-window.js';
+import { backgroundControlUnavailable } from './controller/computer-access.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
-import { developmentRelaunchArguments } from './window/development-relaunch.js';
+import {
+  developmentRelaunchArguments,
+  packagedRelaunchArguments,
+} from './window/development-relaunch.js';
 import { PhoneRemote } from './remote/phone-remote.js';
+import { MessagesRelay, spokenReply, voiceNoteTranscriber } from './remote/messages-relay.js';
+import { DiscordChannel, TelegramChannel } from './remote/bot-channels.js';
 import { remoteQR, advertiseRemote } from './remote/phone-remote-native.js';
 import { createScottyCompanion } from './window/scotty-window.js';
 import { createScreenControlIndicator } from './mac/screen-control-indicator.js';
@@ -51,6 +57,15 @@ import { MessagesService } from './mac/messages-service.js';
 
 import { CloudClient } from './cloud/cloud-client.js';
 import { HostedResponsesProxy } from './providers/hosted-responses-proxy.js';
+import { createAcpAdapter } from '@sia/runtime';
+import { LAB_HARNESS_MANIFEST_ENV, loadLabHarnessManifest } from './providers/lab-harness.js';
+import {
+  ByokCredential,
+  ByokForwarder,
+  byokCredentialPath,
+  checkByokConfig,
+  validateByokConfig,
+} from './providers/byok.js';
 import { loadCloudConfiguration } from './cloud/cloud-config.js';
 import { DesktopController } from './controller/desktop-controller.js';
 import { KeepAwake } from './mac/keep-awake.js';
@@ -59,6 +74,12 @@ import { DesktopActionBackend } from './actions/desktop-action-backend.js';
 import { CapabilitySocketHost } from './actions/capability-host.js';
 import { registerDesktopIpc } from './window/ipc.js';
 import { ElectronPayloadCipher, SecureStorageUnavailableError } from './storage/persistence.js';
+import { localConnectorClients } from './connectors/clients.js';
+import {
+  LocalCredentialStore,
+  localConnectorDirectory,
+} from './connectors/credential-store.js';
+import { LocalConnectorService } from './connectors/local-connectors.js';
 import { RuntimeCoordinator } from './providers/runtime-coordinator.js';
 import { CognitoIdentityManager } from './cloud/identity.js';
 import { configureMetaCloudAvailability, probeProviders } from './providers/provider-probe.js';
@@ -90,6 +111,7 @@ const PRODUCTION_HEADER_CSP = PRODUCTION_CSP.replace(
   `script-src 'self' ${CSP_BOOTSTRAP_HASH}`,
 );
 let phoneRemote: PhoneRemote | undefined;
+let messagesRelay: MessagesRelay | undefined;
 let scotty: ReturnType<typeof createScottyCompanion> | undefined;
 let screenIndicator: ReturnType<typeof createScreenControlIndicator> | undefined;
 let commandLauncher: ReturnType<typeof createCommandLauncher> | undefined;
@@ -141,6 +163,8 @@ if (!gotLock) {
     windowStateSaver?.flushNow();
     phoneRemote?.dispose();
     phoneRemote = undefined;
+    messagesRelay?.dispose();
+    messagesRelay = undefined;
     scotty?.dispose();
     scotty = undefined;
     screenIndicator?.dispose();
@@ -341,6 +365,11 @@ async function performApplicationCreation(): Promise<void> {
     if (!controller) app.quit();
   });
 
+  let rendererLoad: Promise<void> | undefined;
+  let markStartupReady!: () => void;
+  const startupReady = new Promise<void>((resolve) => {
+    markStartupReady = resolve;
+  });
   const plaintextTestStorage =
     !app.isPackaged && process.env.SIA_TEST_PLAINTEXT_STORAGE === '1';
   if (!controller && !plaintextTestStorage) await showStorageStartup(window);
@@ -381,7 +410,34 @@ async function performApplicationCreation(): Promise<void> {
             decrypt: (value) => new ElectronPayloadCipher().decrypt(value),
           })
         : undefined;
+    const localConnectors =
+      !fakeServices && process.platform === 'darwin'
+        ? new LocalConnectorService({
+            store: new LocalCredentialStore(localConnectorDirectory(app.getPath('appData')), {
+              encrypt: (value) => new ElectronPayloadCipher().encrypt(value),
+              decrypt: (value) => new ElectronPayloadCipher().decrypt(value),
+            }),
+            clients: localConnectorClients({
+              packaged: app.isPackaged,
+              environment: process.env,
+            }),
+            openExternal: openSafeExternal,
+          })
+        : undefined;
     const hostedResponsesProxy = fakeServices ? undefined : new HostedResponsesProxy(cloud);
+    // The person's own API key: encrypted on disk, attached only by this loopback proxy.
+    const byokCredential = fakeServices
+      ? undefined
+      : new ByokCredential(byokCredentialPath(app.getPath('appData')), {
+          encrypt: (value) => new ElectronPayloadCipher().encrypt(value),
+          decrypt: (value) => new ElectronPayloadCipher().decrypt(value),
+        });
+    const byokResponsesProxy = byokCredential
+      ? new HostedResponsesProxy(new ByokForwarder(() => byokCredential.read()), {
+          id: 'sia_byok',
+          name: 'Your API key',
+        })
+      : undefined;
     let activeController!: DesktopController;
     const computer = new CuaService(
       {
@@ -389,6 +445,7 @@ async function performApplicationCreation(): Promise<void> {
       },
       {
         fakePermissions: fakeServices,
+        verifyAccess: true,
         freshPermissions: freshPermissionProbe({
           executable: process.execPath,
           entryPath: join(import.meta.dirname, 'permission-probe.js'),
@@ -418,12 +475,64 @@ async function performApplicationCreation(): Promise<void> {
           'x-apple.systempreferences:com.apple.preference.security?Privacy_Automation',
         ),
     });
+    // Lab harness testing builds only: a manifest signed with Sia's release key pins each
+    // lab's ACP command by hash. Anything invalid is reported and ignored; Codex stays default.
+    const labManifestPath = process.env[LAB_HARNESS_MANIFEST_ENV];
+    const labHarnesses = labManifestPath
+      ? await loadLabHarnessManifest({
+          path: labManifestPath,
+          publicKey: cloudConfiguration.updateManifestPublicKey,
+        }).catch((error: unknown) => {
+          console.error(
+            `[sia:lab-harness] ${error instanceof Error ? error.message : 'The manifest could not be loaded.'}`,
+          );
+          return [];
+        })
+      : [];
     activeController = new DesktopController({
+      labHarnesses: labHarnesses.map(({ id, name, disclosure, models }) => ({
+        id,
+        name,
+        disclosure,
+        models,
+      })),
       captureMacContext: () => browserWindows.macContext(),
       notchHelperPath: app.isPackaged
         ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
         : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
-      installCodex: () => installManagedCodex(codexToolsRoot),
+      installCodex: (onProgress) => installManagedCodex(codexToolsRoot, onProgress),
+      ...(fakeServices
+        ? (() => {
+            // Development only: a key kept in memory and never checked, so the Settings flow
+            // can be exercised without a provider account.
+            let fake: { model: string; host: string } | undefined;
+            return {
+              byok: {
+                summary: () => fake,
+                save: async (input: { baseUrl?: string; model: string; apiKey: string }) => {
+                  const config = validateByokConfig(input);
+                  fake = { model: config.model, host: new URL(config.baseUrl).host };
+                },
+                clear: () => {
+                  fake = undefined;
+                },
+              },
+            };
+          })()
+        : {}),
+      ...(byokCredential
+        ? {
+            byok: {
+              summary: () => byokCredential.summary(),
+              save: async (input) => {
+                const config = validateByokConfig(input);
+                await checkByokConfig(config);
+                byokCredential.save(config);
+              },
+              clear: () => byokCredential.clear(),
+            },
+          }
+        : {}),
       providerProbe: (only) =>
         probeProviders(
           only,
@@ -448,6 +557,7 @@ async function performApplicationCreation(): Promise<void> {
         shell.showItemInFolder(path);
       },
       openExternal: openSafeExternal,
+      ...(localConnectors ? { localConnectors } : {}),
       openMessages: () => shell.openExternal('sms:', { activate: true }),
       ...(!fakeServices ? { requestMicrophonePermission } : {}),
       openMessagesPermissions: () =>
@@ -534,7 +644,14 @@ async function performApplicationCreation(): Promise<void> {
       }),
       ...(startupNotice ? { startupNotice } : {}),
     });
+    // The encrypted store is open, so the Keychain explanation has done its job. Load the
+    // window now; its startup screen shows while provider, permission and account checks run.
+    unregisterIpc = registerDesktopIpc(ipcMain, window, activeController, startupReady);
+    rendererLoad = loadRenderer(window, rendererDevUrl);
+    rendererLoad.catch(() => undefined);
     const actionBackend = new DesktopActionBackend({
+      computerUnavailable: async () =>
+        backgroundControlUnavailable(await computer.permissions()),
       macAutomation: runMacAutomation,
       assistantAction: (request) =>
         activeController.assistantAction(request, (name, args, skillSignal) =>
@@ -554,7 +671,15 @@ async function performApplicationCreation(): Promise<void> {
       installedApplications,
       openApplication: launchInstalledApplication,
       openUrl: openWebExternal,
-      messages: messagesService,
+      messages: {
+        search: (query, limit) => messagesService.search(query, limit),
+        readThread: (chatId, limit) => messagesService.readThread(chatId, limit),
+        // Approved sends to trusted people are marked as coming from this Sia.
+        send: (recipient, text) =>
+          messagesRelay
+            ? messagesRelay.sendFromSia(recipient, text)
+            : messagesService.send(recipient, text),
+      },
       openFullDiskAccessSettings: async () => {
         await shell.openExternal(
           'x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles',
@@ -567,6 +692,7 @@ async function performApplicationCreation(): Promise<void> {
       inspectBrowserWindow: (pid, windowId) => browserWindows.inspect(pid, windowId),
       readImageText: (dataBase64) => browserWindows.imageText(dataBase64),
       readWindowContext: (pid, windowId) => browserWindows.context(pid, windowId),
+      ...(localConnectors ? { localConnectors } : {}),
       resolveConnectionId: (app, selector, approvalId) =>
         activeController.connectionIdForAction(app, selector, approvalId),
       onConnectionReconnectRequired: (app, connectionId) =>
@@ -627,6 +753,28 @@ async function performApplicationCreation(): Promise<void> {
               hostedResponsesProxy.issue(providerSession.model),
           }
         : {}),
+      ...(byokResponsesProxy
+        ? {
+            byokCodexProvider: (providerSession) =>
+              byokResponsesProxy.issue(providerSession.model),
+          }
+        : {}),
+      harnessAdapters: labHarnesses.map((harness) => ({
+        provider: 'lab' as const,
+        harnessId: harness.id,
+        adapter: createAcpAdapter({
+          provider: 'lab',
+          command: harness.command,
+          commandArgs: harness.args,
+          versionArgs: harness.versionArgs,
+          supportedVersions: { minimum: '0.0.0' },
+          productionEnabled: true,
+          accountOverride: { state: 'authenticated', label: harness.name, billing: 'api' },
+          ...(capabilityHost
+            ? { mcpServerFactory: (session) => [capabilityHost!.mint(session.threadId)] }
+            : {}),
+        }),
+      })),
       ...(capabilityHost
         ? {
             acpMcpServerFactory: (_provider, session) => [
@@ -635,11 +783,12 @@ async function performApplicationCreation(): Promise<void> {
             onSessionsReset: () => capabilityHost!.revokeAll(),
           }
         : {}),
-      ...(hostedResponsesProxy || capabilityHost
+      ...(hostedResponsesProxy || byokResponsesProxy || capabilityHost
         ? {
             onDispose: async () => {
               await Promise.all([
                 hostedResponsesProxy?.dispose() ?? Promise.resolve(),
+                byokResponsesProxy?.dispose() ?? Promise.resolve(),
                 capabilityHost ? capabilityHost.stop() : Promise.resolve(),
               ]);
             },
@@ -650,9 +799,11 @@ async function performApplicationCreation(): Promise<void> {
     await activeController.initialize();
     unsubscribeDockBadge?.();
     let dockBadge: string | undefined;
-    const updateDockBadge = (snapshot: ReturnType<typeof activeController.snapshot>) => {
-      // Snapshots arrive while replies stream; only a changed count reaches the Dock.
-      const next = dockBadgeText(snapshot.threads);
+    const updateDockBadge = ({
+      threads,
+    }: Pick<import('../shared/bridge.js').DesktopSnapshot, 'threads'>) => {
+      // Updates arrive while replies stream; only a changed count reaches the Dock.
+      const next = dockBadgeText(threads);
       if (next === dockBadge) return;
       dockBadge = next;
       app.dock?.setBadge(next);
@@ -660,6 +811,7 @@ async function performApplicationCreation(): Promise<void> {
     updateDockBadge(activeController.snapshot());
     unsubscribeDockBadge = activeController.subscribe((event) => {
       if (event.type === 'snapshot') updateDockBadge(event.snapshot);
+      else if (event.type === 'stream') updateDockBadge(event.patch);
     });
     activeController.attachPushToTalk({
       available: process.platform === 'darwin' && !fakeServices,
@@ -675,6 +827,8 @@ async function performApplicationCreation(): Promise<void> {
       ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
       : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper');
     phoneRemote = new PhoneRemote({
+      readGeneratedResult: (threadId, attachmentId) =>
+        activeController.readGeneratedResult(threadId, attachmentId),
       controller: activeController,
       repository,
       assets: join(import.meta.dirname, '../remote'),
@@ -685,6 +839,39 @@ async function performApplicationCreation(): Promise<void> {
         : {}),
     });
     activeController.attachPhoneRemote((command) => phoneRemote!.configure(command));
+    messagesRelay = new MessagesRelay({
+      controller: activeController,
+      repository,
+      messages: fakeServices
+        ? {
+            status: () => 'unavailable',
+            latestRowId: () => 0,
+            inbound: (cursor) => ({ cursor, messages: [] }),
+            send: async () => undefined,
+            sendFile: async () => undefined,
+          }
+        : messagesService,
+      ...(!fakeServices
+        ? {
+            transcribe: voiceNoteTranscriber(activeController),
+            speak: spokenReply(activeController),
+            bot: (kind: 'telegram' | 'discord', token: string) => {
+              const downloads = join(app.getPath('userData'), 'chat-attachments', kind);
+              return kind === 'telegram'
+                ? new TelegramChannel({ token, downloads })
+                : new DiscordChannel({ token, downloads });
+            },
+            // The bot token goes from the clipboard straight to encrypted storage; it never
+            // crosses IPC or reaches the renderer, and the clipboard is cleared afterwards.
+            takeClipboardToken: () => {
+              const token = clipboard.readText();
+              if (token) clipboard.clear();
+              return token;
+            },
+          }
+        : {}),
+    });
+    activeController.attachMessagesRelay((command) => messagesRelay!.configure(command));
     scotty = createScottyCompanion(
       activeController,
       repository,
@@ -725,6 +912,7 @@ async function performApplicationCreation(): Promise<void> {
     });
     updateVoiceSuspension();
     await phoneRemote.initialize();
+    messagesRelay.initialize();
     scotty.initialize();
     controller = activeController;
     // Reload appears in the View menu while Settings → Developer tools is on.
@@ -746,14 +934,19 @@ async function performApplicationCreation(): Promise<void> {
   );
   activeController.setLauncherRegistered(commandLauncher.registered);
 
-  unregisterIpc = registerDesktopIpc(ipcMain, window, activeController);
-
-  if (rendererDevUrl) {
-    await window.loadURL(rendererDevUrl);
-  } else {
-    await window.loadFile(join(import.meta.dirname, '../renderer/index.html'));
-  }
+  unregisterIpc ??= registerDesktopIpc(ipcMain, window, activeController);
+  markStartupReady();
+  await (rendererLoad ?? loadRenderer(window, rendererDevUrl));
   void activeController.resumeCodexSetup().catch(() => undefined);
+}
+
+function loadRenderer(
+  window: BrowserWindow,
+  rendererDevUrl: string | undefined,
+): Promise<void> {
+  return rendererDevUrl
+    ? window.loadURL(rendererDevUrl)
+    : window.loadFile(join(import.meta.dirname, '../renderer/index.html'));
 }
 
 async function confirmQuit(
@@ -780,10 +973,12 @@ async function confirmQuit(
 
 function relaunchApplication(): void {
   quitConfirmed = true;
-  if (process.platform === 'darwin' && !app.isPackaged) {
+  if (process.platform === 'darwin') {
     app.relaunch({
       execPath: '/usr/bin/open',
-      args: developmentRelaunchArguments(process.execPath, app.getAppPath(), process.env),
+      args: app.isPackaged
+        ? packagedRelaunchArguments(process.execPath, process.argv)
+        : developmentRelaunchArguments(process.execPath, app.getAppPath(), process.env),
     });
   } else app.relaunch();
   app.quit();

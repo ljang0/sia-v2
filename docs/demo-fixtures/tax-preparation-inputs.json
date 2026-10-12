@@ -1,0 +1,36 @@
+{
+  "fictional": true,
+  "purpose": "Document organization and draft preparation only; no legal tax calculations are provided.",
+  "tax_year": 2025,
+  "documents": [
+    {
+      "id": "income-1",
+      "kind": "employment income summary",
+      "gross_usd": 72000
+    },
+    {
+      "id": "income-2",
+      "kind": "freelance income summary",
+      "gross_usd": 6400
+    },
+    {
+      "id": "receipt-1",
+      "kind": "expense receipt",
+      "amount_usd": 240,
+      "purpose": "Ask user to classify"
+    },
+    {
+      "id": "receipt-2",
+      "duplicate_of": "receipt-1",
+      "amount_usd": 240
+    }
+  ],
+  "missing": ["jurisdiction", "filing status", "official tax documents", "prior-year return"],
+  "expected": [
+    "inventory each source",
+    "flag missing inputs",
+    "deduplicate receipt",
+    "produce a source-linked draft packet and questions",
+    "no filing or payment"
+  ]
+}

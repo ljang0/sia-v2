@@ -15,6 +15,7 @@ import type { RendererApi, RendererSnapshot, ScheduleChanges, ScheduleRun } from
 import { threadDisplayTitle } from '../../threadTitle';
 import layout from '../../styles/layout.module.css';
 import buttons from '../../styles/buttons.module.css';
+import dialogs from '../../styles/dialogs.module.css';
 import surface from './localParity.module.css';
 import primitives from '../../styles/primitives.module.css';
 import styles from './Schedules.module.css';
@@ -43,6 +44,7 @@ interface ScheduleItem {
   cadence: ScheduleCadence;
   days?: readonly number[] | undefined;
   everyHours?: number | undefined;
+  anchorAt?: string | undefined;
   nextRunAt: string;
   enabled: boolean;
   runCount?: number | undefined;
@@ -491,6 +493,9 @@ export function ScheduledPage({
   onOpenThread,
   onClose,
 }: ScheduledPageProps) {
+  const [creating, setCreating] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [destination, setDestination] = useState(snapshot.activeThread?.id ?? '');
   const threads = new Map<string, { title: string; agentName: string; archived: boolean }>();
   for (const agent of snapshot.agents) {
     for (const thread of agent.threads)
@@ -536,6 +541,63 @@ export function ScheduledPage({
         </button>
       </header>
       <div className={styles.scheduledPageContent}>
+        <button
+          type="button"
+          className={buttons.secondaryButton}
+          disabled={!snapshot.agents.some((agent) => agent.threads.length)}
+          onClick={() => {
+            if (!destination)
+              setDestination(snapshot.agents.flatMap((agent) => agent.threads)[0]?.id ?? '');
+            setCreating(!creating);
+          }}
+          aria-expanded={creating}
+        >
+          <Plus size={14} aria-hidden="true" /> New schedule
+        </button>
+        {creating ? (
+          <section aria-label="New schedule">
+            <label className={dialogs.localField}>
+              <span>Conversation</span>
+              <select
+                value={destination}
+                onChange={(event) => setDestination(event.target.value)}
+                disabled={saving}
+              >
+                {snapshot.agents.flatMap((agent) =>
+                  agent.threads.map((thread) => (
+                    <option key={thread.id} value={thread.id}>
+                      {agent.name} · {threadDisplayTitle(thread.title)}
+                    </option>
+                  )),
+                )}
+              </select>
+            </label>
+            <ScheduleForm
+              initial={blankValues()}
+              submitLabel="Create schedule"
+              busy={saving}
+              onCancel={() => setCreating(false)}
+              onSaved={() => setCreating(false)}
+              onSubmit={async (draft) => {
+                setSaving(true);
+                try {
+                  await attempt(() =>
+                    api.createSchedule(
+                      destination,
+                      draft.prompt,
+                      draft.cadence,
+                      new Date(draft.runAt).toISOString(),
+                      draft.maxRuns,
+                      { days: draft.days, everyHours: draft.everyHours },
+                    ),
+                  );
+                } finally {
+                  setSaving(false);
+                }
+              }}
+            />
+          </section>
+        ) : null}
         <ScheduledOverview
           schedules={entries}
           openAtLogin={snapshot.preferences.openAtLogin === true}

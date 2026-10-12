@@ -1,12 +1,14 @@
 import type {
+  ConnectionId,
   OnboardingProgress,
   OnboardingStep,
   PushToTalkView,
+  ThreadPreview,
   TurnChangesView,
 } from '../shared/bridge';
 import type { TextSize, ThemePreference } from '../shared/display';
 import type { ScheduleCadence } from '../shared/schedule-cadence';
-export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude';
+export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude' | 'byok' | 'lab';
 /** Safe catalog id. The main process decides whether the corresponding adapter is admitted. */
 type HarnessId = string;
 type HarnessPreference = { mode: 'automatic' } | { mode: 'explicit'; harnessId: HarnessId };
@@ -38,7 +40,7 @@ export interface AgentSummary {
 }
 
 export interface ThreadSummary {
-  preview?: { label: 'Request' | 'Latest reply' | 'Latest activity'; text: string } | undefined;
+  preview?: ThreadPreview | undefined;
   id: string;
   agentId: string;
   title: string;
@@ -224,6 +226,7 @@ export interface RendererAttachment {
   name: string;
   kind: 'file' | 'image' | 'audio';
   bytes: number;
+  generated?: boolean;
 }
 
 export type AttachmentPreview =
@@ -286,6 +289,7 @@ interface ThreadSchedule {
   days?: number[] | undefined;
   /** Hourly only: hours between runs; missing means every hour. */
   everyHours?: number | undefined;
+  anchorAt?: string | undefined;
   nextRunAt: string;
   enabled?: boolean | undefined;
   createdAt: string;
@@ -384,6 +388,8 @@ export interface ComputerInspectorState {
   screenRecording: 'allowed' | 'denied' | 'not-requested';
   /** Turned on in System Settings; macOS applies it after Sia reopens once. */
   relaunchFor?: ('accessibility' | 'screenRecording')[] | undefined;
+  /** `failed`: macOS lists both grants, but Sia could not read a window yet. */
+  verified?: 'confirmed' | 'unconfirmed' | 'failed' | undefined;
   windows: ComputerWindow[];
   /** 'auto' runs eligible actions without in-app approval. */
   trust: 'auto' | 'ask';
@@ -427,7 +433,7 @@ export interface ProviderSetup {
 }
 
 export interface AppConnection {
-  id: 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
+  id: ConnectionId;
   name: string;
   description: string;
   status: ConnectionStatus;
@@ -437,6 +443,10 @@ export interface AppConnection {
   account?: string | undefined;
   googleAccess?: 'read_only' | 'read_write' | undefined;
   upgrading?: boolean | undefined;
+  /** One-time code shown while a device sign-in waits. */
+  userCode?: string | undefined;
+  /** False when this build cannot connect the app yet. */
+  available?: boolean | undefined;
   permissions: string[];
 }
 
@@ -559,6 +569,7 @@ export interface RendererApi {
   onOpenConversation?(listener: () => void): () => void;
   scotty?: import('../shared/scotty').ScottySettingsApi;
   phoneRemote?: import('../shared/phone-remote').PhoneRemoteApi;
+  messagesRelay?: import('../shared/messages-relay').MessagesRelayApi;
   assistantLibrary(
     input: import('../shared/assistant-library').AssistantLibraryCommand,
   ): Promise<import('../shared/assistant-library').AssistantLibraryView>;
@@ -668,6 +679,9 @@ export interface RendererApi {
   declineResearchConsent(): Promise<void>;
   openProviderSetup(provider: ProviderId): Promise<void>;
   cancelProviderSetup(provider: ProviderId): Promise<void>;
+  /** Saves the person's own model API key in the main process; it is never sent back. */
+  saveApiKey(input: { baseUrl?: string; model: string; apiKey: string }): Promise<void>;
+  clearApiKey(): Promise<void>;
   refreshProvider(provider: ProviderId): Promise<void>;
   connectGoogleApps(): Promise<void>;
   connectSelectedApps(apps: ('google' | 'slack')[]): Promise<void>;

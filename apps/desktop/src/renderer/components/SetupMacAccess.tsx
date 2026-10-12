@@ -18,7 +18,8 @@ export type MacSetupApi = Pick<
   Partial<Pick<RendererApi, 'setupMessages'>>;
 
 /** What a row needs from the person right now. */
-type AccessState = 'ready' | 'needed' | 'denied' | 'relaunch' | 'unavailable' | 'error';
+type AccessState =
+  'ready' | 'needed' | 'closed' | 'denied' | 'relaunch' | 'unavailable' | 'error';
 
 export type AccessRow = {
   id: string;
@@ -29,7 +30,7 @@ export type AccessRow = {
   guide: string;
   optional: boolean;
   state: AccessState;
-  /** Rows without a native prompt (Full Disk Access) stay out of the guided pass. */
+  /** A guided step may use a native prompt or direct the person to System Settings. */
   guided: boolean;
   request?(isCurrent: () => boolean): Promise<void>;
 };
@@ -37,6 +38,7 @@ export type AccessRow = {
 const STATE_LABEL: Record<AccessState, string> = {
   ready: 'Allowed',
   needed: 'Needs you',
+  closed: 'Open to check',
   denied: 'Turned off',
   relaunch: 'Reopen Sia',
   unavailable: 'Unavailable',
@@ -46,7 +48,7 @@ const STATE_LABEL: Record<AccessState, string> = {
 const automationState: Record<AutomationStatus, AccessState> = {
   ready: 'ready',
   needs_permission: 'needed',
-  not_running: 'needed',
+  not_running: 'closed',
   denied: 'denied',
   unavailable: 'unavailable',
   error: 'error',
@@ -65,7 +67,11 @@ export function macAccessRows(
   const computer = snapshot.computer;
   const core = (permission: 'accessibility' | 'screenRecording'): AccessState =>
     computer[permission] === 'allowed'
-      ? 'ready'
+      ? // Both grants are listed, but reading a window failed: macOS usually applies the
+        // grant to Sia only after it reopens, so treat seeing the screen as not done yet.
+        permission === 'screenRecording' && computer.verified === 'failed'
+        ? 'relaunch'
+        : 'ready'
       : computer.relaunchFor?.includes(permission)
         ? 'relaunch'
         : 'needed';
@@ -104,6 +110,7 @@ export function macAccessRows(
           why: 'Hold Fn and speak instead of typing. Uses the microphone and Speech Recognition.',
           guide:
             'Allow the microphone and any Speech Recognition prompt. Setup does not record your voice.',
+          // Voice also needs a voice service, which can be briefly unavailable; it never blocks.
           optional: true,
           state: dictationReady(snapshot.voice) ? 'ready' : 'needed',
           guided: true,
@@ -133,10 +140,12 @@ export function macAccessRows(
       name,
       why: detail,
       guide:
-        state === 'denied'
-          ? `In Automation, expand Sia and turn on ${name}.`
-          : `Choose Allow when macOS asks if Sia can control ${name}.`,
-      optional: true,
+        state === 'closed'
+          ? `Open ${name} so macOS can check its existing access. If permission is needed, macOS will ask you to allow it.`
+          : state === 'denied'
+            ? `In Automation, expand Sia and turn on ${name}.`
+            : `Choose Allow when macOS asks if Sia can control ${name}.`,
+      optional: false,
       state,
       guided: true,
       request: () => api.requestAutomationPermission(id),
@@ -148,10 +157,11 @@ export function macAccessRows(
       id: 'messages_history',
       name: 'Read Messages history',
       why: 'Lets Sia find earlier texts. In Full Disk Access, add Sia and turn it on.',
-      guide: '',
-      optional: true,
+      guide:
+        'In Full Disk Access, turn on Sia. If it is not listed, use + to add Sia from Applications.',
+      optional: false,
       state: messages === 'ready' ? 'ready' : 'needed',
-      guided: false,
+      guided: true,
       request: () => api.setupMessages!(),
     });
   return rows;
@@ -212,13 +222,19 @@ export function SetupMacAccess({
   const shown = rows.filter((row) => row.state !== 'unavailable');
   const readyCount = shown.filter((row) => row.state === 'ready').length;
   const required = rows.filter((row) => !row.optional);
-  const requiredReady = required.every((row) => row.state === 'ready');
+  // A row macOS cannot offer on this Mac (an app that is not installed) never blocks setup.
+  const requiredReady = required.every(
+    (row) => row.state === 'ready' || row.state === 'unavailable',
+  );
   const relaunch = rows.filter((row) => row.state === 'relaunch');
   // The guided pass walks every row with a native prompt that still needs the person.
   const current = rows.find(
     (row) =>
       row.guided &&
-      (row.state === 'needed' || row.state === 'denied' || row.state === 'error') &&
+      (row.state === 'needed' ||
+        row.state === 'closed' ||
+        row.state === 'denied' ||
+        row.state === 'error') &&
       !skipped.includes(row.id),
   );
   const currentRef = useRef(current);
@@ -348,12 +364,21 @@ export function SetupMacAccess({
   // Fallback when macOS gives no signal: a core grant asked for here that still reads as off.
   const maybeStale =
     Boolean(onRestart) &&
-    !relaunch.length &&
-    required.some((row) => row.state === 'needed' && asked.includes(row.id));
+    shown.some(
+      (row) =>
+        (!row.optional || row.id === 'messages_history') &&
+        row.state === 'needed' &&
+        asked.includes(row.id),
+    );
   const busy = pending || Boolean(rowPending);
 
   const renderRow = (row: AccessRow) => {
-    const action = row.state === 'denied' || !row.guided ? 'Open Settings' : 'Allow';
+    const action =
+      row.state === 'closed'
+        ? 'Open app'
+        : row.state === 'denied' || !row.guided
+          ? 'Open Settings'
+          : 'Allow';
     return (
       <li className={styles.permission} key={row.id} data-state={row.state}>
         <div>
@@ -396,13 +421,16 @@ export function SetupMacAccess({
           Grant all goes through each one and moves on when macOS says it’s on. You approve
           macOS dialogs; your password stays with macOS.
         </span>
+        {shown.some((row) => row.state === 'closed') && (
+          <span>Closed apps need to open before macOS can check their existing access.</span>
+        )}
         <span className={styles.meter} aria-hidden="true">
           <span
             style={{ width: `${shown.length ? (readyCount / shown.length) * 100 : 100}%` }}
           />
         </span>
       </p>
-      {relaunch.length ? (
+      {relaunch.length && (!active || !current) ? (
         <div className={styles.permissionGuide} role="alert">
           <h3>Relaunch Sia to finish</h3>
           <p>
@@ -451,7 +479,7 @@ export function SetupMacAccess({
                 Skip
               </button>
             ) : null}
-            {maybeStale && !current.optional && (
+            {maybeStale && (!current.optional || current.id === 'messages_history') && (
               <button className={styles.link} disabled={pending} onClick={relaunchNow}>
                 Turned it on? Relaunch Sia
               </button>
@@ -477,7 +505,7 @@ export function SetupMacAccess({
           Grant all
         </button>
       )}
-      {!active && maybeStale && (
+      {!active && !relaunch.length && maybeStale && (
         <button className={styles.link} disabled={disabled || busy} onClick={relaunchNow}>
           Turned it on? Relaunch Sia
         </button>
@@ -490,10 +518,14 @@ export function SetupMacAccess({
       <ul className={styles.accessList} aria-label="Needed permissions">
         {required.map(renderRow)}
       </ul>
-      <p className={styles.groupLabel}>Optional — skip anything you won’t use</p>
-      <ul className={styles.accessList} aria-label="Optional permissions">
-        {rows.filter((row) => row.optional).map(renderRow)}
-      </ul>
+      {rows.some((row) => row.optional) ? (
+        <>
+          <p className={styles.groupLabel}>Optional — skip anything you won’t use</p>
+          <ul className={styles.accessList} aria-label="Optional permissions">
+            {rows.filter((row) => row.optional).map(renderRow)}
+          </ul>
+        </>
+      ) : null}
       <button
         className={styles.link}
         disabled={disabled || busy}

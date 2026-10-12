@@ -26,7 +26,7 @@ export const BUILTIN_HARNESS_DEFINITIONS = [
     id: 'codex_app_server',
     name: 'Codex app server',
     modelProtocols: ['openai_responses'],
-    credentialSources: ['provider_subscription', 'provider_api', 'sia_managed'],
+    credentialSources: ['provider_subscription', 'provider_api', 'sia_managed', 'user_byok'],
     productionEnabled: true,
   },
   {
@@ -103,6 +103,11 @@ export class HarnessRegistry {
 export interface AdmittedHostedRoutes {
   readonly allowedRoutes: readonly ModelRoute[];
   readonly backendDefault?: ModelRoute;
+  /**
+   * One default per model: the lab's default harness when admitted, otherwise
+   * the Codex baseline, so an unadmitted lab harness never strands a model.
+   */
+  readonly defaultRoutes: readonly ModelRoute[];
   readonly rejectedRoutes: readonly HostedCatalogRoute[];
 }
 
@@ -139,9 +144,18 @@ export function admitHostedRoutes(input: {
   const backendDefault = allowedRoutes.find(
     ({ harnessId }) => harnessId === input.defaultHarnessId,
   );
+  const defaultRoutes = [...Map.groupBy(allowedRoutes, ({ model }) => model).values()].flatMap(
+    (routes) => {
+      const route =
+        routes.find(({ harnessId }) => harnessId === input.defaultHarnessId) ??
+        routes.find(({ harnessId }) => harnessId === 'codex_app_server');
+      return route ? [route] : [];
+    },
+  );
   return {
     allowedRoutes: Object.freeze(allowedRoutes),
     ...(backendDefault ? { backendDefault } : {}),
+    defaultRoutes: Object.freeze(defaultRoutes),
     rejectedRoutes: Object.freeze(rejectedRoutes),
   };
 }

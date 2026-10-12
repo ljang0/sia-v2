@@ -30,8 +30,9 @@
   animation: overlayEnter var(--motion-standard) var(--ease-standard);
 }
 
+/* Unmount immediately: occluded windows can suspend animationend indefinitely. */
 .dialogOverlay[data-state='closed'] {
-  animation: overlayExit var(--motion-fast) ease-in;
+  animation: none;
 }
 
 .alertDialogContent {
@@ -54,11 +55,6 @@
 }
 
 .alertDialogContent[data-state='closed'] {
-  animation: dialogExit var(--motion-fast) ease-in;
-}
-
-/* A completed save closes at once (see AgentDialog): unmounting must not wait on animationend. */
-.dialogOverlay[data-instant-close][data-state='closed'] {
   animation: none;
 }
 
@@ -102,17 +98,6 @@
   to {
     opacity: 1;
     transform: translate(-50%, -50%);
-  }
-}
-
-@keyframes dialogExit {
-  from {
-    opacity: 1;
-    transform: translate(-50%, -50%);
-  }
-  to {
-    opacity: 0;
-    transform: translate(-50%, calc(-50% + 4px));
   }
 }
 
@@ -219,15 +204,6 @@
   border-color: var(--focus-ring);
   background: var(--bg-raised);
   box-shadow: 0 0 0 3px var(--focus-halo);
-}
-
-@keyframes overlayExit {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
 }
 
 .field input:focus-visible,

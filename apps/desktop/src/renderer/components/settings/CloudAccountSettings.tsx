@@ -35,6 +35,8 @@ export function CloudAccountSettings({
   const [pending, setPending] = useState<string>();
   const [error, setError] = useState<string>();
   const codeInput = useRef<HTMLInputElement>(null);
+  const working = useRef(false);
+  const [sentAgain, setSentAgain] = useState(false);
   const errorContainer = useRef<HTMLDivElement>(null);
   const formId = useId();
 
@@ -60,7 +62,13 @@ export function CloudAccountSettings({
     if (error) errorContainer.current?.focus();
   }, [error]);
 
+  useEffect(() => {
+    if (!pending && !error && cloudAuth.state === 'code-sent') codeInput.current?.focus();
+  }, [cloudAuth.state, pending, error]);
+
   const run = async (key: string, action: () => Promise<void>, fallback: string) => {
+    if (working.current) return;
+    working.current = true;
     setPending(key);
     setError(undefined);
     try {
@@ -68,12 +76,14 @@ export function CloudAccountSettings({
     } catch (cause) {
       setError(errorMessage(cause, fallback));
     } finally {
+      working.current = false;
       setPending(undefined);
     }
   };
 
   const start = (event: FormEvent) => {
     event.preventDefault();
+    setSentAgain(false);
     void run(
       'auth-start',
       () => onStartCloudSignIn(email.trim().toLowerCase()),
@@ -83,6 +93,7 @@ export function CloudAccountSettings({
 
   const verify = (event: FormEvent) => {
     event.preventDefault();
+    setSentAgain(false);
     void run(
       'auth-complete',
       () =>
@@ -120,7 +131,7 @@ export function CloudAccountSettings({
                 void run('sign-out', onSignOutCloud, 'Sia could not sign out safely.')
               }
             >
-              {pending === 'sign-out' ? 'Signing out...' : 'Sign out'}
+              {pending === 'sign-out' ? 'Signing out…' : 'Sign out'}
             </button>
           ) : null}
         </div>
@@ -147,7 +158,7 @@ export function CloudAccountSettings({
             className={`${buttons.primaryButton} ${styles.formSubmit}`}
             disabled={Boolean(pending)}
           >
-            {pending === 'auth-start' ? 'Sending...' : 'Email me a sign-in code'}
+            {pending === 'auth-start' ? 'Sending…' : 'Email me a sign-in code'}
           </button>
           <p className={styles.accountTerms}>
             By continuing, you agree to the{' '}
@@ -235,7 +246,7 @@ export function CloudAccountSettings({
             disabled={Boolean(pending)}
           >
             {pending === 'auth-complete'
-              ? 'Checking...'
+              ? 'Checking…'
               : cloudAuth.state === 'password-required'
                 ? 'Continue'
                 : cloudAuth.state === 'mfa-required'
@@ -251,13 +262,22 @@ export function CloudAccountSettings({
                 setCode('');
                 void run(
                   'auth-start',
-                  () => onStartCloudSignIn(email.trim().toLowerCase()),
+                  async () => {
+                    await onStartCloudSignIn(email.trim().toLowerCase());
+                    setSentAgain(true);
+                  },
                   'Sia could not send a new code.',
                 );
               }}
             >
               Send a new code
             </button>
+          ) : null}
+          {sentAgain && cloudAuth.state === 'code-sent' ? (
+            <p className={styles.accountTerms} role="status">
+              A new code was sent to {cloudAuth.email ?? email}. Use the newest email; check
+              Spam if it does not arrive.
+            </p>
           ) : null}
           <button
             type="button"
@@ -494,7 +514,7 @@ function DeleteCloudAccountDialog({
                   }
                 }}
               >
-                {deleting ? 'Deleting account...' : 'Permanently delete account'}
+                {deleting ? 'Deleting account…' : 'Permanently delete account'}
               </button>
             </div>
           </AlertDialog.Content>

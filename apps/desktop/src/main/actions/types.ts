@@ -3,16 +3,21 @@ import type { ScheduleCadence } from '../../shared/schedule-cadence.js';
 import type { BrowserWindowState, WindowContextState } from '../mac/browser-window.js';
 import type { CloudClient } from '../cloud/cloud-client.js';
 import type { CuaService } from '../mac/cua-service.js';
+import type { ConnectionId } from '../../shared/bridge.js';
+import type { LocalConnectorService } from '../connectors/local-connectors.js';
 
 /** Narrow structural boundary used by the desktop host and by unit tests. */
 export type CuaToolCaller = Pick<CuaService, 'call'>;
 
-/** The backend never receives OAuth credentials; it only calls the authenticated control plane. */
+/**
+ * The backend never receives OAuth credentials: cloud apps go through the authenticated control
+ * plane and Mac-signed-in apps through the main-process local connector service.
+ */
 export type CloudActionClient = Pick<CloudClient, 'prepareAction' | 'commitAction'> &
   Partial<Pick<CloudClient, 'configured' | 'stageConnectorFile'>>;
 
 /** The connected apps a connector tool can address. */
-export type ConnectorApp = 'gmail' | 'drive' | 'docs' | 'sheets' | 'slides' | 'slack';
+export type ConnectorApp = ConnectionId;
 
 export interface ScheduleActionHost {
   create(
@@ -53,6 +58,8 @@ export interface DesktopActionBackendOptions {
   ) => Promise<ActionExecutionResult>;
   readonly macBrowserAccess?: () => boolean;
   readonly macBackgroundControl?: () => boolean;
+  /** Checks actual OS access at the action boundary without blocking ordinary chat. */
+  readonly computerUnavailable?: () => Promise<string | undefined>;
   readonly inspectBrowserWindow?: (
     pid: number,
     windowId: number,
@@ -81,6 +88,8 @@ export interface DesktopActionBackendOptions {
     selector: string,
     approvalId?: string,
   ) => string | undefined;
+  /** Outlook, Notion, and GitHub signed in from this Mac. */
+  readonly localConnectors?: Pick<LocalConnectorService, 'execute'>;
   /** Updates the trusted local connection view when the control plane rejects an expired grant. */
   readonly onConnectionReconnectRequired?: (app: ConnectorApp, connectionId: string) => void;
   /** Main-process pid, injectable only so the host-self exclusion can be tested. */

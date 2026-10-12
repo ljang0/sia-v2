@@ -94,22 +94,11 @@ export class ResearchService {
       ...(request.format ? { format: request.format } : {}),
       ...(request.scope ? { scope: request.scope } : {}),
     };
-    let persisted;
-    try {
-      persisted = await this.deps.research.putBatchIfAbsent(metadata);
-    } catch (error) {
-      try {
-        await this.deps.researchObjects.deleteBatchObject(objectKey);
-      } catch {
-        throw new CloudError(
-          500,
-          'research_object_cleanup_failed',
-          'An unclaimed research object could not be removed',
-          true,
-        );
-      }
-      throw error;
-    }
+    // A failed acknowledgement does not prove the conditional write failed. This
+    // content-addressed object may also be claimed by an identical concurrent upload.
+    // Keep it on an unknown outcome so retries can reconcile the metadata safely;
+    // account/research deletion and the bucket retention policy include unclaimed objects.
+    const persisted = await this.deps.research.putBatchIfAbsent(metadata);
     if (!persisted.created) {
       if (persisted.existing.objectKey !== objectKey) {
         await this.deps.researchObjects.deleteBatchObject(objectKey);
@@ -180,7 +169,17 @@ export class ResearchService {
 
   async requestDeletion(user: AuthContext, scope: DeletionScope) {
     const existing = await this.deps.deletions.latestDeletion(user.subject);
-    if (existing && !['completed', 'failed'].includes(existing.state)) return existing;
+    if (existing && !['completed', 'failed'].includes(existing.state)) {
+      if (scope === 'account' && existing.scope !== 'account') {
+        throw new CloudError(
+          409,
+          'deletion_scope_in_progress',
+          'Research deletion is still running. Wait for it to finish, then request account deletion.',
+          true,
+        );
+      }
+      return existing;
+    }
     const now = this.deps.clock.now().toISOString();
     const job = {
       id: this.deps.ids.next(),
@@ -191,7 +190,24 @@ export class ResearchService {
       updatedAt: now,
     };
     await this.deps.deletions.putDeletion(job);
-    await this.deps.deletionQueue.enqueue({ id: job.id, userId: user.subject, scope });
+    try {
+      await this.deps.deletionQueue.enqueue({ id: job.id, userId: user.subject, scope });
+    } catch {
+      await this.deps.deletions.transitionDeletion(
+        user.subject,
+        job.id,
+        ['requested'],
+        'failed',
+        this.deps.clock.now().toISOString(),
+        'deletion_queue_failed',
+      );
+      throw new CloudError(
+        503,
+        'deletion_queue_failed',
+        'Account and research deletion is temporarily unavailable. Please retry.',
+        true,
+      );
+    }
     return job;
   }
 
@@ -315,7 +331,7 @@ function validateRawResearchBatch(request: ResearchBatchRequest): void {
 }
 
 const GOOGLE_WORKSPACE_RESEARCH_TOOL =
-  /"(?:name|toolName)"\s*:\s*"(?:mail|drive|docs|sheets|slides)[._][^"]*"/u;
+  /"(?:name|toolName)"\s*:\s*"(?:mail|drive|docs|sheets|slides|calendar|tasks)[._][^"]*"/u;
 
 /**
  * Defense in depth for older or faulty clients: Google Workspace connector turns are never valid

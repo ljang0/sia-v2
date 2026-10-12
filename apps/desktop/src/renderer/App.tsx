@@ -82,6 +82,15 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
     workspace,
   );
   useInstantThemeSwitch();
+  // The Access panel stays mounted for its closing animation, then unmounts.
+  const inspectorVisible = app.inspectorOpen && !app.settingsOpen;
+  const [inspectorShown, setInspectorShown] = useState(inspectorVisible);
+  const [inspectorClosing, setInspectorClosing] = useState(false);
+  if (inspectorShown !== inspectorVisible) {
+    setInspectorShown(inspectorVisible);
+    setInspectorClosing(!inspectorVisible);
+  }
+  const endInspectorClose = useCallback(() => setInspectorClosing(false), []);
   useTextSize(app.snapshot?.preferences.textSize);
   const windowVisible = useWindowVisible();
   const markRead = useCallback(
@@ -154,7 +163,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   }, [reveal, app.snapshot?.preferences.appearance]);
   if (auditMode) {
     return (
-      <Suspense fallback={<div className={styles.auditLoading}>Loading UI audit...</div>}>
+      <Suspense fallback={<div className={styles.auditLoading}>Loading UI audit…</div>}>
         <AuditGallery />
       </Suspense>
     );
@@ -391,6 +400,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               assistantApi={api}
               scottyApi={api.scotty}
               phoneRemoteApi={api.phoneRemote}
+              messagesRelayApi={api.messagesRelay}
               onRunWorkflow={(threadId) => {
                 app.closeSettings();
                 void run(() => api.selectThread(threadId));
@@ -403,6 +413,8 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               onProbeProvider={(provider) => api.refreshProvider(provider)}
               onOpenProviderSetup={(provider) => api.openProviderSetup(provider)}
               onCancelProviderSetup={(provider) => api.cancelProviderSetup(provider)}
+              onSaveApiKey={(input) => api.saveApiKey(input)}
+              onClearApiKey={() => api.clearApiKey()}
               onCheckForUpdates={() => api.checkForUpdates()}
               onOpenUpdateDownload={() => api.openUpdateDownload()}
               onConnectSelectedApps={(apps) => api.connectSelectedApps(apps)}
@@ -526,7 +538,13 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                         app.run(() => api.revealAttachment(activeThread.id, attachmentId))
                     : undefined
                 }
-                starterPrompts={welcomePrompts(roomAgent, { apps: snapshot.apps })}
+                starterPrompts={welcomePrompts(roomAgent, {
+                  apps: snapshot.apps,
+                  macAccess:
+                    snapshot.computer.accessMode !== 'connected' &&
+                    snapshot.computer.accessibility === 'allowed' &&
+                    snapshot.computer.screenRecording === 'allowed',
+                })}
                 recentThreads={
                   activeThread?.events.length
                     ? []
@@ -684,8 +702,10 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
               />
             </Onboarding>
           )}
-          {app.inspectorOpen && !app.settingsOpen ? (
+          {inspectorVisible || inspectorClosing ? (
             <Inspector
+              open={inspectorVisible}
+              onExited={endInspectorClose}
               browser={snapshot.browser}
               computer={snapshot.computer}
               connection={snapshot.connection}

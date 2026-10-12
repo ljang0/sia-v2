@@ -1,0 +1,59 @@
+{
+  "fictional": true,
+  "people": [
+    {
+      "id": "p1",
+      "name": "Jordan",
+      "relationship": "friend",
+      "birthday": "10-18",
+      "interests": ["guitar", "cooking"],
+      "last_contact": "2026-08-20",
+      "outreach_ok": true,
+      "gift_received_last_year": "cookbook"
+    },
+    {
+      "id": "p2",
+      "name": "Morgan Lee",
+      "relationship": "professional collaborator",
+      "last_contact": "2026-09-01",
+      "milestone": "Product launch on 2026-10-09",
+      "outreach_ok": true,
+      "tone": "brief and warm"
+    },
+    {
+      "id": "p3",
+      "name": "Casey",
+      "relationship": "former collaborator",
+      "last_contact": "2026-01-01",
+      "outreach_ok": false
+    },
+    {
+      "id": "p4",
+      "name": "Jordan",
+      "relationship": "coworker",
+      "birthday": null,
+      "outreach_ok": true
+    }
+  ],
+  "gift_candidates": [
+    {
+      "id": "gift1",
+      "name": "Local guitar workshop",
+      "price_usd": 60,
+      "delivery_by": "2026-10-17"
+    },
+    {
+      "id": "gift2",
+      "name": "Cookbook",
+      "price_usd": 35,
+      "delivery_by": "2026-10-12",
+      "already_given": true
+    },
+    {
+      "id": "gift3",
+      "name": "Chef kit",
+      "price_usd": 95,
+      "delivery_by": "2026-10-21"
+    }
+  ]
+}
