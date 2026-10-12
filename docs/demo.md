@@ -8,12 +8,12 @@ acceptance cases. Do not present the deterministic fake-service reply as complet
 ## Arena CTO rehearsal
 
 Use the signed **alpha.25** candidate at
-`~/Applications/Sia Release Verification/Sia.app`, built from `32a916c`. Open the operator
+`~/Applications/Sia Release Verification/Sia.app`, built from `1269001`. Open the operator
 workspace's `Launch Verified Sia.command`; it selects the persistent isolated profile at
 `~/Library/Application Support/Sia Release Verification`. Do not use the unrelated alpha.14
-copy in `/Applications`. The code/test head `9adb294` passed
-[replacement CI](https://github.com/ljang0/sia-v2/actions/runs/37859613752); its test/documentation
-changes do not alter the signed runtime.
+copy in `/Applications`. The exact signed source passed the full pilot gate and
+[CI](https://github.com/ljang0/sia-v2/actions/runs/38215845243). The signed app and installer passed
+notarization, stapling and package verification; see [current release evidence](./public-release.md).
 
 The October 9 computer-use rehearsal completed real email-code sign-in and guided setup.
 The app shows **Mac access is ready**, Codex **Connected**, the included model **Ready**, and
@@ -64,7 +64,18 @@ Text prompt (choose a new `arena-live-N.txt` for each demonstration):
 
 ### What the current rehearsal establishes
 
-The signed GUI completed the spending request in **29 seconds, eight steps**. The actual
+On October 12, the signed `1269001` replacement retained sign-in and reached all 11 Mac permissions
+ready. A fresh real-model report completed in **34 seconds, eight steps**; independent checks of
+`arena-1269001-spending.md` and `.json` matched the complete oracle below. Real iMessage NEW, NO,
+fresh YES, STATUS, STOP and stale-YES checks passed. The received `arena-1269001-phone.txt` attachment
+matched all 22 bytes of `ARENA-1269001-PHONE-OK` after saving it from Messages. The stopped file
+remained absent. After quit/relaunch, NEW and a fresh exact `ARENA-1269001-RESTART-OK` reply passed
+in Messages and appeared in Sia. These were Mac-originated messages. Mirroring could not find the physical iPhone;
+Wi-Fi is off pending test confirmation, and the background Calculator test remained observation-only.
+Use the verified report and iMessage file workflow for the core demonstration, not unverified native
+app control. The earlier saved results below remain a separately dated fallback.
+
+On October 9, the earlier signed GUI completed the spending request in **29 seconds, eight steps**. The actual
 `spending-recap.md` and `spending-summary.json` matched an independently calculated oracle:
 Housing $1,800; Food $255; Utilities $160; Dining $145; Shopping $80; Subscriptions $59.
 Sia's report correctly distinguishes the merchant label from usage evidence and its in-app
@@ -90,7 +101,7 @@ workspace. Screenshots and transcripts exclude credentials and unrelated Message
 
 This is a prepared Mac demo, not public-release approval or complete Instinct parity. The
 physical-phone text-reply round trip was confirmed earlier, but handset-originated Mac actions,
-handset media and physical Wi-Fi pairing remain separate gates. In this rehearsal iPhone
+handset media and physical Wi-Fi pairing remain separate gates. In the October 9 rehearsal iPhone
 Mirroring reported **iPhone in Use** and then timed out; it requires the phone to be locked
 before device checks.
 Earlier signed candidates have source-specific Mac iMessage photo/voice and LAN browser

@@ -5,8 +5,9 @@
 Sia `0.1.0-alpha.25` is an **internal release candidate**, not approved for public distribution.
 The branch now includes the [repository-wide continuation](./workflow-robustness.md#repository-wide-continuation)
 of the [October 12 source/dependency audit](./workflow-robustness.md#messaging-lifecycle-and-repository-audit).
-Those messaging, renderer and Electron changes are newer than the signed artifact recorded below;
-they require a new signed candidate and live rehearsal before being represented as installed fixes.
+Those changes are included in the signed `1269001` candidate installed on October 12.
+The real-model report and Mac-originated iMessage action/control checks passed on that exact app;
+physical-handset, broader native-app and external-provider acceptance remain separate gates.
 The last signed Connections polish passed the complete local automated gate. That app and DMG
 passed signing, notarization, stapling and package verification. The preceding phone-approval and
 dialog-dismissal repairs also passed CI. The preceding signed
@@ -34,27 +35,58 @@ These Mac-originated checks do not establish handset-originated actions or hands
 No alpha.25 installer has been uploaded or published; the last published pilot release remains
 [`alpha.24`](./release-evidence.md).
 
-The current signed candidate was built from `32a916c6be84a920413c7fcbf75bd85b6c3b5439` on macOS
-15.7.2. The October 12 source changes have not replaced that artifact. Its app identity is
+The current signed candidate was built from `12690010b7d74d31abd1da711f51dec4f0c732f4` on macOS
+15.7.2 and installed into the persistent verification profile on October 12. Its app identity is
 `ai.sia.desktop`, signed by Developer ID team `DXYJ578DD4`.
 
 | Artifact                           | SHA-256                                                            |       Bytes |
 | ---------------------------------- | ------------------------------------------------------------------ | ----------: |
-| `app.asar`                         | `7a0ed2690697cb8f125db93278c14748f7a4c5e9f159266bcc172b62295a04f5` |  12,288,399 |
-| `Sia-0.1.0-alpha.25-universal.dmg` | `33cab7da0bbc55378aad76ebd326e6975d7688b2a91a2791aaee1f49776f080c` | 263,067,780 |
-| `Sia-0.1.0-alpha.25-universal.zip` | `241c3a5c05d2e402c6e8373b54dda45211a0743ca0747eb4803a0c1cfe18dae2` | 261,476,115 |
+| `app.asar`                         | `a4545d6ce5d3277e703205aec9b33ad5277647989b3ddda0851f52b199872ea5` |  12,300,370 |
+| `Sia-0.1.0-alpha.25-universal.dmg` | `4db1787c8a131e55878fceb6659d519b29fb379c5257af7ec411331fe183efc0` | 267,351,819 |
+| `Sia-0.1.0-alpha.25-universal.zip` | `cda5184424a78cb3b4a52a4c68fec772c1a13d433f08e31402cdb27a067f223c` | 265,763,198 |
 
-Apple accepted app submission `b93e2bf7-43dc-46d6-8375-a36d28951627` and DMG submission
-`dd777e5c-1a64-4cb5-ba21-884fd1a17caf`. The canonical `pnpm package:mac` passed strict nested
+Apple accepted app submission `5d697e1a-ff79-43af-b12e-52ea20983882` and DMG submission
+`fabfea01-2d29-4843-8ed3-8e6c8e3fec2c`. The canonical `pnpm package:mac` passed strict nested
 signatures, notarization, stapling, Gatekeeper, universal architectures, bundled resources,
 license corpus and packaged MCP bridge verification. The separate copied app passed signature,
 staple and Gatekeeper checks again before launch.
 
 The durable operator evidence is in `release-verification-evidence/` in the original workspace:
-`verification.json`, a verified complete-history `source.bundle`, test and packaging logs, and
-`artifacts/polish-32a916c/`. No credentials, private Messages archives or unrelated
+`release-1269001/` contains artifact hashes, signed packaging and deployment logs, rollback metadata,
+independent file checks and the current live results. Earlier `verification.json`, source bundles
+and `artifacts/polish-32a916c/` remain historical evidence. No credentials, private Messages archives or unrelated
 conversation screenshots belong in that evidence. Earlier artifact records remain in Git history
 and the preserved evidence directories.
+
+## October 12 exact-candidate rehearsal
+
+The signed app restored the existing authenticated profile, conversations and settings. Codex showed
+Connected, the included model catalog showed Ready, and the guided permission check reached all
+11 permissions ready after opening System Events, Safari and Reminders. No new permission or
+Keychain prompt was observed during that upgrade. This is existing-profile continuity, not a
+clean-user or alpha.24 upgrade check.
+
+The real-model spending task completed in 34 seconds and eight steps. Its saved Markdown and JSON
+matched the independent $2,499 oracle and every category amount. Native Mac Messages then exercised
+real iMessage: NEW, exact write denial with the file absent, a fresh YES-approved write, and a
+returned 22-byte attachment matching `ARENA-1269001-PHONE-OK` byte for byte after Save to Downloads.
+STATUS reported a pending approval; STOP cancelled it, and a stale YES was rejected while the
+stopped file remained absent. The initial STOP-test prompt asked the model to wait, which produced
+a conversational question; a follow-up invoked the file tool before testing cancellation. After a
+full quit/relaunch, NEW and a fresh request returned exactly **Sia › ARENA-1269001-RESTART-OK** in
+Messages; the same completed reply was visible in Sia. Authentication and conversations persisted.
+
+After restart, native CUA could inspect Sia’s current conversation and connected model, but
+pointer input reported `noWindowsAvailable` and some accessibility clicks did not change the
+window. These observations do not establish responsive foreground input after restart.
+
+A background Calculator task and one retry remained blocked by the driver's off-desktop /
+observation-only window report. Sia reported the actual existing `17 × 19 = 323` display and did
+not claim the requested `37 × 19` calculation succeeded. Do not count either attempt as native-app
+acceptance. iPhone Mirroring reported iPhone Not Found. Wi-Fi remote is off in this profile and a
+confirmation to enable it for testing is pending. Telegram, Discord and BYOK are unconfigured.
+These limits do not invalidate the verified file/action demonstration, but prevent an all-app or
+full-phone-parity claim.
 
 ## Persistent verification setup
 
@@ -95,7 +127,13 @@ not implemented. Do not claim complete Instinct parity or arbitrary-account conn
 
 ## Automated verification
 
-[CI for the signed source](https://github.com/ljang0/sia-v2/actions/runs/37856750700) passed source,
+The exact signed source `1269001` passed the full local `pnpm test:pilot` gate and
+[CI](https://github.com/ljang0/sia-v2/actions/runs/38215845243): 1,256 desktop unit tests, 182 cloud
+checks, 149 shared-package checks, 45 Electron scenarios, 20 renderer checks and all 62
+Chromium/WebKit phone checks. Opt-in live tests remain separate. Local `pnpm package:mac` and
+`release:stage-public-download` passed; CI performed unsigned packaging only.
+
+[Earlier Connections-polish CI](https://github.com/ljang0/sia-v2/actions/runs/37856750700) passed source,
 Electron and all 20 renderer checks, then failed one WebKit phone case (61 passed). Its trace
 showed an empty composer after the automation's fill call and no command request; the delayed
 acknowledgement scenario had not begun. Ten focused local repeats passed. The test now uses real
@@ -304,10 +342,15 @@ confirmed email subscription. Homepage, privacy, terms and support returned succ
 voice-catalog and release-feed requests returned 401. Those checks do not establish every
 authenticated endpoint or alarm delivery during an actual incident.
 
-The production cloud Lambda remains the September 24 deployment. Only the separately completed
-email delivery change set `sia-release-ses-20261004-v2` changed SES delivery settings; no resources
-were replaced and the refresh-token lifetime remains 30 days. The source's proposed ten-year
-setting has **not** been deployed and must not be applied incidentally. The protected GitHub release
+On October 12, reviewed change set `sia-code-audit-1269001` updated only the control, deletion and
+research-export Lambda code from `1269001`, retaining every deployed non-Code property and parameter.
+CloudFormation completed with no replacements; all three deployed package hashes match the local
+release bundles. The Meta streaming Lambda remains the September 24 deployment. All 17 alarms
+remain OK with actions enabled; protected session/catalog/voice/release endpoints still reject
+anonymous access. The branded SES settings and 30-day refresh lifetime are unchanged. Rollback
+packages and the exact previous template were preserved. Live research-job rehearsal is still
+required before research recruitment. The source's proposed ten-year setting has **not** been
+deployed and must not be applied incidentally. The protected GitHub release
 environment has cloud/update configuration but no Apple signing secrets. Local signing uses the
 existing Developer ID certificate and named Keychain profile; no password is stored in source.
 
@@ -326,6 +369,9 @@ Before distribution:
    [connector distribution gates](./connector-distribution-readiness.md) pass.
 5. Confirm exposed credentials were revoked/replaced and assign the support/incident owner, as
    required by [release status](./release-status.md). This pass did not rotate credentials.
+6. Record the owner's confirmation of redistribution permission for the pinned Notch components.
+   [Third-party notices](../THIRD_PARTY_NOTICES.md#notch-native-assistant-components) record no license
+   file at that revision; separate permission has not yet been confirmed in this verification.
 
 Research recruitment is separate and requires
 [research release sign-off](./research-release-signoff.md). Signing, staging or automated success
@@ -335,7 +381,7 @@ and complete binary/scanned tax-document coverage remain unproven.
 ## Publication
 
 `pnpm release:stage-public-download` passed for the exact final candidate. A complete local HTTP
-download returned 263,067,780 bytes with the recorded SHA-256, matching the manifest. The temporary
+download returned 267,351,819 bytes with the recorded SHA-256, matching the manifest. The temporary
 loopback server was stopped afterward. Staging and local transfer are not publication. After all recipient gates pass, publish with the
 site's `deploy --public-release` flow and verify an unauthenticated external recipient download and
 its hash. The authenticated signed update feed is a separate step in [release.md](./release.md).
