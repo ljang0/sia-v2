@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { TimelineItemView } from '../../shared/bridge.js';
 import {
@@ -15,8 +15,23 @@ import {
 
 let root: string;
 let scope: TurnChangeScope;
+const hooks = vi.hoisted(() => ({
+  staged: undefined as ((path: string) => Promise<void>) | undefined,
+}));
+vi.mock('node:fs/promises', async (original) => {
+  const fs = await original<typeof import('node:fs/promises')>();
+  return {
+    ...fs,
+    writeFile: async (...args: Parameters<typeof fs.writeFile>) => {
+      await fs.writeFile(...args);
+      if (typeof args[0] === 'string' && args[0].includes('.sia-'))
+        await hooks.staged?.(args[0]);
+    },
+  };
+});
 
 beforeEach(async () => {
+  hooks.staged = undefined;
   root = await mkdtemp(join(tmpdir(), 'sia-turn-changes-'));
   await mkdir(join(root, 'home', 'Notes'), { recursive: true });
   scope = { workspace: join(root, 'home', 'Notes'), home: join(root, 'home') };
@@ -37,6 +52,61 @@ const tripEdit = {
 };
 
 describe('turn file changes', () => {
+  it('preserves an edit made while undo is staging a replacement', async () => {
+    await writeFile(file('note.md'), 'b\n');
+    hooks.staged = async () => {
+      await writeFile(file('note.md'), 'human edit\n');
+    };
+    await expect(
+      applyTurnChanges(
+        [{ path: file('note.md'), change: 'update', diff: '@@ -1 +1 @@\n-a\n+b\n' }],
+        scope,
+        'undo',
+      ),
+    ).rejects.toThrow('changed');
+    expect(await read('note.md')).toBe('human edit\n');
+  });
+
+  it('reports an incomplete rollback and preserves new edits instead of replacing them', async () => {
+    await writeFile(file('one.md'), 'b\n');
+    await writeFile(file('two.md'), 'b\n');
+    let stages = 0;
+    hooks.staged = async () => {
+      if (++stages === 2) {
+        await writeFile(file('one.md'), 'human edit\n');
+        await writeFile(file('two.md'), 'human edit\n');
+      }
+    };
+    const changes = ['one.md', 'two.md'].map((name) => ({
+      path: file(name),
+      change: 'update',
+      diff: '@@ -1 +1 @@\n-a\n+b\n',
+    }));
+    await expect(applyTurnChanges(changes, scope, 'undo')).rejects.toThrow(
+      'could not restore every file',
+    );
+    expect(await read('one.md')).toBe('human edit\n');
+    expect(await read('two.md')).toBe('human edit\n');
+  });
+
+  it.each(['.ssh', '.git'])(
+    'refuses a folder alias that resolves into protected %s data',
+    async (protectedName) => {
+      const protectedFolder = join(scope.home, protectedName);
+      await mkdir(protectedFolder);
+      await writeFile(join(protectedFolder, 'config'), 'b\n');
+      await symlink(protectedFolder, file('alias'));
+      const changes = [
+        { path: file('alias/config'), change: 'update', diff: '@@ -1 +1 @@\n-a\n+b\n' },
+      ];
+      await expect(readTurnChanges(changes, scope)).resolves.toMatchObject({
+        state: 'unavailable',
+      });
+      await applyTurnChanges(changes, scope, 'undo');
+      expect(await readFile(join(protectedFolder, 'config'), 'utf8')).toBe('b\n');
+    },
+  );
+
   it('undoes an edit, then redoes it, checking the disk each time', async () => {
     await writeFile(file('trip.md'), '# Trip\nFly Thursday\nHotel booked\n');
     const changes = [{ ...tripEdit, path: file('trip.md') }];

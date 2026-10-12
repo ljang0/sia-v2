@@ -3,7 +3,8 @@
 ## Decision
 
 Sia `0.1.0-alpha.25` is an **internal release candidate**, not approved for public distribution.
-The branch now includes the [October 12 source/dependency audit](./workflow-robustness.md#messaging-lifecycle-and-repository-audit).
+The branch now includes the [repository-wide continuation](./workflow-robustness.md#repository-wide-continuation)
+of the [October 12 source/dependency audit](./workflow-robustness.md#messaging-lifecycle-and-repository-audit).
 Those messaging, renderer and Electron changes are newer than the signed artifact recorded below;
 they require a new signed candidate and live rehearsal before being represented as installed fixes.
 The last signed Connections polish passed the complete local automated gate. That app and DMG

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createBridgeRendererApi } from './bridgeAdapter';
 import type { SettingsSection } from './components/Settings';
 import type { AgentSummary, RendererApi, RendererAttachment, RendererSnapshot } from './types';
@@ -34,6 +34,7 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
   const [editingAgent, setEditingAgent] = useState<AgentSummary>();
   const [startupNoticeDismissed, setStartupNoticeDismissed] = useState(false);
   const [attachments, setAttachments] = useState<RendererAttachment[]>([]);
+  const attachmentContext = useRef<{ threadId: string | undefined }>({ threadId: undefined });
   const [archivedThread, setArchivedThread] = useState<{ id: string; reselect: boolean }>();
 
   useEffect(() => {
@@ -101,8 +102,27 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
   };
 
   useEffect(() => {
+    attachmentContext.current = { threadId: snapshot?.selectedThreadId };
     setAttachments([]);
-  }, [snapshot?.selectedThreadId]);
+    return () => {
+      attachmentContext.current = { threadId: undefined };
+    };
+  }, [api, snapshot?.selectedThreadId]);
+
+  const addAttachments = async (
+    threadId: string,
+    load: () => Promise<RendererAttachment[]>,
+  ) => {
+    const context = attachmentContext.current;
+    if (context.threadId !== threadId) return;
+    const added = await load();
+    if (attachmentContext.current !== context) return;
+    setAttachments((current) => {
+      const next = new Map(current.map((attachment) => [attachment.id, attachment]));
+      added.forEach((attachment) => next.set(attachment.id, attachment));
+      return [...next.values()];
+    });
+  };
 
   const archiveThread = async (threadId: string) => {
     const reselect = snapshot?.selectedThreadId === threadId;
@@ -167,35 +187,20 @@ export function useAppController(suppliedApi?: RendererApi | undefined) {
       setAgentDialogOpen(true);
     },
     setAgentDialogOpen,
-    pickAttachments: async (threadId: string) => {
-      const picked = await api.pickAttachments(threadId);
-      setAttachments((current) => {
-        const next = new Map(current.map((attachment) => [attachment.id, attachment]));
-        picked.forEach((attachment) => next.set(attachment.id, attachment));
-        return [...next.values()];
-      });
-    },
-    dropAttachments: async (threadId: string, files: File[]) => {
-      const dropped = await api.dropAttachments(threadId, files);
-      setAttachments((current) => {
-        const next = new Map(current.map((attachment) => [attachment.id, attachment]));
-        dropped.forEach((attachment) => next.set(attachment.id, attachment));
-        return [...next.values()];
-      });
-    },
-    pasteAttachments: async (threadId: string, files: File[]) => {
-      const pasted = await api.pasteAttachments(threadId, files);
-      setAttachments((current) => {
-        const next = new Map(current.map((attachment) => [attachment.id, attachment]));
-        pasted.forEach((attachment) => next.set(attachment.id, attachment));
-        return [...next.values()];
-      });
-    },
+    pickAttachments: (threadId: string) =>
+      addAttachments(threadId, () => api.pickAttachments(threadId)),
+    dropAttachments: (threadId: string, files: File[]) =>
+      addAttachments(threadId, () => api.dropAttachments(threadId, files)),
+    pasteAttachments: (threadId: string, files: File[]) =>
+      addAttachments(threadId, () => api.pasteAttachments(threadId, files)),
     removeAttachment: (attachmentId: string) =>
       setAttachments((current) =>
         current.filter((attachment) => attachment.id !== attachmentId),
       ),
-    clearAttachments: () => setAttachments([]),
+    clearAttachments: () => {
+      attachmentContext.current = { ...attachmentContext.current };
+      setAttachments([]);
+    },
   };
 }
 

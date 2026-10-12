@@ -51,6 +51,8 @@ export interface LocalConnectResult {
  */
 export class LocalConnectorService {
   readonly #notion = new Map<string, NotionMcpClient>();
+  readonly #refreshes = new Map<string, Promise<string>>();
+  #generation = 0;
 
   constructor(
     private readonly options: {
@@ -75,6 +77,12 @@ export class LocalConnectorService {
     app: LocalConnectionId,
     options: { signal?: AbortSignal; onUserCode?(code: string, url: string): void } = {},
   ): Promise<LocalConnectResult> {
+    const generation = this.#generation;
+    const assertCurrent = () => {
+      options.signal?.throwIfAborted();
+      if (generation !== this.#generation) throw new Error('Sign-in was cancelled.');
+    };
+    assertCurrent();
     if (!this.available(app)) {
       throw new Error(`${appLabel(app)} isn’t available in this version of Sia yet.`);
     }
@@ -85,6 +93,7 @@ export class LocalConnectorService {
         : app === 'github'
           ? await this.#signInGithub(options.signal, options.onUserCode)
           : await this.#signInNotion(options.signal);
+    assertCurrent();
     const credential: LocalCredential = {
       app,
       clientId,
@@ -96,6 +105,7 @@ export class LocalConnectorService {
     this.options.store.save(connectionId, credential);
     try {
       const account = await this.#account(app, connectionId, credential.accessToken);
+      assertCurrent();
       this.options.store.save(connectionId, { ...credential, account });
       return { connectionId, account };
     } catch (error) {
@@ -115,6 +125,7 @@ export class LocalConnectorService {
 
   /** Removes every saved sign-in on this Mac, for account deletion. */
   forgetAll(): void {
+    this.#generation++;
     this.#notion.clear();
     this.options.store.clear();
   }
@@ -139,6 +150,13 @@ export class LocalConnectorService {
       return runNotionTool(this.#notionClient(connectionId), tool, input, signal);
     }
     const token = await this.#accessToken(connectionId, signal);
+    signal?.throwIfAborted();
+    if (this.options.store.read(connectionId)?.accessToken !== token) {
+      throw new ConnectorRequestError(
+        401,
+        'This app is no longer connected. Reconnect it in Settings > Connections.',
+      );
+    }
     return app === 'outlook'
       ? runOutlookTool(this.#fetch, token, tool, input, signal)
       : runGithubTool(this.#fetch, token, tool, input, signal);
@@ -147,7 +165,25 @@ export class LocalConnectorService {
   #notionClient(connectionId: string): NotionMcpClient {
     let client = this.#notion.get(connectionId);
     if (!client) {
-      client = new NotionMcpClient(this.#fetch, () => this.#accessToken(connectionId));
+      client = new NotionMcpClient(
+        async (input, init) => {
+          // Token acquisition yields before MCP sends. Recheck at the network boundary
+          // so a disconnect during that wait also revokes an already-created client.
+          const credential = this.options.store.read(connectionId);
+          if (
+            !credential ||
+            new Headers(init?.headers).get('authorization') !==
+              `Bearer ${credential.accessToken}`
+          ) {
+            throw new ConnectorRequestError(
+              401,
+              'This app is no longer connected. Reconnect it in Settings > Connections.',
+            );
+          }
+          return this.#fetch(input, init);
+        },
+        () => this.#accessToken(connectionId),
+      );
       this.#notion.set(connectionId, client);
     }
     return client;
@@ -160,6 +196,7 @@ export class LocalConnectorService {
   }
 
   async #accessToken(connectionId: string, signal?: AbortSignal): Promise<string> {
+    signal?.throwIfAborted();
     const credential = this.options.store.read(connectionId);
     if (!credential) {
       throw new ConnectorRequestError(
@@ -176,9 +213,22 @@ export class LocalConnectorService {
         'This app connection expired. Reconnect it in Settings > Connections.',
       );
     }
+    let pending = this.#refreshes.get(connectionId);
+    if (!pending) {
+      pending = this.#refreshToken(connectionId, credential).finally(() => {
+        if (this.#refreshes.get(connectionId) === pending) this.#refreshes.delete(connectionId);
+      });
+      this.#refreshes.set(connectionId, pending);
+    }
+    const token = await pending;
+    signal?.throwIfAborted();
+    return token;
+  }
+
+  async #refreshToken(connectionId: string, credential: LocalCredential): Promise<string> {
     const base = {
       grant_type: 'refresh_token',
-      refresh_token: credential.refreshToken,
+      refresh_token: credential.refreshToken!,
       client_id: credential.clientId,
     };
     // Each refresh token goes only to the provider that issued it.
@@ -198,18 +248,29 @@ export class LocalConnectorService {
     }
     let refreshed: TokenResponse;
     try {
-      refreshed = await requestToken(this.#fetch, endpoint, form, signal);
+      refreshed = await requestToken(this.#fetch, endpoint, form);
     } catch (error) {
       if (error instanceof OAuthError && error.code === 'invalid_grant') {
         throw new ConnectorRequestError(401, error.message);
       }
       throw error;
     }
+    const current = this.options.store.read(connectionId);
+    if (
+      !current ||
+      current.accessToken !== credential.accessToken ||
+      current.refreshToken !== credential.refreshToken
+    ) {
+      throw new ConnectorRequestError(
+        401,
+        'This app is no longer connected. Reconnect it in Settings > Connections.',
+      );
+    }
     this.options.store.save(connectionId, {
       ...credential,
       accessToken: refreshed.accessToken,
       // Providers that rotate refresh tokens return a new one; others keep the original.
-      refreshToken: refreshed.refreshToken ?? credential.refreshToken,
+      refreshToken: refreshed.refreshToken ?? credential.refreshToken!,
       ...(refreshed.expiresAt ? { expiresAt: refreshed.expiresAt } : {}),
     });
     return refreshed.accessToken;

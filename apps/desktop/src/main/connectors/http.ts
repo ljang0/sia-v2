@@ -1,4 +1,4 @@
-import type { Fetch } from './oauth.js';
+import { requestSignal, type Fetch } from './oauth.js';
 
 /** A provider HTTP failure, mapped to a short message the agent can relay. */
 export class ConnectorRequestError extends Error {
@@ -34,7 +34,7 @@ export async function jsonRequest(
       ...init.headers,
     },
     ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-    ...(init.signal ? { signal: init.signal } : {}),
+    signal: requestSignal(init.signal),
   });
   const text = await response.text();
   let body: unknown;

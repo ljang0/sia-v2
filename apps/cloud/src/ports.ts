@@ -252,6 +252,7 @@ export interface ResearchExportRepository {
     next: ResearchExportState,
     updatedAt: string,
     detail?: { objectKey?: string; failureCode?: string },
+    expectedUpdatedAt?: string,
   ): Promise<boolean>;
   deleteResearchExportsForUser(userId: string): Promise<void>;
 }
@@ -353,6 +354,7 @@ export interface DeletionRepository {
     next: DeletionState,
     updatedAt: string,
     failureCode?: string,
+    expectedUpdatedAt?: string,
   ): Promise<boolean>;
 }
 

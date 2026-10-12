@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { once } from 'node:events';
 import {
   createServer,
   type IncomingMessage,
@@ -34,6 +35,8 @@ interface Scope {
 export class HostedResponsesProxy {
   readonly #forwarder: HostedResponsesForwarder;
   readonly #scopes = new Map<string, Scope>();
+  readonly #requests = new Set<AbortController>();
+  #generation = 0;
   #server: Server | undefined;
   #baseUrl: string | undefined;
   #starting: Promise<void> | undefined;
@@ -53,7 +56,9 @@ export class HostedResponsesProxy {
 
   async issue(model: string): Promise<HostedCodexProvider> {
     if (!model || model.length > 256) throw new Error('Hosted model id is invalid.');
+    const generation = this.#generation;
     await this.#start();
+    if (generation !== this.#generation) throw new Error('The model relay was reset.');
     const bearerToken = randomBytes(32).toString('base64url');
     this.#scopes.set(bearerToken, { model, issuedAt: Date.now() });
     if (this.#scopes.size > MAX_SCOPES) {
@@ -71,31 +76,42 @@ export class HostedResponsesProxy {
   }
 
   async dispose(): Promise<void> {
+    this.#generation += 1;
     this.#scopes.clear();
     const server = this.#server;
+    const starting = this.#starting;
     this.#server = undefined;
     this.#baseUrl = undefined;
     this.#starting = undefined;
-    if (!server?.listening) return;
-    await new Promise<void>((resolve, reject) => {
-      server.close((error) => (error ? reject(error) : resolve()));
-    });
+    for (const request of this.#requests) request.abort();
+    this.#requests.clear();
+    if (server?.listening) {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+        server.closeAllConnections();
+      });
+    }
+    await starting?.catch(() => undefined);
   }
 
   async #start(): Promise<void> {
     if (this.#server?.listening) return;
     if (this.#starting) return await this.#starting;
-    this.#starting = new Promise<void>((resolve, reject) => {
+    const generation = this.#generation;
+    const starting = new Promise<void>((resolve, reject) => {
       const server = createServer((request, response) => {
         void this.#handle(request, response);
       });
       const fail = (error: Error) => {
-        this.#starting = undefined;
         reject(error);
       };
       server.once('error', fail);
       server.listen(0, '127.0.0.1', () => {
         server.off('error', fail);
+        if (generation !== this.#generation) {
+          server.close(() => reject(new Error('The model relay was reset.')));
+          return;
+        }
         const address = server.address();
         if (!address || typeof address === 'string') {
           server.close();
@@ -108,14 +124,16 @@ export class HostedResponsesProxy {
         resolve();
       });
     });
+    this.#starting = starting;
     try {
-      await this.#starting;
+      await starting;
     } finally {
-      this.#starting = undefined;
+      if (this.#starting === starting) this.#starting = undefined;
     }
   }
 
   async #handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
+    let abort: AbortController | undefined;
     try {
       if (!isLoopback(request.socket.remoteAddress)) {
         return jsonError(response, 403, 'forbidden', 'Loopback access is required.');
@@ -141,6 +159,9 @@ export class HostedResponsesProxy {
         return jsonError(response, 413, 'request_too_large', 'The request exceeds 2 MiB.');
       }
       const body = await readBody(request);
+      if (!token || this.#scopes.get(token) !== scope) {
+        return jsonError(response, 401, 'unauthorized', 'The local model capability expired.');
+      }
       let payload: unknown;
       try {
         payload = JSON.parse(body);
@@ -155,12 +176,18 @@ export class HostedResponsesProxy {
           'This local capability is scoped to a different model.',
         );
       }
-      const abort = new AbortController();
-      request.once('aborted', () => abort.abort());
+      abort = new AbortController();
+      const signal = abort.signal;
+      this.#requests.add(abort);
+      request.once('aborted', () => abort?.abort());
       response.once('close', () => {
-        if (!response.writableEnded) abort.abort();
+        if (!response.writableEnded) abort?.abort();
       });
-      const upstream = await this.#forwarder.forwardHostedResponses(body, abort.signal);
+      const upstream = await this.#forwarder.forwardHostedResponses(body, signal);
+      if (signal.aborted || response.destroyed) {
+        await upstream.body?.cancel();
+        return;
+      }
       response.writeHead(upstream.status, {
         'content-type':
           upstream.headers.get('content-type') ?? 'application/json; charset=utf-8',
@@ -176,7 +203,7 @@ export class HostedResponsesProxy {
       }
       for await (const chunk of upstream.body) {
         if (!response.write(Buffer.from(chunk))) {
-          await new Promise<void>((resolve) => response.once('drain', resolve));
+          await once(response, 'drain', { signal });
         }
       }
       response.end();
@@ -190,6 +217,8 @@ export class HostedResponsesProxy {
         return;
       }
       jsonError(response, 502, 'relay_failed', 'The hosted model relay could not be reached.');
+    } finally {
+      if (abort) this.#requests.delete(abort);
     }
   }
 }
@@ -226,7 +255,7 @@ function jsonError(
   code: string,
   message: string,
 ): void {
-  if (response.writableEnded) return;
+  if (response.writableEnded || response.destroyed) return;
   response.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',

@@ -3,6 +3,46 @@
 This is a continuing source and deterministic-test audit of the major user workflows. It is not an
 all-app live acceptance result. The public release remains gated by [public-release.md](./public-release.md).
 
+## Repository-wide continuation
+
+The continuation from `fa97fc6` inventories all 880 tracked files, including tests, documentation,
+native helpers, infrastructure, scripts and binary assets. Automated coverage includes the full
+source gate, text hygiene, script syntax, JSON/YAML/XML parsing, local documentation and site
+asset links, and asset signatures. Manual review concentrates on asynchronous lifetime boundaries,
+authorization, persistence, cloud jobs and user workflows; this is not a claim that every line was
+manually reviewed or that live external services have no defects. The new renderer test brings the
+tree to 881 files. The existing domain organization remains appropriate.
+
+The continuation fixes these reproduced failures:
+
+- **Cloud jobs:** a duplicate delivery could take over a live export, abandoned deletion jobs
+  could stay stuck, and failed queue submissions could leave deletion permanently pending. Claims
+  now compare the saved revision atomically and reclaim only after the configured six-minute
+  visibility interval. Queue failures permit retry. An account-deletion request cannot silently
+  reuse a research-only request, and worker scope must match the saved job.
+- **Research storage:** an uncertain metadata write or a failed competing upload could delete a
+  successfully claimed, content-addressed object. Unknown outcomes now preserve the object for
+  retry reconciliation, user deletion and the existing retention policy. Definitively losing
+  uploads with different content still remove their unclaimed object.
+- **Connectors:** delayed refreshes could restore disconnected credentials, and concurrent calls
+  could rotate the same refresh token twice. Refreshes now share one request and check the saved
+  credential before committing. Cancelled sign-in cannot restore credentials after account lookup.
+  Notion reads bounded SSE incrementally and shares initialization, resolving matching replies
+  even when the remote stream remains open. All local connector HTTP requests have a timeout.
+- **Model relay and transport:** reset now cancels streams and interrupted startup, while the
+  JSON-RPC transport handles output failure, synchronous send errors and oversized complete lines.
+- **Workspace and task cancellation:** terminal disposal prevents delayed starts, handles closed
+  stdin and kills surviving descendants. Undo checks canonical paths against protected locations,
+  rechecks staged writes, preserves observed concurrent edits and reports incomplete rollback
+  honestly. Already-cancelled turns cannot acquire capacity or computer-control leases.
+- **Composer:** late pick/drop/paste results cannot cross conversation or composer lifetimes.
+  Returning to the original conversation does not restore an obsolete selection.
+
+Focused regression evidence and the file inventory are retained outside Git under
+`release-verification-evidence/repository-audit-continuation` in the parent workspace. These source
+changes do not replace the installed signed demo, deploy cloud changes, or establish external
+connector, physical-handset or signed-release acceptance.
+
 ## Messaging lifecycle and repository audit
 
 The October 12 review starts from `c256f71` on `codex/release-verification`. It examines the domain

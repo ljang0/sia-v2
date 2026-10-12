@@ -70,6 +70,19 @@ The rest of the main process is grouped by domain under `apps/desktop/src/main/`
 - `research/` — the local trajectory recorder.
 - `notch/` — the ported native-learning prompts and vault.
 
+Provider reset revokes loopback model capabilities, cancels active relay requests and closes their
+connections; an interrupted startup cannot install an old relay after reset. JSON-RPC transport
+errors settle outstanding requests, and both complete and incomplete incoming lines have a size
+bound. Turn and resource leases reject cancellation before granting even an immediately available
+slot. Background terminal disposal prevents delayed starts and terminates the owned process group,
+including descendants that outlive their parent.
+
+Local connector refreshes share one in-flight request per connection. A refresh can save its new
+token only while the original credential is still present; disconnect and account deletion cannot
+be undone by a late refresh or sign-in callback. Provider HTTP requests have a 30-second timeout.
+The Notion client shares initialization and reads bounded SSE messages incrementally, returning
+when its matching response arrives instead of waiting for the server to close the stream.
+
 The cloud shown above is a control plane only. The alpha has no remote provider runtime, persistent
 cloud filesystem/browser, or offline cloud scheduler. Local schedules are persisted by the desktop
 app and are evaluated only while Sia is running and the Mac is awake. The acceptance boundary for
@@ -89,6 +102,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   copy; the preload restores the pushed snapshot and the renderer skips re-rendering it.
   Delayed bridge replies cannot replace a newer renderer snapshot, including the cleared
   snapshot after sign-out.
+- Attachment picker, drop and paste results belong to the current composer lifetime. Navigating
+  away, clearing the composer or unmounting it discards late results, even after returning to the
+  same conversation.
 - Settled approvals that no transcript row refers to (such as computer-use requests) are dropped
   at launch a week after they expired.
 - UI snapshots pushed to the renderer, and snapshots returned by its bridge calls, carry only the
@@ -583,6 +599,13 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   those reads are integrity-checked and audited to an Object-Locked metadata bucket. Participant
   exports run asynchronously through SQS and multipart S3 so the API request is not responsible for
   buffering the full archive. Electron receives no AWS credential.
+- Export and deletion workers atomically claim the observed job revision. Live work cannot be
+  claimed again; abandoned states become retryable after six minutes, beyond the five-minute
+  Lambda timeout. Failed queue submission records a retryable failure. An account request never
+  silently resolves as research-only deletion. Research upload preserves content-addressed objects
+  when metadata persistence has an unknown outcome: a lost acknowledgement or competing upload
+  may already have claimed them. Retries reconcile metadata; user deletion and bucket retention
+  still cover unclaimed objects.
 - The desktop research outbox is fail-closed: only AWS-acknowledged batches can be pruned, pending
   byte count/age/errors are visible, and a durable-write failure blocks new signed-in turns. Cloud
   kill switches can pause uploads, archive reads, connectors, or schedules independently without
@@ -597,9 +620,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
 - **Undo changes** under a finished reply plays back the `fileChange` items Codex reported for that
   reply (an added file's content, a deleted file's content, or an edit's line diff), which the
   thread already stores; no folder copy or Git snapshot is taken. `main/workspace/turn-changes.ts` applies the
-  record backwards or forwards only when every file still matches it exactly, writes all files or
-  none, stays inside the thread's folder or the home folder (never through a symlink, into `.git`,
-  `~/.ssh`, `~/.gnupg` or `~/Library/Keychains`), and refuses while a task runs in that thread.
+  record backwards or forwards only when every file still matches it exactly, checks again before
+  each write, and attempts to restore its earlier writes if a later one fails. Rollback preserves
+  observed edits from other programs and reports incomplete recovery. It stays inside the thread's
+  folder or home folder, checks canonical targets against `.git`, `~/.ssh`, `~/.gnupg` and
+  `~/Library/Keychains`, rejects symlink files and hard links, and refuses while a task runs in that thread.
   Changes made by shell commands, and anything sent or done in other apps, are not undone.
 
 ## Concurrency

@@ -783,6 +783,36 @@ describe('curated tool surface', () => {
 });
 
 describe('local lease coordinator', () => {
+  it('does not reserve turn capacity for an already-cancelled request', async () => {
+    const coordinator = new LocalLeaseCoordinator();
+    await expect(
+      coordinator.startTurn({
+        turnId: 'cancelled',
+        threadId: 'thread',
+        signal: AbortSignal.abort(new Error('cancelled')),
+      }),
+    ).rejects.toThrow('cancelled');
+    expect(coordinator.activeTurnCount).toBe(0);
+  });
+
+  it.each([false, true])(
+    'does not grant a cancelled resource request (already held: %s)',
+    async (held) => {
+      const coordinator = new LocalLeaseCoordinator();
+      const turn = await coordinator.startTurn({ turnId: 'turn', threadId: 'thread' });
+      const resource = { kind: 'global_focus' as const, id: 'foreground' as const };
+      try {
+        if (held) await turn.acquire(resource);
+        await expect(
+          turn.acquire(resource, AbortSignal.abort(new Error('cancelled'))),
+        ).rejects.toThrow('cancelled');
+        expect(turn.holds(resource)).toBe(held);
+      } finally {
+        turn.release();
+      }
+    },
+  );
+
   it('limits active turns to four and queues in FIFO order', async () => {
     const coordinator = new LocalLeaseCoordinator();
     const active = await Promise.all(

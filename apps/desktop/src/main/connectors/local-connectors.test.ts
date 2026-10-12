@@ -66,6 +66,92 @@ describe('LocalCredentialStore', () => {
 });
 
 describe('LocalConnectorService', () => {
+  function expiredGithub() {
+    const credentials = store();
+    const id = newLocalConnectionId('github');
+    credentials.save(id, {
+      app: 'github',
+      accessToken: 'old',
+      refreshToken: 'refresh',
+      expiresAt: Date.now() - 1,
+      clientId: 'client',
+      account: 'octo',
+    });
+    const response = Promise.withResolvers<Response>();
+    const { fetch, calls } = fakeFetch((url) =>
+      url.includes('/access_token') ? response.promise : json({ total_count: 0, items: [] }),
+    );
+    const service = new LocalConnectorService({
+      store: credentials,
+      clients: { github: 'client-id' },
+      openExternal: async () => undefined,
+      fetch,
+    });
+    return {
+      credentials,
+      id,
+      response,
+      calls,
+      service,
+      run: () =>
+        service.execute('github', id, 'github_search', { kind: 'issues', query: 'is:open' }),
+    };
+  }
+
+  it.each(['forget', 'forgetAll'] as const)(
+    'does not restore credentials when a token refresh finishes after %s',
+    async (operation) => {
+      const h = expiredGithub();
+      const running = h.run();
+      const rejected = expect(running).rejects.toMatchObject({ reconnectRequired: true });
+      await vi.waitFor(() => expect(h.calls).toHaveLength(1));
+      if (operation === 'forget') h.service.forget(h.id);
+      else h.service.forgetAll();
+      h.response.resolve(
+        json({ access_token: 'late', refresh_token: 'rotated', expires_in: 3600 }),
+      );
+      await rejected;
+      expect(h.credentials.read(h.id)).toBeUndefined();
+      expect(h.calls).toHaveLength(1);
+    },
+  );
+
+  it('shares a refresh across simultaneous calls so a rotating token is used once', async () => {
+    const h = expiredGithub();
+    const calls = [h.run(), h.run()];
+    h.response.resolve(
+      json({ access_token: 'new', refresh_token: 'rotated', expires_in: 3600 }),
+    );
+    await Promise.all(calls);
+    expect(h.calls.filter(({ url }) => url.includes('/access_token'))).toHaveLength(1);
+    expect(h.calls.filter(({ url }) => url.includes('api.github.com'))).toHaveLength(2);
+  });
+
+  it('does not send a Notion request after disconnect while its token is being acquired', async () => {
+    const credentials = store();
+    const id = newLocalConnectionId('notion');
+    credentials.save(id, {
+      app: 'notion',
+      accessToken: 'token',
+      clientId: 'client',
+      account: 'workspace',
+    });
+    const { fetch, calls } = fakeFetch((_url, init) => {
+      const body = JSON.parse(String(init.body)) as { id: number };
+      return json({ jsonrpc: '2.0', id: body.id, result: {} });
+    });
+    const service = new LocalConnectorService({
+      store: credentials,
+      clients: {},
+      fetch,
+      openExternal: async () => undefined,
+    });
+    const pending = service.execute('notion', id, 'notion_search', { query: 'hello' });
+    service.forget(id);
+    await expect(pending).rejects.toMatchObject({ reconnectRequired: true });
+    expect(calls).toHaveLength(0);
+  });
+
   it('is unavailable without a registered client, except Notion', () => {
     const service = new LocalConnectorService({
       store: store(),
@@ -76,6 +162,44 @@ describe('LocalConnectorService', () => {
     expect(service.available('outlook')).toBe(false);
     expect(service.available('github')).toBe(false);
   });
+
+  it.each(['abort', 'forgetAll'] as const)(
+    'does not save a late account lookup after sign-in is cancelled by %s',
+    async (cancel) => {
+      const credentials = store();
+      const account = Promise.withResolvers<Response>();
+      const { fetch, calls } = fakeFetch((url) => {
+        if (url.endsWith('/device/code'))
+          return json({
+            device_code: 'device',
+            user_code: 'ABCD-1234',
+            verification_uri: 'https://github.com/login/device',
+            interval: 0,
+            expires_in: 60,
+          });
+        if (url.endsWith('/access_token'))
+          return json({ access_token: 'token', token_type: 'bearer' });
+        return account.promise;
+      });
+      const service = new LocalConnectorService({
+        store: credentials,
+        clients: { github: 'client' },
+        openExternal: async () => undefined,
+        fetch,
+      });
+      const saved = vi.spyOn(credentials, 'save');
+      const abort = new AbortController();
+      const pending = service.connect('github', { signal: abort.signal });
+      const rejected = expect(pending).rejects.toThrow();
+      await vi.waitFor(() => expect(calls.at(-1)?.url).toBe('https://api.github.com/user'));
+      if (cancel === 'abort') abort.abort();
+      else service.forgetAll();
+      account.resolve(json({ login: 'late-user' }));
+      await rejected;
+      const id = saved.mock.calls[0]![0];
+      expect(credentials.read(id)).toBeUndefined();
+    },
+  );
 
   it('signs in to GitHub with a device code and saves the account', async () => {
     const credentials = store();
@@ -272,6 +396,51 @@ describe('LocalConnectorService', () => {
 });
 
 describe('Notion MCP client', () => {
+  it('finishes an SSE result without waiting for the server to close its stream', async () => {
+    const cancelled = vi.fn();
+    let stream!: ReadableStreamDefaultController<Uint8Array>;
+    const { fetch } = fakeFetch((_url, init) => {
+      const message = JSON.parse(String(init.body)) as { id?: number; method: string };
+      if (message.id === undefined) return new Response(null, { status: 202 });
+      if (message.method === 'initialize') return json({ id: message.id, result: {} });
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            stream = controller;
+            const bytes = new TextEncoder().encode(
+              `: keepalive\r\n\r\nevent: message\r\ndata: ${JSON.stringify({ id: message.id, result: { content: [{ type: 'text', text: 'Hello 🌎' }] } })}\r\n\r\n`,
+            );
+            controller.enqueue(bytes.subarray(0, bytes.length - 7));
+            controller.enqueue(bytes.subarray(bytes.length - 7));
+          },
+          cancel: cancelled,
+        }),
+        { headers: { 'content-type': 'text/event-stream' } },
+      );
+    });
+    const client = new NotionMcpClient(fetch, async () => 'token');
+    const result = client.callTool('notion-search', {});
+    try {
+      await vi.waitFor(() => expect(cancelled).toHaveBeenCalledOnce(), { timeout: 300 });
+      await expect(result).resolves.toEqual({ text: 'Hello 🌎' });
+    } finally {
+      if (!cancelled.mock.calls.length) stream?.close();
+      await result.catch(() => undefined);
+    }
+  });
+
+  it('shares session initialization across simultaneous tool calls', async () => {
+    const { client, calls } = notionServer({});
+    await Promise.all([
+      client.callTool('notion-search', {}),
+      client.callTool('notion-fetch', {}),
+    ]);
+    expect(calls.filter(({ method }) => method === 'initialize')).toHaveLength(1);
+    expect(calls.filter(({ method }) => method === 'notifications/initialized')).toHaveLength(
+      1,
+    );
+  });
+
   function notionServer(updateSchema: Record<string, unknown>) {
     const calls: { method: string; params: unknown }[] = [];
     const { fetch } = fakeFetch(async (_url, init) => {

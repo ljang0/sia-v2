@@ -43,6 +43,7 @@ export async function loopbackAuthorization(options: {
   openExternal(url: string): Promise<void>;
   signal?: AbortSignal;
 }): Promise<{ code: string; redirectUri: string; verifier: string }> {
+  options.signal?.throwIfAborted();
   const { verifier, challenge } = pkcePair();
   const state = base64url(randomBytes(24));
   let server: Server | undefined;
@@ -87,6 +88,7 @@ export async function loopbackAuthorization(options: {
     if (!address || typeof address === 'string') throw new Error('Sign-in could not start.');
     const redirectUri = `http://${options.redirectHost}:${address.port}/callback`;
     const url = await options.authorizationUrl({ redirectUri, state, challenge });
+    options.signal?.throwIfAborted();
     if (url.protocol !== 'https:') throw new Error('Sign-in must use HTTPS.');
     await options.openExternal(url.toString());
     const code = await raceTimeout(received, options.signal);
@@ -132,7 +134,7 @@ export async function requestToken(
       accept: 'application/json',
     },
     body: new URLSearchParams(form),
-    ...(signal ? { signal } : {}),
+    signal: requestSignal(signal),
   });
   const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (!response.ok || typeof body.access_token !== 'string') {
@@ -185,7 +187,7 @@ export async function startDeviceAuthorization(
       accept: 'application/json',
     },
     body: new URLSearchParams(form),
-    ...(signal ? { signal } : {}),
+    signal: requestSignal(signal),
   });
   const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
   if (
@@ -228,7 +230,7 @@ export async function pollDeviceAuthorization(
         device_code: device.deviceCode,
         grant_type: 'urn:ietf:params:oauth:grant-type:device_code',
       }),
-      ...(signal ? { signal } : {}),
+      signal: requestSignal(signal),
     }).catch(() => undefined);
     if (!response) continue;
     const body = (await response.json().catch(() => ({}))) as Record<string, unknown>;
@@ -243,4 +245,10 @@ export async function pollDeviceAuthorization(
     throw new Error('The app declined sign-in. Try connecting again.');
   }
   throw new Error('Sign-in timed out. You can safely try again.');
+}
+
+/** Bound provider requests even when the caller has no cancellation signal. */
+export function requestSignal(signal?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(30_000);
+  return signal ? AbortSignal.any([signal, timeout]) : timeout;
 }

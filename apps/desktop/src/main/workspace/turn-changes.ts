@@ -95,7 +95,7 @@ export async function readTurnChanges(
   };
 }
 
-/** Puts the reply's files back (undo) or brings its changes back (redo), all or nothing. */
+/** Rechecks each write and rolls back earlier writes if a later file cannot be changed. */
 export async function applyTurnChanges(
   changes: readonly RecordedFileChange[],
   scope: TurnChangeScope,
@@ -114,20 +114,28 @@ export async function applyTurnChanges(
         : 'Some files changed after the undo, so Sia left them as they are.',
     );
   }
-  const written: Array<{ path: string; previous: string | null }> = [];
+  const written: Array<{ path: string; previous: string | null; content: string | null }> = [];
   try {
     for (const [path, content] of result.writes) {
       const previous = await plan.read(path);
       if (previous === content) continue;
-      await writeSafely(path, content, scope);
-      written.push({ path, previous });
+      await writeSafely(path, content, scope, previous);
+      written.push({ path, previous, content });
     }
   } catch (cause) {
-    // Put back what this attempt already wrote, so a failure never leaves half a reply undone.
-    for (const { path, previous } of written.reverse()) {
-      await writeSafely(path, previous, scope).catch(() => undefined);
+    // Restore only our own writes; never overwrite a concurrent editor's newer content.
+    let rollbackFailed = false;
+    for (const { path, previous, content } of written.reverse()) {
+      await writeSafely(path, previous, scope, content).catch(() => {
+        rollbackFailed = true;
+      });
     }
-    throw new Error('Sia could not put these files back. Nothing was changed.', { cause });
+    throw new Error(
+      rollbackFailed
+        ? 'Sia could not restore every file after this change failed. Some files changed during the operation; review them before retrying.'
+        : 'Sia could not put these files back because a file changed or became unavailable. Earlier changes from this attempt were restored.',
+      { cause },
+    );
   }
   return {
     state: direction === 'undo' ? 'undone' : 'ready',
@@ -401,22 +409,24 @@ async function safePath(path: string, scope: TurnChangeScope): Promise<string | 
     const child = relative(root, candidate);
     return !child || (!child.startsWith('..') && !isAbsolute(child));
   };
-  if (!roots.some(({ root }) => within(absolute, root))) return undefined;
-  if (absolute.split(sep).includes('.git')) return undefined;
-  for (const { root, home: isHome } of roots) {
-    if (!isHome || !within(absolute, root)) continue;
-    if (
-      PROTECTED_HOME_PATHS.some((protectedPath) => within(absolute, join(root, protectedPath)))
-    )
-      return undefined;
-  }
+  const allowed = (candidate: string) =>
+    roots.some(({ root }) => within(candidate, root)) &&
+    !candidate.split(sep).includes('.git') &&
+    !roots.some(
+      ({ root, home }) =>
+        home &&
+        PROTECTED_HOME_PATHS.some((protectedPath) =>
+          within(candidate, join(root, protectedPath)),
+        ),
+    );
+  if (!allowed(absolute)) return undefined;
   // The nearest existing folder must resolve inside the same places, so a symlinked folder
   // cannot lead a write somewhere else.
   let ancestor = dirname(absolute);
   for (;;) {
     const real = await realpath(ancestor).catch(() => undefined);
     if (real) {
-      if (!roots.some(({ root }) => within(real, root))) return undefined;
+      if (!allowed(resolve(real, relative(ancestor, absolute)))) return undefined;
       break;
     }
     const parent = dirname(ancestor);
@@ -448,7 +458,7 @@ async function readText(path: string): Promise<string | null> {
     throw error;
   });
   if (!info) return null;
-  if (!info.isFile() || info.size > MAX_FILE_BYTES) {
+  if (!info.isFile() || info.nlink !== 1 || info.size > MAX_FILE_BYTES) {
     // Not a plain text file Sia can compare; treat it as changed so nothing is written.
     return `\u0000unreadable:${path}`;
   }
@@ -461,11 +471,17 @@ async function writeSafely(
   path: string,
   content: string | null,
   scope: TurnChangeScope,
+  expected: string | null,
 ): Promise<void> {
   if (!(await safePath(path, scope)))
     throw new Error('This file is outside what Sia may change.');
   const info = await lstat(path).catch(() => undefined);
   if (info && !info.isFile()) throw new Error('Only plain files can be put back.');
+  const assertUnchanged = async () => {
+    if ((await readText(path)) !== expected)
+      throw new Error('This file changed during the operation.');
+  };
+  await assertUnchanged();
   if (content === null) {
     if (info) await rm(path);
     return;
@@ -475,6 +491,8 @@ async function writeSafely(
   const temporary = join(dirname(path), `.${basename(path)}.sia-${randomUUID()}`);
   try {
     await writeFile(temporary, content, { mode: info ? info.mode & 0o777 : 0o644, flag: 'wx' });
+    if (!(await safePath(path, scope))) throw new Error('This file target changed.');
+    await assertUnchanged();
     await rename(temporary, path);
   } catch (error) {
     await rm(temporary, { force: true });

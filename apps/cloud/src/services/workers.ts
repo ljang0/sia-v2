@@ -2,18 +2,36 @@ import type { DeletionScope } from '../contracts.js';
 import { CloudError } from '../domain.js';
 import type { ServiceDependencies } from '../services.js';
 
+// Both workers have a hard 300s Lambda timeout. Reclaim only after the 360s
+// queue visibility interval, and compare the observed revision atomically.
+const WORKER_LEASE_MS = 360_000;
+
+function canClaim(job: { state: string; updatedAt: string }, now: Date): boolean {
+  return (
+    ['requested', 'failed'].includes(job.state) ||
+    now.getTime() - Date.parse(job.updatedAt) >= WORKER_LEASE_MS
+  );
+}
+
 export class ResearchExportWorker {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async process(userId: string, exportId: string): Promise<void> {
     const now = () => this.deps.clock.now().toISOString();
-    const claimed = await this.deps.researchExports.transitionResearchExport(
-      userId,
-      exportId,
-      ['requested', 'processing', 'failed'],
-      'processing',
-      now(),
-    );
+    const current = await this.deps.researchExports.getResearchExport(userId, exportId);
+    if (current?.state === 'completed') return;
+    const claimed =
+      current &&
+      canClaim(current, this.deps.clock.now()) &&
+      (await this.deps.researchExports.transitionResearchExport(
+        userId,
+        exportId,
+        [current.state],
+        'processing',
+        now(),
+        {},
+        current.updatedAt,
+      ));
     if (!claimed) {
       const current = await this.deps.researchExports.getResearchExport(userId, exportId);
       if (current?.state === 'completed') return;
@@ -62,13 +80,27 @@ export class DeletionWorker {
 
   async process(userId: string, jobId: string, scope: DeletionScope): Promise<void> {
     const now = (): string => this.deps.clock.now().toISOString();
-    const claimed = await this.deps.deletions.transitionDeletion(
-      userId,
-      jobId,
-      ['requested', 'failed'],
-      'processing',
-      now(),
-    );
+    const current = await this.deps.deletions.getDeletion(userId, jobId);
+    if (current && current.scope !== scope) {
+      throw new CloudError(
+        409,
+        'deletion_scope_mismatch',
+        'The queued deletion does not match the saved request',
+      );
+    }
+    if (current?.state === 'completed') return;
+    const claimed =
+      current &&
+      canClaim(current, this.deps.clock.now()) &&
+      (await this.deps.deletions.transitionDeletion(
+        userId,
+        jobId,
+        [current.state],
+        'processing',
+        now(),
+        undefined,
+        current.updatedAt,
+      ));
     if (!claimed) {
       const job = await this.deps.deletions.getDeletion(userId, jobId);
       if (job?.state === 'completed') return;

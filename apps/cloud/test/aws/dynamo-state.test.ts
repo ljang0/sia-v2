@@ -2,12 +2,65 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { ConditionalCheckFailedException } from '@aws-sdk/client-dynamodb';
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import { BatchWriteCommand, GetCommand, PutCommand, QueryCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  BatchWriteCommand,
+  GetCommand,
+  PutCommand,
+  QueryCommand,
+  UpdateCommand,
+} from '@aws-sdk/lib-dynamodb';
 
 import { DynamoState } from '../../src/aws/dynamo-state.js';
 
 const TABLE_NAME = 'state-table';
 const USER_PK = 'USER#person-1';
+
+describe('DynamoState worker claims', () => {
+  for (const kind of ['deletion', 'export'] as const) {
+    it(`atomically compares the observed ${kind} revision before reclaiming it`, async () => {
+      const previous = '2026-08-13T00:00:00.000Z';
+      const next = '2026-08-13T00:06:01.000Z';
+      let calls = 0;
+      const client = {
+        async send(command: unknown) {
+          assert.ok(command instanceof UpdateCommand);
+          assert.match(command.input.ConditionExpression!, /AND updatedAt = :expectedUpdated/);
+          assert.equal(command.input.ExpressionAttributeValues?.[':expectedUpdated'], previous);
+          assert.equal(command.input.ExpressionAttributeValues?.[':updated'], next);
+          if (++calls === 2)
+            throw new ConditionalCheckFailedException({
+              message: 'claimed elsewhere',
+              $metadata: {},
+            });
+          return {};
+        },
+      } as unknown as DynamoDBDocumentClient;
+      const state = new DynamoState(client, TABLE_NAME);
+      const claim = () =>
+        kind === 'deletion'
+          ? state.transitionDeletion(
+              'person-1',
+              'job',
+              ['processing'],
+              'processing',
+              next,
+              undefined,
+              previous,
+            )
+          : state.transitionResearchExport(
+              'person-1',
+              'job',
+              ['processing'],
+              'processing',
+              next,
+              {},
+              previous,
+            );
+      assert.equal(await claim(), true);
+      assert.equal(await claim(), false);
+    });
+  }
+});
 
 describe('DynamoState prefix deletion', () => {
   it('queries every page, deletes every 25-item chunk, and retries only unprocessed keys', async () => {

@@ -9,6 +9,67 @@ afterEach(async () => {
 });
 
 describe('HostedResponsesProxy', () => {
+  it('revokes an in-progress startup and can issue a fresh capability after reset', async () => {
+    const proxy = new HostedResponsesProxy({
+      forwardHostedResponses: vi.fn(async () => new Response('fresh')),
+    });
+    proxies.push(proxy);
+    const issued = proxy.issue('meta/spark');
+    const settled = issued.then(
+      () => 'issued',
+      () => 'revoked',
+    );
+    await proxy.dispose();
+    expect(await settled).toBe('revoked');
+
+    const provider = await proxy.issue('meta/spark');
+    const response = await fetch(`${provider.baseUrl}/responses`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${provider.bearerToken}` },
+      body: JSON.stringify({ model: 'meta/spark' }),
+    });
+    expect(await response.text()).toBe('fresh');
+  });
+
+  it('aborts active model streams when reset instead of waiting for them to finish', async () => {
+    let upstreamSignal: AbortSignal | undefined;
+    let closeUpstream: (() => void) | undefined;
+    const proxy = new HostedResponsesProxy({
+      forwardHostedResponses: vi.fn(async (_body, signal) => {
+        upstreamSignal = signal;
+        return new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('data: ready\n\n'));
+              closeUpstream = () => controller.close();
+            },
+          }),
+        );
+      }),
+    });
+    proxies.push(proxy);
+    const provider = await proxy.issue('meta/spark');
+    const client = new AbortController();
+    const response = await fetch(`${provider.baseUrl}/responses`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${provider.bearerToken}` },
+      body: JSON.stringify({ model: 'meta/spark' }),
+      signal: client.signal,
+    });
+    const reader = response.body!.getReader();
+    await reader.read();
+    const disposed = proxy.dispose();
+    try {
+      await vi.waitFor(() => expect(upstreamSignal?.aborted).toBe(true), { timeout: 300 });
+      await disposed;
+    } finally {
+      client.abort();
+      closeUpstream?.();
+      await reader.cancel().catch(() => undefined);
+      await disposed;
+    }
+  });
+
   it('uses an opaque model-scoped loopback capability and streams the forwarded response', async () => {
     const forwardHostedResponses = vi.fn(async (body: string) => {
       expect(JSON.parse(body)).toMatchObject({ model: 'meta/spark', stream: true });

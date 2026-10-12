@@ -258,9 +258,15 @@ export class MemoryState
     next: ResearchExportState,
     updatedAt: string,
     detail: { objectKey?: string; failureCode?: string } = {},
+    expectedUpdatedAt?: string,
   ): Promise<boolean> {
     const job = this.researchExportRecords.get(key(userId, exportId));
-    if (!job || !expected.includes(job.state)) return false;
+    if (
+      !job ||
+      !expected.includes(job.state) ||
+      (expectedUpdatedAt !== undefined && job.updatedAt !== expectedUpdatedAt)
+    )
+      return false;
     job.state = next;
     job.updatedAt = updatedAt;
     if (detail.objectKey) job.objectKey = detail.objectKey;
@@ -367,9 +373,15 @@ export class MemoryState
     next: DeletionState,
     updatedAt: string,
     failureCode?: string,
+    expectedUpdatedAt?: string,
   ): Promise<boolean> {
     const record = this.deletionRecords.get(key(userId, jobId));
-    if (!record || !expected.includes(record.state)) return false;
+    if (
+      !record ||
+      !expected.includes(record.state) ||
+      (expectedUpdatedAt !== undefined && record.updatedAt !== expectedUpdatedAt)
+    )
+      return false;
     record.state = next;
     record.updatedAt = updatedAt;
     if (failureCode === undefined) delete record.failureCode;

@@ -1,5 +1,5 @@
 import { ConnectorRequestError } from './http.js';
-import type { Fetch } from './oauth.js';
+import { requestSignal, type Fetch } from './oauth.js';
 import { truncate } from './outlook.js';
 
 /** Notion's hosted MCP server. It supports OAuth dynamic client registration, so Sia ships no secret. */
@@ -35,7 +35,7 @@ export async function registerNotionClient(
       response_types: ['code'],
       token_endpoint_auth_method: 'none',
     }),
-    ...(signal ? { signal } : {}),
+    signal: requestSignal(signal),
   });
   const body = (await response.json().catch(() => ({}))) as Input;
   if (!response.ok || typeof body.client_id !== 'string') {
@@ -51,6 +51,7 @@ export async function registerNotionClient(
 export class NotionMcpClient {
   #sessionId: string | undefined;
   #initialized = false;
+  #initializing: Promise<void> | undefined;
   #tools: Map<string, McpTool> | undefined;
   #nextId = 1;
 
@@ -100,7 +101,18 @@ export class NotionMcpClient {
   }
 
   async #ensureInitialized(signal?: AbortSignal): Promise<void> {
+    signal?.throwIfAborted();
     if (this.#initialized) return;
+    if (!this.#initializing) {
+      this.#initializing = this.#initialize(signal).finally(() => {
+        this.#initializing = undefined;
+      });
+    }
+    await this.#initializing;
+    signal?.throwIfAborted();
+  }
+
+  async #initialize(signal?: AbortSignal): Promise<void> {
     await this.#rpc(
       'initialize',
       {
@@ -159,7 +171,7 @@ export class NotionMcpClient {
         ...(this.#sessionId ? { 'mcp-session-id': this.#sessionId } : {}),
       },
       body: JSON.stringify(body),
-      ...(signal ? { signal } : {}),
+      signal: requestSignal(signal),
     });
     const session = response.headers.get('mcp-session-id');
     if (session) this.#sessionId = session;
@@ -168,26 +180,56 @@ export class NotionMcpClient {
 }
 
 async function readRpcMessage(response: Response, id: number): Promise<Input> {
-  const text = await response.text();
-  const type = response.headers.get('content-type') ?? '';
-  const candidates: string[] = type.includes('text/event-stream')
-    ? text
-        .split(/\r?\n\r?\n/)
-        .map((event) =>
-          event
+  const sse = response.headers.get('content-type')?.includes('text/event-stream');
+  const parse = (candidate: string): Input | undefined => {
+    try {
+      const data = sse
+        ? candidate
             .split(/\r?\n/)
             .filter((line) => line.startsWith('data:'))
             .map((line) => line.slice(5).trimStart())
-            .join('\n'),
-        )
-        .filter(Boolean)
-    : [text];
-  for (const candidate of candidates) {
-    try {
-      const message = JSON.parse(candidate) as Input;
-      if (message.id === id) return message;
+            .join('\n')
+        : candidate;
+      const message: unknown = JSON.parse(data);
+      if (message && typeof message === 'object' && (message as Input).id === id)
+        return message as Input;
     } catch {
       // Ignore keep-alives and unrelated events.
+    }
+    return undefined;
+  };
+  const reader = response.body?.getReader();
+  if (reader) {
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let bytes = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        bytes += value?.byteLength ?? 0;
+        if (bytes > 2 * 1024 * 1024)
+          throw new ConnectorRequestError(
+            502,
+            'Notion returned too much data. Try a smaller request.',
+          );
+        buffer += done ? decoder.decode() : decoder.decode(value, { stream: true });
+        if (sse) {
+          let boundary: RegExpExecArray | null;
+          while ((boundary = /\r?\n\r?\n/.exec(buffer))) {
+            const message = parse(buffer.slice(0, boundary.index));
+            buffer = buffer.slice(boundary.index + boundary[0].length);
+            if (message) return message;
+          }
+        }
+        if (done) {
+          const message = parse(buffer);
+          if (message) return message;
+          break;
+        }
+      }
+    } finally {
+      await reader.cancel().catch(() => undefined);
+      reader.releaseLock();
     }
   }
   throw new ConnectorRequestError(502, 'Notion returned an unreadable response. Try again.');
