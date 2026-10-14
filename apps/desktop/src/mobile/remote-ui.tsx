@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import {
   ArrowUpRight,
@@ -241,11 +241,17 @@ export function Activity({
       </div>
       <div className="activity-scroll">
         {shown.length ? (
-          <div className="task-list">
-            {shown.map((turn) => (
-              <button key={turn.id} className="task-card" onClick={() => onOpen(turn.id)}>
+          <div className="task-list" key={filter}>
+            {shown.map((turn, index) => (
+              <button
+                key={turn.id}
+                className="task-card"
+                data-status={turn.status}
+                style={{ '--i': index } as CSSProperties}
+                onClick={() => onOpen(turn.id)}
+              >
                 <div className="task-card-top">
-                  <span className="turn-status" data-status={turn.status}>
+                  <span className="turn-status" data-status={turn.status} key={turn.status}>
                     {turn.status === 'done' ? (
                       <Check size={13} />
                     ) : turn.status === 'working' ? (
@@ -281,7 +287,7 @@ export function Activity({
             ))}
           </div>
         ) : (
-          <div className="activity-empty">
+          <div className="activity-empty" key={filter}>
             <span className="empty-symbol">
               <Stack size={32} weight="duotone" />
             </span>

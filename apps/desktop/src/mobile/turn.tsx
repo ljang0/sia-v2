@@ -42,7 +42,8 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
       <div className="assistant-heading">
         <SiaMark state={turn.status === 'working' ? 'working' : 'idle'} />
         <strong>{agent}</strong>
-        <span className="turn-status" data-status={turn.status}>
+        {/* Keyed by status so each change lands with its own transition instead of a silent swap. */}
+        <span className="turn-status" data-status={turn.status} key={turn.status}>
           {turn.status === 'working' ? (
             <>
               <span className="working-dot" />
@@ -65,9 +66,14 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
       {turn.steps.length > 0 && (
         <details className="task-steps">
           <summary>
-            {turn.status === 'working'
-              ? turn.steps.at(-1)
-              : `${turn.steps.length} ${turn.steps.length === 1 ? 'step' : 'steps'}`}
+            <span
+              className="step-line"
+              key={turn.status === 'working' ? turn.steps.length : 'all'}
+            >
+              {turn.status === 'working'
+                ? turn.steps.at(-1)
+                : `${turn.steps.length} ${turn.steps.length === 1 ? 'step' : 'steps'}`}
+            </span>
           </summary>
           <ol>
             {turn.steps.map((step, index) => (
@@ -88,7 +94,7 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
         <p className="task-error">{turn.error}</p>
       )}
       {turn.status === 'waiting' && (
-        <p className="waiting-note">
+        <p className="waiting-note" data-kind={turn.approval ? 'approval' : 'question'}>
           {turn.approval
             ? `Waiting for your OK on your Mac: “${turn.approval}”. Approve or deny it in Sia on your Mac, or stop the task here.`
             : 'Reply below to answer Sia.'}

@@ -205,3 +205,66 @@
 .memory-search input:focus-visible {
   outline: none;
 }
+
+/* Motion: the graph's dots bloom in, lines draw softly behind them, and the list deals in. */
+.memory-svg line {
+  animation: memory-line var(--motion-emphasis) var(--ease-out-soft) both;
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+.graph-node {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pop var(--motion-emphasis) var(--phone-spring) both;
+  transition: transform var(--motion-surface) var(--phone-spring);
+}
+.memory-svg g[data-node]:nth-child(2n) .graph-node {
+  animation-delay: var(--motion-stagger);
+}
+.memory-svg g[data-node]:nth-child(3n) .graph-node {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+.memory-svg g[data-node]:focus-visible .graph-node,
+.memory-svg g[data-node]:active .graph-node {
+  transform: scale(1.25);
+}
+@media (hover: hover) {
+  .memory-svg g[data-node]:hover .graph-node {
+    transform: scale(1.2);
+  }
+}
+@keyframes memory-line {
+  from {
+    opacity: 0;
+  }
+}
+.memory-list button {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+  transition: background-color var(--motion-fast) var(--ease-standard);
+}
+.memory-list button:nth-of-type(2) {
+  animation-delay: var(--motion-stagger);
+}
+.memory-list button:nth-of-type(3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+.memory-list button:nth-of-type(4) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+.memory-list button:nth-of-type(n + 5) {
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+.memory-list button:active {
+  background: var(--bg-hover);
+}
+.memory-empty,
+.note-body {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+}
+.memory-search {
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-standard) var(--ease-standard);
+}
+.memory-search:focus-within {
+  box-shadow: 0 0 0 3px var(--focus-halo);
+}

@@ -1,9 +1,17 @@
 /* Native Sia typography and mineral surfaces, composed for a phone.
    Phone motion tokens, the page background, and button feel. */
 
+/* The phone mirrors the shared motion vocabulary from tokens.css so Reduced Motion and Calm
+   collapse it in one place. Only the keyboard ease keeps its own, longer duration because it
+   tracks the iOS keyboard rather than an arrival. */
 :root {
-  --phone-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --phone-ease: var(--ease-out-soft);
+  --phone-spring: var(--ease-spring);
   --typing-duration: 440ms;
+  /* Sheets travel further than in-page arrivals, like an iOS card rising from the edge. */
+  --phone-sheet-rise: calc(var(--motion-rise) * 6);
+  /* Each phone breath: live dots and the reconnecting light. */
+  --phone-breath: calc(var(--motion-spin) * 1.6);
 }
 body {
   background: var(--bg-app);
@@ -22,12 +30,16 @@ button:disabled {
 }
 button {
   transition:
-    background 160ms,
-    color 160ms,
-    box-shadow 180ms,
-    transform 180ms var(--phone-ease);
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-standard) var(--ease-standard),
+    transform var(--motion-surface) var(--phone-spring),
+    opacity var(--motion-fast) var(--ease-standard);
 }
+/* Press: settle in quickly, spring back on release, like a native control. */
 button:active:not(:disabled) {
-  transform: scale(0.96);
-  transition-duration: 70ms;
+  transform: scale(var(--motion-pop-scale));
+  transition-duration: var(--motion-exit);
+  transition-timing-function: var(--ease-standard);
 }
