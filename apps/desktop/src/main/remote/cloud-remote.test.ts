@@ -183,6 +183,7 @@ describe('cloud phone remote', () => {
       route: 'command',
       query: new URLSearchParams(),
       body: { text: 'Go' },
+      origin: 'own_device',
     });
     // Nothing the relay forwarded was readable.
     expect(JSON.stringify(handset.frames)).not.toContain('Hello');

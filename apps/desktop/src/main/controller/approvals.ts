@@ -65,13 +65,17 @@ export class Approvals {
   }
 
   /**
-   * Full bypass never extends to phone turns: the phone link is plain HTTP on the local network,
-   * so anyone who observes it could otherwise run unattended actions on this Mac.
+   * Phone turns from the owner's own devices follow the Computer setting (automatic by
+   * default). Turns from a trusted person's Sia, or over the plain-HTTP Wi-Fi link that anyone on
+   * that network can observe, always confirm each action, one at a time.
    */
   trustForTurn(turnId: string | undefined): 'auto' | 'ask' {
-    return turnId && this.ctx.turns.phoneTurns.has(turnId)
-      ? 'ask'
-      : this.ctx.computerAccess.trust();
+    return turnId && this.confirmsEveryAction(turnId) ? 'ask' : this.ctx.computerAccess.trust();
+  }
+
+  private confirmsEveryAction(turnId: string): boolean {
+    const origin = this.ctx.turns.phoneTurns.get(turnId);
+    return origin !== undefined && origin !== 'own_device';
   }
 
   async authorizeComputer(
@@ -95,7 +99,7 @@ export class Approvals {
     const resource = safeResourceLabel(request.resourceJson, presentation.kind);
     const taskGrant =
       ['native_tool', 'foreground_takeover'].includes(presentation.kind) &&
-      !this.ctx.turns.phoneTurns.has(context.turnId)
+      !this.confirmsEveryAction(context.turnId)
         ? [
             'computer',
             request.adapterId,
@@ -206,7 +210,7 @@ export class Approvals {
     }
     const approval = this.ctx.state.approvals.find(({ id }) => id === input.approvalId);
     const forTask = input.decision === 'approve_task';
-    if (forTask && (!approval?.allowForTask || this.ctx.turns.phoneTurns.has(pending.turnId)))
+    if (forTask && (!approval?.allowForTask || this.confirmsEveryAction(pending.turnId)))
       throw new Error('This request can only be allowed once.');
     const approved = input.decision !== 'deny';
     clearTimeout(pending.timeout);
@@ -267,9 +271,9 @@ export class Approvals {
       target: event.provider,
       reversible: false,
       status: 'pending',
-      // Phone turns always ask on the Mac, one request at a time.
+      // Confirm-every-action phone turns ask one request at a time.
       ...(event.payload.choices?.some(({ kind }) => kind === 'allow_task') &&
-      !this.ctx.turns.phoneTurns.has(event.turnId)
+      !this.confirmsEveryAction(event.turnId)
         ? { allowForTask: true }
         : {}),
     });
@@ -354,7 +358,7 @@ export class Approvals {
     const account = connector
       ? this.ctx.connections.connectorAccountLabel(request.arguments.account_id)
       : undefined;
-    const taskGrant = this.ctx.turns.phoneTurns.has(request.turnId)
+    const taskGrant = this.confirmsEveryAction(request.turnId)
       ? undefined
       : gatewayTaskGrant(request.tool.name, request.arguments);
     if (
@@ -519,7 +523,7 @@ export class Approvals {
 
   private hasTaskGrant(threadId: string, turnId: string, grant: string): boolean {
     return (
-      !this.ctx.turns.phoneTurns.has(turnId) &&
+      !this.confirmsEveryAction(turnId) &&
       this.ctx.turns.activeTurnId(threadId) === turnId &&
       Boolean(this.taskGrants.get(turnId)?.has(`${threadId}\u0000${grant}`))
     );

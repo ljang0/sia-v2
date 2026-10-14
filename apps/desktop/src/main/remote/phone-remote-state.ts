@@ -15,6 +15,8 @@ export function remoteState(
   agentId: string,
   outbox: string,
   ignoredThread?: string,
+  /** The owner's own encrypted phone: follows the Computer setting and may answer approvals. */
+  ownDevice = false,
 ): RemoteState {
   const agent = snapshot.agents.find((entry) => entry.id === agentId);
   const thread = snapshot.threads.find(
@@ -27,8 +29,9 @@ export function remoteState(
   const result: RemoteState = {
     agent: agent?.name ?? 'Sia',
     mode: snapshot.computer.accessMode ?? 'connected',
-    // Phone turns always confirm actions on the Mac; see DesktopController#trustForTurn.
-    approval: 'ask',
+    // Over the plain-HTTP Wi-Fi link every action confirms on the Mac; see trustForTurn.
+    approval: ownDevice ? (snapshot.computer.trust ?? 'auto') : 'ask',
+    ...(ownDevice ? { canApprove: true } : {}),
     session: null,
     turns: [],
     workers: snapshot.threads.filter(
@@ -92,14 +95,15 @@ export function remoteState(
             : errors.length || (last && thread.status === 'failed')
               ? 'error'
               : 'done';
-    const approval =
+    const pending =
       status === 'waiting'
         ? snapshot.approvals?.find(
             (entry) => entry.threadId === thread.id && entry.status === 'pending',
-          )?.title
+          )
         : undefined;
     return {
-      ...(approval ? { approval: approval.slice(0, 200) } : {}),
+      ...(pending?.title ? { approval: pending.title.slice(0, 200) } : {}),
+      ...(pending && ownDevice ? { approvalId: pending.id } : {}),
       id: user.id,
       text: (user.text ?? '').slice(0, 8000),
       response: response.trim(),

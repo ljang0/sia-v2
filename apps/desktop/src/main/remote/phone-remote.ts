@@ -14,6 +14,7 @@ import { basename, extname, join, resolve } from 'node:path';
 import { z } from 'zod';
 import type { DesktopController } from '../controller/desktop-controller.js';
 import type { RecordRepository } from '../storage/persistence.js';
+import type { PhoneOrigin } from '../../shared/bridge.js';
 import {
   phoneAssistantBlocker,
   type PhoneRemoteCommand,
@@ -31,12 +32,21 @@ const commandSchema = z
   })
   .strict();
 const sessionSchema = z.object({ session: z.string().max(100).nullable() }).strict();
+const approveSchema = z
+  .object({
+    session: z.string().max(100),
+    approvalId: z.string().uuid(),
+    decision: z.enum(['approve', 'deny']),
+  })
+  .strict();
 /** One phone request after its transport has authenticated it. */
 export interface RemoteCall {
   method: 'GET' | 'POST';
   route: string;
   query: URLSearchParams;
   body?: unknown;
+  /** The transport's trust: the encrypted relay is the owner's device; Wi-Fi HTTP is not. */
+  origin: PhoneOrigin;
 }
 export type RemoteReply =
   { status: number; json: unknown } | { status: 200; file: { name: string; data: Buffer } };
@@ -380,6 +390,8 @@ export class PhoneRemote {
       this.#config.agentId!,
       this.#deps.outbox ?? join(homedir(), 'SiaOutbox'),
       this.#ignoredThread,
+      // A relay build never runs the plain-HTTP server, so every phone is the owner's device.
+      Boolean(this.#cloud),
     );
   }
   async #handle(
@@ -483,6 +495,7 @@ export class PhoneRemote {
         method: request.method === 'POST' ? 'POST' : 'GET',
         route,
         query: new URL(request.url ?? '/', 'http://remote.invalid').searchParams,
+        origin: 'unencrypted_link',
         ...(request.method === 'POST' ? { body: await this.#body(request) } : {}),
       },
       isCurrent,
@@ -587,6 +600,24 @@ export class PhoneRemote {
             await file.close();
           }
         }
+      } else if (call.method === 'POST' && route === 'approve') {
+        // Only the owner's encrypted phone may answer, and only the step its task waits on.
+        if (call.origin !== 'own_device')
+          throw new RemoteError('Approve or deny this step in Sia on your Mac.');
+        const input = approveSchema.parse(call.body);
+        const state = this.#state();
+        const turn = state.turns.at(-1);
+        if (
+          !state.session ||
+          input.session !== state.session ||
+          turn?.approvalId !== input.approvalId
+        )
+          throw new RemoteError('This step changed. Review it and try again.');
+        await this.#deps.controller.invoke('approvals.resolve', {
+          approvalId: input.approvalId,
+          decision: input.decision,
+        });
+        return { status: 200, json: { ok: true } };
       } else if (call.method === 'POST' && ['command', 'cancel', 'clear'].includes(route)) {
         const body = call.body;
         if (!isCurrent()) return unavailable();
@@ -606,9 +637,11 @@ export class PhoneRemote {
               'The current task changed on your Mac. Review it before sending again.',
             );
           this.#sending = true;
-          const task = this.#send(input.text, input.session, isCurrent).finally(() => {
-            this.#sending = false;
-          });
+          const task = this.#send(input.text, input.session, isCurrent, call.origin).finally(
+            () => {
+              this.#sending = false;
+            },
+          );
           this.#requests.set(input.id, { input: serialized, task });
           // Keep a bounded deduplication ledger for this link, including failures. Do not evict live work.
           if (this.#requests.size > 200)
@@ -650,6 +683,7 @@ export class PhoneRemote {
     text: string,
     session: string | null,
     isCurrent: () => boolean,
+    origin: PhoneOrigin,
   ): Promise<unknown> {
     const state = this.#state();
     const last = state.turns.at(-1);
@@ -676,7 +710,7 @@ export class PhoneRemote {
       const result = await this.#deps.controller.invoke('threads.send', {
         threadId,
         text,
-        fromPhone: true,
+        fromPhone: origin,
       });
       this.#ignoredThread = undefined;
       return { ok: true, turnId: result.turnId };

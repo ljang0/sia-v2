@@ -318,7 +318,7 @@ it('marks phone turns so full bypass never applies to the plain HTTP link', asyn
   expect(invoke).toHaveBeenCalledWith('threads.send', {
     threadId: expect.any(String),
     text: command.text,
-    fromPhone: true,
+    fromPhone: 'unencrypted_link',
   });
   const remote = (await (await fetch(new URL('state', url))).json()) as RemoteState;
   expect(remote.approval).toBe('ask');
@@ -651,4 +651,17 @@ it('uses only the encrypted relay, never the plain-HTTP server, when a relay is 
   await expect(relayed.configure({ operation: 'pair' })).rejects.toThrow('not connected');
   await relayed.configure({ operation: 'disable' });
   expect((await relayed.configure({ operation: 'status' })).running).toBe(false);
+});
+
+it('never lets the plain-HTTP Wi-Fi link approve a step', async () => {
+  const { post } = await setup();
+  const response = await post('approve', {
+    session: 'thread:turn',
+    approvalId: randomUUID(),
+    decision: 'approve',
+  });
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({
+    error: 'Approve or deny this step in Sia on your Mac.',
+  });
 });

@@ -11,6 +11,7 @@ import type {
   BridgeRequestMap,
   ComputerPermissionsView,
   ConnectionView,
+  PhoneOrigin,
   TerminalResultView,
   WorkspaceDiffView,
   WorkspaceSnapshotView,
@@ -172,7 +173,7 @@ export interface QueuedTurn {
   text: string;
   attachments?: readonly ProviderAttachment[];
   source?: 'manual' | 'schedule' | 'goal' | 'review';
-  fromPhone?: true;
+  fromPhone?: PhoneOrigin;
   reviewTarget?: BridgeRequestMap['reviews.start']['target'];
   fakeDelayMs?: number;
   scheduleRunId?: string;
@@ -207,3 +208,5 @@ export interface ApprovedConnectorBinding {
   readonly generation: number;
   readonly account?: string;
 }
+
+export type { PhoneOrigin };

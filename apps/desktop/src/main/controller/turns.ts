@@ -9,7 +9,7 @@ import {
 import { conversationTitle, UNTITLED_THREAD_TITLE } from '../../shared/plain-text.js';
 import { taskRecoveryContext } from './task-recovery.js';
 import type { ControllerContext } from './context.js';
-import type { QueuedTurn } from './types.js';
+import type { PhoneOrigin, QueuedTurn } from './types.js';
 
 /** The parts of the controller context Turns uses. */
 type TurnsContext = Pick<
@@ -40,7 +40,8 @@ type TurnsContext = Pick<
  */
 export class Turns {
   readonly running = new Map<string, AbortController>();
-  readonly phoneTurns = new Set<string>();
+  /** Phone turns by origin; see PhoneOrigin for which ones always confirm actions. */
+  readonly phoneTurns = new Map<string, PhoneOrigin>();
   readonly tasks = new Map<string, Promise<void>>();
   readonly workspaceLeases = new Map<string, string>();
   readonly pendingQuestions = new Map<string, { requestId: string; turnId: string }>();
@@ -186,7 +187,7 @@ export class Turns {
       threadId: thread.id,
       text: messageText,
       source,
-      ...(input.fromPhone ? { fromPhone: true as const } : {}),
+      ...(input.fromPhone ? { fromPhone: input.fromPhone } : {}),
       ...(reviewTarget ? { reviewTarget } : {}),
       ...(scheduleRunId ? { scheduleRunId } : {}),
       ...(attachmentGrants.length
@@ -604,7 +605,7 @@ export class Turns {
       this.ctx.mac.awakeTurns.add(thread.id);
       this.ctx.deps.keepAwake?.hold(thread.id);
     }
-    if (turn.fromPhone) this.phoneTurns.add(turn.id);
+    if (turn.fromPhone) this.phoneTurns.set(turn.id, turn.fromPhone);
     thread.status = 'running';
     delete thread.queueReason;
     this.ctx.appendTimeline(thread.id, {

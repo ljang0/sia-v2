@@ -278,6 +278,7 @@ export class CloudRemote {
           method: message.method,
           route: message.route,
           query: new URLSearchParams(message.query ?? {}),
+          origin: 'own_device',
           ...(message.body === undefined ? {} : { body: message.body }),
         })
       : { status: 404, json: { error: 'Phone access is off on your Mac.' } };

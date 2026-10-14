@@ -43,7 +43,11 @@ lint, quality, type, unit, deterministic desktop E2E, renderer, and Chromium/Web
   Mac works in the background by default (window control through the bundled Cua driver); On my
   screen is the explicit alternative. Use confirmations for supervised pilot testing. Approval
   cards offer Approve, Allow for this task (equivalent requests until that task ends), and Don't
-  allow. Phone-remote turns always require confirmation, one request at a time. When text approvals are
+  allow. Phone turns from the owner's own devices (an encrypted-relay phone, the owner's texting
+  numbers, linked bot accounts) follow the same Computer setting, so bypass applies to them by
+  default (owner decision, October 14, 2026), and an encrypted-relay phone may approve the exact
+  pending step. Turns from a trusted person's Sia and from the plain-HTTP Wi-Fi link always
+  require confirmation on the Mac, one request at a time. When text approvals are
   enabled, YES/NO binds only to the exact pending request shown to that trusted sender. Hard safety blocks apply in every mode: Sia-hosted tools block secure fields,
   authentication surfaces, Keychain, and password managers. Native shell execution follows the
   provider's approval boundary; the same restrictions in its prompt are not shell enforcement.

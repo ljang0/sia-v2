@@ -367,9 +367,60 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('asks on the Mac for phone turns even in trusted mode', async () => {
+  it.each(['trusted_person', 'unencrypted_link'] as const)(
+    'confirms every action of a %s phone turn even in automatic mode',
+    async (origin) => {
+      const controller = await createController();
+      await controller.invoke('computer.setTrust', { trust: 'auto' });
+      const agent = await controller.invoke('agents.save', {
+        name: 'Personal',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '/tmp/sia-workspace',
+      });
+      const { threadId } = await controller.invoke('threads.create', {
+        agentId: agent.agentId,
+      });
+      const started = await controller.invoke('threads.send', {
+        threadId,
+        text: 'Use Notes',
+        fromPhone: origin,
+      });
+      const decision = controller.authorizeComputer(
+        {
+          adapterId: 'desktop_input',
+          riskClass: 'r2',
+          permissionMode: 'standard',
+          publicSession: started.turnId,
+          requestDigest: 'digest-phone',
+          humanSummary: 'Control the selected Notes window',
+          resourceJson: JSON.stringify({ app_name: 'Notes', window_title: 'Draft' }),
+          expiresUnixMs: BigInt(Date.now() + 30_000),
+        },
+        { kind: 'turn', threadId, turnId: started.turnId },
+      );
+      const approval = controller.snapshot().approvals.at(-1)!;
+      expect(approval).toMatchObject({ kind: 'native_tool', title: 'Allow computer access' });
+      // Phone turns never offer, or accept, "Allow for this task".
+      expect(approval.allowForTask).toBeUndefined();
+      await expect(
+        controller.invoke('approvals.resolve', {
+          approvalId: approval.id,
+          decision: 'approve_task',
+        }),
+      ).rejects.toThrow('only be allowed once');
+      await controller.invoke('approvals.resolve', {
+        approvalId: approval.id,
+        decision: 'deny',
+      });
+      await expect(decision).resolves.toBe('deny');
+      await controller.shutdown();
+    },
+  );
+
+  it("lets the owner's own phone follow automatic mode, the default", async () => {
     const controller = await createController();
-    await controller.invoke('computer.setTrust', { trust: 'auto' });
     const agent = await controller.invoke('agents.save', {
       name: 'Personal',
       instructions: '',
@@ -381,33 +432,24 @@ describe('DesktopController', () => {
     const started = await controller.invoke('threads.send', {
       threadId,
       text: 'Use Notes',
-      fromPhone: true,
+      fromPhone: 'own_device',
     });
-    const decision = controller.authorizeComputer(
-      {
-        adapterId: 'desktop_input',
-        riskClass: 'r2',
-        permissionMode: 'standard',
-        publicSession: started.turnId,
-        requestDigest: 'digest-phone',
-        humanSummary: 'Control the selected Notes window',
-        resourceJson: JSON.stringify({ app_name: 'Notes', window_title: 'Draft' }),
-        expiresUnixMs: BigInt(Date.now() + 30_000),
-      },
-      { kind: 'turn', threadId, turnId: started.turnId },
-    );
-    const approval = controller.snapshot().approvals.at(-1)!;
-    expect(approval).toMatchObject({ kind: 'native_tool', title: 'Allow computer access' });
-    // Phone turns never offer, or accept, "Allow for this task".
-    expect(approval.allowForTask).toBeUndefined();
     await expect(
-      controller.invoke('approvals.resolve', {
-        approvalId: approval.id,
-        decision: 'approve_task',
-      }),
-    ).rejects.toThrow('only be allowed once');
-    await controller.invoke('approvals.resolve', { approvalId: approval.id, decision: 'deny' });
-    await expect(decision).resolves.toBe('deny');
+      controller.authorizeComputer(
+        {
+          adapterId: 'desktop_input',
+          riskClass: 'r2',
+          permissionMode: 'standard',
+          publicSession: started.turnId,
+          requestDigest: 'digest-own-phone',
+          humanSummary: 'Control the selected Notes window',
+          resourceJson: JSON.stringify({ app_name: 'Notes', window_title: 'Draft' }),
+          expiresUnixMs: BigInt(Date.now() + 30_000),
+        },
+        { kind: 'turn', threadId, turnId: started.turnId },
+      ),
+    ).resolves.toBe('allow');
+    expect(controller.snapshot().approvals).toHaveLength(0);
     await controller.shutdown();
   });
 

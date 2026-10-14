@@ -67,11 +67,15 @@ export interface RemoteTurn {
   fileIds?: Record<string, string>;
   /** What the Mac is waiting to approve, when a phone task is paused on an approval. */
   approval?: string;
+  /** The pending approval's id, for phones allowed to answer it (see RemoteState.canApprove). */
+  approvalId?: string;
 }
 export interface RemoteState {
   agent: string;
   mode: 'mac' | 'connected';
   approval: 'auto' | 'ask';
+  /** True over the encrypted relay: this phone may approve or deny a pending step. */
+  canApprove?: boolean;
   session: string | null;
   turns: RemoteTurn[];
   workers: number;

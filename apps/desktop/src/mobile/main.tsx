@@ -259,6 +259,25 @@ function App() {
       setPending(false);
     }
   };
+  // Over the encrypted relay, this phone may answer the exact step the task waits on.
+  const canAnswer = Boolean(state?.canApprove && latest?.approvalId && state.session);
+  const answer = async (decision: 'approve' | 'deny') => {
+    if (pending || !online || !latest?.approvalId || !state?.session) return;
+    setPending(true);
+    setError('');
+    try {
+      await remoteRequest('approve', {
+        session: state.session,
+        approvalId: latest.approvalId,
+        decision,
+      });
+      await refreshAfterAction();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Try again when your Mac reconnects.');
+    } finally {
+      setPending(false);
+    }
+  };
   const microphone = () => {
     if (listening) {
       dictation.current?.stop();
@@ -461,20 +480,41 @@ function App() {
               {busy && (
                 <div className="live-task-line" role="status">
                   <span className={`activity-light ${latest?.status}`} />
-                  {latest?.approval
-                    ? 'Approve this step on your Mac'
-                    : latest?.status === 'waiting'
-                      ? 'Sia needs your answer'
-                      : online
-                        ? 'Sia is working on your Mac'
-                        : 'Reconnecting for task updates'}
-                  <span>
-                    {latest?.status === 'working'
-                      ? 'You can leave this page'
-                      : latest?.approval
-                        ? 'Your phone can’t approve'
-                        : 'Reply below'}
-                  </span>
+                  {latest?.approval && canAnswer
+                    ? `Sia asks: ${latest.approval}`
+                    : latest?.approval
+                      ? 'Approve this step on your Mac'
+                      : latest?.status === 'waiting'
+                        ? 'Sia needs your answer'
+                        : online
+                          ? 'Sia is working on your Mac'
+                          : 'Reconnecting for task updates'}
+                  {canAnswer ? (
+                    <span className="approval-actions">
+                      <button
+                        type="button"
+                        disabled={pending || !online}
+                        onClick={() => void answer('approve')}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pending || !online}
+                        onClick={() => void answer('deny')}
+                      >
+                        Don’t allow
+                      </button>
+                    </span>
+                  ) : (
+                    <span>
+                      {latest?.status === 'working'
+                        ? 'You can leave this page'
+                        : latest?.approval
+                          ? 'Your phone can’t approve'
+                          : 'Reply below'}
+                    </span>
+                  )}
                 </div>
               )}
               <form
@@ -491,13 +531,15 @@ function App() {
                   maxLength={8000}
                   value={text}
                   placeholder={
-                    latest?.approval
-                      ? 'Approve on your Mac to continue'
-                      : latest?.status === 'waiting'
-                        ? 'Answer Sia…'
-                        : busy
-                          ? 'Write a follow-up…'
-                          : 'What can I take off your hands?'
+                    latest?.approval && canAnswer
+                      ? 'Approve or deny above to continue'
+                      : latest?.approval
+                        ? 'Approve on your Mac to continue'
+                        : latest?.status === 'waiting'
+                          ? 'Answer Sia…'
+                          : busy
+                            ? 'Write a follow-up…'
+                            : 'What can I take off your hands?'
                   }
                   onChange={(event) => setText(event.currentTarget.value)}
                   onKeyDown={(event) => {

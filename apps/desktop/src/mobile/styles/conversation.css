@@ -212,6 +212,26 @@
   font-size: 9px;
   color: var(--text-tertiary);
 }
+/* A phone on the encrypted relay can answer the step itself. */
+.live-task-line > span.approval-actions {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+  color: inherit;
+}
+.approval-actions button {
+  min-height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong, currentColor);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+}
+.approval-actions button:first-child {
+  background: var(--text-primary);
+  color: var(--bg-canvas);
+}
 .activity-light {
   width: 5px;
   height: 5px;

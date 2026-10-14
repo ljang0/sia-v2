@@ -105,21 +105,48 @@ async function startSite() {
 }
 
 const test = base.extend<{
-  relayed: { pairingUrl: string; sends: string[]; frames: string[] };
+  relayed: {
+    pairingUrl: string;
+    sends: string[];
+    frames: string[];
+    resolved: { approvalId: string; decision: string }[];
+  };
 }>({
   relayed: async ({}, use) => {
     const relay = await startRelay();
     const site = await startSite();
     const saved = new Map<string, unknown>();
     const sends: string[] = [];
+    const resolved: { approvalId: string; decision: string }[] = [];
     const state = {
       agents: [{ id: agentId, name: 'Sia', workspace: '/tmp' }],
       threads: [],
       timeline: [],
       computer: { accessMode: 'mac', trust: 'auto' },
       activeAgentId: agentId,
+      approvals: [],
     } as unknown as DesktopSnapshot;
-    const invoke = async (method: string, input: { threadId: string; text: string }) => {
+    const invoke = async (
+      method: string,
+      input: { threadId: string; text: string; approvalId: string; decision: string },
+    ) => {
+      if (method === 'approvals.resolve') {
+        resolved.push({ approvalId: input.approvalId, decision: input.decision });
+        const approval = state.approvals!.find(({ id }) => id === input.approvalId)!;
+        approval.status = input.decision === 'deny' ? 'denied' : 'approved';
+        const thread = state.threads.find(({ id }) => id === approval.threadId)!;
+        thread.status = 'idle';
+        state.timeline.push({
+          id: randomUUID(),
+          threadId: thread.id,
+          turnId: state.timeline.at(-1)!.turnId,
+          sequence: state.timeline.length + 1,
+          timestamp: new Date().toISOString(),
+          kind: 'assistant',
+          text: 'Approved from the phone and done.',
+        } as never);
+        return state;
+      }
       if (method === 'threads.create') {
         const threadId = randomUUID();
         state.threads.push({ id: threadId, agentId, status: 'idle' } as never);
@@ -129,6 +156,26 @@ const test = base.extend<{
       if (method === 'threads.send') {
         const turnId = randomUUID();
         sends.push(input.text);
+        if (input.text.includes('needs approval')) {
+          // Confirmations are on: the task pauses on one exact step.
+          state.timeline.push({
+            id: randomUUID(),
+            threadId: input.threadId,
+            turnId,
+            sequence: state.timeline.length + 1,
+            timestamp: new Date().toISOString(),
+            kind: 'user',
+            text: input.text,
+          } as never);
+          state.threads.find(({ id }) => id === input.threadId)!.status = 'waiting';
+          state.approvals!.push({
+            id: randomUUID(),
+            threadId: input.threadId,
+            status: 'pending',
+            title: 'Send the weekly report to Alex',
+          } as never);
+          return { turnId, snapshot: state };
+        }
         for (const [kind, text] of [
           ['user', input.text],
           ['assistant', 'Sealed and delivered: **42**.'],
@@ -177,7 +224,7 @@ const test = base.extend<{
       .toBe(true);
     await service.configure({ operation: 'pair' });
     try {
-      await use({ pairingUrl, sends, frames: relay.frames });
+      await use({ pairingUrl, sends, frames: relay.frames, resolved });
     } finally {
       service.dispose();
       relay.server.close();
@@ -210,4 +257,22 @@ test('a paired phone reaches the Mac through the relay, which never sees plainte
   expect(relayTraffic).not.toContain('six times seven');
   expect(relayTraffic).not.toContain('Sealed and delivered');
   expect(errors).toEqual([]);
+});
+
+test('the paired phone approves the exact step its task is waiting on', async ({
+  page,
+  relayed,
+}) => {
+  test.slow();
+  await page.goto(relayed.pairingUrl);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible({
+    timeout: 15_000,
+  });
+  await page.getByRole('textbox').fill('Send the report, this needs approval');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText('Sia asks: Send the weekly report to Alex')).toBeVisible();
+  await page.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(page.getByText('Approved from the phone and done.')).toBeVisible();
+  expect(relayed.resolved).toEqual([{ approvalId: expect.any(String), decision: 'approve' }]);
+  expect(relayed.frames.join('\n')).not.toContain('weekly report');
 });

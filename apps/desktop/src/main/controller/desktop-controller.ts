@@ -204,7 +204,7 @@ export class DesktopController {
     return this.#ctx.computerAccess.trust();
   }
 
-  /** Action-gateway trust for one turn; phone turns always confirm on the Mac. */
+  /** Action-gateway trust for one turn; see Approvals#trustForTurn for phone turns. */
   trustForTurn(turnId: string | undefined): 'auto' | 'ask' {
     return this.#ctx.approvals.trustForTurn(turnId);
   }

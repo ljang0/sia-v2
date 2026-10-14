@@ -44,7 +44,9 @@ Mac (Sia, outbound only) ──────────────────�
 - **Same routes, same rules.** A sealed request is `{ id, method, route, body }` for the existing
   remote routes (`state`, `vault`, `note`, `command`, `cancel`, `clear`, `results/<id>`,
   `outbox/<name>`). The Mac answers with the transport-neutral handler the Wi-Fi server also uses.
-  Phone-turn rules do not change: every phone turn asks for approval, one request at a time.
+  Relay turns come from the owner's own device: they follow the Mac's Computer setting (automatic
+  by default), and when confirmations are on the phone can approve or deny the exact pending step
+  (`approve` route, accepted only over the relay).
 - **Live state.** The Mac pushes a sealed state frame to each connected phone whenever the phone
   view changes, so the phone shows progress without polling.
 - **Limits.** Frames up to 96 KiB of sealed payload; files larger than the inline limit say "Open

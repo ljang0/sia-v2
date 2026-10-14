@@ -541,8 +541,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   The memory graph reads the selected agent’s native vault, manual memories and scripts; legacy encrypted journal entries remain a fallback.
   Like Notch's Wi-Fi mode, this is HTTP, not a cloud relay or encrypted remote desktop. The UI
   explains trusted Wi-Fi, link privacy, keyboard dictation and awake/unlocked requirements.
-  Because the link is plain HTTP, phone turns always confirm native, computer and connector actions
-  on the Mac, even when full bypass is on. Sia retains its model/permission boundaries; Notch's Claude MCP permission endpoint and
+  Because the link is plain HTTP, its turns always confirm native, computer and connector actions
+  on the Mac, even when full bypass is on, and the page cannot approve. Builds configured with the
+  encrypted relay ([phone-cloud-relay.md](./phone-cloud-relay.md)) never start this server; their
+  phone turns follow the Computer setting and the phone may approve the pending step. Sia retains its model/permission boundaries; Notch's Claude MCP permission endpoint and
   Tailscale address advertisement are not part of this same-Wi-Fi port. The phone stores only
   recent prompts locally, and offers a control to clear them. It never stores provider credentials.
   Its decorative aurora is the React Bits Dither background (three.js, @react-three/fiber and

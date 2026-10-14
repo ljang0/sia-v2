@@ -710,7 +710,7 @@ async function performApplicationCreation(): Promise<void> {
     });
     activeController.attachBrowserCapabilitySink(actionBackend);
     const defaultPolicy = new DefaultActionAuthorizationPolicy({
-      // Per turn: phone turns never inherit full bypass (see DesktopController#trustForTurn).
+      // Per turn: only the owner's own phone turns inherit bypass (see Approvals#trustForTurn).
       trustLocalActions: (request) =>
         activeController.trustForTurn(request.context.turnId) === 'auto',
     });
