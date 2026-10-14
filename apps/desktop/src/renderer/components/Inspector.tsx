@@ -423,9 +423,7 @@ function ComputerPanel({
           <ShieldCheck size={16} aria-hidden="true" />
           <span>Sia’s actions</span>
           <strong>
-            {computer.trust === 'auto'
-              ? 'Acts without asking'
-              : 'Asks before each action'}
+            {computer.trust === 'auto' ? 'Acts without asking' : 'Asks before each action'}
           </strong>
         </div>
       </section>
