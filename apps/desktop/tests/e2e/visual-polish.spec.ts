@@ -41,7 +41,9 @@ test('core surfaces retain the visual-system and motion contract', async () => {
     // The bridge can report the completed turn before React has committed the
     // corresponding event list. Wait for a released, event-derived control so
     // every visual baseline captures the same post-turn UI.
-    await expect(sia.page.getByRole('button', { name: 'Overview of this conversation' })).toBeVisible();
+    await expect(
+      sia.page.getByRole('button', { name: 'Overview of this conversation' }),
+    ).toBeVisible();
     await expect(sia.page.locator('[data-sia-presence]')).toHaveAttribute('data-state', 'idle');
 
     const visualSystem = await sia.page.evaluate(() => {

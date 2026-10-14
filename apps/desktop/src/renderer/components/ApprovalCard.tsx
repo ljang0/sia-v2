@@ -146,7 +146,8 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
           <div className={styles.restoreNote}>
             <ShieldCheck size={16} aria-hidden="true" />
             <span>
-              Allowing this covers only what is shown here. Sia can&apos;t undo it automatically.
+              Allowing this covers only what is shown here. Sia can&apos;t undo it
+              automatically.
             </span>
           </div>
           {request.expiresAt && !resolved ? (
