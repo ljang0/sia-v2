@@ -87,11 +87,13 @@ export function ByokSettings({
         </div>
         <p>
           {configured
-            ? `Uses ${provider.model} at ${provider.account ?? 'your provider'}. Your provider bills this key.`
-            : 'Use a model from any provider with an OpenAI-compatible Responses API. Your key stays encrypted on this Mac.'}
+            ? `Uses ${provider.model} from ${provider.account ?? 'the company that issued your key'}. That company bills you for it.`
+            : 'For people who already have a key from an AI company. It must work like OpenAI’s. Sia keeps your key encrypted on this Mac.'}
         </p>
         {codexMissing ? (
-          <p className={styles.providerUsage}>Set up Codex above first; it runs your model.</p>
+          <p className={styles.providerUsage}>
+            Connect ChatGPT above first. Sia uses its helper to run your key.
+          </p>
         ) : null}
         {editing ? (
           <form
@@ -124,7 +126,7 @@ export function ByokSettings({
               />
             </label>
             <label className={dialogs.field}>
-              <span>Endpoint (optional)</span>
+              <span>Server address (optional)</span>
               <input
                 type="url"
                 value={baseUrl}
@@ -136,7 +138,7 @@ export function ByokSettings({
                 aria-describedby={`${formId}-endpoint`}
               />
               <small id={`${formId}-endpoint`}>
-                Leave empty for OpenAI. Labs give you their own address.
+                Leave empty for OpenAI. Other companies give you their own address.
               </small>
             </label>
             <div className={settings.rowTitleLine}>
