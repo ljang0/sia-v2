@@ -15,6 +15,7 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import type { ScottyAction, ScottyApi, ScottyState, ScottyStatus } from '../../shared/scotty';
 import { ScottySprite, type ScottyPose } from './ScottySprite';
+import '../tokens.css';
 import styles from './Scotty.module.css';
 import { useTextSize } from '../textSize';
 import { errorMessage } from '../plainErrors';

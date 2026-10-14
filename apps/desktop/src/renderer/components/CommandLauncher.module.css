@@ -1,3 +1,7 @@
+/* The launcher window loads tokens.css for the shared vocabulary; its own panel paints the room. */
+:global(body):has(.launcher) {
+  background: transparent;
+}
 .launcher {
   position: relative;
   isolation: isolate;

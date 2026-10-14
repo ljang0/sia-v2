@@ -1,6 +1,7 @@
 import { ArrowUp, ArrowUpRight, Plus, X } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { LauncherState } from '../../shared/launcher';
+import '../tokens.css';
 import styles from './CommandLauncher.module.css';
 import { AppearanceContext } from './effects/appearance';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
