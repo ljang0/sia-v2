@@ -143,6 +143,39 @@ effect (what appeared, what moved, what finished, what needs attention).
 - Reduced Motion collapses durations, travel, scale, and stagger through the tokens. Calm keeps short
   fades but removes travel, springs, and stagger. Safety, consent, and legal surfaces stay sober:
   they may fade and settle, but do not bounce or celebrate.
+- Status signals have one gesture each, wherever they appear (dock, Scotty, launcher, phone): finished
+  or unread pops once, working breathes or sends a slow ring, waiting for the person pops then
+  breathes, and a problem only fades and settles. Status text is keyed by status so a change lands
+  visibly, while streamed progress inside one status does not replay it.
+- Completion moments (Reply ready, setup's "You're all set") play only on the live state change,
+  never when a finished thread or screen is reopened, and never loop. Setup permission rows settle
+  only when they turn ready while shown.
+- Permission and consent surfaces (approval cards, the Access panel, alert dialogs) arrive with
+  `--ease-out-soft`, never `--ease-spring`; an approval card may add one brief wash of the agent hue.
+  The phone remote never approves; its approval note stays a sober surface pointing to the Mac.
+- The room's hue (`--agent-color`) is a registered colour, so switching agents cross-fades the room
+  over `--motion-emphasis` instead of snapping.
+- Tab rails share one highlight that glides by animating `clip-path` only
+  (`settings/useNavIndicator.ts`); never animate a tab's width or position.
+- Press depth, press stretch, and check rotation derive from `--motion-pop-scale` and
+  `--motion-nudge`, so Calm and Reduced Motion keep the colour change and drop the movement.
+  Danger and disabled buttons never lift or bounce.
+- One-shot arrivals on hoverable controls use `animation-fill-mode: backwards`, and elements that
+  already run their own animation enter by transition plus `@starting-style`, so an entrance never
+  holds `transform` against hover or overrides an ambient loop.
+- Larger blocks that arrive together (welcome sections) may stagger by twice `--motion-stagger`.
+- Dismissal stays instant for dialogs, menus, and the quick switcher: hidden windows can pause
+  `animationend` indefinitely, and the renderer suite requires dismissed surfaces to close without
+  waiting. The Inspector and Scotty/launcher exits run on timers instead.
+- Windows that are shown and hidden rather than remounted (Scotty's tray, the ⌘E launcher) replay
+  their arrival on show with `floatingMotion.summon` and play `dismissMotion` before a self-initiated
+  hide; hiding because focus left stays instant. Always-on surfaces play one beat per state change
+  and then rest; only the working indicator loops. Every renderer window imports `tokens.css`
+  through `main.tsx`.
+- Live microphone state is a steady tint plus a radiating ring; the composer's wave follows the
+  voice level while listening and shows a travelling pulse while transcribing. Reduced Motion keeps
+  the ring as a static outline.
+- The startup curtain breathes after it settles and lifts away on ready within the 240 ms budget.
 
 ## Locked dials
 
@@ -177,8 +210,8 @@ use whitespace and a hairline divider before adding another box.
 - Light, dark, high-contrast, increased-text, and reduced-motion modes are verified.
 - Interactive rows and buttons give quiet hover feedback with `background-color`/`color`
   transitions at `--motion-fast`. Feedback is 140ms, standard motion 190ms, and surfaces 240ms.
-  Empty states and avatars do not rotate, bob, or breathe; motion is reserved for live presence,
-  progress, state transitions, and overlays. Streamed tokens do not animate.
+  Empty states and avatars do not idle-loop; motion is reserved for arrivals, live presence,
+  progress, state transitions, and overlays (see Motion language). Streamed tokens do not animate.
 - No generic AI gradients, glass, decorative status dots, card grids, nested cards, mascot faces,
   canvas, GenUI, or visualization affordance. A restrained monochrome grain and broad ambient
   color mixing are permitted when they make the room feel tactile without reducing contrast.

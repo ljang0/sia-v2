@@ -469,7 +469,12 @@ export function Composer({
               }
               audioLevel={voiceLevel}
             />
-            {voicePhase === 'recording' ? <VoiceWave level={voiceLevel} /> : null}
+            {voicePhase === 'recording' || voicePhase === 'transcribing' ? (
+              <VoiceWave
+                level={voiceLevel}
+                phase={voicePhase === 'transcribing' ? 'processing' : 'listening'}
+              />
+            ) : null}
             <span className={styles.composerContext} role="status">
               <span key={contextLabel} className={styles.composerContextWord}>
                 {contextLabel}

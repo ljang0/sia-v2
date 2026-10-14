@@ -14,7 +14,6 @@ import {
 import { useEffect, useRef, useState } from 'react';
 import type { ScottyAction, ScottyApi } from '../../shared/scotty';
 import { ScottySprite } from './ScottySprite';
-import '../tokens.css';
 import styles from './Scotty.module.css';
 import { errorMessage } from '../plainErrors';
 import { dismissMotion, summon } from './floatingMotion';

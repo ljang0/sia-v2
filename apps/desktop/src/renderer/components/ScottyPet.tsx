@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ScottyApi } from '../../shared/scotty';
-import '../tokens.css';
 import { ScottySprite } from './ScottySprite';
 import styles from './Scotty.module.css';
 import { labels, poses, useScotty } from './useScotty';

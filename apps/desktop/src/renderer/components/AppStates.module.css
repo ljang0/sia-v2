@@ -1,4 +1,5 @@
 .offlineBanner,
+.onlineBanner,
 .actionError {
   display: flex;
   min-height: 36px;
@@ -11,6 +12,7 @@
 }
 
 .offlineBanner > svg,
+.onlineBanner > svg,
 .actionError > svg {
   flex: none;
   animation: iconSettle var(--motion-emphasis) var(--ease-spring) var(--motion-stagger) both;
@@ -27,6 +29,11 @@
 .offlineBanner {
   background: var(--surface-warning);
   color: var(--text-warning);
+}
+
+.onlineBanner {
+  background: color-mix(in srgb, var(--text-link) 10%, var(--bg-canvas));
+  color: var(--text-link);
 }
 
 .actionError {
@@ -112,8 +119,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .offlineBanner,
+  .onlineBanner,
   .actionError,
   .offlineBanner > svg,
+  .onlineBanner > svg,
   .actionError > svg {
     animation: none;
   }
