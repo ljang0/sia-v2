@@ -124,6 +124,22 @@ restore the launcher; they do not discard the request or start another turn.
   `src/renderer/uiPolicy.test.ts` checks the face is on names/headings and off controls/body copy,
   that every hue slot is defined, and that the room maps every identity slot to a hue.
 
+## Comfortable reading
+
+On 2026-10-14 Lawrence reported that the layout and type felt too small, dense, and not
+user-friendly. Sia is for everyday consumers, so comfort wins over density:
+
+- Ordinary interface text is `--text-sm` (14px); body copy and replies are `--text-md` or larger.
+  Nothing a person needs to read is below `--text-2xs` (11.5px), and that size is only for
+  secondary metadata such as timestamps and shortcut hints.
+- No small letter-spaced all-caps labels. Section and status labels use sentence case at readable
+  sizes; hierarchy comes from size, weight, and spacing rather than tracking.
+- Interactive controls are at least `--target-min` (36px) tall; list and settings rows at least
+  `--row-min` (44px). Icons use `--icon-sm`/`--icon-md`/`--icon-lg` (16/18/22px).
+- Give content room: generous padding between groups, comfortable line height (≥1.45 for body
+  copy), and content columns that use the window rather than a narrow strip in a large empty pane.
+- Everything must still fit at the supported 960×640 window and at the Larger text size.
+
 ## Motion language
 
 On 2026-10-14 Lawrence asked for a dedicated UI/UX and animation pass across every workflow because
@@ -179,7 +195,7 @@ effect (what appeared, what moved, what finished, what needs attention).
 
 ## Locked dials
 
-Variance 5, motion 6, density 4. One deep-green dock, one mineral-neutral room surface system, four agent
+Variance 5, motion 6, density 3. One deep-green dock, one mineral-neutral room surface system, four agent
 forms with one job, ink for controls, Phosphor icons, system sans for the interface, one bundled
 identity/display face, and a four-step radius rule: `--radius-tight` 6px for chips/menus, `--radius-control`
 10px for controls and rows, `--radius-surface` 14px for the few contained surfaces that need an
@@ -206,7 +222,7 @@ use whitespace and a hairline divider before adding another box.
 - Active agent, provider/model, workspace, local/cloud status, and research-capture state are always understandable — the room's hue and the topbar dot must agree with the sidebar.
 - Loading, empty, error, offline, queued, denied, cancelled, and recovery states exist.
 - Every consequential approval names the operation, target, data leaving the Mac, focus behavior, and reversibility, under the requesting agent's hue band.
-- Full keyboard operation, visible focus, correct labels, minimum 32px targets, and WCAG 2.2 AA contrast (`uiPolicy.test.ts` computes tertiary-text and strong-border contrast for both appearances).
+- Full keyboard operation, visible focus, correct labels, minimum 36px targets (`--target-min`), and WCAG 2.2 AA contrast (`uiPolicy.test.ts` computes tertiary-text and strong-border contrast for both appearances).
 - Light, dark, high-contrast, increased-text, and reduced-motion modes are verified.
 - Interactive rows and buttons give quiet hover feedback with `background-color`/`color`
   transitions at `--motion-fast`. Feedback is 140ms, standard motion 190ms, and surfaces 240ms.
