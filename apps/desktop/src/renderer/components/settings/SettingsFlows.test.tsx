@@ -611,11 +611,9 @@ describe('computer access settings', () => {
 
     expect(screen.getByText(/whether actions need your confirmation/i)).toBeTruthy();
     expect(
-      screen
-        .getByRole('switch', { name: 'Bypass action approvals' })
-        .getAttribute('aria-checked'),
+      screen.getByRole('switch', { name: 'Act without asking' }).getAttribute('aria-checked'),
     ).toBe('false');
-    fireEvent.click(screen.getByText('Diagnostics'));
+    fireEvent.click(screen.getByText('Details for troubleshooting'));
     expect(
       screen
         .getByRole('switch', { name: 'Keep a full local log' })
@@ -679,13 +677,13 @@ describe('computer access settings', () => {
         onRevealTrajectories={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Act without asking' }));
     expect(
       screen.getByRole('alertdialog', { name: 'Let Sia act without asking?' }),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Keep asking me' }));
     expect(onSetComputerTrust).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Act without asking' }));
     fireEvent.click(screen.getByRole('button', { name: 'Act without asking' }));
     await waitFor(() => expect(onSetComputerTrust).toHaveBeenCalledWith('auto'));
   });
@@ -712,13 +710,11 @@ describe('computer access settings', () => {
       />,
     );
     expect(
-      screen
-        .getByRole('switch', { name: 'Bypass action approvals' })
-        .getAttribute('aria-checked'),
+      screen.getByRole('switch', { name: 'Act without asking' }).getAttribute('aria-checked'),
     ).toBe('true');
-    fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Act without asking' }));
     await waitFor(() => expect(onSetComputerTrust).toHaveBeenCalledWith('ask'));
-    fireEvent.click(screen.getByText('Diagnostics'));
+    fireEvent.click(screen.getByText('Details for troubleshooting'));
     await waitFor(() =>
       expect(
         (screen.getByRole('switch', { name: 'Keep a full local log' }) as HTMLButtonElement)
