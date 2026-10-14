@@ -265,7 +265,7 @@ function BrowserPanel({
             <Browser size={22} aria-hidden="true" />
             <div>
               <h2>Choose a Chrome window</h2>
-              <p>Sia will attach only the window you choose. The others will not be granted.</p>
+              <p>Sia uses only the window you choose. It can’t see the others.</p>
             </div>
           </section>
           {browser.status === 'error' && browser.snapshotLabel ? (
@@ -323,7 +323,7 @@ function BrowserPanel({
     <div className={styles.inspectorBody} id={id} role="tabpanel" aria-labelledby={labelledBy}>
       <section className={styles.inspectorSummary}>
         <div>
-          <span className={primitives.sectionLabel}>Attached profile</span>
+          <span className={primitives.sectionLabel}>Chrome profile in use</span>
           <strong>{browser.profileName}</strong>
         </div>
         <button type="button" className={buttons.textButtonDanger} onClick={onDetach}>
@@ -333,7 +333,7 @@ function BrowserPanel({
       </section>
 
       <section>
-        <h2 className={styles.inspectorSectionTitle}>Granted sites</h2>
+        <h2 className={styles.inspectorSectionTitle}>Sites Sia can use</h2>
         {grantedSites.length ? (
           <div className={styles.inspectorList}>
             {grantedSites.map((item) => (
@@ -345,7 +345,7 @@ function BrowserPanel({
                   <strong>{item.origin}</strong>
                   {item.title !== item.origin ? <span>{item.title}</span> : null}
                 </div>
-                <span className={styles.accessGranted}>Granted</span>
+                <span className={styles.accessGranted}>Allowed</span>
               </div>
             ))}
           </div>
@@ -401,7 +401,7 @@ function ComputerPanel({
   return (
     <div className={styles.inspectorBody} id={id} role="tabpanel" aria-labelledby={labelledBy}>
       <section>
-        <h2 className={styles.inspectorSectionTitle}>System access</h2>
+        <h2 className={styles.inspectorSectionTitle}>Mac permissions</h2>
         <div className={styles.permissionList}>
           <PermissionRow label="Accessibility" state={computer.accessibility} />
           <PermissionRow label="Screen Recording" state={computer.screenRecording} />
@@ -418,13 +418,13 @@ function ComputerPanel({
       </section>
 
       <section>
-        <h2 className={styles.inspectorSectionTitle}>Action approvals</h2>
+        <h2 className={styles.inspectorSectionTitle}>Asking first</h2>
         <div className={styles.permissionRow} data-testid="computer-approval-mode">
           <ShieldCheck size={16} aria-hidden="true" />
-          <span>Sia actions</span>
+          <span>Sia’s actions</span>
           <strong>
             {computer.trust === 'auto'
-              ? 'Runs without asking (full bypass)'
+              ? 'Acts without asking'
               : 'Asks before each action'}
           </strong>
         </div>
