@@ -41,7 +41,26 @@
 .remote-turn {
   margin-bottom: 30px;
   scroll-margin-top: 16px;
-  animation: arrive 0.4s var(--phone-ease);
+}
+/* Sending: your words land first, from where your thumb was, then Sia answers a beat later. */
+.remote-turn > .user-message {
+  transform-origin: 100% 100%;
+  animation: rise-pop var(--motion-emphasis) var(--phone-spring) both;
+}
+.remote-turn > .assistant-heading,
+.remote-turn > .task-steps,
+.remote-turn > .thinking-dots {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+.remote-turn > .result-file {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+}
+.remote-turn > .result-file:nth-of-type(2) {
+  animation-delay: var(--motion-stagger);
+}
+.remote-turn > .result-file:nth-of-type(n + 3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
 }
 .user-message {
   background: var(--bg-selected);
@@ -79,6 +98,28 @@
   color: var(--text-secondary);
   font-size: 10px;
   white-space: nowrap;
+  animation: settle var(--motion-surface) var(--ease-out-soft) both;
+}
+/* Each live state has its own landing: working breathes, finished pops its check once,
+   and the states that need the person settle in plainly. */
+.turn-status[data-status='done'] svg {
+  animation: pop var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: var(--motion-stagger);
+}
+.turn-status[data-status='working'] .working-dot {
+  animation: breathe var(--phone-breath) ease-in-out infinite;
+}
+.turn-status[data-status='waiting'],
+.turn-status[data-status='error'] {
+  padding: 3px 8px;
+  border-radius: 20px;
+  margin-block: -3px;
+}
+.turn-status[data-status='waiting'] {
+  background: color-mix(in srgb, var(--text-warning) 12%, transparent);
+}
+.turn-status[data-status='error'] {
+  background: var(--surface-danger);
 }
 .turn-status[data-status='done'],
 .turn-status[data-status='working'] {
@@ -141,6 +182,14 @@
   padding: 14px 12px;
   min-height: 44px;
 }
+/* A new step slides in under the last one; the text itself is never animated per token. */
+.step-line {
+  display: inline-block;
+  animation: arrive var(--motion-surface) var(--ease-out-soft) both;
+}
+.task-steps[open] ol {
+  animation: settle var(--motion-surface) var(--ease-out-soft) both;
+}
 .task-steps ol {
   margin: 0;
   padding: 0 18px 14px 30px;
@@ -163,6 +212,20 @@
   flex: none;
   color: var(--text-success);
 }
+@media (hover: hover) {
+  .result-file:hover {
+    border-color: color-mix(in srgb, var(--aurora-emerald) 50%, var(--border-subtle));
+  }
+}
+.result-file {
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-surface) var(--phone-spring);
+}
+.result-file:active {
+  transform: scale(var(--motion-pop-scale));
+  transition-duration: var(--motion-exit);
+}
 .result-file span:first-of-type {
   overflow-wrap: anywhere;
 }
@@ -182,6 +245,17 @@
 .waiting-note {
   border-radius: 12px;
   margin-top: 15px;
+  line-height: 1.6;
+  animation: settle var(--motion-surface) var(--ease-out-soft) both;
+}
+/* Approval is a safety surface: sober, warm, and plainly marked; no bounce. */
+.waiting-note[data-kind='approval'] {
+  background: color-mix(in srgb, var(--text-warning) 9%, var(--bg-raised));
+  border: 1px solid color-mix(in srgb, var(--text-warning) 28%, transparent);
+  color: var(--text-primary);
+}
+.connection-banner {
+  animation: settle var(--motion-surface) var(--ease-out-soft) both;
 }
 .remote-error,
 .task-error {
@@ -194,11 +268,13 @@
   display: flex;
   align-items: center;
   overflow-wrap: anywhere;
+  animation: settle var(--motion-surface) var(--ease-out-soft) both;
 }
 .remote-error .icon {
   margin-left: auto;
 }
 .live-task-line {
+  animation: arrive var(--motion-surface) var(--ease-out-soft) both;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -218,8 +294,11 @@
   border-radius: 50%;
   background: var(--text-success);
 }
+.activity-light {
+  transition: background-color var(--motion-standard) var(--ease-standard);
+}
 .activity-light.working {
-  animation: breathe 2s ease-in-out infinite;
+  animation: breathe var(--phone-breath) ease-in-out infinite;
 }
 /* Paused on the person: the same warm tone as the reply's "Needs you". */
 .activity-light.waiting {
@@ -240,9 +319,16 @@
   background: var(--bg-raised);
   font-size: 11px;
   box-shadow: var(--shadow-raised);
+  animation: jump-arrive var(--motion-emphasis) var(--phone-spring) both;
+}
+@keyframes jump-arrive {
+  from {
+    opacity: 0;
+    transform: translate(-50%, var(--motion-rise)) scale(var(--motion-pop-scale));
+  }
 }
 .jump-latest:active:not(:disabled) {
-  transform: translateX(-50%) scale(0.97);
+  transform: translateX(-50%) scale(var(--motion-pop-scale));
 }
 .thinking-dots {
   display: flex;
@@ -255,14 +341,27 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  animation: breathe 1.4s ease-in-out infinite;
+  animation: thinking var(--motion-spin) var(--ease-standard) infinite;
 }
 .thinking-dots i:nth-child(2) {
-  animation-delay: 0.15s;
+  animation-delay: calc(var(--motion-spin) * 0.15);
 }
 .thinking-dots i:nth-child(3) {
-  animation-delay: 0.3s;
+  animation-delay: calc(var(--motion-spin) * 0.3);
+}
+/* A soft wave instead of a blink: each dot lifts as it brightens. */
+@keyframes thinking {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(calc(var(--motion-nudge) * -1));
+  }
 }
 .spin {
-  animation: spin 1s linear infinite;
+  animation: spin var(--motion-spin) linear infinite;
 }

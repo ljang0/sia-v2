@@ -3,7 +3,15 @@
 .page-heading {
   padding: 23px 24px 18px;
   flex: none;
-  animation: arrive 0.4s var(--phone-ease);
+}
+.page-heading > * {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+}
+.page-heading > :nth-child(2) {
+  animation-delay: var(--motion-stagger);
+}
+.page-heading > :nth-child(n + 3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
 }
 .page-heading h1 {
   font: 500 clamp(31px, 8vw, 40px)/1.1 var(--font-brand);
@@ -35,6 +43,10 @@
   min-height: 44px;
   font-size: 12px;
 }
+.activity-filters {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
 .activity-filters [aria-pressed='true'] {
   background: var(--shell-bg);
   color: var(--shell-text);
@@ -63,7 +75,24 @@
   background: var(--bg-raised);
   text-align: left;
   min-width: 0;
-  animation: arrive 0.4s var(--phone-ease);
+  /* Cards deal in from the top one beat apart, capped at eight so long histories stay quick. */
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * min(var(--i, 0), 8));
+}
+/* A live task carries a quiet emerald edge so it reads as in motion at a glance. */
+.task-card[data-status='working'] {
+  border-color: color-mix(in srgb, var(--aurora-emerald) 45%, var(--border-subtle));
+}
+.task-card[data-status='waiting'] {
+  border-color: color-mix(in srgb, var(--text-warning) 40%, var(--border-subtle));
+}
+.task-card-top > svg {
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+@media (hover: hover) {
+  .task-card:hover .task-card-top > svg {
+    transform: translate(var(--motion-nudge), calc(var(--motion-nudge) * -1));
+  }
 }
 .task-card-top {
   display: flex;
@@ -103,6 +132,8 @@
   background: var(--bg-subtle);
 }
 .activity-empty {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * 4);
   text-align: center;
   padding: 50px 36px 30px;
   max-width: 400px;
@@ -118,6 +149,14 @@
   place-items: center;
   border-radius: 26px;
   transform: rotate(-6deg);
+  animation: empty-tilt var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * 6);
+}
+@keyframes empty-tilt {
+  from {
+    opacity: 0;
+    transform: rotate(0deg) scale(var(--motion-pop-scale));
+  }
 }
 .activity-empty h2 {
   font: 500 27px/1.12 var(--font-brand);

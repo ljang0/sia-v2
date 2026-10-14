@@ -1,10 +1,52 @@
 /* The welcome scene: greeting, idea cards, and recent prompts. */
 
+/* Entrance choreography: the mark, then the words, then the places to start, one beat apart.
+   Each piece only fades and rises, so the layout (and the keyboard easing) never waits on it. */
+.hero-art,
+.hero-copy > *,
+.ideas-heading,
+.idea-card,
+.recent-prompts {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * 2 * min(var(--i, 0), 8));
+}
+.hero-art {
+  animation-name: rise-pop;
+}
+.hero-copy > .eyebrow {
+  --i: 1;
+}
+.hero-copy > h1 {
+  --i: 2;
+}
+.hero-copy > p {
+  --i: 3;
+}
+.ideas-heading {
+  --i: 4;
+}
+.idea-card:nth-child(1) {
+  --i: 5;
+}
+.idea-card:nth-child(2) {
+  --i: 6;
+}
+.idea-card:nth-child(3) {
+  --i: 7;
+}
+.idea-card:nth-child(n + 4),
+.recent-prompts {
+  --i: 8;
+}
+/* Cards revealed by "More ideas" arrive right away; the opening beat is over. */
+.idea-grid:has(.idea-card:nth-child(3)) .idea-card:nth-child(n + 3) {
+  animation-delay: calc(var(--motion-stagger) * (var(--i) - 6));
+}
+
 .remote-empty {
   max-width: 480px;
   margin: auto;
   padding: 0 24px 24px;
-  animation: arrive 0.4s var(--phone-ease) both;
   transition: padding var(--typing-duration) var(--phone-ease);
 }
 .hero-art {
@@ -38,7 +80,7 @@
   overflow: hidden;
   transition:
     height var(--typing-duration) var(--phone-ease),
-    opacity 220ms ease;
+    opacity var(--motion-standard) var(--ease-standard);
 }
 .eyebrow {
   font-size: 9px;
@@ -81,14 +123,14 @@
   overflow: hidden;
   transition:
     max-height var(--typing-duration) var(--phone-ease),
-    opacity 220ms ease;
+    opacity var(--motion-standard) var(--ease-standard);
 }
 .welcome-suggestions {
   height: var(--suggestions-height, auto);
   overflow: hidden;
   transition:
     height var(--typing-duration) var(--phone-ease),
-    opacity 220ms ease,
+    opacity var(--motion-standard) var(--ease-standard),
     visibility 0s;
 }
 .welcome-suggestions-content {
@@ -136,7 +178,6 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  animation: arrive 280ms var(--phone-ease) backwards;
 }
 .idea-card[data-tone='sage'] {
   background: linear-gradient(

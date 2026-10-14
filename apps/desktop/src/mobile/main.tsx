@@ -329,7 +329,8 @@ function App() {
             role="status"
             aria-label={online ? 'Connected to your Mac' : 'Mac disconnected'}
           >
-            <i />
+            {/* Remount on change so reconnecting lands with a visible pop, not a silent swap. */}
+            <i key={online ? 'online' : 'offline'} />
           </span>
           {online ? 'Mac connected' : 'Reconnecting'}
           <Desktop size={15} />
