@@ -388,3 +388,20 @@ it('finishes the guided app prompts before one relaunch and includes Full Disk A
   fireEvent.click(screen.getByRole('button', { name: 'Turned it on? Relaunch Sia' }));
   expect(restart).toHaveBeenCalledExactlyOnceWith([]);
 });
+
+it('settles only rows that turn ready while shown, not rows that were already allowed', () => {
+  const { snapshot, view, rerender } = setup();
+  const row = (name: string) =>
+    [...view.container.querySelectorAll<HTMLElement>('li[data-state]')].find(
+      (item) => item.querySelector('strong')?.textContent === name,
+    );
+  expect(row('Calendar')?.dataset.state).toBe('ready');
+  expect(row('Calendar')?.dataset.settled).toBeUndefined();
+  expect(row('Safari')?.dataset.settled).toBeUndefined();
+
+  snapshot.computer.automation = { ...snapshot.computer.automation, safari: 'ready' };
+  rerender();
+  expect(row('Safari')?.dataset.state).toBe('ready');
+  expect(row('Safari')?.dataset.settled).toBe('true');
+  expect(row('Calendar')?.dataset.settled).toBeUndefined();
+});

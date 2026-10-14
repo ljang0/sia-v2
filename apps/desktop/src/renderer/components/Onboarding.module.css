@@ -642,6 +642,15 @@
 .details[open] summary {
   margin-bottom: 18px;
 }
+/* Opening a section brings its content in gently instead of popping it into place. */
+.details[open] > :not(summary) {
+  animation: stageIn var(--motion-emphasis) var(--ease-out-soft) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .details[open] > :not(summary) {
+    animation: none;
+  }
+}
 .accessSummary {
   display: grid;
   gap: 6px;

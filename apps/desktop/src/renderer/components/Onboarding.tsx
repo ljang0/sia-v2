@@ -574,7 +574,7 @@ export function Onboarding({
 }
 
 /** A calm, one-time note that setup finished; it steps aside on its own. */
-function SetupDoneToast({ onDone }: { onDone(): void }) {
+export function SetupDoneToast({ onDone }: { onDone(): void }) {
   const done = useRef(onDone);
   done.current = onDone;
   const [leaving, setLeaving] = useState(false);

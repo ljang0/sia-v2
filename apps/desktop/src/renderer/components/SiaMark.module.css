@@ -44,84 +44,84 @@
     transform 90ms var(--ease-standard);
 }
 
-.siaPresence[data-state='idle'] .siaMarkOrbit {
+.siaMark[data-sia-presence][data-state='idle'] .siaMarkOrbit {
   animation: presenceBreathe 5.2s var(--ease-standard) infinite alternate;
 }
 
-.siaPresence[data-level='1'] {
+.siaMark[data-sia-presence][data-level='1'] {
   --presence-scale: 1.2;
 }
 
-.siaPresence[data-level='2'] {
+.siaMark[data-sia-presence][data-level='2'] {
   --presence-scale: 1.45;
 }
 
-.siaPresence[data-level='3'] {
+.siaMark[data-sia-presence][data-level='3'] {
   --presence-scale: 1.7;
 }
 
-.siaPresence[data-level='4'] {
+.siaMark[data-sia-presence][data-level='4'] {
   --presence-scale: 1.95;
 }
 
-.siaPresence[data-state='working'] {
+.siaMark[data-sia-presence][data-state='working'] {
   color: var(--text-primary);
 }
 
-.siaPresence[data-state='working'] .siaMarkOrbit::before {
+.siaMark[data-sia-presence][data-state='working'] .siaMarkOrbit::before {
   box-shadow: 0 0 0 3px var(--agent-soft);
 }
 
-.siaPresence[data-state='working'] .siaMarkOrbit {
+.siaMark[data-sia-presence][data-state='working'] .siaMarkOrbit {
   animation: presenceDrift 2.8s var(--ease-standard) infinite alternate;
 }
 
-.siaPresence[data-state='working'] .siaMarkCore {
+.siaMark[data-sia-presence][data-state='working'] .siaMarkCore {
   animation: presenceBeat 1.6s var(--ease-out-soft) infinite;
 }
 
-.siaPresence[data-state='waiting'] {
+.siaMark[data-sia-presence][data-state='waiting'] {
   color: var(--text-warning);
 }
 
-.siaPresence[data-state='waiting'] .siaMarkOrbit {
+.siaMark[data-sia-presence][data-state='waiting'] .siaMarkOrbit {
   transform: rotate(45deg) scale(0.9);
 }
 
-.siaPresence[data-state='listening'] {
+.siaMark[data-sia-presence][data-state='listening'] {
   color: var(--text-primary);
 }
 
-.siaPresence[data-state='listening'] .siaMarkOrbit {
+.siaMark[data-sia-presence][data-state='listening'] .siaMarkOrbit {
   border-color: currentColor;
   box-shadow: 0 0 0 4px color-mix(in srgb, currentColor 8%, transparent);
 }
 
-.siaPresence[data-state='speaking'] {
+.siaMark[data-sia-presence][data-state='speaking'] {
   color: var(--text-primary);
 }
 
-.siaPresence[data-state='speaking'] .siaMarkCore {
+.siaMark[data-sia-presence][data-state='speaking'] .siaMarkCore {
   animation: presenceSpeak 520ms var(--ease-standard) infinite alternate;
 }
 
-.siaPresence[data-state='complete'] {
+.siaMark[data-sia-presence][data-state='complete'] {
   color: var(--text-success);
 }
 
-.siaPresence[data-state='complete'] .siaMarkOrbit {
+.siaMark[data-sia-presence][data-state='complete'] .siaMarkOrbit {
   animation: presenceComplete 560ms var(--ease-standard) both;
 }
 
-.siaPresence[data-state='error'] {
+.siaMark[data-sia-presence][data-state='error'] {
   color: var(--text-danger);
 }
 
-.siaPresence[data-state='error'] .siaMarkOrbit {
+.siaMark[data-sia-presence][data-state='error'] .siaMarkOrbit {
   background: var(--bg-danger);
 }
 
-.siaPresence[data-state='error'] .siaMarkCore {
+.siaMark[data-sia-presence][data-state='error'] .siaMarkCore {
   background: var(--text-on-danger);
 }
 
@@ -171,11 +171,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .siaPresence[data-state='idle'] .siaMarkOrbit,
-  .siaPresence[data-state='working'] .siaMarkOrbit,
-  .siaPresence[data-state='working'] .siaMarkCore,
-  .siaPresence[data-state='complete'] .siaMarkOrbit,
-  .siaPresence[data-state='speaking'] .siaMarkCore {
+  .siaMark[data-sia-presence][data-state='idle'] .siaMarkOrbit,
+  .siaMark[data-sia-presence][data-state='working'] .siaMarkOrbit,
+  .siaMark[data-sia-presence][data-state='working'] .siaMarkCore,
+  .siaMark[data-sia-presence][data-state='complete'] .siaMarkOrbit,
+  .siaMark[data-sia-presence][data-state='speaking'] .siaMarkCore {
     animation: none;
   }
 
