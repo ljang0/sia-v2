@@ -285,6 +285,13 @@ a {
   transform: translateY(-2px);
 }
 
+.nav-links .nav-cta:active,
+.button:active {
+  transform: translateY(0) scale(0.98);
+  box-shadow: var(--shadow-control);
+  transition-duration: 90ms;
+}
+
 .button.secondary {
   border-color: var(--line-strong);
   background: transparent;

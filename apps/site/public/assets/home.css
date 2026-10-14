@@ -21,6 +21,16 @@
 .hero-signal {
   z-index: -1;
   pointer-events: none;
+  /* The signal field resolves out of soft focus once, then settles into its slow breath. */
+  animation: signal-enter 1400ms var(--ease) both;
+}
+
+@keyframes signal-enter {
+  from {
+    opacity: 0;
+    filter: blur(14px);
+    transform: scale(1.04);
+  }
 }
 
 .hero-signal img {
@@ -661,6 +671,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .hero-signal,
   .hero-signal img,
   .schedule-status i {
     animation: none;
