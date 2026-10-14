@@ -288,8 +288,10 @@
   color: var(--text-primary);
   flex-wrap: wrap;
 }
+/* The reassurance sits under the status, lined up with its words, instead of squeezing beside it. */
 .live-task-line > span:last-child {
-  margin-left: auto;
+  flex-basis: 100%;
+  padding-left: 16px;
   font-size: var(--phone-text-meta);
   font-weight: 400;
   color: var(--text-secondary);
