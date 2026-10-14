@@ -67,6 +67,8 @@ export interface ProviderModelView {
   defaultReasoningEffort?: string;
   /** The model lab (or sponsor) that funds an included model, from the hosted catalog. */
   lab?: { id: string; name: string };
+  /** Engines admitted to run this model, when there is more than one to choose from. */
+  harnesses?: { id: HarnessId; name: string }[];
 }
 
 export interface ProviderUsageView {

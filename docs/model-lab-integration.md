@@ -106,6 +106,11 @@ the release owner signs a manifest that lists it under `previewHarnesses`:
 { "previewHarnesses": ["claude_code"], "harnesses": [] }
 ```
 
+When an included model has more than one admitted engine, the agent dialog's **Details** shows an
+**Engine** choice (Automatic, Codex, Claude Code, OpenCode, OpenHands, Pi as admitted). Automatic
+follows the lab's `defaultHarnessId`; an explicit choice is saved as the agent's harness preference
+and pinned by each new thread. Models with a single engine show no choice.
+
 The manifest is signed and loaded exactly like a lab harness manifest below
 (`SIA_LAB_HARNESS_MANIFEST`), expires the same way, and only accepts built-in harness ids. Release
 admission is still flipping `productionEnabled` after the conformance matrix passes.

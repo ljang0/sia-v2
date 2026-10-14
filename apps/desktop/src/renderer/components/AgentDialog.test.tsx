@@ -149,6 +149,56 @@ describe('agent dialog', () => {
     expect(onSave.mock.calls[0]?.[0]).not.toHaveProperty('harnessPreference');
   });
 
+  it('offers an engine choice only for a model that more than one engine may run', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const providers = demoSnapshot.providers.map((provider) =>
+      provider.id === 'meta'
+        ? {
+            ...provider,
+            status: 'ready' as const,
+            models: [
+              {
+                id: 'arena/claude',
+                label: 'Claude',
+                description: '',
+                reasoningEfforts: [],
+                lab: { id: 'arena', name: 'Arena' },
+                harnesses: [
+                  { id: 'codex_app_server', name: 'Codex' },
+                  { id: 'claude_code', name: 'Claude Code' },
+                ],
+              },
+            ],
+          }
+        : provider,
+    );
+    renderDialog({ providers, onSave });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+      target: { value: 'Arena tester' },
+    });
+    fireEvent.change(screen.getByRole('textbox', { name: 'Instructions' }), {
+      target: { value: 'Compare engines on the same task.' },
+    });
+    fireEvent.click(screen.getByText('Details'));
+    expect(screen.queryByRole('combobox', { name: 'Engine' })).toBeNull();
+    fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), {
+      target: { value: 'meta:arena/claude' },
+    });
+    const engine = screen.getByRole('combobox', { name: 'Engine' });
+    expect(screen.getByRole('option', { name: 'Automatic' })).toBeTruthy();
+    fireEvent.change(engine, { target: { value: 'claude_code' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create agent' }));
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: 'meta',
+        model: 'arena/claude',
+        harnessPreference: { mode: 'explicit', harnessId: 'claude_code' },
+      }),
+    );
+  });
+
   it('routes model recovery to AI settings without provider diagnostics in the form', () => {
     const onOpenModelSettings = vi.fn();
     renderDialog({

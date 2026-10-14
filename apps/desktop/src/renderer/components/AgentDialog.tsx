@@ -107,6 +107,16 @@ export function AgentDialog({
     }
   }, [agent, choices, draft.model, draft.provider, modelChosen, open]);
 
+  // Only offered when an admitted model can run in more than one engine.
+  const engines =
+    providers
+      .find(({ id }) => id === draft.provider)
+      ?.models?.find(({ id }) => id === draft.model)?.harnesses ?? [];
+  const engineValue =
+    draft.harnessPreference?.mode === 'explicit'
+      ? draft.harnessPreference.harnessId
+      : 'automatic';
+
   const update = <K extends keyof AgentDraft>(key: K, value: AgentDraft[K]) => {
     setDraft((current) => ({ ...current, [key]: value }));
   };
@@ -276,6 +286,33 @@ export function AgentDialog({
                     ))}
                   </select>
                 </label>
+
+                {engines.length > 1 ? (
+                  <label className={dialogs.field} htmlFor={`${formId}-engine`}>
+                    <span>Engine</span>
+                    <select
+                      id={`${formId}-engine`}
+                      value={engineValue}
+                      onChange={(event) => {
+                        const harnessId = event.target.value;
+                        setDraft((current) => ({
+                          ...current,
+                          harnessPreference:
+                            harnessId === 'automatic'
+                              ? { mode: 'automatic' }
+                              : { mode: 'explicit', harnessId },
+                        }));
+                      }}
+                    >
+                      <option value="automatic">Automatic</option>
+                      {engines.map((engine) => (
+                        <option key={engine.id} value={engine.id}>
+                          {engine.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
 
                 <div className={dialogs.field}>
                   <label htmlFor={`${formId}-workspace`}>Working folder</label>

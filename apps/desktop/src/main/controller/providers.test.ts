@@ -1159,6 +1159,32 @@ describe('DesktopController', () => {
           created.snapshot.threads.find(({ id }) => id === created.snapshot.activeThreadId)
             ?.resolvedExecutionTarget,
         ).toMatchObject({ harnessId, credentialSource: 'sia_managed' });
+        const offered = controller
+          .snapshot()
+          .providers.find(({ id }) => id === 'meta')
+          ?.models?.find(({ id }) => id === 'arena/claude')?.harnesses;
+        expect(offered).toEqual(
+          preview.length
+            ? [
+                { id: 'codex_app_server', name: 'Codex' },
+                { id: 'claude_code', name: 'Claude Code' },
+              ]
+            : undefined,
+        );
+        if (preview.length) {
+          // An explicit engine choice overrides the catalog's default harness.
+          const pinned = await controller.invoke('agents.save', {
+            name: 'Arena on Codex',
+            instructions: '',
+            provider: 'meta',
+            model: 'arena/claude',
+            harnessPreference: { mode: 'explicit', harnessId: 'codex_app_server' },
+          });
+          expect(
+            pinned.snapshot.threads.find(({ id }) => id === pinned.snapshot.activeThreadId)
+              ?.resolvedExecutionTarget,
+          ).toMatchObject({ harnessId: 'codex_app_server' });
+        }
         await controller.shutdown();
       } finally {
         vi.unstubAllGlobals();

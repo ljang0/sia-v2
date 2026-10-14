@@ -432,6 +432,8 @@ export interface ProviderSetup {
     defaultReasoningEffort?: string | undefined;
     /** The model lab (or sponsor) that funds an included model. */
     lab?: { id: string; name: string } | undefined;
+    /** Engines admitted to run this model, when there is more than one. */
+    harnesses?: { id: string; name: string }[] | undefined;
   }>;
 }
 

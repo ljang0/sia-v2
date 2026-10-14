@@ -523,17 +523,26 @@ export class ProviderAccess {
       for (const key of this.allowedModelRoutes.keys()) {
         if (key.startsWith('meta\u0000')) this.allowedModelRoutes.delete(key);
       }
+      const registry = this.hostedHarnessRegistry();
+      const harnessesByModel = new Map<string, { id: string; name: string }[]>();
       for (const hostedProvider of catalog.providers) {
         if (!hostedProvider.execution) continue;
         const admitted = admitHostedRoutes({
           provider: 'meta',
           defaultHarnessId: hostedProvider.execution.defaultHarnessId,
           routes: hostedProvider.execution.routes,
-          registry: this.hostedHarnessRegistry(),
+          registry,
         });
         const routesByModel = Map.groupBy(admitted.allowedRoutes, ({ model }) => model);
         for (const [model, routes] of routesByModel) {
           this.allowedModelRoutes.set(modelRouteKey('meta', model), routes);
+          harnessesByModel.set(
+            model,
+            routes.map(({ harnessId }) => ({
+              id: harnessId,
+              name: registry.get(harnessId)?.name ?? harnessId,
+            })),
+          );
         }
         for (const route of admitted.defaultRoutes) {
           this.backendModelRoutes.set(modelRouteKey('meta', route.model), route);
@@ -572,6 +581,9 @@ export class ProviderAccess {
                   description: `${hostedProvider.name} · included with Sia · up to ${hostedProvider.limits.maxOutputTokens.toLocaleString()} output tokens per turn`,
                   reasoningEfforts: [],
                   lab: { id: hostedProvider.id, name: hostedProvider.name },
+                  ...((harnessesByModel.get(id)?.length ?? 0) > 1
+                    ? { harnesses: harnessesByModel.get(id)! }
+                    : {}),
                 })),
               ),
             }
