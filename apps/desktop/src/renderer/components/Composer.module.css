@@ -79,7 +79,7 @@
 
 .composerAction {
   gap: 6px;
-  animation: composerActionIn var(--motion-standard) var(--ease-out-soft) both;
+  animation: composerActionIn var(--motion-standard) var(--ease-out-soft) backwards;
 }
 
 @keyframes composerActionIn {

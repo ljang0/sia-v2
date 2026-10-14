@@ -80,7 +80,7 @@
 }
 
 .jumpToLatest {
-  animation: jumpToLatestIn var(--motion-surface) var(--ease-spring) both;
+  animation: jumpToLatestIn var(--motion-surface) var(--ease-spring) backwards;
 }
 
 @keyframes jumpToLatestIn {
