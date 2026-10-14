@@ -10,18 +10,19 @@
 }
 .checklist legend {
   font-weight: 600;
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
 }
 .note {
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   line-height: 1.6;
 }
 .choice {
   display: flex;
   gap: 16px;
   align-items: center;
-  padding: 16px 0;
+  min-height: var(--row-min);
+  padding: 18px 0;
   border-top: 1px solid var(--border-subtle);
 }
 .choice:has(input:not(:disabled)) {
@@ -29,6 +30,8 @@
 }
 .choice input {
   flex-shrink: 0;
+  width: 18px;
+  height: 18px;
   accent-color: var(--bg-accent);
 }
 .description {
@@ -38,11 +41,11 @@
   min-width: 0;
 }
 .description strong {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
 }
 .description > span {
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   line-height: 1.5;
 }
 /* Status reads as a chip, matching the Mac permission rows above it in setup. */
@@ -52,12 +55,12 @@
   flex: none;
   align-items: center;
   gap: 6px;
-  max-width: 150px;
-  padding: 3px 9px;
+  max-width: 170px;
+  padding: 5px 12px;
   border-radius: var(--radius-round);
   background: var(--bg-subtle);
   color: var(--text-secondary);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   text-align: right;
 }
 .ready {
@@ -97,7 +100,7 @@
 }
 .error {
   color: var(--text-danger);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   line-height: 1.6;
 }
 .pending {

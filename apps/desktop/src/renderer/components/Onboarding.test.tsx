@@ -394,8 +394,8 @@ it('keeps pending account approvals visible and blocks leaving until cancellatio
   );
   for (const name of ['Start using Sia', 'Exit setup'])
     expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText('Awaiting approval')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Cancel connection setup' }));
+  expect(screen.getByText('Waiting for you')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel sign-in' }));
   await waitFor(() =>
     expect(api.disconnectApp).toHaveBeenCalledWith('gmail', 'pending-google'),
   );
@@ -433,7 +433,7 @@ it('keeps the connections section open when an account approval finishes', () =>
     </Onboarding>,
   );
   expect(section().open).toBe(true);
-  expect(screen.getByRole('alert').textContent).toContain('needs attention');
+  expect(screen.getByRole('alert').textContent).toContain('needs to be reconnected');
 });
 
 it('replays setup with the existing agent without creating another', async () => {
