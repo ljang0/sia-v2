@@ -687,11 +687,15 @@ it('lets the finished note step aside with a short exit before it is removed', (
   render(<SetupDoneToast onDone={done} />);
   const note = screen.getByRole('status');
   expect(note.dataset.leaving).toBeUndefined();
-  act(() => vi.advanceTimersByTime(6000));
+  act(() => {
+    vi.advanceTimersByTime(6000);
+  });
   expect(note.dataset.leaving).toBe('true');
   expect(done).not.toHaveBeenCalled();
   // A hidden window may never report the exit animation's end; the note still goes.
-  act(() => vi.advanceTimersByTime(400));
+  act(() => {
+    vi.advanceTimersByTime(400);
+  });
   expect(done).toHaveBeenCalled();
   vi.useRealTimers();
 });

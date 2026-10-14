@@ -399,7 +399,7 @@ it('settles only rows that turn ready while shown, not rows that were already al
   expect(row('Calendar')?.dataset.settled).toBeUndefined();
   expect(row('Safari')?.dataset.settled).toBeUndefined();
 
-  snapshot.computer.automation = { ...snapshot.computer.automation, safari: 'ready' };
+  snapshot.computer.automation = { ...snapshot.computer.automation!, safari: 'ready' };
   rerender();
   expect(row('Safari')?.dataset.state).toBe('ready');
   expect(row('Safari')?.dataset.settled).toBe('true');
