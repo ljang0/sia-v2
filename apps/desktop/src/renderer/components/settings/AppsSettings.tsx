@@ -197,7 +197,7 @@ export function AppsSettings({
           <p>
             {allConnected
               ? 'Both are connected. Choose which Google services your agents can use below.'
-              : 'Connect only what you need. Your workspace administrator may need to approve either connection.'}
+              : 'Connect only what you need. If you use these at work, your company may need to approve them.'}
           </p>
         </div>
         {allConnected ? null : (

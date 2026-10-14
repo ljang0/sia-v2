@@ -57,7 +57,7 @@ export function ScottySettings({ api }: { api: ScottySettingsApi }) {
             />
           </div>
           <span className={pet.name}>
-            <PawPrint size={16} /> YOUR DESKTOP COMPANION
+            <PawPrint size={16} /> Your desktop companion
           </span>
           <h3>Keep Sia within reach</h3>
           <p>

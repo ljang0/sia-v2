@@ -15,7 +15,7 @@
   max-width: 60ch;
   margin: 4px 0 0;
   color: var(--text-tertiary);
-  font-size: var(--text-xs);
+  font-size: var(--text-md);
   line-height: 1.45;
 }
 
@@ -47,7 +47,7 @@
 
 .adminSecurityReady strong,
 .adminSecuritySetup strong {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
 
@@ -55,7 +55,7 @@
 .adminSecuritySetup p {
   margin: 3px 0 0;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   line-height: 1.45;
 }
 
@@ -99,14 +99,14 @@
 }
 
 .cloudDangerZone strong {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
 
 .cloudDangerZone p {
   margin: 3px 0 0;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   line-height: 1.45;
 }
 
@@ -122,7 +122,7 @@
 
 .confirmationField input {
   width: 100%;
-  min-height: 40px;
+  min-height: var(--row-min);
   padding: 8px 11px;
   border: 1px solid var(--border-control);
   border-radius: var(--radius-control);

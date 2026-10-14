@@ -151,7 +151,7 @@ describe('cloud account settings', () => {
     fireEvent.click(screen.getByText('Account', { selector: 'span' }));
     expect(screen.getByText(/^Signed in as lawrence@example\.com\./)).toBeTruthy();
     expect(screen.getByText('Available for this account')).toBeTruthy();
-    expect(screen.getByText(/workspace administrator may need to approve/i)).toBeTruthy();
+    expect(screen.getByText(/your company may need to approve them/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
     expect(
       (screen.getByRole('button', { name: 'Connect selected apps' }) as HTMLButtonElement)
