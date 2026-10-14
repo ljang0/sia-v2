@@ -20,8 +20,22 @@ export interface AcpPeerHandle {
   dispose(): Promise<void>;
 }
 
+/**
+ * A dedicated harness process for one session: its own environment (private home, model
+ * endpoint) and the ACP model value to select. Disposed with the session.
+ */
+export interface AcpSessionProcess {
+  readonly env: Readonly<Record<string, string>>;
+  /**
+   * The ACP model value to select and confirm. Omit only when the process is configured for
+   * exactly one model and Sia's loopback model proxy rejects any other.
+   */
+  readonly model?: string;
+  dispose(): Promise<void>;
+}
+
 export interface AcpAdapterOptions {
-  readonly provider: Extract<ProviderId, 'grok' | 'gemini' | 'lab'>;
+  readonly provider: ProviderId;
   /**
    * Only a lab harness pinned by a signed testing manifest sets this. Grok and Gemini stay
    * disabled until a release passes Sia's harness admission checks.
@@ -38,6 +52,8 @@ export interface AcpAdapterOptions {
   readonly peerFactory?: () => Promise<AcpPeerHandle>;
   readonly mcpServerFactory?: (session: ProviderSessionOptions) => readonly AcpMcpServer[];
   readonly requestTimeoutMs?: number;
+  /** When set, every session runs in its own process prepared by this factory. */
+  readonly sessionProcess?: (session: ProviderSessionOptions) => Promise<AcpSessionProcess>;
 }
 
 export interface AcpMcpServer {
@@ -59,10 +75,23 @@ interface DeferredPermission {
   readonly reject: (error: Error) => void;
 }
 
+/** One permission option exactly as the harness offered it. */
+interface AcpPermissionOption {
+  readonly optionId: string;
+  readonly kind: string | undefined;
+}
+
 interface AcpSessionState {
   readonly session: ProviderSession;
   readonly instructions: string;
   instructionsPending: boolean;
+  /** Present when the session owns a dedicated process. */
+  readonly dedicated?: DedicatedPeer;
+}
+
+interface DedicatedPeer {
+  readonly handle: AcpPeerHandle;
+  readonly process: AcpSessionProcess;
 }
 
 interface AcpSelectConfig {
@@ -86,9 +115,9 @@ export function defaultAcpCommandArgs(
   return provider === 'grok' ? ['agent', 'stdio'] : [...GEMINI_ACP_ARGS];
 }
 
-/** Shared ACP v1 adapter used by Grok Build and Gemini CLI. */
+/** Shared ACP v1 adapter used by Grok Build, Gemini CLI, OpenCode, OpenHands and lab harnesses. */
 export class AcpAdapter implements ProviderAdapter {
-  readonly id: Extract<ProviderId, 'grok' | 'gemini' | 'lab'>;
+  readonly id: ProviderId;
   readonly productionEnabled: boolean;
   readonly #options: AcpAdapterOptions;
   readonly #supervisor: ProcessSupervisor;
@@ -133,31 +162,44 @@ export class AcpAdapter implements ProviderAdapter {
     options: ProviderSessionOptions,
     signal?: AbortSignal,
   ): Promise<ProviderSession> {
-    const peer = await this.#peer();
-    const result = await peer.request(
-      'session/new',
-      {
-        cwd: options.workspace,
-        mcpServers: this.#options.mcpServerFactory?.(options) ?? [],
-      },
-      { ...(signal ? { signal } : {}), timeoutMs: this.#timeout },
-    );
-    const nativeId = stringAt(result, ['sessionId'], ['session', 'id'], ['id']);
-    if (!nativeId) throw new Error(`${this.id} ACP session/new did not return a session id`);
-    await this.#selectModel(peer, nativeId, options.model, result, signal);
-    const session: ProviderSession = {
-      id: options.threadId,
-      provider: this.id,
-      nativeId,
-      threadId: options.threadId,
-    };
-    const instructions = options.instructions.trim();
-    this.#sessions.set(session.id, {
-      session,
-      instructions,
-      instructionsPending: instructions.length > 0,
-    });
-    return session;
+    await this.#releaseSession(options.threadId);
+    const dedicated = this.#options.sessionProcess
+      ? await this.#startDedicatedPeer(options)
+      : undefined;
+    try {
+      const peer = dedicated?.handle.peer ?? (await this.#peer());
+      const result = await peer.request(
+        'session/new',
+        {
+          cwd: options.workspace,
+          mcpServers: this.#options.mcpServerFactory?.(options) ?? [],
+        },
+        { ...(signal ? { signal } : {}), timeoutMs: this.#timeout },
+      );
+      const nativeId = stringAt(result, ['sessionId'], ['session', 'id'], ['id']);
+      if (!nativeId) throw new Error(`${this.id} ACP session/new did not return a session id`);
+      const requestedModel = dedicated ? dedicated.process.model : options.model;
+      if (requestedModel !== undefined) {
+        await this.#selectModel(peer, nativeId, requestedModel, result, signal);
+      }
+      const session: ProviderSession = {
+        id: options.threadId,
+        provider: this.id,
+        nativeId,
+        threadId: options.threadId,
+      };
+      const instructions = options.instructions.trim();
+      this.#sessions.set(session.id, {
+        session,
+        instructions,
+        instructionsPending: instructions.length > 0,
+        ...(dedicated ? { dedicated } : {}),
+      });
+      return session;
+    } catch (error) {
+      if (dedicated) await disposeDedicated(dedicated);
+      throw error;
+    }
   }
 
   async *sendTurn(
@@ -170,7 +212,7 @@ export class AcpAdapter implements ProviderAdapter {
       throw new Error(`Unknown ${this.id} session`);
     if (this.#active.has(session.nativeId))
       throw new Error(`A prompt is already active in this ${this.id} session`);
-    const peer = await this.#peer();
+    const peer = state.dedicated?.handle.peer ?? (await this.#peer());
     const active: ActivePrompt = {
       session,
       input,
@@ -241,7 +283,8 @@ export class AcpAdapter implements ProviderAdapter {
   async cancelTurn(session: ProviderSession, turnId: string): Promise<void> {
     const active = this.#active.get(session.nativeId);
     if (!active || active.input.turnId !== turnId) return;
-    const peer = await this.#peer();
+    const dedicated = this.#sessions.get(session.id)?.dedicated;
+    const peer = dedicated?.handle.peer ?? (await this.#peer());
     await peer.notify('session/cancel', { sessionId: session.nativeId });
   }
 
@@ -262,7 +305,11 @@ export class AcpAdapter implements ProviderAdapter {
     for (const active of this.#active.values())
       active.queue.fail(new Error('ACP adapter disposed'));
     this.#active.clear();
+    const dedicated = [...this.#sessions.values()].flatMap(({ dedicated: peer }) =>
+      peer ? [peer] : [],
+    );
     this.#sessions.clear();
+    await Promise.all(dedicated.map(disposeDedicated));
     await this.#peerHandle?.dispose();
     this.#peerHandle = undefined;
     this.#initializing = undefined;
@@ -281,20 +328,7 @@ export class AcpAdapter implements ProviderAdapter {
         ? await this.#options.peerFactory()
         : await this.#spawnPeer();
       this.#peerHandle = handle;
-      handle.peer.onNotification((method, params) => this.#onNotification(method, params));
-      handle.peer.onRequest(async (method, params) => await this.#onRequest(method, params));
-      await handle.peer.request(
-        'initialize',
-        {
-          protocolVersion: 1,
-          clientCapabilities: {
-            fs: { readTextFile: false, writeTextFile: false },
-            terminal: false,
-          },
-          clientInfo: { name: 'sia', version: '0.1.0' },
-        },
-        { timeoutMs: this.#timeout },
-      );
+      await this.#connect(handle);
       return handle.peer;
     })();
     try {
@@ -305,13 +339,54 @@ export class AcpAdapter implements ProviderAdapter {
     }
   }
 
-  async #spawnPeer(): Promise<AcpPeerHandle> {
+  async #connect(handle: AcpPeerHandle): Promise<void> {
+    handle.peer.onNotification((method, params) => this.#onNotification(method, params));
+    handle.peer.onRequest(async (method, params) => await this.#onRequest(method, params));
+    await handle.peer.request(
+      'initialize',
+      {
+        protocolVersion: 1,
+        clientCapabilities: {
+          fs: { readTextFile: false, writeTextFile: false },
+          terminal: false,
+        },
+        clientInfo: { name: 'sia', version: '0.1.0' },
+      },
+      { timeoutMs: this.#timeout },
+    );
+  }
+
+  async #startDedicatedPeer(options: ProviderSessionOptions): Promise<DedicatedPeer> {
+    const process = await this.#options.sessionProcess!(options);
+    let handle: AcpPeerHandle | undefined;
+    try {
+      handle = this.#options.peerFactory
+        ? await this.#options.peerFactory()
+        : await this.#spawnPeer(process.env);
+      await this.#connect(handle);
+      return { handle, process };
+    } catch (error) {
+      await handle?.dispose().catch(() => undefined);
+      await process.dispose();
+      throw error;
+    }
+  }
+
+  async #releaseSession(threadId: string): Promise<void> {
+    const previous = this.#sessions.get(threadId);
+    if (!previous?.dedicated) return;
+    this.#sessions.delete(threadId);
+    await disposeDedicated(previous.dedicated);
+  }
+
+  async #spawnPeer(env?: Readonly<Record<string, string>>): Promise<AcpPeerHandle> {
     const process = this.#supervisor.spawn({
       command: this.#options.command ?? this.id,
       args: [
         ...(this.#options.commandArgs ??
-          (this.id === 'lab' ? [] : defaultAcpCommandArgs(this.id))),
+          (this.id === 'grok' || this.id === 'gemini' ? defaultAcpCommandArgs(this.id) : [])),
       ],
+      ...(env ? { env } : {}),
     });
     await waitForProcessSpawn(process.child);
     process.child.stderr.resume();
@@ -495,9 +570,48 @@ export class AcpAdapter implements ProviderAdapter {
     const response = await new Promise<ProviderRequestResponse>((resolve, reject) => {
       this.#pendingPermissions.set(requestId, { resolve, reject });
     });
-    return response.choiceId
-      ? { outcome: { outcome: 'selected', optionId: response.choiceId } }
+    const offered = rawOptions.map((option, index) => {
+      const value = record(option);
+      return {
+        optionId: stringAt(value, ['optionId'], ['id']) ?? String(index),
+        kind: stringAt(value, ['kind']),
+      };
+    });
+    const optionId = permissionOptionId(offered, response.choiceId);
+    return optionId
+      ? { outcome: { outcome: 'selected', optionId } }
       : { outcome: { outcome: 'cancelled' } };
+  }
+}
+
+/**
+ * Sia answers with its own decision (`allow_once`, `allow_task`, `deny`); harnesses name their
+ * options freely, so the answer is matched by ACP option kind. Sia approves one action at a time,
+ * so a harness's "always allow" option is never chosen on the person's behalf.
+ */
+export function permissionOptionId(
+  offered: readonly AcpPermissionOption[],
+  choiceId: string | undefined,
+): string | undefined {
+  if (!choiceId) return undefined;
+  if (offered.length === 0) return choiceId;
+  if (offered.some(({ optionId }) => optionId === choiceId)) {
+    const exact = offered.find(({ optionId }) => optionId === choiceId)!;
+    if (exact.kind !== 'allow_always') return exact.optionId;
+  }
+  const wanted = choiceId === 'deny' ? ['reject_once', 'reject_always'] : ['allow_once'];
+  for (const kind of wanted) {
+    const match = offered.find((option) => option.kind === kind);
+    if (match) return match.optionId;
+  }
+  return undefined;
+}
+
+async function disposeDedicated(dedicated: DedicatedPeer): Promise<void> {
+  try {
+    await dedicated.handle.dispose();
+  } finally {
+    await dedicated.process.dispose();
   }
 }
 

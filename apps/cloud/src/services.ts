@@ -12,6 +12,7 @@ import type {
   InviteRepository,
   RegistrationRateLimitRepository,
   QuotaGate,
+  RemoteRelayStore,
   ResearchExportQueue,
   ResearchExportRepository,
   ResearchObjectStore,
@@ -54,6 +55,8 @@ export interface ServiceDependencies {
   metaProvider: MetaProvider;
   voiceProvider: VoiceProvider;
   quota: QuotaGate;
+  /** Paired phones for the encrypted phone relay; removed with the account. */
+  remoteDevices: Pick<RemoteRelayStore, 'deleteUserDevices'>;
   audit: AuditSink;
   config: {
     actionTtlSeconds: number;

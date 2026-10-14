@@ -318,7 +318,7 @@ it('marks phone turns so full bypass never applies to the plain HTTP link', asyn
   expect(invoke).toHaveBeenCalledWith('threads.send', {
     threadId: expect.any(String),
     text: command.text,
-    fromPhone: true,
+    fromPhone: 'unencrypted_link',
   });
   const remote = (await (await fetch(new URL('state', url))).json()) as RemoteState;
   expect(remote.approval).toBe('ask');
@@ -616,4 +616,52 @@ it('downloads only a generated result visible in the current phone conversation'
   const revoked = new URL(`results/${id}`, url);
   revoked.port = new URL(rotated.url!).port;
   expect((await fetch(revoked)).status).toBe(404);
+});
+
+it('uses only the encrypted relay, never the plain-HTTP server, when a relay is configured', async () => {
+  const { deps } = await setup();
+  const sockets: string[] = [];
+  const relayed = new PhoneRemote({
+    ...deps,
+    relay: {
+      relayUrl: 'wss://relay.example.test/v1',
+      pageUrl: 'https://sia.example.test/remote/',
+      idToken: async () => 'id-token',
+      connect: (url) => {
+        sockets.push(url);
+        // A relay that never answers: phone access stays "connecting".
+        return {
+          send: () => undefined,
+          close: () => undefined,
+          onopen: null,
+          onmessage: null,
+          onclose: null,
+          onerror: null,
+        };
+      },
+    },
+  });
+  cleanups.push(() => relayed.dispose());
+  await relayed.initialize();
+  const settings = await relayed.configure({ operation: 'enable', agentId });
+  expect(settings.url).toBeUndefined();
+  expect(settings.qr).toBeUndefined();
+  expect(settings.relay).toEqual({ connected: false, devices: [] });
+  expect(sockets).toEqual(['wss://relay.example.test/v1']);
+  await expect(relayed.configure({ operation: 'pair' })).rejects.toThrow('not connected');
+  await relayed.configure({ operation: 'disable' });
+  expect((await relayed.configure({ operation: 'status' })).running).toBe(false);
+});
+
+it('never lets the plain-HTTP Wi-Fi link approve a step', async () => {
+  const { post } = await setup();
+  const response = await post('approve', {
+    session: 'thread:turn',
+    approvalId: randomUUID(),
+    decision: 'approve',
+  });
+  expect(response.status).toBe(409);
+  expect(await response.json()).toEqual({
+    error: 'Approve or deny this step in Sia on your Mac.',
+  });
 });

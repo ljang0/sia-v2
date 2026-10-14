@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { OpenAiCompatibleMetaProvider } from '../../src/aws/meta-provider.js';
+import { HostedLabProvider } from '../../src/aws/meta-provider.js';
 import { SecretsManagerProvider } from '../../src/aws/secrets.js';
 import { CloudError } from '../../src/domain.js';
 import type { MetaConfig } from '../../src/ports.js';
@@ -15,7 +15,7 @@ const config: MetaConfig = {
   allowedModels: ['super_nova_ext'],
 };
 
-describe('OpenAI-compatible Meta adapter', () => {
+describe('Hosted lab upstream adapter', () => {
   it('authenticates the models endpoint and intersects it with the release allowlist', async () => {
     const originalFetch = globalThis.fetch;
     let request: { url: string; init: RequestInit | undefined } | undefined;
@@ -27,7 +27,7 @@ describe('OpenAI-compatible Meta adapter', () => {
     }) as typeof fetch;
 
     try {
-      const capabilities = await new OpenAiCompatibleMetaProvider().capabilities(config);
+      const capabilities = await new HostedLabProvider().capabilities(config);
 
       assert.deepEqual(capabilities, {
         models: ['super_nova_ext'],
@@ -70,7 +70,7 @@ describe('OpenAI-compatible Meta adapter', () => {
 
     try {
       const events = [];
-      for await (const event of new OpenAiCompatibleMetaProvider().stream(
+      for await (const event of new HostedLabProvider().stream(
         { ...config, maxOutputTokens: 4_096 },
         {
           turnId: 'turn-1',
@@ -96,6 +96,40 @@ describe('OpenAI-compatible Meta adapter', () => {
     }
   });
 
+  it('sends images to Chat Completions labs in their own part format', async () => {
+    const originalFetch = globalThis.fetch;
+    let submitted: Record<string, unknown> | undefined;
+    globalThis.fetch = (async (_input: URL | RequestInfo, init?: RequestInit) => {
+      submitted = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response('data: [DONE]\n\n', {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    }) as typeof fetch;
+    try {
+      for await (const _event of new HostedLabProvider().stream(config, {
+        turnId: 'turn-image',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'input_text', text: 'What is this?' },
+              { type: 'input_image', image_url: 'data:image/png;base64,AAAA', detail: 'low' },
+            ],
+          },
+        ],
+      })) {
+        // drain
+      }
+      assert.deepEqual((submitted?.messages as Array<Record<string, unknown>>)[0]?.content, [
+        { type: 'text', text: 'What is this?' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA', detail: 'low' } },
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('fails a stalled hosted-model request with a recoverable timeout', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async () => {
@@ -105,7 +139,7 @@ describe('OpenAI-compatible Meta adapter', () => {
     try {
       await assert.rejects(
         async () => {
-          for await (const _event of new OpenAiCompatibleMetaProvider().stream(config, {
+          for await (const _event of new HostedLabProvider().stream(config, {
             turnId: 'turn-timeout',
             sessionId: 'session-timeout',
             model: 'super_nova_ext',
@@ -150,7 +184,7 @@ describe('OpenAI-compatible Meta adapter', () => {
 
     try {
       const events = [];
-      for await (const event of new OpenAiCompatibleMetaProvider().stream(
+      for await (const event of new HostedLabProvider().stream(
         { ...config, apiProtocol: 'openai_responses', maxOutputTokens: 8_192 },
         {
           turnId: 'turn-responses',
@@ -182,6 +216,172 @@ describe('OpenAI-compatible Meta adapter', () => {
         ['started', 'delta', 'tool_call_delta', 'tool_call_delta', 'usage', 'done'],
       );
       assert.deepEqual(events.at(-1), { type: 'done', finishReason: 'tool_calls' });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('lists Anthropic models with Anthropic authentication', async () => {
+    const originalFetch = globalThis.fetch;
+    let request: { url: string; headers: Record<string, string> } | undefined;
+    globalThis.fetch = (async (input: URL | RequestInfo, init?: RequestInit) => {
+      request = { url: String(input), headers: init?.headers as Record<string, string> };
+      return Response.json({ data: [{ id: 'claude-lab' }] });
+    }) as typeof fetch;
+
+    try {
+      const capabilities = await new HostedLabProvider().capabilities({
+        ...config,
+        apiProtocol: 'anthropic_messages',
+        model: 'claude-lab',
+        allowedModels: ['claude-lab'],
+      });
+
+      assert.deepEqual(capabilities.models, ['claude-lab']);
+      assert.equal(request?.url, 'https://api.ai.meta.test/v1/models?limit=1000');
+      assert.equal(request?.headers['x-api-key'], 'meta-secret-never-returned');
+      assert.equal(request?.headers['anthropic-version'], '2023-06-01');
+      assert.equal('authorization' in (request?.headers ?? {}), false);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it('translates Anthropic Messages into the same bounded Sia stream contract', async () => {
+    const originalFetch = globalThis.fetch;
+    let requestUrl = '';
+    let submitted: Record<string, unknown> | undefined;
+    globalThis.fetch = (async (input: URL | RequestInfo, init?: RequestInit) => {
+      requestUrl = String(input);
+      submitted = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response(
+        [
+          'event: message_start',
+          'data: {"type":"message_start","message":{"usage":{"input_tokens":10,"cache_read_input_tokens":2}}}',
+          '',
+          'data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}',
+          '',
+          'data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"HELLO"}}',
+          '',
+          'data: {"type":"content_block_start","index":1,"content_block":{"type":"tool_use","id":"toolu_1","name":"mail_search","input":{}}}',
+          '',
+          'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{\\"query\\":"}}',
+          '',
+          'data: {"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\\"today\\"}"}}',
+          '',
+          'data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":4}}',
+          '',
+          'data: {"type":"message_stop"}',
+          '',
+        ].join('\n'),
+        { status: 200, headers: { 'content-type': 'text/event-stream' } },
+      );
+    }) as typeof fetch;
+
+    try {
+      const events = [];
+      for await (const event of new HostedLabProvider().stream(
+        { ...config, apiProtocol: 'anthropic_messages', model: 'claude-lab' },
+        {
+          turnId: 'turn-anthropic',
+          sessionId: 'session-anthropic',
+          messages: [
+            { role: 'system', content: 'Be brief.' },
+            {
+              role: 'user',
+              content: [
+                { type: 'input_text', text: 'Find mail' },
+                { type: 'input_image', image_url: 'data:image/png;base64,AAAA' },
+              ],
+            },
+            {
+              role: 'assistant',
+              content: '',
+              tool_calls: [
+                {
+                  id: 'toolu_0',
+                  type: 'function',
+                  function: { name: 'mail_search', arguments: '{"query":"x"}' },
+                },
+              ],
+            },
+            { role: 'tool', tool_call_id: 'toolu_0', content: 'no results' },
+            { role: 'user', content: 'Try today' },
+          ],
+          tools: [
+            {
+              type: 'function',
+              function: { name: 'mail_search', parameters: { type: 'object' } },
+            },
+          ],
+        },
+      )) {
+        events.push(event);
+      }
+
+      assert.equal(requestUrl, 'https://api.ai.meta.test/v1/messages');
+      assert.equal(submitted?.model, 'claude-lab');
+      assert.equal(submitted?.max_tokens, 8_192);
+      assert.equal(submitted?.system, 'Be brief.');
+      assert.deepEqual(submitted?.tools, [
+        { name: 'mail_search', input_schema: { type: 'object' } },
+      ]);
+      assert.deepEqual(submitted?.messages, [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: 'Find mail' },
+            {
+              type: 'image',
+              source: { type: 'base64', media_type: 'image/png', data: 'AAAA' },
+            },
+          ],
+        },
+        {
+          role: 'assistant',
+          content: [
+            { type: 'tool_use', id: 'toolu_0', name: 'mail_search', input: { query: 'x' } },
+          ],
+        },
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'tool_result',
+              tool_use_id: 'toolu_0',
+              content: [{ type: 'text', text: 'no results' }],
+            },
+            { type: 'text', text: 'Try today' },
+          ],
+        },
+      ]);
+      assert.deepEqual(events.slice(1), [
+        { type: 'delta', text: 'HELLO' },
+        {
+          type: 'tool_call_delta',
+          delta: [
+            { index: 0, id: 'toolu_1', function: { name: 'mail_search', arguments: '' } },
+          ],
+        },
+        {
+          type: 'tool_call_delta',
+          delta: [{ index: 0, function: { name: '', arguments: '{"query":' } }],
+        },
+        {
+          type: 'tool_call_delta',
+          delta: [{ index: 0, function: { name: '', arguments: '"today"}' } }],
+        },
+        {
+          type: 'usage',
+          usage: {
+            prompt_tokens: 12,
+            completion_tokens: 4,
+            total_tokens: 16,
+            prompt_tokens_details: { cached_tokens: 2 },
+          },
+        },
+        { type: 'done', finishReason: 'tool_calls' },
+      ]);
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -246,6 +446,79 @@ describe('hosted model lab secret configuration', () => {
         credentialSource: 'provider_api',
       },
     ]);
+  });
+
+  it('loads sponsor credit and expiry, and rejects a malformed expiry', async () => {
+    const load = (overrides: Record<string, unknown>) =>
+      new SecretsManagerProvider(
+        {
+          send: async () => ({
+            SecretString: JSON.stringify({
+              apiKey: 'sponsor-test-key-never-used',
+              endpoint: 'https://sponsor.example/v1',
+              model: 'sponsor/model',
+              apiProtocol: 'anthropic_messages',
+              enabled: true,
+              ...overrides,
+            }),
+          }),
+        } as never,
+        'meta-secret',
+        'voice-secret',
+        'composio-secret',
+        'google-secret',
+        'registration-secret',
+      ).meta();
+
+    const parsed = await load({
+      creditTokenLimit: 50_000_000,
+      availableUntil: '2027-01-01T00:00:00Z',
+    });
+    assert.equal(parsed.creditTokenLimit, 50_000_000);
+    assert.equal(parsed.availableUntil, '2027-01-01T00:00:00Z');
+    assert.equal(parsed.apiProtocol, 'anthropic_messages');
+    await assert.rejects(
+      load({ availableUntil: 'next month' }),
+      (error: unknown) => error instanceof CloudError && error.code === 'secret_invalid',
+    );
+  });
+
+  it('lets a Sia-managed harness route speak a protocol the relay translates', async () => {
+    const load = (credentialSource: string) =>
+      new SecretsManagerProvider(
+        {
+          send: async () => ({
+            SecretString: JSON.stringify({
+              apiKey: 'sponsor-test-key-never-used',
+              endpoint: 'https://sponsor.example/v1',
+              model: 'sponsor/model',
+              apiProtocol: 'openai_chat_completions',
+              enabled: true,
+              defaultHarnessId: 'claude_code',
+              harnessRoutes: [
+                {
+                  model: 'sponsor/model',
+                  harnessId: 'claude_code',
+                  harnessModelId: 'sponsor/model',
+                  credentialSource,
+                  apiProtocol: 'anthropic_messages',
+                },
+              ],
+            }),
+          }),
+        } as never,
+        'meta-secret',
+        'voice-secret',
+        'composio-secret',
+        'google-secret',
+        'registration-secret',
+      ).meta();
+
+    assert.equal((await load('sia_managed')).defaultHarnessId, 'claude_code');
+    await assert.rejects(
+      load('provider_api'),
+      (error: unknown) => error instanceof CloudError && error.code === 'secret_invalid',
+    );
   });
 
   it('fails closed when two labs advertise the same canonical model', async () => {

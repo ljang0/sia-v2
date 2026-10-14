@@ -176,7 +176,7 @@ interface Dependencies {
 
 /**
  * Text Sia from your phone. Polls the local Messages database for one-to-one iMessages from
- * trusted handles, runs each as a phone turn (actions always ask on the Mac, never full bypass),
+ * the owner's own handles, runs each as an own-device phone turn (following the Computer setting),
  * and texts the result back to the same handle. Off until the person turns it on.
  */
 export class MessagesRelay {
@@ -524,8 +524,8 @@ export class MessagesRelay {
   }
 
   /**
-   * A marked message from a trusted person's Sia. It runs as a phone turn (every action asks,
-   * never full bypass), framed as information rather than instructions, in that person's own
+   * A marked message from a trusted person's Sia. It runs as a trusted-person phone turn (every
+   * action asks, never bypass), framed as information rather than instructions, in that person's own
    * thread. Any answer goes through the approved messages_send, so the owner approves each
    * message before it leaves the Mac. Unknown senders, unmarked texts and paused connections
    * are ignored, and each person is limited to a few messages an hour.
@@ -596,7 +596,7 @@ export class MessagesRelay {
       const { turnId } = await this.#deps.controller.invoke('threads.send', {
         threadId: target,
         text,
-        fromPhone: true,
+        fromPhone: 'trusted_person',
       });
       if (!current()) return;
       this.#tracked.set(target, {
@@ -936,7 +936,7 @@ export class MessagesRelay {
       const { turnId } = await this.#deps.controller.invoke('threads.send', {
         threadId: target,
         text,
-        fromPhone: true,
+        fromPhone: 'own_device',
         ...(attachmentIds.length ? { attachmentIds } : {}),
       });
       if (!current()) return;

@@ -16,7 +16,8 @@ export class MetaService {
       return unavailableMetaCapabilities('Hosted models are temporarily unavailable');
     }
     const config = await this.deps.secrets.meta();
-    const labs = hostedLabConfigs(config).filter(({ enabled }) => enabled);
+    const now = this.deps.clock.now();
+    const labs = hostedLabConfigs(config).filter((lab) => labActive(lab, now));
     if (labs.length === 0) {
       return unavailableMetaCapabilities('Hosted models are temporarily unavailable');
     }
@@ -43,10 +44,10 @@ export class MetaService {
     const config = await this.deps.secrets.meta();
     const providers = await Promise.all(
       hostedLabConfigs(config).map(async (lab) => {
-        const id = lab.catalogId ?? 'meta';
+        const id = labIdOf(lab);
         const name = lab.displayName ?? 'Included model';
         const limits = metaLimits(this.deps, lab);
-        if (!lab.enabled) {
+        if (!labActive(lab, this.deps.clock.now()) || (await this.#creditExhausted(lab))) {
           return hostedModelCatalogEntry(lab, id, name, limits, false, []);
         }
         try {
@@ -75,28 +76,34 @@ export class MetaService {
     }
     const config = await this.deps.secrets.meta();
     const window = dailyQuotaWindow(this.deps.clock.now());
-    const usage = await this.deps.quota.getMetaUsage(user.subject, window.period);
     return {
       schemaVersion: 1 as const,
-      providers: hostedLabConfigs(config).map((lab) => {
-        const limits = metaLimits(this.deps, lab);
-        return {
-          id: lab.catalogId ?? 'meta',
-          period: {
-            startsAt: `${window.period}T00:00:00.000Z`,
-            endsAt: nextUtcDay(window.period),
-          },
-          usage,
-          limits: {
-            requests: limits.requestLimit,
-            tokens: limits.tokenLimit,
-          },
-          remaining: {
-            requests: Math.max(0, limits.requestLimit - usage.requests),
-            tokens: Math.max(0, limits.tokenLimit - usage.totalTokens),
-          },
-        };
-      }),
+      providers: await Promise.all(
+        hostedLabConfigs(config).map(async (lab) => {
+          const limits = metaLimits(this.deps, lab);
+          const usage = await this.deps.quota.getMetaUsage(
+            user.subject,
+            labIdOf(lab),
+            window.period,
+          );
+          return {
+            id: labIdOf(lab),
+            period: {
+              startsAt: `${window.period}T00:00:00.000Z`,
+              endsAt: nextUtcDay(window.period),
+            },
+            usage,
+            limits: {
+              requests: limits.requestLimit,
+              tokens: limits.tokenLimit,
+            },
+            remaining: {
+              requests: Math.max(0, limits.requestLimit - usage.requests),
+              tokens: Math.max(0, limits.tokenLimit - usage.totalTokens),
+            },
+          };
+        }),
+      ),
     };
   }
 
@@ -106,8 +113,9 @@ export class MetaService {
     validateMetaRequest(request);
     const rootConfig = await this.deps.secrets.meta();
     const requestedModel = request.model?.trim();
+    const now = this.deps.clock.now();
     const config = hostedLabConfigs(rootConfig).find((lab) => {
-      if (!lab.enabled) return false;
+      if (!labActive(lab, now)) return false;
       const models = lab.allowedModels ?? [lab.model];
       return requestedModel ? models.includes(requestedModel) : lab === rootConfig;
     });
@@ -124,13 +132,24 @@ export class MetaService {
     if (config.allowedModels && !config.allowedModels.includes(model)) {
       throw new CloudError(400, 'meta_model_not_allowed', 'That hosted model is not enabled');
     }
-    const window = dailyQuotaWindow(this.deps.clock.now());
+    const window = dailyQuotaWindow(now);
     const limits = metaLimits(this.deps, config);
+    const labId = labIdOf(config);
     const lease = await this.deps.quota.acquireMeta(user.subject, {
       ...window,
+      labId,
       requestLimit: limits.requestLimit,
       tokenLimit: limits.tokenLimit,
+      ...(config.creditTokenLimit === undefined
+        ? {}
+        : { creditTokenLimit: config.creditTokenLimit }),
     });
+    const attribution = {
+      ...window,
+      labId,
+      model,
+      harnessId: request.harnessId ?? 'unknown',
+    };
     let usage: MetaTokenUsage | undefined;
     let usageRecorded = false;
     let doneEvent: Extract<MetaStreamEvent, { type: 'done' }> | undefined;
@@ -148,21 +167,37 @@ export class MetaService {
         if (event.type === 'done') doneEvent = event;
         else yield event;
       }
-      if (usage) {
-        await this.deps.quota.recordMetaUsage(user.subject, window, usage);
-        usageRecorded = true;
-      }
+      await this.deps.quota.recordMetaUsage(user.subject, attribution, usage ?? NO_TOKENS);
+      usageRecorded = true;
       if (doneEvent) yield doneEvent;
     } finally {
       try {
-        if (usage && !usageRecorded) {
-          await this.deps.quota.recordMetaUsage(user.subject, window, usage);
+        // Every admitted request is attributed, even one that fails before reporting usage.
+        if (!usageRecorded) {
+          await this.deps.quota.recordMetaUsage(user.subject, attribution, usage ?? NO_TOKENS);
         }
       } finally {
         await lease.release();
       }
     }
   }
+
+  async #creditExhausted(lab: HostedLabConfig): Promise<boolean> {
+    if (lab.creditTokenLimit === undefined) return false;
+    return (await this.deps.quota.getLabCreditUsage(labIdOf(lab))) >= lab.creditTokenLimit;
+  }
+}
+
+const NO_TOKENS: MetaTokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+
+function labIdOf(lab: HostedLabConfig): string {
+  return lab.catalogId ?? 'meta';
+}
+
+/** Disabled and expired labs (for example, after sponsor credit ends) are never offered. */
+function labActive(lab: HostedLabConfig, now: Date): boolean {
+  if (!lab.enabled) return false;
+  return lab.availableUntil === undefined || now.getTime() < Date.parse(lab.availableUntil);
 }
 
 function validateMetaRequest(request: MetaTurnRequest): void {

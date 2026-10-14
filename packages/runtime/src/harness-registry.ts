@@ -9,6 +9,7 @@ import type {
 
 export interface HarnessDefinition {
   readonly id: HarnessId;
+  /** Shown to people where they can choose the engine that runs a model. */
   readonly name: string;
   readonly modelProtocols: readonly ModelApiProtocol[];
   readonly credentialSources: readonly CredentialSource[];
@@ -24,7 +25,7 @@ export interface HarnessDefinition {
 export const BUILTIN_HARNESS_DEFINITIONS = [
   {
     id: 'codex_app_server',
-    name: 'Codex app server',
+    name: 'Codex',
     modelProtocols: ['openai_responses'],
     credentialSources: ['provider_subscription', 'provider_api', 'sia_managed', 'user_byok'],
     productionEnabled: true,
@@ -33,8 +34,9 @@ export const BUILTIN_HARNESS_DEFINITIONS = [
     id: 'claude_code',
     name: 'Claude Code',
     modelProtocols: ['anthropic_messages'],
-    credentialSources: ['provider_subscription'],
-    // Retained so existing Claude threads keep their pinned route; not a release choice.
+    // `sia_managed` reaches included models through the loopback model proxy.
+    credentialSources: ['provider_subscription', 'sia_managed'],
+    // Not a release choice until the conformance matrix passes in the signed app.
     productionEnabled: false,
   },
   {
@@ -46,16 +48,26 @@ export const BUILTIN_HARNESS_DEFINITIONS = [
   },
   {
     id: 'opencode_acp',
-    name: 'OpenCode ACP',
+    name: 'OpenCode',
     modelProtocols: ['openai_responses', 'openai_chat_completions', 'anthropic_messages'],
-    credentialSources: ['provider_subscription', 'provider_api'],
+    // `sia_managed` reaches included models through the loopback model proxy (Responses).
+    credentialSources: ['provider_subscription', 'provider_api', 'sia_managed'],
+    productionEnabled: false,
+  },
+  {
+    id: 'openhands_acp',
+    name: 'OpenHands',
+    // LiteLLM's `openai/` route; included models only, through the loopback model proxy.
+    modelProtocols: ['openai_chat_completions'],
+    credentialSources: ['sia_managed'],
     productionEnabled: false,
   },
   {
     id: 'pi_rpc',
-    name: 'Pi RPC',
+    name: 'Pi',
     modelProtocols: ['openai_responses', 'openai_chat_completions', 'anthropic_messages'],
-    credentialSources: ['provider_subscription', 'provider_api'],
+    // `sia_managed` reaches included models through the loopback model proxy (Responses).
+    credentialSources: ['provider_subscription', 'provider_api', 'sia_managed'],
     productionEnabled: false,
   },
   {

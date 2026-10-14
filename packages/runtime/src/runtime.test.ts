@@ -21,13 +21,18 @@ import {
 import { CodexAppServerAdapter } from './providers/codex.js';
 import {
   AcpAdapter,
+  permissionOptionId,
   createGeminiAdapter,
   createAcpAdapter,
   createGrokAdapter,
   defaultAcpCommandArgs,
 } from './providers/acp.js';
+import { openCodeConfig } from './providers/opencode.js';
+import { openHandsAgentSettings } from './providers/openhands.js';
+import { piArgs, piMcpConfig, piModels } from './providers/pi.js';
 import {
   claudeCliArgs,
+  claudeEndpointEnvironment,
   claudeMcpConfig,
   ClaudeCliAdapter,
   parseClaudeAuthStatus,
@@ -355,6 +360,69 @@ describe('CLI discovery', () => {
     );
   });
 
+  it('lets an adapter route a harness to the model proxy without inheriting personal keys', () => {
+    expect(
+      sanitizedEnvironment(
+        {
+          PATH: '/bin',
+          ANTHROPIC_API_KEY: 'personal-key',
+          CLAUDE_CONFIG_DIR: '/Users/me/.claude',
+        },
+        { ANTHROPIC_API_KEY: 'loopback-capability', ANTHROPIC_BASE_URL: 'http://127.0.0.1:1' },
+      ),
+    ).toEqual({
+      PATH: '/bin',
+      ANTHROPIC_API_KEY: 'loopback-capability',
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:1',
+    });
+    expect(() => sanitizedEnvironment({}, { ANTHROPIC_AUTH_TOKEN: 'no' })).toThrow(
+      /not permitted/,
+    );
+  });
+
+  it('points Claude Code at one scoped model on a loopback endpoint with a private config', () => {
+    expect(
+      claudeEndpointEnvironment(
+        { baseUrl: 'http://127.0.0.1:4100/v1', apiKey: 'capability' },
+        'sponsor/model',
+        '/tmp/sia-claude-x/config',
+      ),
+    ).toEqual({
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:4100',
+      ANTHROPIC_API_KEY: 'capability',
+      ANTHROPIC_MODEL: 'sponsor/model',
+      ANTHROPIC_SMALL_FAST_MODEL: 'sponsor/model',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'sponsor/model',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'sponsor/model',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'sponsor/model',
+      CLAUDE_CONFIG_DIR: '/tmp/sia-claude-x/config',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      DISABLE_AUTOUPDATER: '1',
+      DISABLE_TELEMETRY: '1',
+      DISABLE_ERROR_REPORTING: '1',
+    });
+  });
+
+  it("runs Claude Code for an included model without the person's Claude account", async () => {
+    const runner = {
+      run: vi.fn(async () => ({ code: 1, stdout: '', stderr: 'not logged in' })),
+    };
+    const adapter = new ClaudeCliAdapter({
+      providerId: 'meta',
+      accountOverride: {
+        state: 'authenticated',
+        label: 'Included with Sia',
+        billing: 'included',
+      },
+      modelEndpoint: async () => ({ baseUrl: 'http://127.0.0.1:1/v1', apiKey: 'capability' }),
+      commandRunner: runner,
+    });
+    expect(adapter.id).toBe('meta');
+    await expect(adapter.account()).resolves.toMatchObject({ billing: 'included' });
+    expect(runner.run).not.toHaveBeenCalled();
+    await adapter.dispose();
+  });
+
   it('observes provider spawn failures without creating a second rejected promise', async () => {
     const supervisor = new ProcessSupervisor();
     const process = supervisor.spawn({
@@ -605,6 +673,188 @@ describe('Codex app-server adapter', () => {
       },
     });
     await adapter.dispose();
+  });
+
+  it('gives each ACP session its own process, model and cleanup when asked', async () => {
+    const spawned: Array<{ model: string; disposed: boolean }> = [];
+    const sessionNews: unknown[] = [];
+    const adapter = new AcpAdapter({
+      provider: 'meta',
+      productionEnabled: true,
+      supportedVersions: { minimum: '0.0.0' },
+      sessionProcess: async (session) => {
+        const record = { model: `sia/${session.model}`, disposed: false };
+        spawned.push(record);
+        return {
+          env: { HOME: `/tmp/${session.threadId}` },
+          model: record.model,
+          dispose: async () => {
+            record.disposed = true;
+          },
+        };
+      },
+      peerFactory: async () => {
+        const peers = linkedPeers();
+        peers.server.onRequest(async (method, params) => {
+          if (method === 'initialize') return { protocolVersion: 1 };
+          if (method === 'session/new') {
+            sessionNews.push(params);
+            const current = spawned.at(-1)!.model;
+            return {
+              sessionId: `native-${sessionNews.length}`,
+              configOptions: [
+                {
+                  id: 'model',
+                  category: 'model',
+                  type: 'select',
+                  currentValue: current,
+                  options: [{ value: current }],
+                },
+              ],
+            };
+          }
+          throw new Error(`unexpected ${method}`);
+        });
+        return {
+          peer: peers.client,
+          dispose: async () => {
+            await peers.client.close();
+            await peers.server.close();
+          },
+        };
+      },
+    });
+
+    await adapter.createSession({ ...sessionOptions, model: 'sponsor/one' });
+    await adapter.createSession({
+      ...sessionOptions,
+      threadId: 'thread-2',
+      model: 'sponsor/two',
+    });
+    // Re-creating a thread's session replaces (and cleans up) its previous process.
+    await adapter.createSession({ ...sessionOptions, model: 'sponsor/one' });
+    expect(spawned.map(({ model, disposed }) => [model, disposed])).toEqual([
+      ['sia/sponsor/one', true],
+      ['sia/sponsor/two', false],
+      ['sia/sponsor/one', false],
+    ]);
+    await adapter.dispose();
+    expect(spawned.every(({ disposed }) => disposed)).toBe(true);
+  });
+
+  it('answers harness permission prompts by option kind, never with an "always" option', () => {
+    const openHands = [
+      { optionId: 'accept', kind: 'allow_once' },
+      { optionId: 'reject', kind: 'reject_once' },
+      { optionId: 'always_proceed', kind: 'allow_always' },
+      { optionId: 'risk_based', kind: 'allow_once' },
+    ];
+    expect(permissionOptionId(openHands, 'allow_once')).toBe('accept');
+    expect(permissionOptionId(openHands, 'allow_task')).toBe('accept');
+    expect(permissionOptionId(openHands, 'deny')).toBe('reject');
+    expect(permissionOptionId(openHands, 'always_proceed')).toBe('accept');
+    expect(permissionOptionId(openHands, undefined)).toBeUndefined();
+    // Fails closed when the harness offers no one-time allow.
+    expect(
+      permissionOptionId([{ optionId: 'always', kind: 'allow_always' }], 'allow_once'),
+    ).toBe(undefined);
+    // Harnesses whose ids already match Sia's keep working.
+    expect(
+      permissionOptionId(
+        [
+          { optionId: 'allow_once', kind: 'allow_once' },
+          { optionId: 'deny', kind: 'reject_once' },
+        ],
+        'deny',
+      ),
+    ).toBe('deny');
+  });
+
+  it('writes OpenHands settings for only the scoped model on the loopback endpoint', () => {
+    expect(
+      openHandsAgentSettings(
+        { baseUrl: 'http://127.0.0.1:4100/v1', apiKey: 'cap' },
+        'sponsor/m',
+      ),
+    ).toEqual({
+      kind: 'Agent',
+      llm: {
+        model: 'openai/sponsor/m',
+        base_url: 'http://127.0.0.1:4100/v1',
+        api_key: 'cap',
+        usage_id: 'agent',
+      },
+      tools: [],
+    });
+  });
+
+  it('starts Pi with only the scoped Sia model and Sia tools and nothing inherited', () => {
+    expect(
+      piModels({ baseUrl: 'http://127.0.0.1:4100/v1', apiKey: 'cap' }, 'sponsor/m'),
+    ).toEqual({
+      providers: {
+        sia: {
+          baseUrl: 'http://127.0.0.1:4100/v1',
+          api: 'openai-responses',
+          apiKey: 'cap',
+          models: [{ id: 'sponsor/m' }],
+        },
+      },
+    });
+    expect(
+      piMcpConfig([
+        {
+          name: 'sia',
+          command: '/bin/bridge',
+          args: ['--x'],
+          env: [{ name: 'T', value: '1' }],
+        },
+      ]),
+    ).toEqual({
+      mcpServers: {
+        sia: { command: '/bin/bridge', args: ['--x'], env: { T: '1' }, exposure: 'direct' },
+      },
+    });
+    const args = piArgs('sponsor/m', ' Be brief. ');
+    for (const flag of [
+      '--no-session',
+      '--no-extensions',
+      '--no-skills',
+      '--no-prompt-templates',
+      '--no-themes',
+      '--no-context-files',
+      '--no-approve',
+      '--offline',
+    ])
+      expect(args).toContain(flag);
+    expect(args.join(' ')).toContain('--provider sia --model sponsor/m');
+    expect(args.join(' ')).toContain('-e builtin:mcp --tools mcp__sia__*');
+    expect(args.slice(-2)).toEqual(['--append-system-prompt', 'Be brief.']);
+    expect(piArgs('sponsor/m', '   ')).not.toContain('--append-system-prompt');
+  });
+
+  it('configures OpenCode with only the scoped Sia model and Sia tools', () => {
+    expect(
+      openCodeConfig(
+        { baseUrl: 'http://127.0.0.1:4100/v1', apiKey: 'capability' },
+        'sponsor/m',
+      ),
+    ).toMatchObject({
+      autoupdate: false,
+      share: 'disabled',
+      enabled_providers: ['sia'],
+      provider: {
+        sia: {
+          npm: '@ai-sdk/openai',
+          options: { baseURL: 'http://127.0.0.1:4100/v1', apiKey: 'capability' },
+          models: { 'sponsor/m': { name: 'sponsor/m' } },
+        },
+      },
+      model: 'sia/sponsor/m',
+      small_model: 'sia/sponsor/m',
+      tools: { '*': false, 'sia_*': true },
+      permission: { '*': 'deny', 'sia_*': 'allow' },
+    });
   });
 
   it('runs the official Codex ChatGPT browser login and verifies the connected plan', async () => {

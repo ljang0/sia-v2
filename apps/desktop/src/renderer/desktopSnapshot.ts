@@ -214,6 +214,10 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
           description: model.description,
           reasoningEfforts: [...model.reasoningEfforts],
           defaultReasoningEffort: model.defaultReasoningEffort,
+          ...(model.lab ? { lab: { ...model.lab } } : {}),
+          ...(model.harnesses
+            ? { harnesses: model.harnesses.map((harness) => ({ ...harness })) }
+            : {}),
         })),
       };
     }),

@@ -17,9 +17,10 @@ Provider availability is a legal and product boundary as well as an engineering 
   fails closed and marks Meta ready only after a signed-in session completes the authenticated live
   capability check against the deployed relay and the configured model appears in the provider's
   live model list. Configuration plus sign-in alone never counts as readiness.
-  The user-facing contract is **included for signed-in Sia accounts**, with daily request/token
-  allowances, a two-turn per-account concurrency limit, and operator kill switches. The user
-  supplies no Meta key; Sia owns the shared provider account.
+  The user-facing contract is **included for signed-in Sia accounts**, with per-lab daily
+  request/token allowances, optional sponsor credit ceilings and expiry, a two-turn per-account
+  concurrency limit, and operator kill switches. The user supplies no Meta key; Sia owns the
+  shared provider account.
   Internal model acceptance uses the separate `MetaTesters` Cognito group. That group grants the
   signed release and hosted-model relay only; it must not imply participant, research-upload, schedule,
   connector, or archive access.

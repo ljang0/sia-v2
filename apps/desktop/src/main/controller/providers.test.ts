@@ -1027,6 +1027,7 @@ describe('DesktopController', () => {
       expect(controller.snapshot().providers.find(({ id }) => id === 'meta')).toMatchObject({
         status: 'ready',
         model: 'super_nova_ext',
+        models: [{ id: 'super_nova_ext', lab: { id: 'meta', name: 'Muse Spark' } }],
       });
       const created = await controller.invoke('agents.save', {
         name: 'Included model tester',
@@ -1055,4 +1056,139 @@ describe('DesktopController', () => {
       vi.unstubAllGlobals();
     }
   });
+  it.each([
+    { preview: [] as string[], harnessId: 'codex_app_server' },
+    { preview: ['claude_code'], harnessId: 'claude_code' },
+  ])(
+    'runs an included model in a non-release harness only when a signed manifest previews it (%j)',
+    async ({ preview, harnessId }) => {
+      const identity = {
+        initialize: async () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+        status: () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+        startEmailSignIn: async () => ({ state: 'signed_in' as const }),
+        completeEmailSignIn: async () => ({ state: 'signed_in' as const }),
+        refreshSession: async () => ({
+          state: 'signed_in' as const,
+          email: 'person@example.com',
+        }),
+        signOut: async () => ({ state: 'signed_out' as const }),
+      } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: URL | RequestInfo) => {
+          const url = String(input);
+          if (url.endsWith('/v1/session')) {
+            return Response.json({
+              admin: false,
+              features: {
+                researchUploads: false,
+                researchArchive: false,
+                connectors: false,
+                schedules: false,
+              },
+            });
+          }
+          if (url.endsWith('/v1/meta/capabilities')) {
+            return Response.json({
+              available: true,
+              models: ['arena/claude'],
+              streaming: true,
+              tools: true,
+            });
+          }
+          if (url.endsWith('/v1/catalog')) {
+            const route = (id: string, apiProtocol: string) => ({
+              model: 'arena/claude',
+              harnessId: id,
+              harnessModelId: 'arena/claude',
+              credentialSource: 'sia_managed',
+              apiProtocol,
+            });
+            return Response.json({
+              schemaVersion: 1,
+              providers: [
+                {
+                  id: 'arena',
+                  name: 'Arena',
+                  kind: 'hosted',
+                  credentialMode: 'managed',
+                  available: true,
+                  defaultModel: 'arena/claude',
+                  models: [
+                    {
+                      id: 'arena/claude',
+                      name: 'Claude',
+                      apiProtocols: ['openai_responses', 'anthropic_messages'],
+                    },
+                  ],
+                  capabilities: { streaming: true, tools: true },
+                  execution: {
+                    defaultHarnessId: 'claude_code',
+                    routes: [
+                      route('codex_app_server', 'openai_responses'),
+                      route('claude_code', 'anthropic_messages'),
+                    ],
+                  },
+                  limits: { dailyRequests: 100, dailyTokens: 250_000, maxOutputTokens: 4_096 },
+                },
+              ],
+            });
+          }
+          throw new Error(`Unexpected cloud request: ${url}`);
+        }),
+      );
+      try {
+        const { controller } = await createHarness({
+          fakeServices: false,
+          defaultWorkspaceRoot: '/tmp/Sia/Agents',
+          createDirectory: async () => undefined,
+          cloud: new CloudClient('https://api.example.test', {
+            read: async () => 'test-id-token',
+          }),
+          identity,
+          previewHarnesses: preview,
+        });
+        await controller.invoke('providers.probe', { providerId: 'meta' });
+        const created = await controller.invoke('agents.save', {
+          name: 'Arena tester',
+          instructions: '',
+          provider: 'meta',
+          model: 'arena/claude',
+        });
+        expect(
+          created.snapshot.threads.find(({ id }) => id === created.snapshot.activeThreadId)
+            ?.resolvedExecutionTarget,
+        ).toMatchObject({ harnessId, credentialSource: 'sia_managed' });
+        const offered = controller
+          .snapshot()
+          .providers.find(({ id }) => id === 'meta')
+          ?.models?.find(({ id }) => id === 'arena/claude')?.harnesses;
+        expect(offered).toEqual(
+          preview.length
+            ? [
+                { id: 'codex_app_server', name: 'Codex' },
+                { id: 'claude_code', name: 'Claude Code' },
+              ]
+            : undefined,
+        );
+        if (preview.length) {
+          // An explicit engine choice overrides the catalog's default harness.
+          const pinned = await controller.invoke('agents.save', {
+            name: 'Arena on Codex',
+            instructions: '',
+            provider: 'meta',
+            model: 'arena/claude',
+            harnessPreference: { mode: 'explicit', harnessId: 'codex_app_server' },
+          });
+          expect(
+            pinned.snapshot.threads.find(({ id }) => id === pinned.snapshot.activeThreadId)
+              ?.resolvedExecutionTarget,
+          ).toMatchObject({ harnessId: 'codex_app_server' });
+        }
+        await controller.shutdown();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    },
+  );
 });

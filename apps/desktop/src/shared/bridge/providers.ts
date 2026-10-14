@@ -1,6 +1,16 @@
 // Model providers, their models and plan usage, and the execution route a thread pins.
 
-export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude' | 'byok' | 'lab';
+/** Mirrors `providerIdSchema` in @sia/protocol; the main process asserts they match at compile time. */
+export const PROVIDER_IDS = [
+  'codex',
+  'meta',
+  'grok',
+  'gemini',
+  'claude',
+  'byok',
+  'lab',
+] as const;
+export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 /** Safe catalog id. Executability still requires an audited runtime registration. */
 export type HarnessId = string;
@@ -55,6 +65,10 @@ export interface ProviderModelView {
   description: string;
   reasoningEfforts: string[];
   defaultReasoningEffort?: string;
+  /** The model lab (or sponsor) that funds an included model, from the hosted catalog. */
+  lab?: { id: string; name: string };
+  /** Engines admitted to run this model, when there is more than one to choose from. */
+  harnesses?: { id: HarnessId; name: string }[];
 }
 
 export interface ProviderUsageView {

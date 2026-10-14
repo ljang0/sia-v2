@@ -6,6 +6,7 @@ import type { BrowserWindow, IpcMain } from 'electron';
 import { z } from 'zod';
 import { TEXT_SIZES, THEMES } from '../../shared/display.js';
 import { CONNECTION_IDS } from '../../shared/bridge/connections.js';
+import { PROVIDER_IDS } from '../../shared/bridge/providers.js';
 import { assistantLibraryCommand } from '../../shared/assistant-library.js';
 import { MAX_EVERY_HOURS, SCHEDULE_CADENCES } from '../../shared/schedule-cadence.js';
 
@@ -19,7 +20,7 @@ import type {
   PushedSnapshotMarker,
 } from '../../shared/bridge.js';
 
-const providerId = z.enum(['codex', 'meta', 'grok', 'gemini', 'claude', 'byok', 'lab']);
+const providerId = z.enum(PROVIDER_IDS);
 const connectionId = z.enum(CONNECTION_IDS);
 const identifier = z.string().uuid();
 const scheduleCadence = z.enum(SCHEDULE_CADENCES);

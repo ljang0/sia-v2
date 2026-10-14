@@ -9,6 +9,17 @@ interface ModelChoice {
 
 const RELEASE_PROVIDER_ORDER: ProviderId[] = ['codex', 'meta', 'byok', 'lab'];
 
+/** How the picker says who pays for a model, per provider. */
+const ACCESS_LABEL: Partial<Record<ProviderId, string>> = {
+  meta: 'Included',
+  codex: 'Codex plan',
+  byok: 'Your API key',
+  lab: 'Lab test',
+};
+
+/** The default name the hosted catalog gives a lab that has no display name of its own. */
+const UNNAMED_LAB = 'Included model';
+
 export function firstReadyModel(providers: ProviderSetup[]): ModelChoice | undefined {
   return modelChoices(providers).find((choice) => choice.ready);
 }
@@ -22,23 +33,19 @@ export function modelChoices(
     // Your own model appears only once its key is saved.
     if (!provider || (provider.id === 'byok' && provider.status !== 'ready')) return [];
     const models = provider.models?.length
-      ? provider.models.map((model) => ({ id: model.id, label: model.label }))
+      ? provider.models
       : [{ id: provider.model, label: friendlyModelName(provider.id, provider.model) }];
-    return models.map((model) => ({
-      provider: provider.id,
-      model: model.id,
-      label:
-        provider.id === 'meta'
-          ? `${model.label} · Included`
-          : provider.id === 'codex'
-            ? `${model.label} · Codex plan`
-            : provider.id === 'byok'
-              ? `${model.label} · Your API key`
-              : provider.id === 'lab'
-                ? `${model.label} · Lab test`
-                : `${model.label} — ${provider.name}`,
-      ready: provider.status === 'ready',
-    }));
+    return models.map((model) => {
+      // A named sponsor or lab ("Arena") says more than the generic "Included".
+      const lab = 'lab' in model && model.lab?.name !== UNNAMED_LAB ? model.lab : undefined;
+      const access = lab?.name ?? ACCESS_LABEL[provider.id];
+      return {
+        provider: provider.id,
+        model: model.id,
+        label: access ? `${model.label} · ${access}` : `${model.label} — ${provider.name}`,
+        ready: provider.status === 'ready',
+      };
+    });
   });
 
   if (
@@ -81,7 +88,8 @@ export function executionLabel(
   model: string,
 ): string | undefined {
   const provider = providers.find(({ id }) => id === providerId);
-  return (
-    provider?.plan ?? provider?.models?.find(({ id }) => id === model)?.label ?? provider?.name
-  );
+  const entry = provider?.models?.find(({ id }) => id === model);
+  const lab = entry?.lab && entry.lab.name !== UNNAMED_LAB ? entry.lab.name : undefined;
+  if (provider?.plan) return lab ? `${provider.plan} · ${lab}` : provider.plan;
+  return entry?.label ?? provider?.name;
 }

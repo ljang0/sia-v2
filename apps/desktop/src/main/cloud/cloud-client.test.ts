@@ -90,7 +90,9 @@ describe('CloudClient', () => {
     });
     const body = JSON.stringify({ model: 'meta/spark', stream: true, input: 'hello' });
 
-    const response = await client.forwardHostedResponses(body);
+    const response = await client.forwardModelRequest('responses', body, undefined, {
+      harnessId: 'codex_app_server',
+    });
 
     expect(response.status).toBe(200);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe(
@@ -103,6 +105,7 @@ describe('CloudClient', () => {
         accept: 'text/event-stream',
         'content-type': 'application/json',
         authorization: 'Bearer private-sia-id-token',
+        'x-sia-harness': 'codex_app_server',
       },
     });
     expect(body).not.toContain('private-sia-id-token');

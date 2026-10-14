@@ -8,6 +8,9 @@ export * from './supervisor.js';
 export * from './providers/acp.js';
 export * from './providers/claude.js';
 export * from './providers/codex.js';
+export * from './providers/opencode.js';
+export * from './providers/openhands.js';
+export * from './providers/pi.js';
 export { attachedFilesText, codexHistoryItems } from './providers/codex-input.js';
 export {
   SIA_CODEX_DISABLED_FEATURES,

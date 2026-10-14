@@ -55,7 +55,7 @@ export interface PersistedState {
     /** Workspace Command tool (arbitrary shell in the agent folder). Off unless set to true. */
     developerTools?: boolean;
     onboarding?: NonNullable<DesktopSnapshot['preferences']['onboarding']>;
-    /** All eligible actions run without in-app approval only when explicitly set to 'auto'. */
+    /** Eligible actions run without in-app approval unless this is explicitly 'ask'. */
     computerAccessMode?: 'mac' | 'connected';
     macBackgroundControl?: boolean;
     macBackgroundFallback?: 'pause' | 'foreground';

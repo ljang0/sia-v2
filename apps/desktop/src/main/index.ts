@@ -56,7 +56,7 @@ import { chromeRemoteDebuggingStatus } from './mac/chrome-debug-setup.js';
 import { MessagesService } from './mac/messages-service.js';
 
 import { CloudClient } from './cloud/cloud-client.js';
-import { HostedResponsesProxy } from './providers/hosted-responses-proxy.js';
+import { HostedModelProxy } from './providers/hosted-model-proxy.js';
 import { createAcpAdapter } from '@sia/runtime';
 import { LAB_HARNESS_MANIFEST_ENV, loadLabHarnessManifest } from './providers/lab-harness.js';
 import {
@@ -424,7 +424,7 @@ async function performApplicationCreation(): Promise<void> {
             openExternal: openSafeExternal,
           })
         : undefined;
-    const hostedResponsesProxy = fakeServices ? undefined : new HostedResponsesProxy(cloud);
+    const hostedModelProxy = fakeServices ? undefined : new HostedModelProxy(cloud);
     // The person's own API key: encrypted on disk, attached only by this loopback proxy.
     const byokCredential = fakeServices
       ? undefined
@@ -432,11 +432,13 @@ async function performApplicationCreation(): Promise<void> {
           encrypt: (value) => new ElectronPayloadCipher().encrypt(value),
           decrypt: (value) => new ElectronPayloadCipher().decrypt(value),
         });
-    const byokResponsesProxy = byokCredential
-      ? new HostedResponsesProxy(new ByokForwarder(() => byokCredential.read()), {
-          id: 'sia_byok',
-          name: 'Your API key',
-        })
+    const byokModelProxy = byokCredential
+      ? new HostedModelProxy(
+          new ByokForwarder(() => byokCredential.read()),
+          { id: 'sia_byok', name: 'Your API key' },
+          // Your own key is validated against a Responses endpoint only.
+          ['responses'],
+        )
       : undefined;
     let activeController!: DesktopController;
     const computer = new CuaService(
@@ -478,7 +480,7 @@ async function performApplicationCreation(): Promise<void> {
     // Lab harness testing builds only: a manifest signed with Sia's release key pins each
     // lab's ACP command by hash. Anything invalid is reported and ignored; Codex stays default.
     const labManifestPath = process.env[LAB_HARNESS_MANIFEST_ENV];
-    const labHarnesses = labManifestPath
+    const { harnesses: labHarnesses, previewHarnesses } = labManifestPath
       ? await loadLabHarnessManifest({
           path: labManifestPath,
           publicKey: cloudConfiguration.updateManifestPublicKey,
@@ -486,10 +488,11 @@ async function performApplicationCreation(): Promise<void> {
           console.error(
             `[sia:lab-harness] ${error instanceof Error ? error.message : 'The manifest could not be loaded.'}`,
           );
-          return [];
+          return { harnesses: [], previewHarnesses: [] };
         })
-      : [];
+      : { harnesses: [], previewHarnesses: [] };
     activeController = new DesktopController({
+      previewHarnesses,
       labHarnesses: labHarnesses.map(({ id, name, disclosure, models }) => ({
         id,
         name,
@@ -707,7 +710,7 @@ async function performApplicationCreation(): Promise<void> {
     });
     activeController.attachBrowserCapabilitySink(actionBackend);
     const defaultPolicy = new DefaultActionAuthorizationPolicy({
-      // Per turn: phone turns never inherit full bypass (see DesktopController#trustForTurn).
+      // Per turn: only the owner's own phone turns inherit bypass (see Approvals#trustForTurn).
       trustLocalActions: (request) =>
         activeController.trustForTurn(request.context.turnId) === 'auto',
     });
@@ -747,18 +750,36 @@ async function performApplicationCreation(): Promise<void> {
       ...(codexCommand ? { codexCommand } : {}),
       macContext: () => browserWindows.macContext(),
       metaTransport: cloud,
-      ...(hostedResponsesProxy
+      ...(hostedModelProxy
         ? {
             hostedCodexProvider: (providerSession) =>
-              hostedResponsesProxy.issue(providerSession.model),
+              hostedModelProxy.issue(providerSession.model, 'codex_app_server'),
           }
         : {}),
-      ...(byokResponsesProxy
+      ...(hostedModelProxy
+        ? {
+            hostedModelEndpoint: async (harnessId, providerSession) => {
+              const issued = await hostedModelProxy.issue(providerSession.model, harnessId);
+              return { baseUrl: issued.baseUrl, apiKey: issued.bearerToken };
+            },
+          }
+        : {}),
+      ...(byokModelProxy
         ? {
             byokCodexProvider: (providerSession) =>
-              byokResponsesProxy.issue(providerSession.model),
+              byokModelProxy.issue(providerSession.model, 'codex_app_server'),
           }
         : {}),
+      // Preview harnesses for included models; testers may point at a specific binary.
+      harnessCommands: {
+        ...(process.env.SIA_OPENCODE_COMMAND
+          ? { opencode: process.env.SIA_OPENCODE_COMMAND }
+          : {}),
+        ...(process.env.SIA_OPENHANDS_COMMAND
+          ? { openhands: process.env.SIA_OPENHANDS_COMMAND }
+          : {}),
+        ...(process.env.SIA_PI_COMMAND ? { pi: process.env.SIA_PI_COMMAND } : {}),
+      },
       harnessAdapters: labHarnesses.map((harness) => ({
         provider: 'lab' as const,
         harnessId: harness.id,
@@ -783,12 +804,12 @@ async function performApplicationCreation(): Promise<void> {
             onSessionsReset: () => capabilityHost!.revokeAll(),
           }
         : {}),
-      ...(hostedResponsesProxy || byokResponsesProxy || capabilityHost
+      ...(hostedModelProxy || byokModelProxy || capabilityHost
         ? {
             onDispose: async () => {
               await Promise.all([
-                hostedResponsesProxy?.dispose() ?? Promise.resolve(),
-                byokResponsesProxy?.dispose() ?? Promise.resolve(),
+                hostedModelProxy?.dispose() ?? Promise.resolve(),
+                byokModelProxy?.dispose() ?? Promise.resolve(),
                 capabilityHost ? capabilityHost.stop() : Promise.resolve(),
               ]);
             },
@@ -836,6 +857,16 @@ async function performApplicationCreation(): Promise<void> {
       copy: (url) => clipboard.writeText(url),
       ...(!fakeServices
         ? { advertise: (port: number) => advertiseRemote(helperPath, port) }
+        : {}),
+      // Builds configured with the encrypted relay reach phones through it, from any network.
+      ...(!fakeServices && cloudConfiguration.phoneRelayUrl && cloudConfiguration.phonePageUrl
+        ? {
+            relay: {
+              relayUrl: cloudConfiguration.phoneRelayUrl,
+              pageUrl: cloudConfiguration.phonePageUrl,
+              idToken: () => identity.read(),
+            },
+          }
         : {}),
     });
     activeController.attachPhoneRemote((command) => phoneRemote!.configure(command));

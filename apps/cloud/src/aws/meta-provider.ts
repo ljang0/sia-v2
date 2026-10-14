@@ -1,17 +1,70 @@
 import { randomUUID } from 'node:crypto';
-import { Readable } from 'node:stream';
 import type { MetaStreamEvent, MetaTurnRequest } from '../contracts.js';
 import { CloudError, isRecord } from '../domain.js';
 import type { HostedLabConfig, MetaProvider } from '../ports.js';
+import {
+  anthropicHeaders,
+  anthropicMessagesRequestBody,
+  readAnthropicMessagesEvents,
+} from './anthropic-messages.js';
 import { ensureTrailingSlash } from './shared.js';
+import { parseSseRecord, sseData } from './sse.js';
 
-export class OpenAiCompatibleMetaProvider implements MetaProvider {
+type ApiProtocol = NonNullable<HostedLabConfig['apiProtocol']>;
+
+/** One entry per upstream wire protocol; everything else in the relay is protocol-neutral. */
+const UPSTREAMS: Record<
+  ApiProtocol,
+  {
+    turnPath: string;
+    modelsPath: string;
+    authHeaders(config: HostedLabConfig): Record<string, string>;
+    body(config: HostedLabConfig, request: MetaTurnRequest): unknown;
+    read(body: ReadableStream<Uint8Array>): AsyncIterable<MetaStreamEvent>;
+  }
+> = {
+  openai_chat_completions: {
+    turnPath: 'chat/completions',
+    modelsPath: 'models',
+    authHeaders: bearerHeaders,
+    body: chatCompletionsRequestBody,
+    read: readChatCompletionEvents,
+  },
+  openai_responses: {
+    turnPath: 'responses',
+    modelsPath: 'models',
+    authHeaders: bearerHeaders,
+    body: responsesRequestBody,
+    read: readResponsesEvents,
+  },
+  anthropic_messages: {
+    turnPath: 'messages',
+    // Anthropic paginates its model list (default 20); ask for every page entry at once.
+    modelsPath: 'models?limit=1000',
+    authHeaders: anthropicHeaders,
+    body: anthropicMessagesRequestBody,
+    read: readAnthropicMessagesEvents,
+  },
+};
+
+function upstreamFor(config: HostedLabConfig) {
+  return UPSTREAMS[config.apiProtocol ?? 'openai_chat_completions'];
+}
+
+function bearerHeaders(config: HostedLabConfig): Record<string, string> {
+  return { authorization: `Bearer ${config.apiKey}` };
+}
+
+export class HostedLabProvider implements MetaProvider {
   async capabilities(config: HostedLabConfig): Promise<{
     models: string[];
     streaming: boolean;
     tools: boolean;
   }> {
-    const endpoint = new URL('models', ensureTrailingSlash(config.endpoint));
+    const endpoint = new URL(
+      upstreamFor(config).modelsPath,
+      ensureTrailingSlash(config.endpoint),
+    );
     if (endpoint.protocol !== 'https:')
       throw new CloudError(503, 'meta_config_invalid', 'Meta endpoint must use HTTPS');
     let response: Response;
@@ -19,7 +72,7 @@ export class OpenAiCompatibleMetaProvider implements MetaProvider {
       response = await fetch(endpoint, {
         method: 'GET',
         headers: {
-          authorization: `Bearer ${config.apiKey}`,
+          ...upstreamFor(config).authHeaders(config),
           accept: 'application/json',
           [config.sessionHeader ?? 'x-session-id']: randomUUID(),
         },
@@ -60,11 +113,8 @@ export class OpenAiCompatibleMetaProvider implements MetaProvider {
     config: HostedLabConfig,
     request: MetaTurnRequest,
   ): AsyncIterable<MetaStreamEvent> {
-    const apiProtocol = config.apiProtocol ?? 'openai_chat_completions';
-    const endpoint = new URL(
-      apiProtocol === 'openai_responses' ? 'responses' : 'chat/completions',
-      ensureTrailingSlash(config.endpoint),
-    );
+    const upstream = upstreamFor(config);
+    const endpoint = new URL(upstream.turnPath, ensureTrailingSlash(config.endpoint));
     if (endpoint.protocol !== 'https:')
       throw new CloudError(503, 'meta_config_invalid', 'Meta endpoint must use HTTPS');
     const sessionId = request.sessionId ?? randomUUID();
@@ -74,16 +124,12 @@ export class OpenAiCompatibleMetaProvider implements MetaProvider {
       response = await fetch(endpoint, {
         method: 'POST',
         headers: {
-          authorization: `Bearer ${config.apiKey}`,
+          ...upstream.authHeaders(config),
           'content-type': 'application/json',
           accept: 'text/event-stream',
           [config.sessionHeader ?? 'x-session-id']: sessionId,
         },
-        body: JSON.stringify(
-          apiProtocol === 'openai_responses'
-            ? responsesRequestBody(config, request)
-            : chatCompletionsRequestBody(config, request),
-        ),
+        body: JSON.stringify(upstream.body(config, request)),
         signal,
       });
     } catch (error) {
@@ -104,9 +150,7 @@ export class OpenAiCompatibleMetaProvider implements MetaProvider {
       model: request.model ?? config.model,
     };
     try {
-      yield* apiProtocol === 'openai_responses'
-        ? readResponsesEvents(response.body)
-        : readChatCompletionEvents(response.body);
+      yield* upstream.read(response.body);
     } catch (error) {
       if (error instanceof CloudError) throw error;
       throw metaUpstreamFailure(error);
@@ -134,12 +178,33 @@ function metaUpstreamFailure(error: unknown): CloudError {
 function chatCompletionsRequestBody(config: HostedLabConfig, request: MetaTurnRequest) {
   return {
     model: request.model ?? config.model,
-    messages: request.messages,
+    messages: request.messages.map((message) =>
+      typeof message.content === 'string'
+        ? message
+        : { ...message, content: message.content.map(chatContentPart) },
+    ),
     stream: true,
     stream_options: { include_usage: true },
     ...(config.maxOutputTokens === undefined ? {} : { max_tokens: config.maxOutputTokens }),
     ...(request.tools === undefined ? {} : { tools: request.tools, tool_choice: 'auto' }),
   };
+}
+
+/** Relay parts use Responses names; Chat Completions labs expect `text` and `image_url`. */
+function chatContentPart(part: Record<string, unknown>): Record<string, unknown> {
+  if (part.type === 'input_image') {
+    return {
+      type: 'image_url',
+      image_url: {
+        url: part.image_url,
+        ...(typeof part.detail === 'string' ? { detail: part.detail } : {}),
+      },
+    };
+  }
+  if (part.type === 'input_text' || part.type === 'output_text') {
+    return { type: 'text', text: part.text };
+  }
+  return part;
 }
 
 function responsesRequestBody(config: HostedLabConfig, request: MetaTurnRequest) {
@@ -300,38 +365,8 @@ async function* readResponsesEvents(
   if (!completed) yield { type: 'done', finishReason: sawToolCall ? 'tool_calls' : 'stop' };
 }
 
-function parseSseRecord(data: string): Record<string, unknown> | undefined {
-  try {
-    const value: unknown = JSON.parse(data);
-    return isRecord(value) ? value : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 function responseOutputIndex(event: Record<string, unknown>): number {
   return typeof event.output_index === 'number' && Number.isSafeInteger(event.output_index)
     ? event.output_index
     : 0;
-}
-
-async function* sseData(stream: ReadableStream<Uint8Array>): AsyncIterable<string> {
-  const decoder = new TextDecoder();
-  let buffer = '';
-  for await (const chunk of Readable.fromWeb(stream as never)) {
-    buffer += decoder.decode(chunk as Uint8Array, { stream: true });
-    buffer = buffer.replaceAll('\r\n', '\n');
-    let boundary = buffer.indexOf('\n\n');
-    while (boundary >= 0) {
-      const block = buffer.slice(0, boundary).replaceAll('\r', '');
-      buffer = buffer.slice(boundary + 2);
-      const data = block
-        .split('\n')
-        .filter((line) => line.startsWith('data:'))
-        .map((line) => line.slice(5).trimStart())
-        .join('\n');
-      if (data.length > 0) yield data;
-      boundary = buffer.indexOf('\n\n');
-    }
-  }
 }

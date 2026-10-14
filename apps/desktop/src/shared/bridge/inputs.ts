@@ -30,11 +30,18 @@ export interface SendTurnInput {
   text: string;
   attachmentIds?: string[];
   /**
-   * Set only by the Wi-Fi phone remote in the main process (never accepted over IPC). Its
-   * link is plain HTTP on the local network, so these turns always confirm actions on the Mac.
+   * Set only by phone channels in the main process (never accepted over IPC); see PhoneOrigin.
    */
-  fromPhone?: true;
+  fromPhone?: PhoneOrigin;
 }
+
+/**
+ * Where a phone turn came from. The owner's own devices (an encrypted relay phone, or the
+ * owner's numbers and linked bot accounts) follow the Mac's Computer setting, which is
+ * automatic by default. A trusted person's Sia and the plain-HTTP Wi-Fi link, which anyone on
+ * that network can observe, always confirm each action.
+ */
+export type PhoneOrigin = 'own_device' | 'trusted_person' | 'unencrypted_link';
 
 export interface UpdateThreadConfigInput {
   threadId: string;

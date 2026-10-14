@@ -141,8 +141,9 @@ A dropped connection preserves unsent text; retrying a command with an uncertain
 uses the same request identifier to avoid duplicate tasks.
 
 Phone requests use the assistant's existing Codex route and the Mac's current **Use my Mac** /
-**Connected apps** settings, but phone turns always ask on the Mac, even with bypass on. Approve
-pending actions on the Mac, one request at a time. Dictate with your phone's keyboard microphone; browser speech APIs usually require
+**Connected apps** settings. Over this plain-HTTP Wi-Fi link, phone turns always ask on the Mac,
+even with bypass on; approve pending actions on the Mac, one request at a time. (With the
+encrypted relay, phone turns follow the Computer setting and the phone can approve.) Dictate with your phone's keyboard microphone; browser speech APIs usually require
 HTTPS, while this Notch-style local link uses HTTP. Keep the link private and use trusted Wi-Fi:
 the local traffic is not encrypted. **Create a new link** revokes old links; **Turn off remote**
 closes the listener. The listener binds a private LAN address on port 8738 and accepts only that

@@ -14,11 +14,13 @@ import { basename, extname, join, resolve } from 'node:path';
 import { z } from 'zod';
 import type { DesktopController } from '../controller/desktop-controller.js';
 import type { RecordRepository } from '../storage/persistence.js';
+import type { PhoneOrigin } from '../../shared/bridge.js';
 import {
   phoneAssistantBlocker,
   type PhoneRemoteCommand,
   type PhoneRemoteSettings,
 } from '../../shared/phone-remote.js';
+import { CloudRemote, type RelaySocket } from './cloud-remote.js';
 import { remoteState, remoteVault } from './phone-remote-state.js';
 import { nativeRemoteSkills } from './phone-remote-files.js';
 
@@ -30,6 +32,24 @@ const commandSchema = z
   })
   .strict();
 const sessionSchema = z.object({ session: z.string().max(100).nullable() }).strict();
+const approveSchema = z
+  .object({
+    session: z.string().max(100),
+    approvalId: z.string().uuid(),
+    decision: z.enum(['approve', 'deny']),
+  })
+  .strict();
+/** One phone request after its transport has authenticated it. */
+export interface RemoteCall {
+  method: 'GET' | 'POST';
+  route: string;
+  query: URLSearchParams;
+  body?: unknown;
+  /** The transport's trust: the encrypted relay is the owner's device; Wi-Fi HTTP is not. */
+  origin: PhoneOrigin;
+}
+export type RemoteReply =
+  { status: number; json: unknown } | { status: 200; file: { name: string; data: Buffer } };
 interface Config {
   enabled: boolean;
   token: string;
@@ -53,6 +73,16 @@ interface Dependencies {
     threadId: string,
     attachmentId: string,
   ) => Promise<{ name: string; data: Buffer }>;
+  /**
+   * The encrypted phone relay. When configured, phones connect through it from any network and
+   * the plain-HTTP Wi-Fi server is not started.
+   */
+  relay?: {
+    relayUrl: string;
+    pageUrl: string;
+    idToken: () => Promise<string | undefined>;
+    connect?: (url: string) => RelaySocket;
+  };
 }
 const ipv4 = (address: string) =>
   address.split('.').reduce((result, part) => (result << 8) | Number(part), 0) >>> 0;
@@ -91,6 +121,8 @@ export class PhoneRemote {
   #ignoredThread: string | undefined;
   #requests = new Map<string, { input: string; task: Promise<unknown> }>();
   #failedAuth = new Map<string, { count: number; reset: number }>();
+  readonly #cloud: CloudRemote | undefined;
+  #pairingQr: { qr: string; expires: number } | undefined;
   constructor(deps: Dependencies) {
     this.#deps = deps;
     const saved = deps.repository.get<Config>('phone-remote', 'settings');
@@ -98,6 +130,18 @@ export class PhoneRemote {
       saved && /^[a-f0-9]{64}$/.test(saved.token)
         ? saved
         : { enabled: false, token: randomBytes(32).toString('hex') };
+    this.#cloud = deps.relay
+      ? new CloudRemote({
+          relayUrl: deps.relay.relayUrl,
+          pageUrl: deps.relay.pageUrl,
+          idToken: deps.relay.idToken,
+          repository: deps.repository,
+          available: () => this.#available(),
+          dispatch: (call) => this.dispatch(call, () => this.#available()),
+          state: () => (this.#available() ? this.#state() : undefined),
+          ...(deps.relay.connect ? { connect: deps.relay.connect } : {}),
+        })
+      : undefined;
   }
   async initialize(): Promise<void> {
     await this.#serialize(() => this.#reconcile());
@@ -128,8 +172,20 @@ export class PhoneRemote {
       } else if (command.operation === 'rotate') {
         this.#config.token = randomBytes(32).toString('hex');
         this.#stop();
+      } else if (command.operation === 'pair') {
+        if (!this.#cloud) throw new Error('Phone access over the internet is not available.');
+        const { url } = await this.#cloud.pair();
+        // The pairing URL holds the phone's credential and key: show it only as a QR code.
+        this.#pairingQr = { qr: await this.#deps.qr(url), expires: Date.now() + 5 * 60_000 };
+      } else if (command.operation === 'revoke') {
+        this.#cloud?.revoke(command.deviceId);
       }
-      if (command.operation !== 'status' && command.operation !== 'copy')
+      if (
+        command.operation !== 'status' &&
+        command.operation !== 'copy' &&
+        command.operation !== 'pair' &&
+        command.operation !== 'revoke'
+      )
         this.#deps.repository.put('phone-remote', 'settings', this.#config);
       await this.#reconcile();
       if (command.operation === 'copy') {
@@ -151,6 +207,26 @@ export class PhoneRemote {
         this.#stop();
         throw new Error('Sign in to Sia on your Mac first.');
       }
+      if (this.#cloud) {
+        if (this.#pairingQr && this.#pairingQr.expires < Date.now())
+          this.#pairingQr = undefined;
+        const devices = this.#cloud.devices();
+        // Once the new phone connects, its one-time pairing code is no longer needed.
+        if (this.#pairingQr && devices.some((device) => device.online))
+          this.#pairingQr = undefined;
+        return {
+          enabled: this.#config.enabled,
+          running: this.#cloud.connected,
+          detail:
+            this.#cloud.connected || !this.#available() ? this.#detail : this.#cloud.detail,
+          ...(this.#config.agentId ? { agentId: this.#config.agentId } : {}),
+          relay: {
+            connected: this.#cloud.connected,
+            devices,
+            ...(this.#pairingQr ? { pairingQr: this.#pairingQr.qr } : {}),
+          },
+        };
+      }
       return {
         enabled: this.#config.enabled,
         running: Boolean(this.#server),
@@ -163,13 +239,16 @@ export class PhoneRemote {
   }
   suspend(suspended: boolean): void {
     this.#suspended = suspended;
-    if (suspended) this.#stop();
-    else void this.#serialize(() => this.#reconcile()).catch(() => undefined);
+    if (suspended) {
+      this.#stop();
+      this.#cloud?.reconcile();
+    } else void this.#serialize(() => this.#reconcile()).catch(() => undefined);
   }
   dispose(): void {
     this.#disposed = true;
     clearInterval(this.#timer);
     this.#stop();
+    this.#cloud?.stop();
   }
   #serialize<T>(operation: () => Promise<T>): Promise<T> {
     const task = this.#queue.then(operation);
@@ -197,6 +276,18 @@ export class PhoneRemote {
     );
   }
   async #reconcile(): Promise<void> {
+    if (this.#cloud) {
+      // With the encrypted relay configured, the plain-HTTP Wi-Fi server never starts.
+      this.#cloud.reconcile();
+      this.#detail = this.#suspended
+        ? 'Paused while your Mac is locked or asleep.'
+        : !this.#config.enabled
+          ? 'Pair your phone once. Ask Sia from anywhere, on any network.'
+          : !this.#deps.controller.remoteAccessAllowed()
+            ? 'Sign in to Sia on your Mac to resume.'
+            : this.#cloud.detail;
+      return;
+    }
     if (!this.#available()) {
       if (this.#server) this.#stop();
       this.#detail = this.#suspended
@@ -299,6 +390,8 @@ export class PhoneRemote {
       this.#config.agentId!,
       this.#deps.outbox ?? join(homedir(), 'SiaOutbox'),
       this.#ignoredThread,
+      // A relay build never runs the plain-HTTP server, so every phone is the owner's device.
+      Boolean(this.#cloud),
     );
   }
   async #handle(
@@ -367,120 +460,8 @@ export class PhoneRemote {
       return;
     }
     const route = parts.slice(3).join('/');
+    const isCurrent = () => this.#available() && generation === this.#generation;
     if (request.method === 'GET') {
-      if (route === 'state') {
-        this.#json(response, 200, this.#state());
-        return;
-      }
-      if (route === 'vault' || route === 'note') {
-        const library = await this.#deps.controller.invoke('assistant.library', {
-          operation: 'list',
-        });
-        if (!this.#available() || generation !== this.#generation) {
-          unavailable();
-          return;
-        }
-        const selected = this.#deps.controller
-          .snapshot()
-          .agents.find((entry) => entry.id === this.#config.agentId);
-        const skills = selected?.workspace
-          ? await nativeRemoteSkills(selected.workspace, selected.id)
-          : [];
-        if (!this.#available() || generation !== this.#generation) {
-          unavailable();
-          return;
-        }
-        const vault = remoteVault(library, this.#config.agentId!, skills);
-        const note =
-          route === 'note'
-            ? vault.notes.find(
-                (entry) => entry.id === new URL(request.url!, this.#url).searchParams.get('id'),
-              )
-            : undefined;
-        this.#json(
-          response,
-          route === 'note' && !note ? 404 : 200,
-          route === 'vault'
-            ? vault.graph
-            : (note ?? { error: 'This note is no longer available.' }),
-        );
-        return;
-      }
-      if (route.startsWith('results/')) {
-        const id = route.slice('results/'.length);
-        const state = this.#state();
-        if (
-          !state.session ||
-          !this.#deps.readGeneratedResult ||
-          !state.turns.some((turn) => Object.values(turn.fileIds ?? {}).includes(id))
-        ) {
-          unavailable();
-          return;
-        }
-        const result = await this.#deps.readGeneratedResult(state.session.split(':')[0]!, id);
-        if (
-          !this.#available() ||
-          generation !== this.#generation ||
-          this.#state().session !== state.session
-        ) {
-          unavailable();
-          return;
-        }
-        response.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
-        response.writeHead(200, {
-          'Content-Type': 'application/octet-stream',
-          'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(result.name)}`,
-        });
-        response.end(result.data);
-        return;
-      }
-      if (route.startsWith('outbox/')) {
-        let name: string;
-        try {
-          name = decodeURIComponent(route.slice(7));
-        } catch {
-          unavailable();
-          return;
-        }
-        if (
-          !name ||
-          name !== basename(name) ||
-          /[\\\x00-\x1f]/.test(name) ||
-          !this.#state().turns.some((turn) => turn.files.includes(name))
-        ) {
-          unavailable();
-          return;
-        }
-        const root = await realpath(this.#deps.outbox ?? join(homedir(), 'SiaOutbox'));
-        const file = await open(join(root, name), constants.O_RDONLY | constants.O_NOFOLLOW);
-        try {
-          const stat = await file.stat();
-          if (!stat.isFile() || stat.size > 20 * 1024 * 1024)
-            throw new RemoteError(
-              'This file is too large to download here. Open it on your Mac.',
-            );
-          const buffer = Buffer.alloc(stat.size + 1);
-          const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
-          if (bytesRead > stat.size)
-            throw new RemoteError(
-              'This file is still being written. Try again when Sia finishes.',
-            );
-          const data = buffer.subarray(0, bytesRead);
-          if (!this.#available() || generation !== this.#generation) {
-            unavailable();
-            return;
-          }
-          response.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
-          response.writeHead(200, {
-            'Content-Type': 'application/octet-stream',
-            'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
-          });
-          response.end(data);
-        } finally {
-          await file.close();
-        }
-        return;
-      }
       const path =
         route === '' || route === 'index.html' || route === 'graph'
           ? 'index.html'
@@ -489,7 +470,7 @@ export class PhoneRemote {
             : undefined;
       if (path) {
         const data = await readFile(resolve(this.#deps.assets, path));
-        if (!this.#available() || generation !== this.#generation) {
+        if (!isCurrent()) {
           unavailable();
           return;
         }
@@ -508,61 +489,202 @@ export class PhoneRemote {
         response.end(data);
         return;
       }
-    } else if (request.method === 'POST' && ['command', 'cancel', 'clear'].includes(route)) {
-      const body = await this.#body(request);
-      if (!this.#available() || generation !== this.#generation) {
-        unavailable();
-        return;
-      }
-      if (route === 'command') {
-        const input = commandSchema.parse(body);
-        const serialized = JSON.stringify(input);
-        const previous = this.#requests.get(input.id);
-        if (previous) {
-          if (previous.input !== serialized)
-            throw new RemoteError('This request was already used. Refresh before sending.');
-          this.#json(response, 200, await previous.task);
-          return;
-        }
-        if (this.#sending)
-          throw new RemoteError('Sia is accepting another request. Try again in a moment.');
-        if (input.session !== this.#state().session)
-          throw new RemoteError(
-            'The current task changed on your Mac. Review it before sending again.',
-          );
-        this.#sending = true;
-        const task = this.#send(input.text, input.session, generation).finally(() => {
-          this.#sending = false;
-        });
-        this.#requests.set(input.id, { input: serialized, task });
-        // Keep a bounded deduplication ledger for this link, including failures. Do not evict live work.
-        if (this.#requests.size > 200)
-          this.#requests.delete(this.#requests.keys().next().value!);
-        this.#json(response, 200, await task);
-        return;
-      }
-      const input = sessionSchema.parse(body);
-      if (input.session !== this.#state().session || this.#sending)
-        throw new RemoteError('The current task changed. Review it and try again.');
-      if (route === 'cancel') {
-        if (!input.session) throw new RemoteError('There is no current task to stop.');
-        await this.#deps.controller.invoke('threads.cancel', {
-          threadId: input.session.split(':')[0]!,
-        });
-      } else {
-        if (
-          this.#state().turns.at(-1)?.status === 'working' ||
-          this.#state().turns.at(-1)?.status === 'waiting'
-        )
-          throw new RemoteError('Stop the current task before starting a new chat.');
-        this.#ignoredThread = this.#deps.controller.snapshot().activeThreadId;
-      }
-      this.#json(response, 200, { ok: true });
+    }
+    const reply = await this.dispatch(
+      {
+        method: request.method === 'POST' ? 'POST' : 'GET',
+        route,
+        query: new URL(request.url ?? '/', 'http://remote.invalid').searchParams,
+        origin: 'unencrypted_link',
+        ...(request.method === 'POST' ? { body: await this.#body(request) } : {}),
+      },
+      isCurrent,
+    );
+    if ('file' in reply) {
+      response.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
+      response.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(reply.file.name)}`,
+      });
+      response.end(reply.file.data);
       return;
     }
-    unavailable();
+    this.#json(response, reply.status, reply.json);
   }
-  async #send(text: string, session: string | null, generation: number): Promise<unknown> {
+  /**
+   * One authenticated phone request from any transport (the Wi-Fi server or the cloud relay).
+   * `isCurrent` reports whether that transport's pairing is still the live one.
+   */
+  async dispatch(call: RemoteCall, isCurrent: () => boolean): Promise<RemoteReply> {
+    const unavailable = (): RemoteReply => ({
+      status: 404,
+      json: { error: 'Remote unavailable. Scan the current QR code in Sia on your Mac.' },
+    });
+    if (!isCurrent()) return unavailable();
+    const route = call.route;
+    try {
+      if (call.method === 'GET') {
+        if (route === 'state') {
+          return { status: 200, json: this.#state() };
+        }
+        if (route === 'vault' || route === 'note') {
+          const library = await this.#deps.controller.invoke('assistant.library', {
+            operation: 'list',
+          });
+          if (!isCurrent()) return unavailable();
+          const selected = this.#deps.controller
+            .snapshot()
+            .agents.find((entry) => entry.id === this.#config.agentId);
+          const skills = selected?.workspace
+            ? await nativeRemoteSkills(selected.workspace, selected.id)
+            : [];
+          if (!isCurrent()) return unavailable();
+          const vault = remoteVault(library, this.#config.agentId!, skills);
+          const note =
+            route === 'note'
+              ? vault.notes.find((entry) => entry.id === call.query.get('id'))
+              : undefined;
+          return {
+            status: route === 'note' && !note ? 404 : 200,
+            json:
+              route === 'vault'
+                ? vault.graph
+                : (note ?? { error: 'This note is no longer available.' }),
+          };
+        }
+        if (route.startsWith('results/')) {
+          const id = route.slice('results/'.length);
+          const state = this.#state();
+          if (
+            !state.session ||
+            !this.#deps.readGeneratedResult ||
+            !state.turns.some((turn) => Object.values(turn.fileIds ?? {}).includes(id))
+          )
+            return unavailable();
+          const result = await this.#deps.readGeneratedResult(state.session.split(':')[0]!, id);
+          if (!isCurrent() || this.#state().session !== state.session) return unavailable();
+          return { status: 200, file: { name: result.name, data: result.data } };
+        }
+        if (route.startsWith('outbox/')) {
+          let name: string;
+          try {
+            name = decodeURIComponent(route.slice(7));
+          } catch {
+            return unavailable();
+          }
+          if (
+            !name ||
+            name !== basename(name) ||
+            /[\\\x00-\x1f]/.test(name) ||
+            !this.#state().turns.some((turn) => turn.files.includes(name))
+          )
+            return unavailable();
+          const root = await realpath(this.#deps.outbox ?? join(homedir(), 'SiaOutbox'));
+          const file = await open(join(root, name), constants.O_RDONLY | constants.O_NOFOLLOW);
+          try {
+            const stat = await file.stat();
+            if (!stat.isFile() || stat.size > 20 * 1024 * 1024)
+              throw new RemoteError(
+                'This file is too large to download here. Open it on your Mac.',
+              );
+            const buffer = Buffer.alloc(stat.size + 1);
+            const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
+            if (bytesRead > stat.size)
+              throw new RemoteError(
+                'This file is still being written. Try again when Sia finishes.',
+              );
+            const data = buffer.subarray(0, bytesRead);
+            if (!isCurrent()) return unavailable();
+            return { status: 200, file: { name, data } };
+          } finally {
+            await file.close();
+          }
+        }
+      } else if (call.method === 'POST' && route === 'approve') {
+        // Only the owner's encrypted phone may answer, and only the step its task waits on.
+        if (call.origin !== 'own_device')
+          throw new RemoteError('Approve or deny this step in Sia on your Mac.');
+        const input = approveSchema.parse(call.body);
+        const state = this.#state();
+        const turn = state.turns.at(-1);
+        if (
+          !state.session ||
+          input.session !== state.session ||
+          turn?.approvalId !== input.approvalId
+        )
+          throw new RemoteError('This step changed. Review it and try again.');
+        await this.#deps.controller.invoke('approvals.resolve', {
+          approvalId: input.approvalId,
+          decision: input.decision,
+        });
+        return { status: 200, json: { ok: true } };
+      } else if (call.method === 'POST' && ['command', 'cancel', 'clear'].includes(route)) {
+        const body = call.body;
+        if (!isCurrent()) return unavailable();
+        if (route === 'command') {
+          const input = commandSchema.parse(body);
+          const serialized = JSON.stringify(input);
+          const previous = this.#requests.get(input.id);
+          if (previous) {
+            if (previous.input !== serialized)
+              throw new RemoteError('This request was already used. Refresh before sending.');
+            return { status: 200, json: await previous.task };
+          }
+          if (this.#sending)
+            throw new RemoteError('Sia is accepting another request. Try again in a moment.');
+          if (input.session !== this.#state().session)
+            throw new RemoteError(
+              'The current task changed on your Mac. Review it before sending again.',
+            );
+          this.#sending = true;
+          const task = this.#send(input.text, input.session, isCurrent, call.origin).finally(
+            () => {
+              this.#sending = false;
+            },
+          );
+          this.#requests.set(input.id, { input: serialized, task });
+          // Keep a bounded deduplication ledger for this link, including failures. Do not evict live work.
+          if (this.#requests.size > 200)
+            this.#requests.delete(this.#requests.keys().next().value!);
+          return { status: 200, json: await task };
+        }
+        const input = sessionSchema.parse(body);
+        if (input.session !== this.#state().session || this.#sending)
+          throw new RemoteError('The current task changed. Review it and try again.');
+        if (route === 'cancel') {
+          if (!input.session) throw new RemoteError('There is no current task to stop.');
+          await this.#deps.controller.invoke('threads.cancel', {
+            threadId: input.session.split(':')[0]!,
+          });
+        } else {
+          if (
+            this.#state().turns.at(-1)?.status === 'working' ||
+            this.#state().turns.at(-1)?.status === 'waiting'
+          )
+            throw new RemoteError('Stop the current task before starting a new chat.');
+          this.#ignoredThread = this.#deps.controller.snapshot().activeThreadId;
+        }
+        return { status: 200, json: { ok: true } };
+      }
+      return unavailable();
+    } catch (error) {
+      return {
+        status: error instanceof z.ZodError ? 400 : 409,
+        json: {
+          error:
+            error instanceof RemoteError
+              ? error.message
+              : 'The request could not be completed. Check Sia on your Mac and try again.',
+        },
+      };
+    }
+  }
+  async #send(
+    text: string,
+    session: string | null,
+    isCurrent: () => boolean,
+    origin: PhoneOrigin,
+  ): Promise<unknown> {
     const state = this.#state();
     const last = state.turns.at(-1);
     if (last?.status === 'working')
@@ -583,12 +705,12 @@ export class PhoneRemote {
             title: text.slice(0, 80),
           })
         ).threadId);
-      if (!this.#available() || generation !== this.#generation)
+      if (!isCurrent())
         throw new RemoteError('The remote link changed. Scan the current QR code.');
       const result = await this.#deps.controller.invoke('threads.send', {
         threadId,
         text,
-        fromPhone: true,
+        fromPhone: origin,
       });
       this.#ignoredThread = undefined;
       return { ok: true, turnId: result.turnId };

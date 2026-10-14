@@ -208,6 +208,28 @@ The older 4:17 narrated video remains on disk but is superseded as the main prev
    Keep the proposed ten-year refresh lifetime out of deployment unless separately approved.
    Research recruitment and public connector access retain their own signoffs.
 
+7. **Accept the sponsor and phone work.** On October 14, 2026, deployed by owner approval:
+   - **`sia-alpha` cloud.** Updated by scoped change sets `claude-876164c` and
+     `claude-876164c-relay-kms`, built from the live template:
+     - new code for four functions
+     - the `/v1/messages` and `/v1/chat/completions` routes
+     - the phone relay at `wss://daycj7ezve.execute-api.us-east-1.amazonaws.com/v1`
+
+     Deployed code hashes match their zips, anonymous requests return 401, the relay rejects
+     unauthenticated clients, and all 18 alarms are OK.
+
+   - **`sia-public-site`.** Serves the phone page at `/remote/` with relay and microphone headers;
+     only `/remote/` files changed.
+   - **Signed alpha.26 build.** Built from `b12117b` with the relay URLs, notarized, stapled, and
+     installed as the verification app. alpha.25 and the database are backed up under
+     `Sia Verification Backups/876164c`.
+   - **Evidence.** In `release-verification-evidence/release-claude-876164c`.
+
+   Still open:
+   - Pairing a physical phone in Settings → Phone remote and running the relay acceptance checks.
+   - Arena's lab entry and a signed `previewHarnesses` manifest
+     ([arena-model-harness.md](./arena-model-harness.md)).
+
 After those gates, publish the accepted installer/update artifacts through the documented release
 commands and verify a recipient download. No alpha.25 installer was published during this work.
 

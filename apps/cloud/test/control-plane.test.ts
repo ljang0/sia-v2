@@ -12,6 +12,7 @@ import {
   MemoryDeletionQueue,
   MemoryIdentity,
   MemoryQuota,
+  MemoryRemoteRelayStore,
   MemoryReleaseManifests,
   MemoryResearchObjects,
   MemoryResearchExportQueue,
@@ -1324,6 +1325,12 @@ describe('invites and deletion', () => {
     it(`recovers deletion abandoned in ${state} after the worker lease expires`, async () => {
       const fixture = makeFixture();
       fixture.identity.users.set(user.subject, user.email!);
+      await fixture.remoteDevices.createDevice({
+        deviceId: 'phone-1',
+        userId: user.subject,
+        tokenHash: 'hash',
+        createdAt: '2026-08-13T00:00:00.000Z',
+      });
       const requested = await fixture.services.research.requestDeletion(user, 'account');
       await fixture.state.transitionDeletion(
         user.subject,
@@ -1403,6 +1410,7 @@ describe('invites and deletion', () => {
     assert.equal(fixture.identity.users.has(user.subject), false);
     assert.equal(await fixture.state.getInvite(user.email!), undefined);
     assert.equal(await fixture.quota.getVoiceTokenUsage(user.subject, '2026-08-13'), 0);
+    assert.deepEqual(await fixture.remoteDevices.listDevices(user.subject), []);
     assert.equal(
       (await fixture.state.getDeletion(user.subject, requested.id))?.state,
       'completed',
@@ -1498,6 +1506,108 @@ describe('Meta relay service', () => {
     });
     assert.doesNotMatch(JSON.stringify(catalog), /apiKey|endpoint|test-meta-key/);
     assert.equal((await fixture.services.meta.capabilities(baseUser)).available, true);
+  });
+
+  it('meters each sponsored lab separately and stops it at its credit ceiling', async () => {
+    const sponsor = {
+      apiKey: 'sponsor-key-with-enough-characters',
+      endpoint: 'https://sponsor.invalid/v1',
+      model: 'sponsor/model',
+      enabled: true,
+      catalogId: 'sponsor',
+      allowedModels: ['sponsor/model'],
+      creditTokenLimit: 15,
+      availableUntil: '2026-12-31T00:00:00Z',
+    };
+    const fixture = makeFixture({
+      metaConfig: {
+        apiKey: 'house-key-with-enough-characters',
+        endpoint: 'https://house.invalid/v1',
+        model: 'house/model',
+        enabled: true,
+        catalogId: 'house',
+        allowedModels: ['house/model'],
+        additionalLabs: [sponsor],
+      },
+    });
+    const run = async (model: string) => {
+      for await (const _event of fixture.services.hostedModels.stream(baseUser, {
+        turnId: `turn-${model}`,
+        model,
+        harnessId: 'opencode_acp',
+        messages: [{ role: 'user', content: 'hello' }],
+      })) {
+        // drain
+      }
+    };
+
+    await run('sponsor/model');
+    const usage = await fixture.services.hostedModels.usage(baseUser);
+    assert.deepEqual(
+      usage.providers.map(({ id, usage: { requests, totalTokens } }) => ({
+        id,
+        requests,
+        totalTokens,
+      })),
+      [
+        { id: 'house', requests: 0, totalTokens: 0 },
+        { id: 'sponsor', requests: 1, totalTokens: 15 },
+      ],
+    );
+    assert.equal(await fixture.quota.getLabCreditUsage('sponsor'), 15);
+    assert.deepEqual(
+      [...fixture.quota.labReports.entries()].map(([key, report]) => [
+        key.split('\u0000'),
+        report.requests,
+      ]),
+      [[['sponsor', '2026-08-13', 'sponsor/model', 'opencode_acp'], 1]],
+    );
+
+    const catalog = await fixture.services.hostedModels.catalog(baseUser);
+    assert.deepEqual(
+      catalog.providers.map(({ id, available }) => ({ id, available })),
+      [
+        { id: 'house', available: true },
+        { id: 'sponsor', available: false },
+      ],
+    );
+    await assert.rejects(
+      run('sponsor/model'),
+      (error: unknown) =>
+        error instanceof CloudError && error.code === 'hosted_lab_credit_exhausted',
+    );
+    // Other labs are unaffected by one sponsor's exhausted credit.
+    await run('house/model');
+  });
+
+  it('withdraws a lab once its availability window ends', async () => {
+    const fixture = makeFixture({
+      metaConfig: {
+        apiKey: 'expired-key-with-enough-characters',
+        endpoint: 'https://expired.invalid/v1',
+        model: 'expired/model',
+        enabled: true,
+        catalogId: 'expired',
+        allowedModels: ['expired/model'],
+        availableUntil: '2026-08-12T23:59:59Z',
+      },
+    });
+
+    const catalog = await fixture.services.hostedModels.catalog(baseUser);
+    assert.equal(catalog.providers[0]?.available, false);
+    assert.equal((await fixture.services.meta.capabilities(baseUser)).available, false);
+    await assert.rejects(
+      (async () => {
+        for await (const _event of fixture.services.hostedModels.stream(baseUser, {
+          turnId: 'expired-turn',
+          model: 'expired/model',
+          messages: [{ role: 'user', content: 'hello' }],
+        })) {
+          // drain
+        }
+      })(),
+      (error: unknown) => error instanceof CloudError && error.code === 'meta_disabled',
+    );
   });
 
   it('onboards additional model labs from secret configuration without exposing keys', async () => {
@@ -1699,6 +1809,7 @@ function makeFixture(
   const audit = new MemoryAudit();
   const voiceProvider = new MemoryVoiceProvider();
   const quota = new MemoryQuota();
+  const remoteDevices = new MemoryRemoteRelayStore();
   const clock = new FixedClock(new Date('2026-08-13T00:00:00.000Z'));
   const metaConfig: MetaConfig = overrides.metaConfig ?? {
     apiKey: 'test-meta-key-with-enough-characters',
@@ -1742,6 +1853,7 @@ function makeFixture(
     metaProvider: new EchoMetaProvider(),
     voiceProvider,
     quota,
+    remoteDevices,
     audit,
     config: {
       actionTtlSeconds: 600,
@@ -1770,6 +1882,7 @@ function makeFixture(
     audit,
     voiceProvider,
     quota,
+    remoteDevices,
     clock,
     services: createServices(deps),
   };

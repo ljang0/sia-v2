@@ -50,9 +50,21 @@ const labHarnessPayloadSchema = z
     schemaVersion: z.literal(1),
     kind: z.literal('lab_harness_test'),
     expiresAt: z.string().datetime({ offset: true }),
-    harnesses: z.array(labHarnessSchema).min(1).max(4),
+    harnesses: z.array(labHarnessSchema).max(4).default([]),
+    /**
+     * Built-in harnesses (e.g. `claude_code`) that have not passed release admission but may
+     * run included models on this tester's Mac until the manifest expires.
+     */
+    previewHarnesses: z
+      .array(z.enum(BUILTIN_HARNESS_IDS))
+      .max(BUILTIN_HARNESS_IDS.length)
+      .default([]),
   })
-  .strict();
+  .strict()
+  .refine(
+    ({ harnesses, previewHarnesses }) => harnesses.length + previewHarnesses.length > 0,
+    'A lab harness manifest must list a harness or a preview harness.',
+  );
 
 const signedLabHarnessManifestSchema = z
   .object({
@@ -69,12 +81,17 @@ const signedLabHarnessManifestSchema = z
 
 export type LabHarness = z.infer<typeof labHarnessSchema>;
 
+export interface LabHarnessManifest {
+  readonly harnesses: readonly LabHarness[];
+  readonly previewHarnesses: readonly string[];
+}
+
 export async function loadLabHarnessManifest(input: {
   readonly path: string;
   readonly publicKey: string | undefined;
   readonly now?: Date;
   readonly hashFile?: (path: string) => Promise<string>;
-}): Promise<readonly LabHarness[]> {
+}): Promise<LabHarnessManifest> {
   if (!input.publicKey)
     throw new Error(
       'This build has no release key, so it cannot verify a lab harness manifest.',
@@ -104,7 +121,7 @@ export async function loadLabHarnessManifest(input: {
     if (actual !== harness.sha256)
       throw new Error(`The ${harness.name} command does not match its signed hash.`);
   }
-  return payload.harnesses;
+  return { harnesses: payload.harnesses, previewHarnesses: payload.previewHarnesses };
 }
 
 async function sha256File(path: string): Promise<string> {

@@ -36,13 +36,20 @@ const privateKey = createPrivateKey(await readFile(privateKeyPath));
 if (privateKey.asymmetricKeyType !== 'ed25519')
   throw new Error('The signing key must be Ed25519.');
 
-const harnesses = JSON.parse(await readFile(input, 'utf8'));
-if (!Array.isArray(harnesses) || harnesses.length === 0)
-  throw new Error('The input must be a non-empty array of harnesses.');
+// The input is an array of harnesses, or { harnesses, previewHarnesses } where
+// previewHarnesses lists built-in harness ids (e.g. "claude_code") to preview with included models.
+const parsed = JSON.parse(await readFile(input, 'utf8'));
+const harnesses = Array.isArray(parsed) ? parsed : (parsed.harnesses ?? []);
+const previewHarnesses = Array.isArray(parsed) ? [] : (parsed.previewHarnesses ?? []);
+if (!Array.isArray(harnesses) || !Array.isArray(previewHarnesses))
+  throw new Error('harnesses and previewHarnesses must be arrays.');
+if (harnesses.length + previewHarnesses.length === 0)
+  throw new Error('List at least one harness or preview harness.');
 const payload = {
   schemaVersion: 1,
   kind: 'lab_harness_test',
   expiresAt: new Date(Date.now() + days * 86_400_000).toISOString(),
+  ...(previewHarnesses.length ? { previewHarnesses } : {}),
   harnesses: await Promise.all(
     harnesses.map(async (harness) => ({
       ...harness,
@@ -59,7 +66,7 @@ const manifest = {
 };
 await writeFile(output, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o644 });
 console.log(
-  `Signed ${payload.harnesses.length} lab harness(es); expires ${payload.expiresAt}.`,
+  `Signed ${payload.harnesses.length} lab harness(es) and ${previewHarnesses.length} preview harness(es); expires ${payload.expiresAt}.`,
 );
 
 function canonicalJson(value) {

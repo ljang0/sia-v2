@@ -380,6 +380,13 @@ export interface HostedLabConfig {
   /** Catalog routes are data; the desktop still requires a registered release adapter. */
   harnessRoutes?: HostedCatalogRoute[];
   defaultHarnessId?: HarnessId;
+  /**
+   * Sponsor-funded token ceiling for this lab across every account and the life of the grant.
+   * Checked before each turn, so turns already in flight may finish slightly past it.
+   */
+  creditTokenLimit?: number;
+  /** ISO-8601 instant after which the lab is unavailable, e.g. when sponsor credit expires. */
+  availableUntil?: string;
 }
 
 /**
@@ -457,8 +464,18 @@ export interface DailyQuotaWindow {
 }
 
 export interface MetaQuotaPolicy extends DailyQuotaWindow {
+  /** Each lab has its own daily allowance and, optionally, a sponsor-wide credit ceiling. */
+  labId: string;
   requestLimit: number;
   tokenLimit: number;
+  creditTokenLimit?: number;
+}
+
+/** Where a turn's tokens are charged: the account, the lab's credit, and its model/harness. */
+export interface MetaUsageAttribution extends DailyQuotaWindow {
+  labId: string;
+  model: string;
+  harnessId: string;
 }
 
 export interface MetaUsageSnapshot {
@@ -480,12 +497,14 @@ export interface VoiceTokenQuotaPolicy extends DailyQuotaWindow {
 
 export interface QuotaGate {
   acquireMeta(userId: string, policy: MetaQuotaPolicy): Promise<ConcurrencyLease>;
-  getMetaUsage(userId: string, period: string): Promise<MetaUsageSnapshot>;
+  getMetaUsage(userId: string, labId: string, period: string): Promise<MetaUsageSnapshot>;
   recordMetaUsage(
     userId: string,
-    window: DailyQuotaWindow,
+    attribution: MetaUsageAttribution,
     usage: MetaTokenUsage,
   ): Promise<void>;
+  /** Total tokens charged to a lab's sponsor credit by every account. */
+  getLabCreditUsage(labId: string): Promise<number>;
   consumeVoiceToken(userId: string, policy: VoiceTokenQuotaPolicy): Promise<void>;
   getVoiceTokenUsage(userId: string, period: string): Promise<number>;
   deleteUserUsage(userId: string): Promise<void>;
@@ -507,3 +526,56 @@ export interface AuditSink {
   write(event: AuditEvent): Promise<void>;
 }
 import type { HarnessId, HostedCatalogRoute, ModelApiProtocol } from '@sia/protocol';
+
+/** A phone paired with one account's Mac for the encrypted phone relay. */
+export interface RemoteDevice {
+  deviceId: string;
+  userId: string;
+  /** SHA-256 (base64url) of the device token; the token itself is never stored. */
+  tokenHash: string;
+  createdAt: string;
+  lastSeenAt?: string;
+}
+
+export type RemoteConnectionRole = 'pending' | 'mac' | 'phone';
+
+export interface RemoteConnection {
+  connectionId: string;
+  role: RemoteConnectionRole;
+  userId?: string;
+  deviceId?: string;
+  connectedAt: string;
+  /** DynamoDB TTL (epoch seconds) so abandoned records clean themselves up. */
+  expiresAt: number;
+}
+
+export interface RemoteRelayStore {
+  getDevice(deviceId: string): Promise<RemoteDevice | undefined>;
+  listDevices(userId: string): Promise<RemoteDevice[]>;
+  createDevice(device: RemoteDevice): Promise<void>;
+  deleteDevice(userId: string, deviceId: string): Promise<void>;
+  touchDevice(deviceId: string, at: string): Promise<void>;
+  putConnection(connection: RemoteConnection): Promise<void>;
+  getConnection(connectionId: string): Promise<RemoteConnection | undefined>;
+  deleteConnection(connectionId: string): Promise<void>;
+  /** Connection ids for every live connection of one device. */
+  deviceConnections(deviceId: string): Promise<string[]>;
+  macConnection(userId: string): Promise<string | undefined>;
+  setMacConnection(userId: string, connectionId: string): Promise<string | undefined>;
+  clearMacConnection(userId: string, connectionId: string): Promise<void>;
+  /** Increments and returns this connection's frame count for the given minute bucket. */
+  countFrame(connectionId: string, minute: number): Promise<number>;
+  deleteUserDevices(userId: string): Promise<void>;
+}
+
+/** Pushes frames to WebSocket connections held by API Gateway. */
+export interface ConnectionPusher {
+  /** Returns false when the connection no longer exists. */
+  send(connectionId: string, frame: Record<string, unknown>): Promise<boolean>;
+  close(connectionId: string): Promise<void>;
+}
+
+/** Verifies a Cognito ID token presented by a Mac in its first relay frame. */
+export interface IdTokenVerifier {
+  verify(idToken: string): Promise<{ subject: string }>;
+}

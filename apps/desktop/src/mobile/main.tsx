@@ -23,7 +23,7 @@ import {
 import type { RemoteState } from '../shared/phone-remote';
 import { SiaLogo } from '../renderer/components/SiaLogo';
 import { VoiceWave } from '../renderer/components/VoiceWave';
-import { remoteRequest, RemoteRequestError, requestId } from './api';
+import { remoteRequest, RemoteRequestError, remoteTransport, requestId } from './api';
 import { MemoryGraph } from './memory-graph';
 import { DitherAurora as Aurora } from '../renderer/components/effects/DitherAurora';
 import { usePhoneViewport } from './use-phone-viewport';
@@ -132,7 +132,9 @@ function App() {
         setConnection(
           cause instanceof RemoteRequestError
             ? cause.message
-            : 'Reconnecting… Keep Sia open and your Mac awake on the same Wi-Fi.',
+            : remoteTransport === 'wifi'
+              ? 'Reconnecting… Keep Sia open and your Mac awake on the same Wi-Fi.'
+              : 'Reconnecting… Keep Sia open and your Mac awake and online.',
         );
         if (cause instanceof RemoteRequestError && cause.status === 404) setState(undefined);
       } finally {
@@ -251,6 +253,25 @@ function App() {
         setView('chat');
         composer.current?.focus({ preventScroll: true });
       }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Try again when your Mac reconnects.');
+    } finally {
+      setPending(false);
+    }
+  };
+  // Over the encrypted relay, this phone may answer the exact step the task waits on.
+  const canAnswer = Boolean(state?.canApprove && latest?.approvalId && state.session);
+  const answer = async (decision: 'approve' | 'deny') => {
+    if (pending || !online || !latest?.approvalId || !state?.session) return;
+    setPending(true);
+    setError('');
+    try {
+      await remoteRequest('approve', {
+        session: state.session,
+        approvalId: latest.approvalId,
+        decision,
+      });
+      await refreshAfterAction();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Try again when your Mac reconnects.');
     } finally {
@@ -459,20 +480,41 @@ function App() {
               {busy && (
                 <div className="live-task-line" role="status">
                   <span className={`activity-light ${latest?.status}`} />
-                  {latest?.approval
-                    ? 'Approve this step on your Mac'
-                    : latest?.status === 'waiting'
-                      ? 'Sia needs your answer'
-                      : online
-                        ? 'Sia is working on your Mac'
-                        : 'Reconnecting for task updates'}
-                  <span>
-                    {latest?.status === 'working'
-                      ? 'You can leave this page'
-                      : latest?.approval
-                        ? 'Your phone can’t approve'
-                        : 'Reply below'}
-                  </span>
+                  {latest?.approval && canAnswer
+                    ? `Sia asks: ${latest.approval}`
+                    : latest?.approval
+                      ? 'Approve this step on your Mac'
+                      : latest?.status === 'waiting'
+                        ? 'Sia needs your answer'
+                        : online
+                          ? 'Sia is working on your Mac'
+                          : 'Reconnecting for task updates'}
+                  {canAnswer ? (
+                    <span className="approval-actions">
+                      <button
+                        type="button"
+                        disabled={pending || !online}
+                        onClick={() => void answer('approve')}
+                      >
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        disabled={pending || !online}
+                        onClick={() => void answer('deny')}
+                      >
+                        Don’t allow
+                      </button>
+                    </span>
+                  ) : (
+                    <span>
+                      {latest?.status === 'working'
+                        ? 'You can leave this page'
+                        : latest?.approval
+                          ? 'Your phone can’t approve'
+                          : 'Reply below'}
+                    </span>
+                  )}
                 </div>
               )}
               <form
@@ -489,13 +531,15 @@ function App() {
                   maxLength={8000}
                   value={text}
                   placeholder={
-                    latest?.approval
-                      ? 'Approve on your Mac to continue'
-                      : latest?.status === 'waiting'
-                        ? 'Answer Sia…'
-                        : busy
-                          ? 'Write a follow-up…'
-                          : 'What can I take off your hands?'
+                    latest?.approval && canAnswer
+                      ? 'Approve or deny above to continue'
+                      : latest?.approval
+                        ? 'Approve on your Mac to continue'
+                        : latest?.status === 'waiting'
+                          ? 'Answer Sia…'
+                          : busy
+                            ? 'Write a follow-up…'
+                            : 'What can I take off your hands?'
                   }
                   onChange={(event) => setText(event.currentTarget.value)}
                   onKeyDown={(event) => {
@@ -638,7 +682,11 @@ function App() {
               <p>
                 <WifiHigh size={20} />
                 <span>
-                  <strong>Stay on the same Wi-Fi</strong>
+                  <strong>
+                    {remoteTransport === 'wifi'
+                      ? 'Stay on the same Wi-Fi'
+                      : 'Works on any network, encrypted end to end'}
+                  </strong>
                   <small>Keep Sia open and your Mac awake.</small>
                 </span>
               </p>

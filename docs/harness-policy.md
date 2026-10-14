@@ -12,14 +12,15 @@ the pinned harness and model for audit attribution.
 
 ## Current matrix
 
-| Harness          | Protocol                   | Release state                | Credential rule                                                                         |
-| ---------------- | -------------------------- | ---------------------------- | --------------------------------------------------------------------------------------- |
-| Codex App Server | official app-server        | enabled                      | included Sia relay, ChatGPT plan, or the person's own key (`user_byok`, loopback proxy) |
-| Sia direct       | authenticated cloud stream | legacy threads only          | Sia-managed, server-side lab key                                                        |
-| Claude Code      | isolated CLI stream        | legacy compatibility         | provider-owned Claude subscription                                                      |
-| OpenCode         | ACP over nd-JSON           | hidden, fail-closed          | no route approved yet                                                                   |
-| Pi               | JSONL RPC over stdio       | hidden, fail-closed          | no route approved yet                                                                   |
-| Lab harness test | ACP over stdio             | signed testing manifest only | lab-owned; see [model lab integration](./model-lab-integration.md)                      |
+| Harness          | Protocol                   | Release state                             | Credential rule                                                                               |
+| ---------------- | -------------------------- | ----------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Codex App Server | official app-server        | enabled                                   | included Sia relay, ChatGPT plan, or the person's own key (`user_byok`, loopback proxy)       |
+| Sia direct       | authenticated cloud stream | legacy threads only                       | Sia-managed, server-side lab key                                                              |
+| Claude Code      | isolated CLI stream        | legacy; included models in signed preview | provider-owned Claude subscription, or included models via the loopback proxy (`sia_managed`) |
+| OpenCode         | ACP over nd-JSON           | included models in signed preview         | included models via the loopback proxy (`sia_managed`); private HOME per session              |
+| OpenHands        | ACP over stdio             | included models in signed preview         | included models via the loopback proxy (`sia_managed`); private HOME per session              |
+| Pi               | JSONL RPC over stdio       | included models in signed preview         | included models via the loopback proxy (`sia_managed`); private HOME per session              |
+| Lab harness test | ACP over stdio             | signed testing manifest only              | lab-owned; see [model lab integration](./model-lab-integration.md)                            |
 
 OpenCode documents `opencode acp` as an nd-JSON stdin/stdout server and supports explicit permission
 configuration, but it also merges global, project, and plugin configuration. Pi documents a strict
@@ -85,7 +86,32 @@ pinned version in a clean macOS profile and an isolated lab worker:
    configuration.
 8. A real-provider smoke test passes without relying on an interactive trust prompt.
 
-The current release has no admitted OpenCode or Pi adapter. They remain absent from the UI, and the
+OpenCode 1.19 runs included models in signed preview (`previewHarnesses`). Each session gets a
+private HOME/XDG tree and an inline `OPENCODE_CONFIG_CONTENT` that enables only the `sia`
+provider (the loopback Responses proxy), sets `tools: {"*": false, "sia_*": true}`, and denies every
+permission except Sia's MCP tools, so OpenCode's shell, file, and web tools are never offered to the
+model. The opt-in `SIA_OPENCODE_ENDPOINT_SMOKE` test verifies this against the real binary. It is
+not yet release-admitted: items 6 and 8 above still need the signed-app run.
+
+OpenHands 1.16 (`openhands acp`) also runs included models in signed preview. Each session gets a
+private HOME and `OPENHANDS_PERSISTENCE_DIR` holding only Sia's `agent_settings.json` (LiteLLM
+`openai/<model>` against the loopback proxy's Chat Completions route). OpenHands always adds its own
+terminal and file-editor tools, which run on the host without a sandbox, so it is admitted only
+with OpenHands' default "always ask" confirmation: every native action becomes a Sia approval card,
+and Sia answers by ACP option kind and never selects OpenHands' "always proceed" option. Model
+choice is fixed in its settings and enforced by the model-scoped proxy capability, since OpenHands
+does not advertise an ACP model selector. Verify with `SIA_OPENHANDS_ENDPOINT_SMOKE`.
+
+Pi 1.2 (`pi --mode rpc`) runs included models in signed preview too. Each session starts its own
+process with a private HOME and `PI_CODING_AGENT_DIR` holding only Sia's `models.json` (the `sia`
+provider on the loopback Responses proxy) and `mcp.json` (Sia's tool server with `direct`
+exposure), and runs with `--no-session --no-extensions -e builtin:mcp --tools 'mcp__sia__*'
+--no-skills --no-prompt-templates --no-themes --no-context-files --no-approve --offline`, so Pi's
+own read/bash/edit/write tools are never declared. Pi frames JSONL on LF only, so its adapter does
+not use Node's `readline`. Verify with `SIA_PI_ENDPOINT_SMOKE`.
+
+No OpenCode, OpenHands, or Pi adapter is release-admitted yet; each runs only under a signed
+`previewHarnesses` manifest until the remaining checks above pass in the signed app. They remain absent from the UI, and the
 main process independently rejects a crafted or migrated unapproved route.
 
 ## Lab-hosted proprietary harnesses

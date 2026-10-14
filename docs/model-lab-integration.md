@@ -11,18 +11,24 @@ path, because the Chat Completions → Responses conversion lives in Sia cloud.
 
 ## Compatibility contract
 
-For the broadest upstream compatibility, a lab should expose the OpenAI Responses API, streaming,
-tool calls, and `GET /v1/models`. Chat Completions labs also work because Sia normalizes their
-stream into Responses before Codex sees it:
+A hosted lab may expose any of three wire protocols, set per lab with `apiProtocol`. The cloud
+relay (`apps/cloud/src/aws/meta-provider.ts`, one `UPSTREAMS` entry per protocol) translates each
+into the same bounded stream, so Codex App Server always sees the Responses API:
 
-| Model API               | Sia direct | Codex app server | OpenCode | Pi  |
-| ----------------------- | ---------- | ---------------- | -------- | --- |
-| OpenAI Responses        | yes        | yes              | yes      | yes |
-| OpenAI Chat Completions | yes        | no               | yes      | yes |
-| Anthropic Messages      | no         | no               | yes      | yes |
+| Lab `apiProtocol`         | Request path / auth                            | Codex app server via Sia relay |
+| ------------------------- | ---------------------------------------------- | ------------------------------ |
+| `openai_responses`        | `/responses`, `Authorization: Bearer`          | yes                            |
+| `openai_chat_completions` | `/chat/completions`, `Authorization: Bearer`   | yes                            |
+| `anthropic_messages`      | `/messages`, `x-api-key` + `anthropic-version` | yes                            |
 
-Codex custom model providers accept the Responses wire API only. OpenCode and Pi accept both
-OpenAI Responses and Chat Completions. OpenCode and Pi also document their own ChatGPT Plus/Pro
+Each lab must also serve `GET /models` (Anthropic: `/models?limit=1000`) listing its allowed
+models, which is the live readiness check. Adding a protocol means adding one `UPSTREAMS` entry with
+its request translation and stream reader; nothing outside the relay changes.
+
+Natively, harnesses differ: OpenCode and Pi speak all three protocols directly, while Codex custom
+model providers accept Responses only.
+
+OpenCode and Pi also document their own ChatGPT Plus/Pro
 sign-in, so a Codex subscription can be used by those harnesses without Sia copying the credential.
 Each harness must own its login and token refresh.
 
@@ -56,6 +62,19 @@ The existing hosted-model secret is the primary lab. Add more entries under `add
       "displayName": "Second Lab",
       "apiProtocol": "openai_chat_completions",
       "enabled": true
+    },
+    {
+      "apiKey": "sponsor-secret",
+      "endpoint": "https://api.sponsor.example/v1",
+      "model": "sponsor/claude",
+      "allowedModels": ["sponsor/claude"],
+      "catalogId": "sponsor",
+      "displayName": "Sponsor",
+      "apiProtocol": "anthropic_messages",
+      "enabled": true,
+      "dailyTokenLimit": 500000,
+      "creditTokenLimit": 50000000,
+      "availableUntil": "2027-01-01T00:00:00Z"
     }
   ]
 }
@@ -67,6 +86,68 @@ limits, protocols, and admitted routes only; endpoints and API keys are never re
 Every model automatically receives a managed `codex_app_server` Responses route. Optional
 `harnessRoutes` add lab-specific routes without removing that baseline. Every route must name an
 allowed model. `defaultHarnessId` chooses between routes in the same lab entry.
+
+A `sia_managed` route's `apiProtocol` is what the harness speaks to Sia, not what the lab speaks:
+the relay accepts Responses (`/v1/responses`), Anthropic Messages (`/v1/messages`), and Chat
+Completions (`/v1/chat/completions`) and translates each to the lab's own protocol. So a Chat
+Completions lab can run in Claude Code with
+`{ "harnessId": "claude_code", "credentialSource": "sia_managed", "apiProtocol": "anthropic_messages" }`.
+On the Mac, the harness gets a loopback base URL and a model-scoped capability from
+`HostedModelProxy`; neither Sia identity nor any lab key reaches it, and the cloud meters the
+request against that lab, model, and harness.
+
+## Preview a built-in harness before release admission
+
+Routes for a harness whose registry entry is not `productionEnabled` are dropped in ordinary
+builds. To test one (for example Claude Code with a sponsor's models) on a tester's signed app,
+the release owner signs a manifest that lists it under `previewHarnesses`:
+
+```json
+{ "previewHarnesses": ["claude_code"], "harnesses": [] }
+```
+
+When an included model has more than one admitted engine, the agent dialog's **Details** shows an
+**Engine** choice (Automatic, Codex, Claude Code, OpenCode, OpenHands, Pi as admitted). Automatic
+follows the lab's `defaultHarnessId`; an explicit choice is saved as the agent's harness preference
+and pinned by each new thread. Models with a single engine show no choice.
+
+The manifest is signed and loaded exactly like a lab harness manifest below
+(`SIA_LAB_HARNESS_MANIFEST`), expires the same way, and only accepts built-in harness ids. Release
+admission is still flipping `productionEnabled` after the conformance matrix passes.
+
+Each previewable harness has an opt-in real-binary check against a loopback stub of the model
+proxy. It needs no network model, account, or model turn, and asserts the scoped capability and
+model on every request, a completed Sia MCP tool loop, and an untouched workspace:
+
+```sh
+SIA_CLAUDE_ENDPOINT_SMOKE=1 \
+SIA_OPENCODE_ENDPOINT_SMOKE=1 SIA_OPENCODE_COMMAND=/abs/path/opencode \
+SIA_OPENHANDS_ENDPOINT_SMOKE=1 SIA_OPENHANDS_COMMAND=/abs/path/openhands \
+SIA_PI_ENDPOINT_SMOKE=1 SIA_PI_COMMAND=/abs/path/pi \
+  pnpm --filter @sia/runtime exec vitest run src/claude-endpoint.smoke.test.ts \
+    src/opencode-endpoint.smoke.test.ts src/openhands-endpoint.smoke.test.ts \
+    src/pi-endpoint.smoke.test.ts
+```
+
+On a tester's Mac, `SIA_OPENCODE_COMMAND`, `SIA_OPENHANDS_COMMAND`, and `SIA_PI_COMMAND` point Sia at
+those binaries;
+otherwise each is looked up on PATH.
+
+## Sponsored credit and usage reports
+
+Each lab is metered on its own. Its `dailyRequestLimit` and `dailyTokenLimit` apply per account
+per UTC day to that lab only, so a sponsor's allowance never consumes another lab's.
+
+- `creditTokenLimit` caps the lab's tokens across every account for the life of the grant. It is
+  checked before each turn, so turns already running may finish slightly past it. Once spent, the
+  catalog reports the lab unavailable and new turns fail with `hosted_lab_credit_exhausted`.
+- `availableUntil` (ISO-8601) withdraws the lab from the catalog and relay at that instant.
+
+The control table keeps account-free aggregates under `PK = LAB#<catalogId>`: `SK = CREDIT` holds
+the lab's running request and token totals, and `SK = USAGE#<day>#<model>#<harnessId>` holds a
+daily per-model, per-harness report retained for about 400 days. The harness id comes from the
+desktop's loopback relay (`x-sia-harness`); it is client-reported, used for attribution only, and
+never authorizes anything. Per-account counters stay under the account and are deleted with it.
 
 ## Add a harness
 

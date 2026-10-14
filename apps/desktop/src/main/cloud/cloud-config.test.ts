@@ -86,6 +86,44 @@ describe('cloud configuration', () => {
     ).toThrow(/clean HTTPS/);
   });
 
+  it('reads the phone relay only as a complete, clean WSS and HTTPS pair', async () => {
+    const relay = {
+      phoneRelayUrl: 'wss://relay.example.test/v1',
+      phonePageUrl: 'https://sia.example.test/remote/',
+    };
+    await expect(
+      loadCloudConfiguration({
+        packaged: true,
+        resourcesPath: '/Resources',
+        environment: {},
+        readResource: async () => JSON.stringify({ ...ENABLED_CONFIG, ...relay }),
+      }),
+    ).resolves.toMatchObject(relay);
+    expect(
+      developmentCloudConfiguration({
+        SIA_API_BASE_URL: ENABLED_CONFIG.apiBaseUrl,
+        SIA_COGNITO_REGION: ENABLED_CONFIG.cognitoRegion,
+        SIA_COGNITO_CLIENT_ID: ENABLED_CONFIG.cognitoClientId,
+        SIA_PHONE_RELAY_URL: relay.phoneRelayUrl,
+        SIA_PHONE_PAGE_URL: relay.phonePageUrl,
+      }),
+    ).toMatchObject(relay);
+    for (const bad of [
+      { phoneRelayUrl: relay.phoneRelayUrl },
+      { ...relay, phoneRelayUrl: 'ws://relay.example.test/v1' },
+      { ...relay, phonePageUrl: 'https://sia.example.test/remote/#k=leak' },
+    ]) {
+      await expect(
+        loadCloudConfiguration({
+          packaged: true,
+          resourcesPath: '/Resources',
+          environment: {},
+          readResource: async () => JSON.stringify({ ...ENABLED_CONFIG, ...bad }),
+        }),
+      ).rejects.toThrow();
+    }
+  });
+
   it('accepts an update manifest in a packaged local-only build', async () => {
     await expect(
       loadCloudConfiguration({

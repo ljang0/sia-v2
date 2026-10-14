@@ -422,6 +422,17 @@ function readPlistRaw(key) {
   return result.stdout.trim();
 }
 
+function cleanUrl(value, protocol) {
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === protocol && !url.username && !url.password && !url.search && !url.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
 function parseCloudConfig(raw) {
   let value;
   try {
@@ -449,6 +460,16 @@ function parseCloudConfig(raw) {
     validateUpdateConfiguration(value);
     return value;
   }
+  const hasPhoneRelay = typeof value.phoneRelayUrl === 'string';
+  if (hasPhoneRelay !== (typeof value.phonePageUrl === 'string')) {
+    throw new Error('Packaged phone relay configuration is incomplete.');
+  }
+  if (
+    hasPhoneRelay &&
+    (!cleanUrl(value.phoneRelayUrl, 'wss:') || !cleanUrl(value.phonePageUrl, 'https:'))
+  ) {
+    throw new Error('Packaged phone relay URLs are invalid.');
+  }
   const expected = [
     'apiBaseUrl',
     'cognitoClientId',
@@ -456,7 +477,8 @@ function parseCloudConfig(raw) {
     'enabled',
     'schemaVersion',
     ...updateKeys,
-  ];
+    ...(hasPhoneRelay ? ['phonePageUrl', 'phoneRelayUrl'] : []),
+  ].sort();
   if (JSON.stringify(keys) !== JSON.stringify(expected)) {
     throw new Error('Enabled packaged cloud configuration contains unexpected fields.');
   }

@@ -58,6 +58,7 @@ export async function createHarness(
     installCodex?: ConstructorParameters<typeof DesktopController>[0]['installCodex'];
     byok?: ConstructorParameters<typeof DesktopController>[0]['byok'];
     labHarnesses?: ConstructorParameters<typeof DesktopController>[0]['labHarnesses'];
+    previewHarnesses?: readonly string[];
     workspaceOperations?: ConstructorParameters<
       typeof DesktopController
     >[0]['workspaceOperations'];
@@ -105,6 +106,7 @@ export async function createHarness(
     ...(options.installCodex ? { installCodex: options.installCodex } : {}),
     ...(options.byok ? { byok: options.byok } : {}),
     ...(options.labHarnesses ? { labHarnesses: options.labHarnesses } : {}),
+    ...(options.previewHarnesses ? { previewHarnesses: options.previewHarnesses } : {}),
     ...(options.workspaceOperations
       ? { workspaceOperations: options.workspaceOperations }
       : {}),
