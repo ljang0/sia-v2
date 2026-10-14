@@ -7,7 +7,7 @@ Renderer (sandboxed)
         |
 Electron main -------------- Sia cloud API
   |       |       |             |-- base account + optional research entitlements
-  |       |       |             |-- Model-lab catalog/relay + per-user daily quotas
+  |       |       |             |-- Model-lab catalog/relay + per-lab quotas and sponsor credit
   |       |       |             |-- managed voice catalog + one-time token broker
   |       |       |             |-- connector gateway
   |       |       |             |-- consented raw research sync + queued export

@@ -186,6 +186,8 @@ export interface MetaTurnRequest {
   model?: string;
   messages: MetaMessage[];
   tools?: MetaTool[];
+  /** Client-reported harness, used only to attribute usage; never for authorization. */
+  harnessId?: string;
 }
 
 export type MetaStreamEvent =

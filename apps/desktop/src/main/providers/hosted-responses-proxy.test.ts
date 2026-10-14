@@ -14,7 +14,7 @@ describe('HostedResponsesProxy', () => {
       forwardHostedResponses: vi.fn(async () => new Response('fresh')),
     });
     proxies.push(proxy);
-    const issued = proxy.issue('meta/spark');
+    const issued = proxy.issue('meta/spark', 'codex_app_server');
     const settled = issued.then(
       () => 'issued',
       () => 'revoked',
@@ -22,7 +22,7 @@ describe('HostedResponsesProxy', () => {
     await proxy.dispose();
     expect(await settled).toBe('revoked');
 
-    const provider = await proxy.issue('meta/spark');
+    const provider = await proxy.issue('meta/spark', 'codex_app_server');
     const response = await fetch(`${provider.baseUrl}/responses`, {
       method: 'POST',
       headers: { authorization: `Bearer ${provider.bearerToken}` },
@@ -48,7 +48,7 @@ describe('HostedResponsesProxy', () => {
       }),
     });
     proxies.push(proxy);
-    const provider = await proxy.issue('meta/spark');
+    const provider = await proxy.issue('meta/spark', 'codex_app_server');
     const client = new AbortController();
     const response = await fetch(`${provider.baseUrl}/responses`, {
       method: 'POST',
@@ -71,16 +71,18 @@ describe('HostedResponsesProxy', () => {
   });
 
   it('uses an opaque model-scoped loopback capability and streams the forwarded response', async () => {
-    const forwardHostedResponses = vi.fn(async (body: string) => {
-      expect(JSON.parse(body)).toMatchObject({ model: 'meta/spark', stream: true });
-      return new Response('data: {"type":"response.completed"}\n\ndata: [DONE]\n\n', {
-        status: 200,
-        headers: { 'content-type': 'text/event-stream' },
-      });
-    });
+    const forwardHostedResponses = vi.fn(
+      async (body: string, _signal?: AbortSignal, _attribution?: { harnessId: string }) => {
+        expect(JSON.parse(body)).toMatchObject({ model: 'meta/spark', stream: true });
+        return new Response('data: {"type":"response.completed"}\n\ndata: [DONE]\n\n', {
+          status: 200,
+          headers: { 'content-type': 'text/event-stream' },
+        });
+      },
+    );
     const proxy = new HostedResponsesProxy({ forwardHostedResponses });
     proxies.push(proxy);
-    const provider = await proxy.issue('meta/spark');
+    const provider = await proxy.issue('meta/spark', 'codex_app_server');
     const endpoint = `${provider.baseUrl}/responses`;
 
     expect(provider.baseUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1$/);
@@ -115,6 +117,19 @@ describe('HostedResponsesProxy', () => {
     expect(response.headers.get('content-type')).toBe('text/event-stream');
     expect(await response.text()).toContain('response.completed');
     expect(forwardHostedResponses).toHaveBeenCalledTimes(1);
+    expect(forwardHostedResponses.mock.calls[0]?.[2]).toEqual({
+      harnessId: 'codex_app_server',
+    });
+  });
+
+  it('rejects a capability request for an unsafe harness id', async () => {
+    const proxy = new HostedResponsesProxy({
+      forwardHostedResponses: vi.fn(async () => new Response('unexpected')),
+    });
+    proxies.push(proxy);
+    await expect(proxy.issue('meta/spark', 'Codex App Server')).rejects.toThrow(
+      'Harness id is invalid.',
+    );
   });
 
   it('exposes no route beyond Responses and bounds request bodies', async () => {
@@ -122,7 +137,7 @@ describe('HostedResponsesProxy', () => {
       forwardHostedResponses: vi.fn(async () => new Response('unexpected')),
     });
     proxies.push(proxy);
-    const provider = await proxy.issue('meta/spark');
+    const provider = await proxy.issue('meta/spark', 'codex_app_server');
     const headers = { authorization: `Bearer ${provider.bearerToken}` };
 
     const unknown = await fetch(`${provider.baseUrl}/models`, { method: 'POST', headers });

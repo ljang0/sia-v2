@@ -380,6 +380,13 @@ export interface HostedLabConfig {
   /** Catalog routes are data; the desktop still requires a registered release adapter. */
   harnessRoutes?: HostedCatalogRoute[];
   defaultHarnessId?: HarnessId;
+  /**
+   * Sponsor-funded token ceiling for this lab across every account and the life of the grant.
+   * Checked before each turn, so turns already in flight may finish slightly past it.
+   */
+  creditTokenLimit?: number;
+  /** ISO-8601 instant after which the lab is unavailable, e.g. when sponsor credit expires. */
+  availableUntil?: string;
 }
 
 /**
@@ -457,8 +464,18 @@ export interface DailyQuotaWindow {
 }
 
 export interface MetaQuotaPolicy extends DailyQuotaWindow {
+  /** Each lab has its own daily allowance and, optionally, a sponsor-wide credit ceiling. */
+  labId: string;
   requestLimit: number;
   tokenLimit: number;
+  creditTokenLimit?: number;
+}
+
+/** Where a turn's tokens are charged: the account, the lab's credit, and its model/harness. */
+export interface MetaUsageAttribution extends DailyQuotaWindow {
+  labId: string;
+  model: string;
+  harnessId: string;
 }
 
 export interface MetaUsageSnapshot {
@@ -480,12 +497,14 @@ export interface VoiceTokenQuotaPolicy extends DailyQuotaWindow {
 
 export interface QuotaGate {
   acquireMeta(userId: string, policy: MetaQuotaPolicy): Promise<ConcurrencyLease>;
-  getMetaUsage(userId: string, period: string): Promise<MetaUsageSnapshot>;
+  getMetaUsage(userId: string, labId: string, period: string): Promise<MetaUsageSnapshot>;
   recordMetaUsage(
     userId: string,
-    window: DailyQuotaWindow,
+    attribution: MetaUsageAttribution,
     usage: MetaTokenUsage,
   ): Promise<void>;
+  /** Total tokens charged to a lab's sponsor credit by every account. */
+  getLabCreditUsage(labId: string): Promise<number>;
   consumeVoiceToken(userId: string, policy: VoiceTokenQuotaPolicy): Promise<void>;
   getVoiceTokenUsage(userId: string, period: string): Promise<number>;
   deleteUserUsage(userId: string): Promise<void>;

@@ -414,6 +414,41 @@ describe('hosted model lab secret configuration', () => {
     ]);
   });
 
+  it('loads sponsor credit and expiry, and rejects a malformed expiry', async () => {
+    const load = (overrides: Record<string, unknown>) =>
+      new SecretsManagerProvider(
+        {
+          send: async () => ({
+            SecretString: JSON.stringify({
+              apiKey: 'sponsor-test-key-never-used',
+              endpoint: 'https://sponsor.example/v1',
+              model: 'sponsor/model',
+              apiProtocol: 'anthropic_messages',
+              enabled: true,
+              ...overrides,
+            }),
+          }),
+        } as never,
+        'meta-secret',
+        'voice-secret',
+        'composio-secret',
+        'google-secret',
+        'registration-secret',
+      ).meta();
+
+    const parsed = await load({
+      creditTokenLimit: 50_000_000,
+      availableUntil: '2027-01-01T00:00:00Z',
+    });
+    assert.equal(parsed.creditTokenLimit, 50_000_000);
+    assert.equal(parsed.availableUntil, '2027-01-01T00:00:00Z');
+    assert.equal(parsed.apiProtocol, 'anthropic_messages');
+    await assert.rejects(
+      load({ availableUntil: 'next month' }),
+      (error: unknown) => error instanceof CloudError && error.code === 'secret_invalid',
+    );
+  });
+
   it('fails closed when two labs advertise the same canonical model', async () => {
     const client = {
       send: async () => ({

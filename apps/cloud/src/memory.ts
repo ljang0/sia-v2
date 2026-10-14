@@ -27,7 +27,7 @@ import type {
   ConnectorUploadRecord,
   ConnectorUploadRepository,
   ConsentReceipt,
-  DailyQuotaWindow,
+  MetaUsageAttribution,
   DeletionJob,
   DeletionQueue,
   DeletionRepository,
@@ -678,12 +678,26 @@ export class MemoryQuota implements QuotaGate {
   private readonly active = new Map<string, number>();
   private readonly metaUsage = new Map<string, MetaUsageSnapshot>();
   private readonly voiceTokenUsage = new Map<string, number>();
+  private readonly labCredit = new Map<string, number>();
+  /** Per lab, model and harness, keyed `labId\0period\0model\0harnessId`. */
+  readonly labReports = new Map<string, MetaUsageSnapshot>();
   constructor(private readonly limit = 2) {}
   async acquireMeta(userId: string, policy: MetaQuotaPolicy): Promise<ConcurrencyLease> {
     const count = this.active.get(userId) ?? 0;
     if (count >= this.limit)
       throw new CloudError(429, 'meta_concurrency_limit', 'Too many active Meta turns', true);
-    const usageKey = key(userId, policy.period);
+    if (
+      policy.creditTokenLimit !== undefined &&
+      (this.labCredit.get(policy.labId) ?? 0) >= policy.creditTokenLimit
+    ) {
+      throw new CloudError(
+        429,
+        'hosted_lab_credit_exhausted',
+        "This model's sponsored allowance has been used up",
+        false,
+      );
+    }
+    const usageKey = key(userId, policy.labId, policy.period);
     const usage = this.metaUsage.get(usageKey) ?? emptyMetaUsage();
     if (usage.requests >= policy.requestLimit || usage.totalTokens >= policy.tokenLimit) {
       throw new CloudError(
@@ -708,21 +722,34 @@ export class MemoryQuota implements QuotaGate {
     };
   }
 
-  async getMetaUsage(userId: string, period: string): Promise<MetaUsageSnapshot> {
-    return structuredClone(this.metaUsage.get(key(userId, period)) ?? emptyMetaUsage());
+  async getMetaUsage(
+    userId: string,
+    labId: string,
+    period: string,
+  ): Promise<MetaUsageSnapshot> {
+    return structuredClone(this.metaUsage.get(key(userId, labId, period)) ?? emptyMetaUsage());
   }
 
   async recordMetaUsage(
     userId: string,
-    window: DailyQuotaWindow,
+    attribution: MetaUsageAttribution,
     usage: MetaTokenUsage,
   ): Promise<void> {
-    const usageKey = key(userId, window.period);
+    const { labId, model, harnessId, period } = attribution;
+    const usageKey = key(userId, labId, period);
     const current = this.metaUsage.get(usageKey) ?? emptyMetaUsage();
-    current.inputTokens += usage.inputTokens;
-    current.outputTokens += usage.outputTokens;
-    current.totalTokens += usage.totalTokens;
+    addTokens(current, usage);
     this.metaUsage.set(usageKey, current);
+    this.labCredit.set(labId, (this.labCredit.get(labId) ?? 0) + usage.totalTokens);
+    const reportKey = [labId, period, model, harnessId].join('\u0000');
+    const report = this.labReports.get(reportKey) ?? emptyMetaUsage();
+    report.requests += 1;
+    addTokens(report, usage);
+    this.labReports.set(reportKey, report);
+  }
+
+  async getLabCreditUsage(labId: string): Promise<number> {
+    return this.labCredit.get(labId) ?? 0;
   }
 
   async consumeVoiceToken(userId: string, policy: VoiceTokenQuotaPolicy): Promise<void> {
@@ -753,6 +780,12 @@ export class MemoryQuota implements QuotaGate {
     }
     this.active.delete(userId);
   }
+}
+
+function addTokens(target: MetaUsageSnapshot, usage: MetaTokenUsage): void {
+  target.inputTokens += usage.inputTokens;
+  target.outputTokens += usage.outputTokens;
+  target.totalTokens += usage.totalTokens;
 }
 
 function emptyMetaUsage(): MetaUsageSnapshot {

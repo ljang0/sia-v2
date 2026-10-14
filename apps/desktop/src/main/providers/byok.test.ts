@@ -78,7 +78,7 @@ describe('your own API key', () => {
       { id: 'sia_byok', name: 'Your API key' },
     );
     proxies.push(proxy);
-    const provider = await proxy.issue('lab/spark');
+    const provider = await proxy.issue('lab/spark', 'codex_app_server');
     expect(provider).toMatchObject({ id: 'sia_byok', name: 'Your API key' });
     expect(JSON.stringify(provider)).not.toContain(KEY);
     expect(provider.baseUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/v1$/);

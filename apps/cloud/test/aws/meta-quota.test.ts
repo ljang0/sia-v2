@@ -23,6 +23,7 @@ describe('Dynamo hosted-service quotas', () => {
     const lease = await quota.acquireMeta('user-1', {
       period: '2026-08-26',
       expiresAt: 123456,
+      labId: 'meta',
       requestLimit: 100,
       tokenLimit: 250_000,
     });
@@ -32,7 +33,7 @@ describe('Dynamo hosted-service quotas', () => {
     assert.deepEqual(updates[0]?.input.Key, { PK: 'USER#user-1', SK: 'QUOTA#META' });
     assert.deepEqual(updates[1]?.input.Key, {
       PK: 'USER#user-1',
-      SK: 'USAGE#META#2026-08-26',
+      SK: 'USAGE#LAB#meta#2026-08-26',
     });
     assert.match(updates[1]?.input.ConditionExpression ?? '', /requestLimit/);
     assert.match(updates[1]?.input.ConditionExpression ?? '', /tokenLimit/);
@@ -57,6 +58,7 @@ describe('Dynamo hosted-service quotas', () => {
       quota.acquireMeta('user-1', {
         period: '2026-08-26',
         expiresAt: 123456,
+        labId: 'meta',
         requestLimit: 1,
         tokenLimit: 1,
       }),
@@ -85,6 +87,7 @@ describe('Dynamo hosted-service quotas', () => {
     const lease = await quota.acquireMeta('user-1', {
       period: '2026-08-26',
       expiresAt: 123456,
+      labId: 'meta',
       requestLimit: 100,
       tokenLimit: 250_000,
     });
@@ -102,7 +105,7 @@ describe('Dynamo hosted-service quotas', () => {
       async send(command: unknown) {
         commands.push(command);
         if (command instanceof GetCommand) {
-          return command.input.Key?.SK === 'USAGE#META#2026-08-26'
+          return command.input.Key?.SK === 'USAGE#LAB#meta#2026-08-26'
             ? {
                 Item: {
                   requests: 2,
@@ -120,7 +123,13 @@ describe('Dynamo hosted-service quotas', () => {
 
     await quota.recordMetaUsage(
       'user-1',
-      { period: '2026-08-26', expiresAt: 123456 },
+      {
+        period: '2026-08-26',
+        expiresAt: 123456,
+        labId: 'meta',
+        model: 'meta-test',
+        harnessId: 'codex_app_server',
+      },
       { inputTokens: 20, outputTokens: 5, totalTokens: 25 },
     );
     await quota.consumeVoiceToken('user-1', {
@@ -128,7 +137,7 @@ describe('Dynamo hosted-service quotas', () => {
       expiresAt: 123456,
       tokenMintLimit: 20,
     });
-    assert.deepEqual(await quota.getMetaUsage('user-1', '2026-08-26'), {
+    assert.deepEqual(await quota.getMetaUsage('user-1', 'meta', '2026-08-26'), {
       requests: 2,
       inputTokens: 30,
       outputTokens: 10,
@@ -136,5 +145,73 @@ describe('Dynamo hosted-service quotas', () => {
     });
     assert.equal(await quota.getVoiceTokenUsage('user-1', '2026-08-26'), 3);
     assert.doesNotMatch(JSON.stringify(commands), /prompt|message|token":"|apiKey/);
+  });
+
+  it('refuses a turn once the lab sponsor credit is spent, before reserving the day', async () => {
+    const commands: unknown[] = [];
+    const client = {
+      async send(command: unknown) {
+        commands.push(command);
+        if (command instanceof GetCommand) return { Item: { totalTokens: 1_000 } };
+        return {};
+      },
+    } as unknown as DynamoDBDocumentClient;
+    const quota = new DynamoMetaQuota(client, 'table', 2);
+
+    await assert.rejects(
+      quota.acquireMeta('user-1', {
+        period: '2026-08-26',
+        expiresAt: 123456,
+        labId: 'sponsor',
+        requestLimit: 100,
+        tokenLimit: 250_000,
+        creditTokenLimit: 1_000,
+      }),
+      (error: unknown) =>
+        error instanceof CloudError && error.code === 'hosted_lab_credit_exhausted',
+    );
+    const keys = commands.map(
+      (command) => (command as UpdateCommand | GetCommand).input.Key as Record<string, string>,
+    );
+    assert.deepEqual(keys, [
+      { PK: 'USER#user-1', SK: 'QUOTA#META' },
+      { PK: 'LAB#sponsor', SK: 'CREDIT' },
+      { PK: 'USER#user-1', SK: 'QUOTA#META' },
+    ]);
+  });
+
+  it('charges usage to the account, the lab credit and a model/harness report', async () => {
+    const updates: UpdateCommand[] = [];
+    const client = {
+      async send(command: unknown) {
+        assert.ok(command instanceof UpdateCommand);
+        updates.push(command);
+        return {};
+      },
+    } as unknown as DynamoDBDocumentClient;
+    const quota = new DynamoMetaQuota(client, 'table', 2);
+
+    await quota.recordMetaUsage(
+      'user-1',
+      {
+        period: '2026-08-26',
+        expiresAt: 123456,
+        labId: 'sponsor',
+        model: 'sponsor/model',
+        harnessId: 'pi_rpc',
+      },
+      { inputTokens: 20, outputTokens: 5, totalTokens: 25 },
+    );
+
+    assert.deepEqual(
+      updates.map(({ input }) => input.Key),
+      [
+        { PK: 'USER#user-1', SK: 'USAGE#LAB#sponsor#2026-08-26' },
+        { PK: 'LAB#sponsor', SK: 'CREDIT' },
+        { PK: 'LAB#sponsor', SK: 'USAGE#2026-08-26#sponsor/model#pi_rpc' },
+      ],
+    );
+    // Lab aggregates never carry the account identity.
+    assert.doesNotMatch(JSON.stringify(updates.slice(1).map(({ input }) => input)), /user-1/);
   });
 });

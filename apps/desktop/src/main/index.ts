@@ -750,13 +750,13 @@ async function performApplicationCreation(): Promise<void> {
       ...(hostedResponsesProxy
         ? {
             hostedCodexProvider: (providerSession) =>
-              hostedResponsesProxy.issue(providerSession.model),
+              hostedResponsesProxy.issue(providerSession.model, 'codex_app_server'),
           }
         : {}),
       ...(byokResponsesProxy
         ? {
             byokCodexProvider: (providerSession) =>
-              byokResponsesProxy.issue(providerSession.model),
+              byokResponsesProxy.issue(providerSession.model, 'codex_app_server'),
           }
         : {}),
       harnessAdapters: labHarnesses.map((harness) => ({

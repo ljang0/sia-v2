@@ -62,6 +62,19 @@ The existing hosted-model secret is the primary lab. Add more entries under `add
       "displayName": "Second Lab",
       "apiProtocol": "openai_chat_completions",
       "enabled": true
+    },
+    {
+      "apiKey": "sponsor-secret",
+      "endpoint": "https://api.sponsor.example/v1",
+      "model": "sponsor/claude",
+      "allowedModels": ["sponsor/claude"],
+      "catalogId": "sponsor",
+      "displayName": "Sponsor",
+      "apiProtocol": "anthropic_messages",
+      "enabled": true,
+      "dailyTokenLimit": 500000,
+      "creditTokenLimit": 50000000,
+      "availableUntil": "2027-01-01T00:00:00Z"
     }
   ]
 }
@@ -73,6 +86,22 @@ limits, protocols, and admitted routes only; endpoints and API keys are never re
 Every model automatically receives a managed `codex_app_server` Responses route. Optional
 `harnessRoutes` add lab-specific routes without removing that baseline. Every route must name an
 allowed model. `defaultHarnessId` chooses between routes in the same lab entry.
+
+## Sponsored credit and usage reports
+
+Each lab is metered on its own. Its `dailyRequestLimit` and `dailyTokenLimit` apply per account
+per UTC day to that lab only, so a sponsor's allowance never consumes another lab's.
+
+- `creditTokenLimit` caps the lab's tokens across every account for the life of the grant. It is
+  checked before each turn, so turns already running may finish slightly past it. Once spent, the
+  catalog reports the lab unavailable and new turns fail with `hosted_lab_credit_exhausted`.
+- `availableUntil` (ISO-8601) withdraws the lab from the catalog and relay at that instant.
+
+The control table keeps account-free aggregates under `PK = LAB#<catalogId>`: `SK = CREDIT` holds
+the lab's running request and token totals, and `SK = USAGE#<day>#<model>#<harnessId>` holds a
+daily per-model, per-harness report retained for about 400 days. The harness id comes from the
+desktop's loopback relay (`x-sia-harness`); it is client-reported, used for attribution only, and
+never authorizes anything. Per-account counters stay under the account and are deleted with it.
 
 ## Add a harness
 

@@ -4,14 +4,20 @@ import { DeleteCommand, GetCommand, QueryCommand, UpdateCommand } from '@aws-sdk
 import { CloudError } from '../domain.js';
 import type {
   ConcurrencyLease,
-  DailyQuotaWindow,
   MetaQuotaPolicy,
+  MetaUsageAttribution,
   MetaTokenUsage,
   MetaUsageSnapshot,
   QuotaGate,
   VoiceTokenQuotaPolicy,
 } from '../ports.js';
 import { userPk } from './shared.js';
+
+/** Sponsor usage reports outlive the eight-day per-account quota records. */
+const LAB_REPORT_RETENTION_SECONDS = 400 * 24 * 60 * 60;
+
+const userLabUsageSk = (labId: string, period: string) => `USAGE#LAB#${labId}#${period}`;
+const labPk = (labId: string) => `LAB#${labId}`;
 
 export class DynamoMetaQuota implements QuotaGate {
   constructor(
@@ -22,10 +28,21 @@ export class DynamoMetaQuota implements QuotaGate {
   async acquireMeta(userId: string, policy: MetaQuotaPolicy): Promise<ConcurrencyLease> {
     const lease = await this.acquireConcurrency(userId);
     try {
+      if (
+        policy.creditTokenLimit !== undefined &&
+        (await this.getLabCreditUsage(policy.labId)) >= policy.creditTokenLimit
+      ) {
+        throw new CloudError(
+          429,
+          'hosted_lab_credit_exhausted',
+          "This model's sponsored allowance has been used up",
+          false,
+        );
+      }
       await this.client.send(
         new UpdateCommand({
           TableName: this.tableName,
-          Key: { PK: userPk(userId), SK: `USAGE#META#${policy.period}` },
+          Key: { PK: userPk(userId), SK: userLabUsageSk(policy.labId, policy.period) },
           UpdateExpression:
             'SET #type = if_not_exists(#type, :type), expiresAt = :ttl ADD #requests :one',
           ConditionExpression:
@@ -59,11 +76,15 @@ export class DynamoMetaQuota implements QuotaGate {
     }
   }
 
-  async getMetaUsage(userId: string, period: string): Promise<MetaUsageSnapshot> {
+  async getMetaUsage(
+    userId: string,
+    labId: string,
+    period: string,
+  ): Promise<MetaUsageSnapshot> {
     const result = await this.client.send(
       new GetCommand({
         TableName: this.tableName,
-        Key: { PK: userPk(userId), SK: `USAGE#META#${period}` },
+        Key: { PK: userPk(userId), SK: userLabUsageSk(labId, period) },
         ConsistentRead: true,
       }),
     );
@@ -77,30 +98,75 @@ export class DynamoMetaQuota implements QuotaGate {
 
   async recordMetaUsage(
     userId: string,
-    window: DailyQuotaWindow,
+    attribution: MetaUsageAttribution,
     usage: MetaTokenUsage,
   ): Promise<void> {
+    const { labId, model, harnessId, period, expiresAt } = attribution;
+    const tokens = {
+      ':input': usage.inputTokens,
+      ':output': usage.outputTokens,
+      ':total': usage.totalTokens,
+    };
+    const tokenNames = {
+      '#type': 'Type',
+      '#inputTokens': 'inputTokens',
+      '#outputTokens': 'outputTokens',
+      '#totalTokens': 'totalTokens',
+    };
     await this.client.send(
       new UpdateCommand({
         TableName: this.tableName,
-        Key: { PK: userPk(userId), SK: `USAGE#META#${window.period}` },
+        Key: { PK: userPk(userId), SK: userLabUsageSk(labId, period) },
         UpdateExpression:
           'SET #type = if_not_exists(#type, :type), expiresAt = :ttl ADD #inputTokens :input, #outputTokens :output, #totalTokens :total',
+        ExpressionAttributeNames: tokenNames,
+        ExpressionAttributeValues: { ':type': 'MetaDailyUsage', ':ttl': expiresAt, ...tokens },
+      }),
+    );
+    // Account-free aggregates: the sponsor's running credit and a per-model, per-harness report.
+    await this.client.send(
+      new UpdateCommand({
+        TableName: this.tableName,
+        Key: { PK: labPk(labId), SK: 'CREDIT' },
+        UpdateExpression:
+          'SET #type = if_not_exists(#type, :type) ADD #requests :one, #inputTokens :input, #outputTokens :output, #totalTokens :total',
+        ExpressionAttributeNames: { ...tokenNames, '#requests': 'requests' },
+        ExpressionAttributeValues: { ':type': 'LabCredit', ':one': 1, ...tokens },
+      }),
+    );
+    await this.client.send(
+      new UpdateCommand({
+        TableName: this.tableName,
+        Key: { PK: labPk(labId), SK: `USAGE#${period}#${model}#${harnessId}` },
+        UpdateExpression:
+          'SET #type = if_not_exists(#type, :type), #model = :model, #harness = :harness, expiresAt = :ttl ADD #requests :one, #inputTokens :input, #outputTokens :output, #totalTokens :total',
         ExpressionAttributeNames: {
-          '#type': 'Type',
-          '#inputTokens': 'inputTokens',
-          '#outputTokens': 'outputTokens',
-          '#totalTokens': 'totalTokens',
+          ...tokenNames,
+          '#requests': 'requests',
+          '#model': 'model',
+          '#harness': 'harnessId',
         },
         ExpressionAttributeValues: {
-          ':type': 'MetaDailyUsage',
-          ':ttl': window.expiresAt,
-          ':input': usage.inputTokens,
-          ':output': usage.outputTokens,
-          ':total': usage.totalTokens,
+          ':type': 'LabDailyUsage',
+          ':model': model,
+          ':harness': harnessId,
+          ':ttl': expiresAt + LAB_REPORT_RETENTION_SECONDS,
+          ':one': 1,
+          ...tokens,
         },
       }),
     );
+  }
+
+  async getLabCreditUsage(labId: string): Promise<number> {
+    const result = await this.client.send(
+      new GetCommand({
+        TableName: this.tableName,
+        Key: { PK: labPk(labId), SK: 'CREDIT' },
+        ConsistentRead: true,
+      }),
+    );
+    return safeCounter(result.Item?.totalTokens);
   }
 
   async consumeVoiceToken(userId: string, policy: VoiceTokenQuotaPolicy): Promise<void> {

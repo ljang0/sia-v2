@@ -12,7 +12,11 @@ const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_SCOPES = 256;
 
 export interface HostedResponsesForwarder {
-  forwardHostedResponses(body: string, signal?: AbortSignal): Promise<Response>;
+  forwardHostedResponses(
+    body: string,
+    signal?: AbortSignal,
+    attribution?: { harnessId: string },
+  ): Promise<Response>;
 }
 
 export interface HostedCodexProvider {
@@ -24,6 +28,8 @@ export interface HostedCodexProvider {
 
 interface Scope {
   readonly model: string;
+  /** The harness this capability was issued to, reported upstream for usage attribution. */
+  readonly harnessId: string;
   readonly issuedAt: number;
 }
 
@@ -54,13 +60,14 @@ export class HostedResponsesProxy {
     this.#provider = provider;
   }
 
-  async issue(model: string): Promise<HostedCodexProvider> {
+  async issue(model: string, harnessId: string): Promise<HostedCodexProvider> {
     if (!model || model.length > 256) throw new Error('Hosted model id is invalid.');
+    if (!/^[a-z][a-z0-9_]{0,63}$/.test(harnessId)) throw new Error('Harness id is invalid.');
     const generation = this.#generation;
     await this.#start();
     if (generation !== this.#generation) throw new Error('The model relay was reset.');
     const bearerToken = randomBytes(32).toString('base64url');
-    this.#scopes.set(bearerToken, { model, issuedAt: Date.now() });
+    this.#scopes.set(bearerToken, { model, harnessId, issuedAt: Date.now() });
     if (this.#scopes.size > MAX_SCOPES) {
       const oldest = [...this.#scopes.entries()].sort(
         ([, left], [, right]) => left.issuedAt - right.issuedAt,
@@ -183,7 +190,9 @@ export class HostedResponsesProxy {
       response.once('close', () => {
         if (!response.writableEnded) abort?.abort();
       });
-      const upstream = await this.#forwarder.forwardHostedResponses(body, signal);
+      const upstream = await this.#forwarder.forwardHostedResponses(body, signal, {
+        harnessId: scope.harnessId,
+      });
       if (signal.aborted || response.destroyed) {
         await upstream.body?.cancel();
         return;

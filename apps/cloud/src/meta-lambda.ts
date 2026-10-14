@@ -1,3 +1,4 @@
+import { harnessIdSchema } from '@sia/protocol';
 import type { APIGatewayProxyEvent } from 'aws-lambda';
 import { createAwsDependencies } from './aws.js';
 import type { MetaMessage, MetaTool, MetaToolCall, MetaTurnRequest } from './contracts.js';
@@ -18,6 +19,19 @@ declare const awslambda: {
   };
 };
 
+/**
+ * The desktop's loopback relay names the calling harness for sponsor usage reports. Older
+ * desktops only send the Responses route from Codex App Server and the legacy route directly.
+ */
+function requestHarness(event: APIGatewayProxyEvent, responsesRoute: boolean): string {
+  const header = Object.entries(event.headers ?? {}).find(
+    ([name]) => name.toLowerCase() === 'x-sia-harness',
+  )?.[1];
+  const parsed = harnessIdSchema.safeParse(header);
+  if (parsed.success) return parsed.data;
+  return responsesRoute ? 'codex_app_server' : 'sia_direct';
+}
+
 let services: ReturnType<typeof createServices> | undefined;
 const getServices = () => (services ??= createServices(createAwsDependencies()));
 
@@ -26,9 +40,12 @@ export const handler = awslambda.streamifyResponse(async (event, rawStream) => {
   const responsesRoute = event.path.endsWith('/v1/responses');
   try {
     const user = authFromEvent(event);
-    const request = responsesRoute
-      ? parseResponsesTurn(parseBody(event))
-      : parseMetaTurn(parseBody(event));
+    const request = {
+      ...(responsesRoute
+        ? parseResponsesTurn(parseBody(event))
+        : parseMetaTurn(parseBody(event))),
+      harnessId: requestHarness(event, responsesRoute),
+    };
     const source = getServices().meta.stream(user, request);
     const iterator = (responsesRoute ? responsesSse(source) : legacySse(source))[
       Symbol.asyncIterator

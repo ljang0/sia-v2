@@ -122,6 +122,21 @@ function parseMetaConfig(value: unknown): MetaConfig {
   };
 }
 
+function configInstant(value: unknown, field: string): string {
+  if (
+    typeof value !== 'string' ||
+    !/^\d{4}-\d{2}-\d{2}T[\d:.]+(Z|[+-]\d{2}:\d{2})$/.test(value) ||
+    Number.isNaN(Date.parse(value))
+  ) {
+    throw new CloudError(
+      503,
+      'secret_invalid',
+      `Hosted model ${field} must be an ISO-8601 instant`,
+    );
+  }
+  return value;
+}
+
 function parseHostedLabConfig(value: unknown): HostedLabConfig {
   if (!isRecord(value))
     throw new CloudError(503, 'secret_invalid', 'Meta configuration is invalid');
@@ -212,6 +227,14 @@ function parseHostedLabConfig(value: unknown): HostedLabConfig {
     ...(value.maxOutputTokens === undefined
       ? {}
       : { maxOutputTokens: configPositiveInteger(value.maxOutputTokens, 'maxOutputTokens') }),
+    ...(value.creditTokenLimit === undefined
+      ? {}
+      : {
+          creditTokenLimit: configPositiveInteger(value.creditTokenLimit, 'creditTokenLimit'),
+        }),
+    ...(value.availableUntil === undefined
+      ? {}
+      : { availableUntil: configInstant(value.availableUntil, 'availableUntil') }),
     ...(harnessRoutes === undefined ? {} : { harnessRoutes }),
     ...(defaultHarnessResult?.success ? { defaultHarnessId: defaultHarnessResult.data } : {}),
   };
