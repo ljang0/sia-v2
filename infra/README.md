@@ -87,7 +87,9 @@ The public model name, availability, capabilities, and limits are exposed throug
 `GET /v1/catalog`; the endpoint and API key are never serialized. `GET /v1/usage` returns the
 current user's UTC-day request/token counters and remaining allowance. Authenticated streaming
 `POST /v1/responses` is the release path used by Codex App Server through the desktop's local,
-model-scoped proxy. The legacy `GET /v1/meta/capabilities` and `POST /v1/meta/turns` contracts remain
+model-scoped proxy. `POST /v1/messages` (Anthropic Messages) and `POST /v1/chat/completions`
+(OpenAI Chat Completions) accept the same turns for harnesses that speak those APIs; all three
+reach any admitted lab whatever protocol the lab itself uses (see `apps/cloud/src/inbound-wires.ts`). The legacy `GET /v1/meta/capabilities` and `POST /v1/meta/turns` contracts remain
 available for migrated clients. Client
 session IDs are hashed with the Cognito subject before being forwarded upstream, so two users
 cannot select the same provider session namespace. Set `EnableHostedModels=false` for the

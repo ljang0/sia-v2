@@ -1314,6 +1314,30 @@ Resources:
                 uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2021-11-15/functions/${MetaFunction.Arn}/response-streaming-invocations
                 timeoutInMillis: 300000
                 responseTransferMode: STREAM
+          /v1/messages:
+            post:
+              responses:
+                '200':
+                  { description: Anthropic Messages-compatible stream for harnesses such as Claude Code }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2021-11-15/functions/${MetaFunction.Arn}/response-streaming-invocations
+                timeoutInMillis: 300000
+                responseTransferMode: STREAM
+          /v1/chat/completions:
+            post:
+              responses:
+                '200':
+                  { description: OpenAI Chat Completions-compatible stream for LiteLLM-based harnesses }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2021-11-15/functions/${MetaFunction.Arn}/response-streaming-invocations
+                timeoutInMillis: 300000
+                responseTransferMode: STREAM
           /v1/meta/capabilities:
             get:
               responses:

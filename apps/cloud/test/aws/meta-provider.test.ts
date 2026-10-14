@@ -96,6 +96,40 @@ describe('Hosted lab upstream adapter', () => {
     }
   });
 
+  it('sends images to Chat Completions labs in their own part format', async () => {
+    const originalFetch = globalThis.fetch;
+    let submitted: Record<string, unknown> | undefined;
+    globalThis.fetch = (async (_input: URL | RequestInfo, init?: RequestInit) => {
+      submitted = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      return new Response('data: [DONE]\n\n', {
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+      });
+    }) as typeof fetch;
+    try {
+      for await (const _event of new HostedLabProvider().stream(config, {
+        turnId: 'turn-image',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'input_text', text: 'What is this?' },
+              { type: 'input_image', image_url: 'data:image/png;base64,AAAA', detail: 'low' },
+            ],
+          },
+        ],
+      })) {
+        // drain
+      }
+      assert.deepEqual((submitted?.messages as Array<Record<string, unknown>>)[0]?.content, [
+        { type: 'text', text: 'What is this?' },
+        { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA', detail: 'low' } },
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it('fails a stalled hosted-model request with a recoverable timeout', async () => {
     const originalFetch = globalThis.fetch;
     globalThis.fetch = (async () => {

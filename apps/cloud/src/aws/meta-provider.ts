@@ -178,12 +178,33 @@ function metaUpstreamFailure(error: unknown): CloudError {
 function chatCompletionsRequestBody(config: HostedLabConfig, request: MetaTurnRequest) {
   return {
     model: request.model ?? config.model,
-    messages: request.messages,
+    messages: request.messages.map((message) =>
+      typeof message.content === 'string'
+        ? message
+        : { ...message, content: message.content.map(chatContentPart) },
+    ),
     stream: true,
     stream_options: { include_usage: true },
     ...(config.maxOutputTokens === undefined ? {} : { max_tokens: config.maxOutputTokens }),
     ...(request.tools === undefined ? {} : { tools: request.tools, tool_choice: 'auto' }),
   };
+}
+
+/** Relay parts use Responses names; Chat Completions labs expect `text` and `image_url`. */
+function chatContentPart(part: Record<string, unknown>): Record<string, unknown> {
+  if (part.type === 'input_image') {
+    return {
+      type: 'image_url',
+      image_url: {
+        url: part.image_url,
+        ...(typeof part.detail === 'string' ? { detail: part.detail } : {}),
+      },
+    };
+  }
+  if (part.type === 'input_text' || part.type === 'output_text') {
+    return { type: 'text', text: part.text };
+  }
+  return part;
 }
 
 function responsesRequestBody(config: HostedLabConfig, request: MetaTurnRequest) {
