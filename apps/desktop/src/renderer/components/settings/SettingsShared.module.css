@@ -70,17 +70,36 @@
   border-radius: var(--radius-round);
   background: color-mix(in srgb, var(--text-success) 12%, transparent);
   color: var(--text-success);
-  animation: savedNoteEnter var(--motion-standard) var(--ease-out-soft) both;
+  animation:
+    savedNoteFade var(--motion-standard) var(--ease-out-soft) both,
+    savedNotePop var(--motion-emphasis) var(--ease-spring) both;
+  transform-origin: left center;
 }
 
-@keyframes savedNoteEnter {
+/* The check lands a beat after the pill, so the confirmation reads as "done", not just "shown". */
+.savedNote > span > svg {
+  animation: savedNoteCheck var(--motion-emphasis) var(--ease-spring) both;
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+
+@keyframes savedNoteFade {
   from {
     opacity: 0;
-    transform: scale(0.92);
   }
-  to {
-    opacity: 1;
-    transform: scale(1);
+}
+
+@keyframes savedNotePop {
+  from {
+    transform: translateX(calc(var(--motion-nudge) * -1)) scale(var(--motion-pop-scale));
+  }
+}
+
+@keyframes savedNoteCheck {
+  from {
+    opacity: 0;
+    /* Derived from the pop scale so Reduced Motion and Calm (pop scale 1) keep the check still. */
+    transform: scale(calc(1 - (1 - var(--motion-pop-scale)) * 15))
+      rotate(calc((1 - var(--motion-pop-scale)) * -750deg));
   }
 }
 
@@ -137,6 +156,46 @@
 
 .settingsSection > header {
   margin-bottom: 34px;
+}
+
+/* Blocks of a newly opened section rise in turn, capped at eight steps. */
+.settingsSection > * {
+  animation: settingsBlockEnter var(--motion-emphasis) var(--ease-out-soft) backwards;
+}
+
+.settingsSection > :nth-child(2) {
+  animation-delay: var(--motion-stagger);
+}
+
+.settingsSection > :nth-child(3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+
+.settingsSection > :nth-child(4) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+
+.settingsSection > :nth-child(5) {
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+
+.settingsSection > :nth-child(6) {
+  animation-delay: calc(var(--motion-stagger) * 5);
+}
+
+.settingsSection > :nth-child(7) {
+  animation-delay: calc(var(--motion-stagger) * 6);
+}
+
+.settingsSection > :nth-child(n + 8) {
+  animation-delay: calc(var(--motion-stagger) * 7);
+}
+
+@keyframes settingsBlockEnter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise));
+  }
 }
 
 .settingsSection > header h2,
@@ -522,7 +581,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .settingsError,
-  .dialogError {
+  .dialogError,
+  .settingsSection > *,
+  .savedNote > span,
+  .savedNote > span > svg {
     animation: none;
   }
 }
