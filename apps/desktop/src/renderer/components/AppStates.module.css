@@ -2,12 +2,13 @@
 .onlineBanner,
 .actionError {
   display: flex;
-  min-height: 36px;
+  min-height: var(--row-min);
   align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
+  gap: 10px;
+  padding: 8px 16px;
   border-bottom: 1px solid var(--border-subtle);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
+  line-height: 1.45;
   animation: statusEnter var(--motion-emphasis) var(--ease-out-soft) both;
 }
 
@@ -52,9 +53,11 @@
 .actionError button {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 3px 6px;
+  gap: 6px;
+  min-height: var(--target-min);
+  padding: 6px 10px;
   border: 0;
+  border-radius: var(--radius-control);
   background: transparent;
   color: inherit;
   cursor: pointer;
@@ -67,7 +70,7 @@
 .actionErrorCopy {
   display: grid;
   min-width: 0;
-  gap: 1px;
+  gap: 2px;
 }
 
 .actionErrorCopy > span {
@@ -79,13 +82,13 @@
 .actionErrorCopy small {
   opacity: 0.78;
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 
 .actionErrorActions {
   display: flex;
   flex: none;
-  gap: 3px;
+  gap: 4px;
   margin-left: auto;
 }
 

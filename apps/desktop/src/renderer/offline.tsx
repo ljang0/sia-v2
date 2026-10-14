@@ -45,7 +45,7 @@ export function ConnectionBanner({ online }: { online: boolean }) {
   if (!backOnline) return null;
   return (
     <div className={styles.onlineBanner} role="status" data-testid="online-banner">
-      <WifiHigh size={16} aria-hidden="true" />
+      <WifiHigh size={18} aria-hidden="true" />
       <span>
         <strong>Back online</strong> — sending anything that was waiting.
       </span>
@@ -56,7 +56,7 @@ export function ConnectionBanner({ online }: { online: boolean }) {
 export function OfflineBanner() {
   return (
     <div className={styles.offlineBanner} role="status" data-testid="offline-banner">
-      <WifiSlash size={16} aria-hidden="true" />
+      <WifiSlash size={18} aria-hidden="true" />
       <span>
         <strong>You’re offline</strong> — Sia will send when you’re back.
       </span>
