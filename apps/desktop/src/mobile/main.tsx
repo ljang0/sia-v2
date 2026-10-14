@@ -637,14 +637,14 @@ function App() {
             </div>
             <div className="connection-facts">
               <p>
-                <WifiHigh size={20} />
+                <WifiHigh size={22} />
                 <span>
                   <strong>Stay on the same Wi-Fi</strong>
                   <small>Keep Sia open and your Mac awake.</small>
                 </span>
               </p>
               <p>
-                <ShieldCheck size={20} />
+                <ShieldCheck size={22} />
                 <span>
                   <strong>Your Mac asks first</strong>
                   <small>
