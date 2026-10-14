@@ -280,6 +280,15 @@ aside.navigation {
 .groupActions {
   display: flex;
   flex: none;
+  /* Hidden actions take no room, so the agent's name can use the dock's full width. The buttons
+     stay focusable; focusing one opens the space. */
+  max-width: 0;
+  overflow: hidden;
+}
+.groupHeader:hover .groupActions,
+.groupHeader:focus-within .groupActions,
+.groupActions:has([data-state='open']) {
+  max-width: none;
   padding-right: 4px;
 }
 .groupActions > button {
@@ -640,7 +649,28 @@ aside.rail {
     flex-basis: var(--sidebar-compact-width);
   }
 }
+/* Short windows keep the conversation list in view. */
+@media (max-height: 720px) {
+  .primaryActions {
+    gap: 4px;
+    padding-block: 12px 8px;
+  }
+  .newTask {
+    min-height: var(--target-min);
+    padding-block: 6px;
+  }
+  .footer button {
+    min-height: var(--target-min);
+  }
+  .navigation .footer {
+    gap: 0;
+    padding-top: 8px;
+  }
+}
 @media (hover: none), (pointer: coarse) {
+  .groupActions {
+    max-width: none;
+  }
   .groupActions > button,
   .navigation .task > button:last-child {
     opacity: 1;
