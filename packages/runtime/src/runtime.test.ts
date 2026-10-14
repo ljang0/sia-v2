@@ -26,6 +26,7 @@ import {
   createGrokAdapter,
   defaultAcpCommandArgs,
 } from './providers/acp.js';
+import { openCodeConfig } from './providers/opencode.js';
 import {
   claudeCliArgs,
   claudeEndpointEnvironment,
@@ -669,6 +670,97 @@ describe('Codex app-server adapter', () => {
       },
     });
     await adapter.dispose();
+  });
+
+  it('gives each ACP session its own process, model and cleanup when asked', async () => {
+    const spawned: Array<{ model: string; disposed: boolean }> = [];
+    const sessionNews: unknown[] = [];
+    const adapter = new AcpAdapter({
+      provider: 'meta',
+      productionEnabled: true,
+      supportedVersions: { minimum: '0.0.0' },
+      sessionProcess: async (session) => {
+        const record = { model: `sia/${session.model}`, disposed: false };
+        spawned.push(record);
+        return {
+          env: { HOME: `/tmp/${session.threadId}` },
+          model: record.model,
+          dispose: async () => {
+            record.disposed = true;
+          },
+        };
+      },
+      peerFactory: async () => {
+        const peers = linkedPeers();
+        peers.server.onRequest(async (method, params) => {
+          if (method === 'initialize') return { protocolVersion: 1 };
+          if (method === 'session/new') {
+            sessionNews.push(params);
+            const current = spawned.at(-1)!.model;
+            return {
+              sessionId: `native-${sessionNews.length}`,
+              configOptions: [
+                {
+                  id: 'model',
+                  category: 'model',
+                  type: 'select',
+                  currentValue: current,
+                  options: [{ value: current }],
+                },
+              ],
+            };
+          }
+          throw new Error(`unexpected ${method}`);
+        });
+        return {
+          peer: peers.client,
+          dispose: async () => {
+            await peers.client.close();
+            await peers.server.close();
+          },
+        };
+      },
+    });
+
+    await adapter.createSession({ ...sessionOptions, model: 'sponsor/one' });
+    await adapter.createSession({
+      ...sessionOptions,
+      threadId: 'thread-2',
+      model: 'sponsor/two',
+    });
+    // Re-creating a thread's session replaces (and cleans up) its previous process.
+    await adapter.createSession({ ...sessionOptions, model: 'sponsor/one' });
+    expect(spawned.map(({ model, disposed }) => [model, disposed])).toEqual([
+      ['sia/sponsor/one', true],
+      ['sia/sponsor/two', false],
+      ['sia/sponsor/one', false],
+    ]);
+    await adapter.dispose();
+    expect(spawned.every(({ disposed }) => disposed)).toBe(true);
+  });
+
+  it('configures OpenCode with only the scoped Sia model and Sia tools', () => {
+    expect(
+      openCodeConfig(
+        { baseUrl: 'http://127.0.0.1:4100/v1', apiKey: 'capability' },
+        'sponsor/m',
+      ),
+    ).toMatchObject({
+      autoupdate: false,
+      share: 'disabled',
+      enabled_providers: ['sia'],
+      provider: {
+        sia: {
+          npm: '@ai-sdk/openai',
+          options: { baseURL: 'http://127.0.0.1:4100/v1', apiKey: 'capability' },
+          models: { 'sponsor/m': { name: 'sponsor/m' } },
+        },
+      },
+      model: 'sia/sponsor/m',
+      small_model: 'sia/sponsor/m',
+      tools: { '*': false, 'sia_*': true },
+      permission: { '*': 'deny', 'sia_*': 'allow' },
+    });
   });
 
   it('runs the official Codex ChatGPT browser login and verifies the connected plan', async () => {

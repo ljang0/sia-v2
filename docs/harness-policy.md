@@ -17,7 +17,7 @@ the pinned harness and model for audit attribution.
 | Codex App Server | official app-server        | enabled                                   | included Sia relay, ChatGPT plan, or the person's own key (`user_byok`, loopback proxy)       |
 | Sia direct       | authenticated cloud stream | legacy threads only                       | Sia-managed, server-side lab key                                                              |
 | Claude Code      | isolated CLI stream        | legacy; included models in signed preview | provider-owned Claude subscription, or included models via the loopback proxy (`sia_managed`) |
-| OpenCode         | ACP over nd-JSON           | hidden, fail-closed                       | no route approved yet                                                                         |
+| OpenCode         | ACP over nd-JSON           | included models in signed preview         | included models via the loopback proxy (`sia_managed`); private HOME per session              |
 | Pi               | JSONL RPC over stdio       | hidden, fail-closed                       | no route approved yet                                                                         |
 | Lab harness test | ACP over stdio             | signed testing manifest only              | lab-owned; see [model lab integration](./model-lab-integration.md)                            |
 
@@ -84,6 +84,13 @@ pinned version in a clean macOS profile and an isolated lab worker:
 7. Normalized events preserve provider/model/harness attribution and contain no tokens or private
    configuration.
 8. A real-provider smoke test passes without relying on an interactive trust prompt.
+
+OpenCode 1.19 runs included models in signed preview (`previewHarnesses`). Each session gets a
+private HOME/XDG tree and an inline `OPENCODE_CONFIG_CONTENT` that enables only the `sia`
+provider (the loopback Responses proxy), sets `tools: {"*": false, "sia_*": true}`, and denies every
+permission except Sia's MCP tools, so OpenCode's shell, file, and web tools are never offered to the
+model. The opt-in `SIA_OPENCODE_ENDPOINT_SMOKE` test verifies this against the real binary. It is
+not yet release-admitted: items 6 and 8 above still need the signed-app run.
 
 The current release has no admitted OpenCode or Pi adapter. They remain absent from the UI, and the
 main process independently rejects a crafted or migrated unapproved route.

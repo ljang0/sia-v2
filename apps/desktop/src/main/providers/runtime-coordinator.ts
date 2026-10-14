@@ -16,6 +16,7 @@ import {
   createClaudeAdapter,
   createCodexAdapter,
   createGeminiAdapter,
+  createOpenCodeAdapter,
   createGrokAdapter,
   createMetaAdapter,
   legacyModelRoute,
@@ -133,6 +134,8 @@ export class RuntimeCoordinator {
         harnessId: HarnessId,
         session: ProviderSessionOptions,
       ) => Promise<{ baseUrl: string; apiKey: string }>;
+      /** Executables for optional harnesses; each defaults to its name on PATH. */
+      harnessCommands?: { readonly opencode?: string };
       acpMcpServerFactory?: (
         provider: 'grok' | 'gemini' | 'claude',
         session: ProviderSessionOptions,
@@ -204,6 +207,27 @@ export class RuntimeCoordinator {
     }
     if (options.hostedModelEndpoint) {
       const endpoint = options.hostedModelEndpoint;
+      const included = {
+        state: 'authenticated' as const,
+        label: 'Included with Sia',
+        billing: 'included' as const,
+      };
+      this.#registerAdapter(
+        'meta',
+        'opencode_acp',
+        createOpenCodeAdapter({
+          providerId: 'meta',
+          accountOverride: included,
+          modelEndpoint: (session) => endpoint('opencode_acp', session),
+          ...(options.harnessCommands?.opencode
+            ? { command: options.harnessCommands.opencode }
+            : {}),
+          ...(options.acpMcpServerFactory
+            ? { mcpServerFactory: (session) => options.acpMcpServerFactory!('claude', session) }
+            : {}),
+        }),
+        false,
+      );
       this.#registerAdapter(
         'meta',
         'claude_code',

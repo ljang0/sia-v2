@@ -49,7 +49,8 @@ export const BUILTIN_HARNESS_DEFINITIONS = [
     id: 'opencode_acp',
     name: 'OpenCode ACP',
     modelProtocols: ['openai_responses', 'openai_chat_completions', 'anthropic_messages'],
-    credentialSources: ['provider_subscription', 'provider_api'],
+    // `sia_managed` reaches included models through the loopback model proxy (Responses).
+    credentialSources: ['provider_subscription', 'provider_api', 'sia_managed'],
     productionEnabled: false,
   },
   {

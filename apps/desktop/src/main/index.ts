@@ -770,6 +770,12 @@ async function performApplicationCreation(): Promise<void> {
               byokModelProxy.issue(providerSession.model, 'codex_app_server'),
           }
         : {}),
+      // Preview harnesses for included models; testers may point at a specific binary.
+      harnessCommands: {
+        ...(process.env.SIA_OPENCODE_COMMAND
+          ? { opencode: process.env.SIA_OPENCODE_COMMAND }
+          : {}),
+      },
       harnessAdapters: labHarnesses.map((harness) => ({
         provider: 'lab' as const,
         harnessId: harness.id,
