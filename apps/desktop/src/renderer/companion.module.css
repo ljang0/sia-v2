@@ -55,7 +55,7 @@
 .roomTitles {
   display: grid;
   min-width: 0;
-  gap: 1px;
+  gap: 2px;
 }
 
 .roomEyebrow {
@@ -84,9 +84,10 @@
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
+  margin-top: 2px;
   color: var(--text-tertiary);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 
 .roomMeta span {
@@ -99,8 +100,8 @@
 }
 
 .roomMeta span svg {
-  margin-right: 4px;
-  vertical-align: -2px;
+  margin-right: 6px;
+  vertical-align: -3px;
 }
 
 .roomMeta span + span::before {

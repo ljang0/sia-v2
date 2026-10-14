@@ -705,8 +705,11 @@ export function Sidebar({
                   data-testid="fork-isolation-checkbox"
                 />
                 <span>
-                  <strong>Isolated Git worktree</strong>
-                  <small>Recommended for parallel coding tasks.</small>
+                  <strong>Work on a separate copy of the files</strong>
+                  <small>
+                    Changes stay apart from the original. Good for running two coding tasks at
+                    once. (Uses a Git worktree.)
+                  </small>
                 </span>
               </label>
             ) : null}
