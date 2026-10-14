@@ -5,6 +5,7 @@
   gap: 2px;
   height: 14px;
   color: var(--text-success, #3d7a5a);
+  transition: color var(--motion-standard) var(--ease-standard);
 }
 .wave i {
   --amp: 1;
@@ -15,7 +16,8 @@
   background: currentColor;
   transform: scaleY(calc(0.22 + var(--voice-level, 0) * var(--amp) * 0.78));
   transform-origin: center;
-  transition: transform 90ms var(--ease-standard, ease-out);
+  /* Half the hover step: the bars should track the voice, not trail it. */
+  transition: transform calc(var(--motion-fast) / 2) var(--ease-standard);
 }
 .wave i:nth-child(1),
 .wave i:nth-child(5) {
@@ -25,10 +27,31 @@
 .wave i:nth-child(4) {
   --amp: 0.85;
 }
+/* Processing ignores the microphone; recognised rests as a short, still line. */
+.wave[data-phase='processing'] i {
+  transform: scaleY(0.5);
+}
+.wave[data-phase='recognised'] i {
+  transform: scaleY(0.22);
+  transition-duration: var(--motion-standard);
+}
 @media (prefers-reduced-motion: no-preference) {
-  /* The sway sits on `scale`, so the measured level on `transform` still reads through it. */
-  .wave i {
-    animation: sway 1.1s var(--ease-standard, ease-in-out) infinite alternate;
+  .wave {
+    animation: wave-in var(--motion-standard) var(--ease-spring) both;
+  }
+  /* The sway sits on `scale`, so the measured level on `transform` still reads through it. A
+     measured voice sways less, so the level stays legible. */
+  .wave[data-phase='listening'] i {
+    animation: sway 1.1s var(--ease-standard) infinite alternate;
+  }
+  .wave[data-phase='listening'][data-measured='true'] i {
+    animation-name: sway-soft;
+  }
+  .wave[data-phase='processing'] i {
+    animation: think calc(var(--motion-emphasis) * 2) var(--ease-standard) infinite;
+  }
+  .wave[data-phase='recognised'] {
+    animation: wave-land var(--motion-emphasis) var(--ease-spring) both;
   }
   .wave i:nth-child(2) {
     animation-delay: -0.35s;
@@ -42,10 +65,37 @@
   .wave i:nth-child(5) {
     animation-delay: -0.55s;
   }
+  /* Processing travels left to right, one stagger step per bar. */
+  .wave[data-phase='processing'] i:nth-child(1) {
+    animation-delay: 0ms;
+  }
+  .wave[data-phase='processing'] i:nth-child(2) {
+    animation-delay: calc(var(--motion-stagger) * 3);
+  }
+  .wave[data-phase='processing'] i:nth-child(3) {
+    animation-delay: calc(var(--motion-stagger) * 6);
+  }
+  .wave[data-phase='processing'] i:nth-child(4) {
+    animation-delay: calc(var(--motion-stagger) * 9);
+  }
+  .wave[data-phase='processing'] i:nth-child(5) {
+    animation-delay: calc(var(--motion-stagger) * 12);
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .wave i {
     transition: none;
+  }
+}
+@keyframes wave-in {
+  from {
+    opacity: 0;
+    transform: scaleX(var(--motion-pop-scale));
+  }
+}
+@keyframes wave-land {
+  40% {
+    transform: scale(1.12);
   }
 }
 @keyframes sway {
@@ -54,6 +104,23 @@
   }
   to {
     scale: 1 1.1;
+  }
+}
+@keyframes sway-soft {
+  from {
+    scale: 1 0.9;
+  }
+  to {
+    scale: 1 1.04;
+  }
+}
+@keyframes think {
+  0%,
+  100% {
+    scale: 1 0.6;
+  }
+  30% {
+    scale: 1 1.6;
   }
 }
 @media (forced-colors: active) {
