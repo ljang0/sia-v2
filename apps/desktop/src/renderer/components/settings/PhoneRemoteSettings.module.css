@@ -278,3 +278,19 @@
   padding-top: 18px;
   border-top: 1px solid var(--border-subtle);
 }
+
+.devices {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.devices li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--text-sm);
+}

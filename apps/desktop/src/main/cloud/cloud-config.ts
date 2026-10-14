@@ -11,6 +11,12 @@ const cleanHttpsUrl = z.string().min(1).refine(isCleanHttpsUrl, {
 const region = z.string().regex(/^[a-z]{2}(?:-gov)?-[a-z]+-\d$/);
 const clientId = z.string().regex(/^[A-Za-z0-9]{10,128}$/);
 const updatePublicKey = z.string().regex(/^[A-Za-z0-9_-]{59}$/);
+const cleanWssUrl = z
+  .string()
+  .min(1)
+  .refine((value) => isCleanUrl(value, 'wss:'), {
+    message: 'phoneRelayUrl must be a clean WSS URL',
+  });
 
 export const packagedCloudConfigSchema = z.discriminatedUnion('enabled', [
   z
@@ -30,6 +36,9 @@ export const packagedCloudConfigSchema = z.discriminatedUnion('enabled', [
       cognitoClientId: clientId,
       updateManifestUrl: cleanHttpsUrl.optional(),
       updateManifestPublicKey: updatePublicKey.optional(),
+      /** The encrypted phone relay (docs/phone-cloud-relay.md) and the HTTPS page phones open. */
+      phoneRelayUrl: cleanWssUrl.optional(),
+      phonePageUrl: cleanHttpsUrl.optional(),
     })
     .strict(),
 ]);
@@ -40,6 +49,8 @@ export interface CloudRuntimeConfiguration {
   cognitoClientId?: string;
   updateManifestUrl?: string;
   updateManifestPublicKey?: string;
+  phoneRelayUrl?: string;
+  phonePageUrl?: string;
 }
 
 interface CloudConfigurationEnvironment {
@@ -48,6 +59,8 @@ interface CloudConfigurationEnvironment {
   SIA_COGNITO_CLIENT_ID?: string;
   SIA_UPDATE_MANIFEST_URL?: string;
   SIA_UPDATE_MANIFEST_PUBLIC_KEY?: string;
+  SIA_PHONE_RELAY_URL?: string;
+  SIA_PHONE_PAGE_URL?: string;
 }
 
 export async function loadCloudConfiguration(options: {
@@ -85,6 +98,7 @@ export async function loadCloudConfiguration(options: {
         cognitoRegion: parsed.data.cognitoRegion,
         cognitoClientId: parsed.data.cognitoClientId,
         ...update,
+        ...completePhoneRelayConfiguration(parsed.data),
       }
     : update;
 }
@@ -118,6 +132,10 @@ export function developmentCloudConfiguration(
     cognitoClientId,
     ...(updateManifestUrl ? { updateManifestUrl } : {}),
     ...(updateManifestPublicKey ? { updateManifestPublicKey } : {}),
+    ...(environment.SIA_PHONE_RELAY_URL
+      ? { phoneRelayUrl: environment.SIA_PHONE_RELAY_URL }
+      : {}),
+    ...(environment.SIA_PHONE_PAGE_URL ? { phonePageUrl: environment.SIA_PHONE_PAGE_URL } : {}),
   });
   if (!parsed.success || !parsed.data.enabled) {
     throw new Error(
@@ -130,7 +148,20 @@ export function developmentCloudConfiguration(
     cognitoRegion: parsed.data.cognitoRegion,
     cognitoClientId: parsed.data.cognitoClientId,
     ...update,
+    ...completePhoneRelayConfiguration(parsed.data),
   };
+}
+
+function completePhoneRelayConfiguration(value: {
+  phoneRelayUrl?: string | undefined;
+  phonePageUrl?: string | undefined;
+}): Pick<CloudRuntimeConfiguration, 'phoneRelayUrl' | 'phonePageUrl'> {
+  if (Boolean(value.phoneRelayUrl) !== Boolean(value.phonePageUrl)) {
+    throw new Error('The phone relay requires both its WSS URL and its HTTPS page URL.');
+  }
+  return value.phoneRelayUrl && value.phonePageUrl
+    ? { phoneRelayUrl: value.phoneRelayUrl, phonePageUrl: value.phonePageUrl }
+    : {};
 }
 
 function completeUpdateConfiguration(value: {
@@ -150,10 +181,14 @@ async function readUtf8(path: string): Promise<string> {
 }
 
 function isCleanHttpsUrl(value: string): boolean {
+  return isCleanUrl(value, 'https:');
+}
+
+function isCleanUrl(value: string, protocol: 'https:' | 'wss:'): boolean {
   try {
     const url = new URL(value);
     return Boolean(
-      url.protocol === 'https:' && !url.username && !url.password && !url.search && !url.hash,
+      url.protocol === protocol && !url.username && !url.password && !url.search && !url.hash,
     );
   } catch {
     return false;

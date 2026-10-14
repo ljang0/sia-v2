@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { PhoneRemoteSettings } from './PhoneRemoteSettings';
 import type {
   PhoneRemoteApi,
@@ -143,4 +143,49 @@ it('names the paired model the way the model menu does', async () => {
     />,
   );
   expect(await screen.findByText('This phone uses Personal · GPT-6 Astra.')).toBeTruthy();
+});
+
+it('pairs and removes phones over the encrypted relay without Wi-Fi link controls', async () => {
+  const deviceId = '7b1c2d3e-4f50-4a6b-8c7d-9e0f1a2b3c4d';
+  let state: Settings = {
+    enabled: true,
+    running: true,
+    agentId: 'agent-1',
+    detail: 'Phone access is on.',
+    relay: { connected: true, devices: [] },
+  };
+  const api = vi.fn<PhoneRemoteApi>(async (command) => {
+    if (command.operation === 'pair')
+      state = {
+        ...state,
+        relay: {
+          connected: true,
+          devices: [{ deviceId, pairedAt: '2026-10-14T00:00:00.000Z', online: false }],
+          pairingQr: 'data:image/png;base64,cGFpcg==',
+        },
+      };
+    if (command.operation === 'revoke')
+      state = { ...state, relay: { connected: true, devices: [] } };
+    return state;
+  });
+  render(
+    <PhoneRemoteSettings
+      api={api}
+      agents={[{ id: 'agent-1', name: 'Sia', provider: 'codex', model: 'gpt-5.6-sol' }]}
+      providers={[]}
+    />,
+  );
+  expect((await screen.findAllByText(/encrypted end to end/i)).length).toBeGreaterThan(0);
+  expect(screen.queryByRole('button', { name: /Copy private link/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Create a new link/ })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Pair a phone' }));
+  expect(await screen.findByAltText(/one-time QR code/)).toBeTruthy();
+  expect(api).toHaveBeenCalledWith({ operation: 'pair' });
+  fireEvent.click(
+    within(screen.getByRole('list', { name: 'Paired phones' })).getByRole('button', {
+      name: 'Remove',
+    }),
+  );
+  await waitFor(() => expect(api).toHaveBeenCalledWith({ operation: 'revoke', deviceId }));
+  await waitFor(() => expect(screen.queryByRole('list', { name: 'Paired phones' })).toBeNull());
 });

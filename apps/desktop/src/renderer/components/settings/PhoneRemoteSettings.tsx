@@ -54,22 +54,38 @@ export function PhoneRemoteSettings({
       clearInterval(timer);
     };
   }, [api]);
-  const run = async (operation: 'enable' | 'disable' | 'rotate') => {
+  const run = async (
+    operation: 'enable' | 'disable' | 'rotate' | 'pair' | 'revoke',
+    deviceId?: string,
+  ) => {
     setPending(true);
     setError('');
     setCopied(false);
     try {
-      setState(await api(operation === 'enable' ? { operation, agentId } : { operation }));
+      setState(
+        await api(
+          operation === 'enable'
+            ? { operation, agentId }
+            : operation === 'revoke'
+              ? { operation, deviceId: deviceId! }
+              : { operation },
+        ),
+      );
     } catch (cause) {
       setError(errorMessage(cause, 'Phone remote could not be updated.'));
     } finally {
       setPending(false);
     }
   };
+  const relay = state?.relay;
   return (
     <SettingsSectionHeader
       title="Phone remote"
-      description="Preview: control Sia from a phone on your trusted local network."
+      description={
+        relay
+          ? 'Control Sia from your phone, from any network. Messages are encrypted end to end.'
+          : 'Preview: control Sia from a phone on your trusted local network.'
+      }
     >
       <InlineSettingsError message={error} />
       <div className={phone.card}>
@@ -115,10 +131,21 @@ export function PhoneRemoteSettings({
             >
               {pending ? 'Starting…' : 'Enable phone remote'}
             </button>
-            <p className={phone.note}>
-              macOS may ask for Local Network access. Choose Allow to connect your phone.
-            </p>
+            {!relay && (
+              <p className={phone.note}>
+                macOS may ask for Local Network access. Choose Allow to connect your phone.
+              </p>
+            )}
           </>
+        ) : relay ? (
+          <RelayPairing
+            relay={relay}
+            detail={state.detail}
+            pending={pending}
+            onPair={() => void run('pair')}
+            onRevoke={(deviceId) => void run('revoke', deviceId)}
+            onDisable={() => void run('disable')}
+          />
         ) : (
           <>
             {pairedAgent && (
@@ -220,24 +247,123 @@ export function PhoneRemoteSettings({
         )}
       </div>
       {messagesApi && <TextSiaSettings api={messagesApi} agents={agents} />}
-      <div className={phone.footnotes}>
-        <p>
-          <strong>The same Sia, with you in charge.</strong> Phone requests use this assistant’s
-          model and Mac access. Each step a phone request takes asks for your OK here on the
-          Mac, one at a time. Progress and replies stay in Sia’s conversation on this Mac.
-        </p>
-        <p>
-          <strong>Your private link controls Sia.</strong> Keep it private and use trusted
-          Wi-Fi. The local connection is not encrypted. A new link disconnects previously paired
-          phones.
-        </p>
-        <p>
-          <strong>Keep your Mac available.</strong> Sia must stay open and your Mac awake and
-          unlocked. Remote access pauses on lock or sleep. A Wi-Fi address change may require
-          scanning again. Dictate using your phone’s keyboard microphone.
-        </p>
-      </div>
+      {relay ? (
+        <div className={phone.footnotes}>
+          <p>
+            <strong>The same Sia, with you in charge.</strong> Phone requests use this
+            assistant’s model and Mac access. Each step a phone request takes asks for your OK
+            here on the Mac, one at a time.
+          </p>
+          <p>
+            <strong>Encrypted end to end.</strong> Your phone and this Mac share a key from the
+            pairing code. Sia’s servers pass sealed messages along and cannot read them. Remove
+            a phone here to cut it off at once.
+          </p>
+          <p>
+            <strong>Keep your Mac available.</strong> Sia must stay open and your Mac awake and
+            unlocked. Phone access pauses on lock or sleep.
+          </p>
+        </div>
+      ) : (
+        <div className={phone.footnotes}>
+          <p>
+            <strong>The same Sia, with you in charge.</strong> Phone requests use this
+            assistant’s model and Mac access. Each step a phone request takes asks for your OK
+            here on the Mac, one at a time. Progress and replies stay in Sia’s conversation on
+            this Mac.
+          </p>
+          <p>
+            <strong>Your private link controls Sia.</strong> Keep it private and use trusted
+            Wi-Fi. The local connection is not encrypted. A new link disconnects previously
+            paired phones.
+          </p>
+          <p>
+            <strong>Keep your Mac available.</strong> Sia must stay open and your Mac awake and
+            unlocked. Remote access pauses on lock or sleep. A Wi-Fi address change may require
+            scanning again. Dictate using your phone’s keyboard microphone.
+          </p>
+        </div>
+      )}
     </SettingsSectionHeader>
+  );
+}
+
+/** Pairing and paired phones for the encrypted relay. */
+function RelayPairing({
+  relay,
+  detail,
+  pending,
+  onPair,
+  onRevoke,
+  onDisable,
+}: {
+  relay: NonNullable<Settings['relay']>;
+  detail: string;
+  pending: boolean;
+  onPair(): void;
+  onRevoke(deviceId: string): void;
+  onDisable(): void;
+}) {
+  return (
+    <>
+      <div className={phone.pairing}>
+        {relay.pairingQr ? (
+          <div className={phone.qr}>
+            <img
+              src={relay.pairingQr}
+              alt="Scan this one-time QR code with your phone’s camera to pair it with Sia"
+            />
+          </div>
+        ) : (
+          <div className={phone.placeholder}>
+            <DeviceMobile size={38} />
+            <p>{relay.connected ? 'Add a phone to get a one-time pairing code.' : detail}</p>
+          </div>
+        )}
+        <div className={phone.steps}>
+          <span className={phone.eyebrow}>PAIR ONCE. USE ANYWHERE.</span>
+          <h3>Meet Sia on your phone.</h3>
+          <ol>
+            <li>Choose Pair a phone.</li>
+            <li>Scan the code with your phone’s camera.</li>
+            <li>Ask Sia from Wi-Fi or cellular. This Mac does the work.</li>
+          </ol>
+          <p>In Safari, use Share → Add to Home Screen for a shortcut.</p>
+        </div>
+      </div>
+      {relay.devices.length > 0 && (
+        <ul className={phone.devices} aria-label="Paired phones">
+          {relay.devices.map((device, index) => (
+            <li key={device.deviceId}>
+              <span>
+                Phone {index + 1} · paired {new Date(device.pairedAt).toLocaleDateString()}
+                {device.online ? ' · connected' : ''}
+              </span>
+              <button
+                className={buttons.textButtonDanger}
+                disabled={pending}
+                onClick={() => onRevoke(device.deviceId)}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <p className={phone.note}>{detail}</p>
+      <div className={phone.actions}>
+        <button
+          className={buttons.primaryButton}
+          disabled={pending || !relay.connected}
+          onClick={onPair}
+        >
+          {pending ? 'Working…' : 'Pair a phone'}
+        </button>
+        <button className={buttons.textButtonDanger} disabled={pending} onClick={onDisable}>
+          Turn off phone access
+        </button>
+      </div>
+    </>
   );
 }
 

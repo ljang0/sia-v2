@@ -858,6 +858,16 @@ async function performApplicationCreation(): Promise<void> {
       ...(!fakeServices
         ? { advertise: (port: number) => advertiseRemote(helperPath, port) }
         : {}),
+      // Builds configured with the encrypted relay reach phones through it, from any network.
+      ...(!fakeServices && cloudConfiguration.phoneRelayUrl && cloudConfiguration.phonePageUrl
+        ? {
+            relay: {
+              relayUrl: cloudConfiguration.phoneRelayUrl,
+              pageUrl: cloudConfiguration.phonePageUrl,
+              idToken: () => identity.read(),
+            },
+          }
+        : {}),
     });
     activeController.attachPhoneRemote((command) => phoneRemote!.configure(command));
     messagesRelay = new MessagesRelay({

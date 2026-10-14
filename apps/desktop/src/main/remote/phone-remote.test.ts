@@ -617,3 +617,38 @@ it('downloads only a generated result visible in the current phone conversation'
   revoked.port = new URL(rotated.url!).port;
   expect((await fetch(revoked)).status).toBe(404);
 });
+
+it('uses only the encrypted relay, never the plain-HTTP server, when a relay is configured', async () => {
+  const { deps } = await setup();
+  const sockets: string[] = [];
+  const relayed = new PhoneRemote({
+    ...deps,
+    relay: {
+      relayUrl: 'wss://relay.example.test/v1',
+      pageUrl: 'https://sia.example.test/remote/',
+      idToken: async () => 'id-token',
+      connect: (url) => {
+        sockets.push(url);
+        // A relay that never answers: phone access stays "connecting".
+        return {
+          send: () => undefined,
+          close: () => undefined,
+          onopen: null,
+          onmessage: null,
+          onclose: null,
+          onerror: null,
+        };
+      },
+    },
+  });
+  cleanups.push(() => relayed.dispose());
+  await relayed.initialize();
+  const settings = await relayed.configure({ operation: 'enable', agentId });
+  expect(settings.url).toBeUndefined();
+  expect(settings.qr).toBeUndefined();
+  expect(settings.relay).toEqual({ connected: false, devices: [] });
+  expect(sockets).toEqual(['wss://relay.example.test/v1']);
+  await expect(relayed.configure({ operation: 'pair' })).rejects.toThrow('not connected');
+  await relayed.configure({ operation: 'disable' });
+  expect((await relayed.configure({ operation: 'status' })).running).toBe(false);
+});

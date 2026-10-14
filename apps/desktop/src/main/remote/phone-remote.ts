@@ -19,6 +19,7 @@ import {
   type PhoneRemoteCommand,
   type PhoneRemoteSettings,
 } from '../../shared/phone-remote.js';
+import { CloudRemote, type RelaySocket } from './cloud-remote.js';
 import { remoteState, remoteVault } from './phone-remote-state.js';
 import { nativeRemoteSkills } from './phone-remote-files.js';
 
@@ -62,6 +63,16 @@ interface Dependencies {
     threadId: string,
     attachmentId: string,
   ) => Promise<{ name: string; data: Buffer }>;
+  /**
+   * The encrypted phone relay. When configured, phones connect through it from any network and
+   * the plain-HTTP Wi-Fi server is not started.
+   */
+  relay?: {
+    relayUrl: string;
+    pageUrl: string;
+    idToken: () => Promise<string | undefined>;
+    connect?: (url: string) => RelaySocket;
+  };
 }
 const ipv4 = (address: string) =>
   address.split('.').reduce((result, part) => (result << 8) | Number(part), 0) >>> 0;
@@ -100,6 +111,8 @@ export class PhoneRemote {
   #ignoredThread: string | undefined;
   #requests = new Map<string, { input: string; task: Promise<unknown> }>();
   #failedAuth = new Map<string, { count: number; reset: number }>();
+  readonly #cloud: CloudRemote | undefined;
+  #pairingQr: { qr: string; expires: number } | undefined;
   constructor(deps: Dependencies) {
     this.#deps = deps;
     const saved = deps.repository.get<Config>('phone-remote', 'settings');
@@ -107,6 +120,18 @@ export class PhoneRemote {
       saved && /^[a-f0-9]{64}$/.test(saved.token)
         ? saved
         : { enabled: false, token: randomBytes(32).toString('hex') };
+    this.#cloud = deps.relay
+      ? new CloudRemote({
+          relayUrl: deps.relay.relayUrl,
+          pageUrl: deps.relay.pageUrl,
+          idToken: deps.relay.idToken,
+          repository: deps.repository,
+          available: () => this.#available(),
+          dispatch: (call) => this.dispatch(call, () => this.#available()),
+          state: () => (this.#available() ? this.#state() : undefined),
+          ...(deps.relay.connect ? { connect: deps.relay.connect } : {}),
+        })
+      : undefined;
   }
   async initialize(): Promise<void> {
     await this.#serialize(() => this.#reconcile());
@@ -137,8 +162,20 @@ export class PhoneRemote {
       } else if (command.operation === 'rotate') {
         this.#config.token = randomBytes(32).toString('hex');
         this.#stop();
+      } else if (command.operation === 'pair') {
+        if (!this.#cloud) throw new Error('Phone access over the internet is not available.');
+        const { url } = await this.#cloud.pair();
+        // The pairing URL holds the phone's credential and key: show it only as a QR code.
+        this.#pairingQr = { qr: await this.#deps.qr(url), expires: Date.now() + 5 * 60_000 };
+      } else if (command.operation === 'revoke') {
+        this.#cloud?.revoke(command.deviceId);
       }
-      if (command.operation !== 'status' && command.operation !== 'copy')
+      if (
+        command.operation !== 'status' &&
+        command.operation !== 'copy' &&
+        command.operation !== 'pair' &&
+        command.operation !== 'revoke'
+      )
         this.#deps.repository.put('phone-remote', 'settings', this.#config);
       await this.#reconcile();
       if (command.operation === 'copy') {
@@ -160,6 +197,26 @@ export class PhoneRemote {
         this.#stop();
         throw new Error('Sign in to Sia on your Mac first.');
       }
+      if (this.#cloud) {
+        if (this.#pairingQr && this.#pairingQr.expires < Date.now())
+          this.#pairingQr = undefined;
+        const devices = this.#cloud.devices();
+        // Once the new phone connects, its one-time pairing code is no longer needed.
+        if (this.#pairingQr && devices.some((device) => device.online))
+          this.#pairingQr = undefined;
+        return {
+          enabled: this.#config.enabled,
+          running: this.#cloud.connected,
+          detail:
+            this.#cloud.connected || !this.#available() ? this.#detail : this.#cloud.detail,
+          ...(this.#config.agentId ? { agentId: this.#config.agentId } : {}),
+          relay: {
+            connected: this.#cloud.connected,
+            devices,
+            ...(this.#pairingQr ? { pairingQr: this.#pairingQr.qr } : {}),
+          },
+        };
+      }
       return {
         enabled: this.#config.enabled,
         running: Boolean(this.#server),
@@ -172,13 +229,16 @@ export class PhoneRemote {
   }
   suspend(suspended: boolean): void {
     this.#suspended = suspended;
-    if (suspended) this.#stop();
-    else void this.#serialize(() => this.#reconcile()).catch(() => undefined);
+    if (suspended) {
+      this.#stop();
+      this.#cloud?.reconcile();
+    } else void this.#serialize(() => this.#reconcile()).catch(() => undefined);
   }
   dispose(): void {
     this.#disposed = true;
     clearInterval(this.#timer);
     this.#stop();
+    this.#cloud?.stop();
   }
   #serialize<T>(operation: () => Promise<T>): Promise<T> {
     const task = this.#queue.then(operation);
@@ -206,6 +266,18 @@ export class PhoneRemote {
     );
   }
   async #reconcile(): Promise<void> {
+    if (this.#cloud) {
+      // With the encrypted relay configured, the plain-HTTP Wi-Fi server never starts.
+      this.#cloud.reconcile();
+      this.#detail = this.#suspended
+        ? 'Paused while your Mac is locked or asleep.'
+        : !this.#config.enabled
+          ? 'Pair your phone once. Ask Sia from anywhere, on any network.'
+          : !this.#deps.controller.remoteAccessAllowed()
+            ? 'Sign in to Sia on your Mac to resume.'
+            : this.#cloud.detail;
+      return;
+    }
     if (!this.#available()) {
       if (this.#server) this.#stop();
       this.#detail = this.#suspended

@@ -35,6 +35,9 @@ export const phoneRemoteCommand = z.discriminatedUnion('operation', [
   z.object({ operation: z.literal('disable') }).strict(),
   z.object({ operation: z.literal('rotate') }).strict(),
   z.object({ operation: z.literal('copy') }).strict(),
+  // Phone access over the internet through the encrypted relay (docs/phone-cloud-relay.md).
+  z.object({ operation: z.literal('pair') }).strict(),
+  z.object({ operation: z.literal('revoke'), deviceId: z.string().uuid() }).strict(),
 ]);
 export type PhoneRemoteCommand = z.infer<typeof phoneRemoteCommand>;
 export interface PhoneRemoteSettings {
@@ -44,6 +47,13 @@ export interface PhoneRemoteSettings {
   url?: string;
   qr?: string;
   detail: string;
+  /** Present when this build reaches phones through the encrypted relay instead of Wi-Fi. */
+  relay?: {
+    connected: boolean;
+    devices: { deviceId: string; pairedAt: string; online: boolean }[];
+    /** The pairing QR for a phone being added; it holds that phone's credential and key. */
+    pairingQr?: string;
+  };
 }
 export interface RemoteTurn {
   id: string;
