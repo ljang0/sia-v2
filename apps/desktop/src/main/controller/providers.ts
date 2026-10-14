@@ -570,6 +570,7 @@ export class ProviderAccess {
                   label: name,
                   description: `${hostedProvider.name} · included with Sia · up to ${hostedProvider.limits.maxOutputTokens.toLocaleString()} output tokens per turn`,
                   reasoningEfforts: [],
+                  lab: { id: hostedProvider.id, name: hostedProvider.name },
                 })),
               ),
             }

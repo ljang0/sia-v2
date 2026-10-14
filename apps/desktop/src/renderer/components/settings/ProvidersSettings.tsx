@@ -205,8 +205,17 @@ function providerDescription(provider: ProviderSetup): string {
     return provider.status === 'incompatible'
       ? 'One button updates Codex, restarts Sia, and continues to ChatGPT sign-in. No terminal needed.'
       : 'One button downloads Codex, restarts Sia, and continues to ChatGPT sign-in. No terminal needed.';
-  if (provider.id === 'meta')
-    return 'Comes with your Sia account, with nothing to set up. Availability may vary.';
+  if (provider.id === 'meta') {
+    const labs = [
+      ...new Set(
+        (provider.models ?? []).flatMap(({ lab }) =>
+          lab && lab.name !== 'Included model' ? [lab.name] : [],
+        ),
+      ),
+    ];
+    const from = labs.length ? ` Models from ${new Intl.ListFormat('en').format(labs)}.` : '';
+    return `Comes with your Sia account, with nothing to set up.${from} Availability may vary.`;
+  }
   if (provider.id === 'codex')
     return provider.status === 'needs-login'
       ? 'Sign in with ChatGPT in your browser. Sia checks the connection automatically.'

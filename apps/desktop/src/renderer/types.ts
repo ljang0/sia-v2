@@ -430,6 +430,8 @@ export interface ProviderSetup {
     description: string;
     reasoningEfforts: string[];
     defaultReasoningEffort?: string | undefined;
+    /** The model lab (or sponsor) that funds an included model. */
+    lab?: { id: string; name: string } | undefined;
   }>;
 }
 

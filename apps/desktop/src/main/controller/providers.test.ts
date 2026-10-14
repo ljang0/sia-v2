@@ -1027,6 +1027,7 @@ describe('DesktopController', () => {
       expect(controller.snapshot().providers.find(({ id }) => id === 'meta')).toMatchObject({
         status: 'ready',
         model: 'super_nova_ext',
+        models: [{ id: 'super_nova_ext', lab: { id: 'meta', name: 'Muse Spark' } }],
       });
       const created = await controller.invoke('agents.save', {
         name: 'Included model tester',

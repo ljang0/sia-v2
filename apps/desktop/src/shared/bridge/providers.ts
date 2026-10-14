@@ -65,6 +65,8 @@ export interface ProviderModelView {
   description: string;
   reasoningEfforts: string[];
   defaultReasoningEffort?: string;
+  /** The model lab (or sponsor) that funds an included model, from the hosted catalog. */
+  lab?: { id: string; name: string };
 }
 
 export interface ProviderUsageView {
