@@ -356,7 +356,7 @@ export function Sidebar({
           aria-label="Create agent"
           title="New agent"
         >
-          <Plus size={15} aria-hidden="true" />
+          <Plus size={18} aria-hidden="true" />
         </button>
       </div>
       <div
@@ -411,7 +411,7 @@ export function Sidebar({
                       aria-label={`Start a conversation with ${agent.name}`}
                       title="New conversation"
                     >
-                      <Plus size={14} aria-hidden="true" />
+                      <Plus size={16} aria-hidden="true" />
                     </button>
                     <AgentMenu
                       agent={agent}
@@ -565,7 +565,7 @@ export function Sidebar({
       <div className={`${styles.sidebarFooter} ${navigation.footer}`}>
         {onOpenQuickSwitcher ? (
           <button className={styles.settingsButton} type="button" onClick={onOpenQuickSwitcher}>
-            <MagnifyingGlass size={17} aria-hidden="true" />
+            <MagnifyingGlass size={18} aria-hidden="true" />
             <span>Search everything</span>
             <kbd className={styles.navShortcut}>⌘K</kbd>
           </button>
@@ -578,7 +578,7 @@ export function Sidebar({
             data-testid="activity-center-toggle"
             aria-current={activePage === 'activity' ? 'page' : undefined}
           >
-            <Pulse size={17} aria-hidden="true" />
+            <Pulse size={18} aria-hidden="true" />
             <span>Activity</span>
           </button>
         ) : null}
@@ -590,7 +590,7 @@ export function Sidebar({
             data-testid="scheduled-open"
             aria-current={activePage === 'scheduled' ? 'page' : undefined}
           >
-            <CalendarDots size={17} aria-hidden="true" />
+            <CalendarDots size={18} aria-hidden="true" />
             <span>Scheduled</span>
           </button>
         ) : null}
@@ -600,7 +600,7 @@ export function Sidebar({
           onClick={onOpenSettings}
           aria-current={activePage === 'settings' ? 'page' : undefined}
         >
-          <GearSix size={17} aria-hidden="true" />
+          <GearSix size={18} aria-hidden="true" />
           <span>Settings</span>
         </button>
       </div>

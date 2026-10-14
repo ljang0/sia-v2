@@ -80,7 +80,7 @@ export function RoomHeader({
             <div className={companion.roomMeta}>
               {thread.goal ? (
                 <span title={thread.goal.text}>
-                  <Target size={13} aria-hidden="true" />
+                  <Target size={16} aria-hidden="true" />
                   {thread.goal.text}
                 </span>
               ) : null}

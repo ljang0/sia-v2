@@ -48,7 +48,7 @@ export function WelcomeRecents({
                 {status ? <span className={styles.status}>{status}</span> : null}
                 <time dateTime={thread.updatedAt}>{timeAgo(thread.updatedAt)}</time>
               </span>
-              <ArrowRight className={styles.arrow} size={14} aria-hidden="true" />
+              <ArrowRight className={styles.arrow} size={16} aria-hidden="true" />
             </button>
           );
         })}
