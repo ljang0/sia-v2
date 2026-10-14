@@ -24,7 +24,9 @@ describe('ConnectionBanner', () => {
     expect(screen.queryByTestId('offline-banner')).toBeNull();
     expect(screen.getByTestId('online-banner').textContent).toContain('Back online');
 
-    act(() => vi.advanceTimersByTime(BACK_ONLINE_MS));
+    act(() => {
+      vi.advanceTimersByTime(BACK_ONLINE_MS);
+    });
     expect(screen.queryByTestId('online-banner')).toBeNull();
   });
 
