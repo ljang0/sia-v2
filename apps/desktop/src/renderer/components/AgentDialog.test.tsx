@@ -159,8 +159,8 @@ describe('agent dialog', () => {
       onOpenModelSettings,
     });
 
-    expect(screen.getByText('No usable model is connected.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Open model settings' }));
+    expect(screen.getByText('No AI is connected yet.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Open AI settings' }));
     expect(onOpenModelSettings).toHaveBeenCalledOnce();
     expect(screen.queryByText(/not installed/i)).toBeNull();
   });
