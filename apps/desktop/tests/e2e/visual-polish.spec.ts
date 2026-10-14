@@ -96,7 +96,7 @@ test('core surfaces retain the visual-system and motion contract', async () => {
     await expect(sia.page).toHaveScreenshot('workspace-light.png', stableScreenshot);
 
     await sia.page.keyboard.press('Meta+K');
-    const switcher = sia.page.getByRole('dialog', { name: 'Move through Sia' });
+    const switcher = sia.page.getByRole('dialog', { name: 'Search everything' });
     await expect(switcher).toBeVisible();
     const switcherSearch = switcher.getByRole('combobox', {
       name: 'Search conversations and actions',
