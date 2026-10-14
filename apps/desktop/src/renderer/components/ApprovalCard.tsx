@@ -167,6 +167,7 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
       tabIndex={-1}
       className={`${styles.approvalCard} ${resolved ? styles.approvalResolved : ''}`}
       aria-label={request.title}
+      data-approval={resolved ? 'resolved' : 'pending'}
       data-testid="approval-card"
     >
       {resolved ? (

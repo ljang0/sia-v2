@@ -399,6 +399,12 @@ export function Conversation({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot the rows present when the thread opened.
     [thread?.id],
   );
+  // Likewise for the banners: a failure or queue that appears while the thread is open settles in.
+  const openedState = useMemo(
+    () => ({ error: thread?.error, status: thread?.status }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot the state the thread opened with.
+    [thread?.id],
+  );
   if (loading) return <ConversationSkeleton />;
 
   if (!thread) {
@@ -569,7 +575,11 @@ export function Conversation({
       >
         <div className={styles.conversationColumn} ref={columnRef}>
           {queued ? (
-            <div className={styles.queueBanner} role="status">
+            <div
+              className={styles.queueBanner}
+              role="status"
+              data-entering={openedState.status !== 'queued' ? 'true' : undefined}
+            >
               <Clock size={17} aria-hidden="true" />
               <div>
                 <strong>Queued</strong>
@@ -632,6 +642,7 @@ export function Conversation({
             <div
               className={styles.errorBanner}
               role="alert"
+              data-entering={thread.error !== openedState.error ? 'true' : undefined}
               data-testid="interrupted-turn-banner"
             >
               <WarningCircle size={18} aria-hidden="true" />
@@ -705,6 +716,7 @@ export function Conversation({
         </p>
       ) : null}
       <QueuedMessages
+        key={`queue:${thread.id}`}
         messages={thread.queuedMessages ?? []}
         agentName={agentName}
         onRemove={onRemoveQueued}
