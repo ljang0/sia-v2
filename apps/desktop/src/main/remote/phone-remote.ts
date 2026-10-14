@@ -30,6 +30,15 @@ const commandSchema = z
   })
   .strict();
 const sessionSchema = z.object({ session: z.string().max(100).nullable() }).strict();
+/** One phone request after its transport has authenticated it. */
+export interface RemoteCall {
+  method: 'GET' | 'POST';
+  route: string;
+  query: URLSearchParams;
+  body?: unknown;
+}
+export type RemoteReply =
+  { status: number; json: unknown } | { status: 200; file: { name: string; data: Buffer } };
 interface Config {
   enabled: boolean;
   token: string;
@@ -367,120 +376,8 @@ export class PhoneRemote {
       return;
     }
     const route = parts.slice(3).join('/');
+    const isCurrent = () => this.#available() && generation === this.#generation;
     if (request.method === 'GET') {
-      if (route === 'state') {
-        this.#json(response, 200, this.#state());
-        return;
-      }
-      if (route === 'vault' || route === 'note') {
-        const library = await this.#deps.controller.invoke('assistant.library', {
-          operation: 'list',
-        });
-        if (!this.#available() || generation !== this.#generation) {
-          unavailable();
-          return;
-        }
-        const selected = this.#deps.controller
-          .snapshot()
-          .agents.find((entry) => entry.id === this.#config.agentId);
-        const skills = selected?.workspace
-          ? await nativeRemoteSkills(selected.workspace, selected.id)
-          : [];
-        if (!this.#available() || generation !== this.#generation) {
-          unavailable();
-          return;
-        }
-        const vault = remoteVault(library, this.#config.agentId!, skills);
-        const note =
-          route === 'note'
-            ? vault.notes.find(
-                (entry) => entry.id === new URL(request.url!, this.#url).searchParams.get('id'),
-              )
-            : undefined;
-        this.#json(
-          response,
-          route === 'note' && !note ? 404 : 200,
-          route === 'vault'
-            ? vault.graph
-            : (note ?? { error: 'This note is no longer available.' }),
-        );
-        return;
-      }
-      if (route.startsWith('results/')) {
-        const id = route.slice('results/'.length);
-        const state = this.#state();
-        if (
-          !state.session ||
-          !this.#deps.readGeneratedResult ||
-          !state.turns.some((turn) => Object.values(turn.fileIds ?? {}).includes(id))
-        ) {
-          unavailable();
-          return;
-        }
-        const result = await this.#deps.readGeneratedResult(state.session.split(':')[0]!, id);
-        if (
-          !this.#available() ||
-          generation !== this.#generation ||
-          this.#state().session !== state.session
-        ) {
-          unavailable();
-          return;
-        }
-        response.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
-        response.writeHead(200, {
-          'Content-Type': 'application/octet-stream',
-          'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(result.name)}`,
-        });
-        response.end(result.data);
-        return;
-      }
-      if (route.startsWith('outbox/')) {
-        let name: string;
-        try {
-          name = decodeURIComponent(route.slice(7));
-        } catch {
-          unavailable();
-          return;
-        }
-        if (
-          !name ||
-          name !== basename(name) ||
-          /[\\\x00-\x1f]/.test(name) ||
-          !this.#state().turns.some((turn) => turn.files.includes(name))
-        ) {
-          unavailable();
-          return;
-        }
-        const root = await realpath(this.#deps.outbox ?? join(homedir(), 'SiaOutbox'));
-        const file = await open(join(root, name), constants.O_RDONLY | constants.O_NOFOLLOW);
-        try {
-          const stat = await file.stat();
-          if (!stat.isFile() || stat.size > 20 * 1024 * 1024)
-            throw new RemoteError(
-              'This file is too large to download here. Open it on your Mac.',
-            );
-          const buffer = Buffer.alloc(stat.size + 1);
-          const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
-          if (bytesRead > stat.size)
-            throw new RemoteError(
-              'This file is still being written. Try again when Sia finishes.',
-            );
-          const data = buffer.subarray(0, bytesRead);
-          if (!this.#available() || generation !== this.#generation) {
-            unavailable();
-            return;
-          }
-          response.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
-          response.writeHead(200, {
-            'Content-Type': 'application/octet-stream',
-            'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(name)}`,
-          });
-          response.end(data);
-        } finally {
-          await file.close();
-        }
-        return;
-      }
       const path =
         route === '' || route === 'index.html' || route === 'graph'
           ? 'index.html'
@@ -489,7 +386,7 @@ export class PhoneRemote {
             : undefined;
       if (path) {
         const data = await readFile(resolve(this.#deps.assets, path));
-        if (!this.#available() || generation !== this.#generation) {
+        if (!isCurrent()) {
           unavailable();
           return;
         }
@@ -508,61 +405,180 @@ export class PhoneRemote {
         response.end(data);
         return;
       }
-    } else if (request.method === 'POST' && ['command', 'cancel', 'clear'].includes(route)) {
-      const body = await this.#body(request);
-      if (!this.#available() || generation !== this.#generation) {
-        unavailable();
-        return;
-      }
-      if (route === 'command') {
-        const input = commandSchema.parse(body);
-        const serialized = JSON.stringify(input);
-        const previous = this.#requests.get(input.id);
-        if (previous) {
-          if (previous.input !== serialized)
-            throw new RemoteError('This request was already used. Refresh before sending.');
-          this.#json(response, 200, await previous.task);
-          return;
-        }
-        if (this.#sending)
-          throw new RemoteError('Sia is accepting another request. Try again in a moment.');
-        if (input.session !== this.#state().session)
-          throw new RemoteError(
-            'The current task changed on your Mac. Review it before sending again.',
-          );
-        this.#sending = true;
-        const task = this.#send(input.text, input.session, generation).finally(() => {
-          this.#sending = false;
-        });
-        this.#requests.set(input.id, { input: serialized, task });
-        // Keep a bounded deduplication ledger for this link, including failures. Do not evict live work.
-        if (this.#requests.size > 200)
-          this.#requests.delete(this.#requests.keys().next().value!);
-        this.#json(response, 200, await task);
-        return;
-      }
-      const input = sessionSchema.parse(body);
-      if (input.session !== this.#state().session || this.#sending)
-        throw new RemoteError('The current task changed. Review it and try again.');
-      if (route === 'cancel') {
-        if (!input.session) throw new RemoteError('There is no current task to stop.');
-        await this.#deps.controller.invoke('threads.cancel', {
-          threadId: input.session.split(':')[0]!,
-        });
-      } else {
-        if (
-          this.#state().turns.at(-1)?.status === 'working' ||
-          this.#state().turns.at(-1)?.status === 'waiting'
-        )
-          throw new RemoteError('Stop the current task before starting a new chat.');
-        this.#ignoredThread = this.#deps.controller.snapshot().activeThreadId;
-      }
-      this.#json(response, 200, { ok: true });
+    }
+    const reply = await this.dispatch(
+      {
+        method: request.method === 'POST' ? 'POST' : 'GET',
+        route,
+        query: new URL(request.url ?? '/', 'http://remote.invalid').searchParams,
+        ...(request.method === 'POST' ? { body: await this.#body(request) } : {}),
+      },
+      isCurrent,
+    );
+    if ('file' in reply) {
+      response.setHeader('Content-Security-Policy', "sandbox; default-src 'none'");
+      response.writeHead(200, {
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(reply.file.name)}`,
+      });
+      response.end(reply.file.data);
       return;
     }
-    unavailable();
+    this.#json(response, reply.status, reply.json);
   }
-  async #send(text: string, session: string | null, generation: number): Promise<unknown> {
+  /**
+   * One authenticated phone request from any transport (the Wi-Fi server or the cloud relay).
+   * `isCurrent` reports whether that transport's pairing is still the live one.
+   */
+  async dispatch(call: RemoteCall, isCurrent: () => boolean): Promise<RemoteReply> {
+    const unavailable = (): RemoteReply => ({
+      status: 404,
+      json: { error: 'Remote unavailable. Scan the current QR code in Sia on your Mac.' },
+    });
+    if (!isCurrent()) return unavailable();
+    const route = call.route;
+    try {
+      if (call.method === 'GET') {
+        if (route === 'state') {
+          return { status: 200, json: this.#state() };
+        }
+        if (route === 'vault' || route === 'note') {
+          const library = await this.#deps.controller.invoke('assistant.library', {
+            operation: 'list',
+          });
+          if (!isCurrent()) return unavailable();
+          const selected = this.#deps.controller
+            .snapshot()
+            .agents.find((entry) => entry.id === this.#config.agentId);
+          const skills = selected?.workspace
+            ? await nativeRemoteSkills(selected.workspace, selected.id)
+            : [];
+          if (!isCurrent()) return unavailable();
+          const vault = remoteVault(library, this.#config.agentId!, skills);
+          const note =
+            route === 'note'
+              ? vault.notes.find((entry) => entry.id === call.query.get('id'))
+              : undefined;
+          return {
+            status: route === 'note' && !note ? 404 : 200,
+            json:
+              route === 'vault'
+                ? vault.graph
+                : (note ?? { error: 'This note is no longer available.' }),
+          };
+        }
+        if (route.startsWith('results/')) {
+          const id = route.slice('results/'.length);
+          const state = this.#state();
+          if (
+            !state.session ||
+            !this.#deps.readGeneratedResult ||
+            !state.turns.some((turn) => Object.values(turn.fileIds ?? {}).includes(id))
+          )
+            return unavailable();
+          const result = await this.#deps.readGeneratedResult(state.session.split(':')[0]!, id);
+          if (!isCurrent() || this.#state().session !== state.session) return unavailable();
+          return { status: 200, file: { name: result.name, data: result.data } };
+        }
+        if (route.startsWith('outbox/')) {
+          let name: string;
+          try {
+            name = decodeURIComponent(route.slice(7));
+          } catch {
+            return unavailable();
+          }
+          if (
+            !name ||
+            name !== basename(name) ||
+            /[\\\x00-\x1f]/.test(name) ||
+            !this.#state().turns.some((turn) => turn.files.includes(name))
+          )
+            return unavailable();
+          const root = await realpath(this.#deps.outbox ?? join(homedir(), 'SiaOutbox'));
+          const file = await open(join(root, name), constants.O_RDONLY | constants.O_NOFOLLOW);
+          try {
+            const stat = await file.stat();
+            if (!stat.isFile() || stat.size > 20 * 1024 * 1024)
+              throw new RemoteError(
+                'This file is too large to download here. Open it on your Mac.',
+              );
+            const buffer = Buffer.alloc(stat.size + 1);
+            const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
+            if (bytesRead > stat.size)
+              throw new RemoteError(
+                'This file is still being written. Try again when Sia finishes.',
+              );
+            const data = buffer.subarray(0, bytesRead);
+            if (!isCurrent()) return unavailable();
+            return { status: 200, file: { name, data } };
+          } finally {
+            await file.close();
+          }
+        }
+      } else if (call.method === 'POST' && ['command', 'cancel', 'clear'].includes(route)) {
+        const body = call.body;
+        if (!isCurrent()) return unavailable();
+        if (route === 'command') {
+          const input = commandSchema.parse(body);
+          const serialized = JSON.stringify(input);
+          const previous = this.#requests.get(input.id);
+          if (previous) {
+            if (previous.input !== serialized)
+              throw new RemoteError('This request was already used. Refresh before sending.');
+            return { status: 200, json: await previous.task };
+          }
+          if (this.#sending)
+            throw new RemoteError('Sia is accepting another request. Try again in a moment.');
+          if (input.session !== this.#state().session)
+            throw new RemoteError(
+              'The current task changed on your Mac. Review it before sending again.',
+            );
+          this.#sending = true;
+          const task = this.#send(input.text, input.session, isCurrent).finally(() => {
+            this.#sending = false;
+          });
+          this.#requests.set(input.id, { input: serialized, task });
+          // Keep a bounded deduplication ledger for this link, including failures. Do not evict live work.
+          if (this.#requests.size > 200)
+            this.#requests.delete(this.#requests.keys().next().value!);
+          return { status: 200, json: await task };
+        }
+        const input = sessionSchema.parse(body);
+        if (input.session !== this.#state().session || this.#sending)
+          throw new RemoteError('The current task changed. Review it and try again.');
+        if (route === 'cancel') {
+          if (!input.session) throw new RemoteError('There is no current task to stop.');
+          await this.#deps.controller.invoke('threads.cancel', {
+            threadId: input.session.split(':')[0]!,
+          });
+        } else {
+          if (
+            this.#state().turns.at(-1)?.status === 'working' ||
+            this.#state().turns.at(-1)?.status === 'waiting'
+          )
+            throw new RemoteError('Stop the current task before starting a new chat.');
+          this.#ignoredThread = this.#deps.controller.snapshot().activeThreadId;
+        }
+        return { status: 200, json: { ok: true } };
+      }
+      return unavailable();
+    } catch (error) {
+      return {
+        status: error instanceof z.ZodError ? 400 : 409,
+        json: {
+          error:
+            error instanceof RemoteError
+              ? error.message
+              : 'The request could not be completed. Check Sia on your Mac and try again.',
+        },
+      };
+    }
+  }
+  async #send(
+    text: string,
+    session: string | null,
+    isCurrent: () => boolean,
+  ): Promise<unknown> {
     const state = this.#state();
     const last = state.turns.at(-1);
     if (last?.status === 'working')
@@ -583,7 +599,7 @@ export class PhoneRemote {
             title: text.slice(0, 80),
           })
         ).threadId);
-      if (!this.#available() || generation !== this.#generation)
+      if (!isCurrent())
         throw new RemoteError('The remote link changed. Scan the current QR code.');
       const result = await this.#deps.controller.invoke('threads.send', {
         threadId,
