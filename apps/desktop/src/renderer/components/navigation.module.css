@@ -320,7 +320,7 @@ aside.navigation {
 }
 /* Opening a group deals its conversations in from the top, one step apart, up to eight. */
 .groupContent[data-open='true'] .taskList > :not([data-motion]) {
-  animation: taskDeal var(--motion-emphasis) var(--ease-spring) both;
+  animation: taskDeal var(--motion-emphasis) var(--ease-spring) backwards;
 }
 .groupContent[data-open='true'] .taskList > :nth-child(2) {
   animation-delay: calc(var(--motion-stagger) * 1);
