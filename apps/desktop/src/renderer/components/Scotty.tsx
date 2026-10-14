@@ -149,7 +149,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
           aria-label="Hide Scotty"
           onClick={() => leave(() => api.hide())}
         >
-          <Moon size={15} />
+          <Moon size={18} />
         </button>
         <button
           className={styles.icon}
@@ -157,7 +157,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
           aria-label="Close task tray"
           onClick={() => leave(() => api.expand(false))}
         >
-          <X size={16} />
+          <X size={18} />
         </button>
       </header>
       {error && (
@@ -179,7 +179,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
           <div className={styles.toolbar}>
             {task || composing ? (
               <button className={styles.textButton} onClick={back}>
-                <ArrowLeft size={14} /> All tasks
+                <ArrowLeft size={16} /> All tasks
               </button>
             ) : (
               <span>
@@ -196,7 +196,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
                   setComposing(true);
                 }}
               >
-                <Plus size={14} /> Ask Sia
+                <Plus size={16} /> Ask Sia
               </button>
             )}
           </div>
@@ -204,7 +204,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
             {composing ? (
               <section className={styles.composeIntro}>
                 <h2>What can we do for you?</h2>
-                <p>Scotty brings your request to your Sia agent and stays with it.</p>
+                <p>Scotty passes your request to Sia and keeps you posted.</p>
                 <label className={styles.agent}>
                   Agent
                   <select
@@ -250,12 +250,12 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
                         {item.agent} · {item.progress}
                       </span>
                     </div>
-                    <ArrowRight size={14} />
+                    <ArrowRight size={16} />
                   </button>
                 ))}
                 {state.moreTasks && (
                   <button className={styles.textButton} onClick={openSia}>
-                    See all conversations in Sia <ArrowUpRight size={13} />
+                    See all conversations in Sia <ArrowUpRight size={16} />
                   </button>
                 )}
               </div>
@@ -268,7 +268,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
                 </h2>
                 <p>Ask Sia to do something. I’ll keep an eye on how it’s going.</p>
                 <button className={styles.primary} onClick={() => setComposing(true)}>
-                  <Plus size={15} /> Start a request
+                  <Plus size={16} /> Start a request
                 </button>
               </div>
             )}
@@ -317,7 +317,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
                 disabled={busy || !text.trim() || (composing ? !agentId : !task?.canReply)}
                 aria-label={task?.question ? 'Send answer' : 'Send request'}
               >
-                <ArrowUp size={17} />
+                <ArrowUp size={18} />
               </button>
             </form>
           )}
@@ -325,7 +325,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
       )}
       <footer className={styles.footer}>
         <span>
-          <PawPrint size={12} /> Sia · on your Mac
+          <PawPrint size={16} /> Sia · on your Mac
         </span>
         <button
           className={styles.icon}
@@ -334,7 +334,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
           aria-expanded={moving}
           onClick={() => setMoving(!moving)}
         >
-          <ArrowsOutCardinal size={15} />
+          <ArrowsOutCardinal size={18} />
         </button>
         <button
           className={styles.icon}
@@ -342,7 +342,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
           title="Open Sia"
           onClick={openSia}
         >
-          <ChatsCircle size={16} />
+          <ChatsCircle size={18} />
         </button>
       </footer>
       {moving && (
@@ -362,7 +362,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
               aria-label={`Move Scotty ${name}`}
               onClick={() => control(api.nudge(dx, dy))}
             >
-              <Icon size={16} />
+              <Icon size={18} />
             </button>
           ))}
         </div>
