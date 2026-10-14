@@ -1,6 +1,13 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { ChatCircle, File, LinkSimple, MagnifyingGlass, X } from '@phosphor-icons/react';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import companion from '../companion.module.css';
 import type { AgentSummary, TranscriptSearchResult } from '../types';
 import buttons from '../styles/buttons.module.css';
@@ -285,6 +292,7 @@ export function QuickSwitcher({
             className={companion.quickSwitcherResults}
             role="listbox"
             aria-label="Sia destinations"
+            data-typed={query ? true : undefined}
           >
             {sections.map((section) => {
               const rows = section.entries.map((entry) => {
@@ -297,6 +305,7 @@ export function QuickSwitcher({
                     key={entry.id}
                     aria-selected={index === highlighted}
                     className={companion.quickSwitcherRow}
+                    style={{ '--row': index } as CSSProperties}
                     onPointerMove={() => setHighlighted(index)}
                     onClick={() => activate(entry)}
                   >
