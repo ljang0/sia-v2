@@ -19,7 +19,8 @@
   margin-top: 0;
 }
 
-.fatalIcon {
+.fatalIcon,
+.fatalState > svg:first-child {
   display: grid;
   width: 52px;
   height: 52px;
@@ -29,9 +30,32 @@
   color: var(--text-danger);
 }
 
-@media (prefers-reduced-motion: no-preference) {
+/* The reconnect screen passes its icon bare; give it the same tile as the crash screen. */
+.fatalState > svg:first-child {
+  box-sizing: border-box;
+  padding: 13px;
+}
+
+/* A calm, sober cascade: icon, heading, explanation, then the way out. No bounce. */
+.fatalState > * {
+  animation: statusEnter var(--motion-emphasis) var(--ease-out-soft) both;
+}
+
+.fatalState > :nth-child(2) {
+  animation-delay: var(--motion-stagger);
+}
+
+.fatalState > :nth-child(3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+
+.fatalState > :nth-child(n + 4) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+
+@media (prefers-reduced-motion: reduce) {
   .fatalState > * {
-    animation: statusEnter var(--motion-surface) var(--ease-out-soft) both;
+    animation: none;
   }
 }
 
@@ -71,10 +95,6 @@
 @keyframes statusEnter {
   from {
     opacity: 0;
-    transform: translateY(-3px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+    transform: translateY(var(--motion-nudge));
   }
 }
