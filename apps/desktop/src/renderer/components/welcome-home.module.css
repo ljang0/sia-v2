@@ -13,18 +13,42 @@
 }
 
 /* Blocks rise in one after another; --step is set per block. */
-.home > * {
-  animation: homeRise 460ms var(--ease-out-soft) both;
-  animation-delay: calc(var(--step) * 45ms);
+.home > :not(.heading) {
+  animation: homeRise var(--motion-emphasis) var(--ease-spring) backwards;
+  animation-delay: calc(var(--step) * var(--motion-stagger) * 2);
 }
 @keyframes homeRise {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(var(--motion-rise));
   }
-  to {
-    opacity: 1;
-    transform: none;
+}
+
+/* The heading keeps its aurora drift animation, so it arrives by transition instead: it
+   comes into focus from a soft blur while it rises. */
+.home > .heading {
+  transition:
+    opacity var(--motion-emphasis) var(--ease-out-soft),
+    filter var(--motion-emphasis) var(--ease-out-soft),
+    transform var(--motion-emphasis) var(--ease-spring);
+  transition-delay: calc(var(--step) * var(--motion-stagger) * 2);
+}
+@starting-style {
+  .home > .heading {
+    opacity: 0;
+    filter: blur(calc(var(--motion-rise) / 2));
+    transform: translateY(var(--motion-rise)) scale(var(--motion-pop-scale));
+  }
+}
+
+/* The agent's form greets you with a small pop just ahead of the words. */
+.kicker > :first-child {
+  animation: kickerPop var(--motion-emphasis) var(--ease-spring) backwards;
+}
+@keyframes kickerPop {
+  from {
+    opacity: 0;
+    transform: scale(calc(var(--motion-pop-scale) - (1 - var(--motion-pop-scale)) * 4));
   }
 }
 
@@ -78,6 +102,12 @@
   font-weight: var(--weight-semibold);
   cursor: pointer;
 }
+.connect > svg {
+  transition: transform var(--motion-standard) var(--ease-spring);
+}
+.connect:hover > svg {
+  transform: rotate(-12deg) scale(calc(2 - var(--motion-pop-scale)));
+}
 .connect span {
   color: var(--text-tertiary);
   font-weight: var(--weight-regular);
@@ -107,11 +137,16 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .home > * {
+  .home > :not(.heading),
+  .kicker > :first-child {
     animation: none;
+  }
+  .home > .heading {
+    transition: none;
   }
 }
 
-:global([data-appearance='calm']) .home > * {
+:global([data-appearance='calm']) .home > :not(.heading),
+:global([data-appearance='calm']) .kicker > :first-child {
   animation: none;
 }
