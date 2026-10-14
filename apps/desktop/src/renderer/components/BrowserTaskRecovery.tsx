@@ -78,7 +78,8 @@ export function BrowserTaskRecovery({
       ) : null}
       {pending ? (
         <p role="status">
-          If Chrome asks to allow remote debugging, confirm its prompt, then return here.
+          Chrome may ask “Allow remote debugging?” That is how Sia connects to your window. Click
+          Allow, then come back here.
         </p>
       ) : null}
       {error || (started && browser.status === 'error' && browser.snapshotLabel) ? (
