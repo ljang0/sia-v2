@@ -2,13 +2,14 @@ import type {
   ConnectionId,
   OnboardingProgress,
   OnboardingStep,
+  ProviderId,
   PushToTalkView,
   ThreadPreview,
   TurnChangesView,
 } from '../shared/bridge';
 import type { TextSize, ThemePreference } from '../shared/display';
 import type { ScheduleCadence } from '../shared/schedule-cadence';
-export type ProviderId = 'codex' | 'meta' | 'grok' | 'gemini' | 'claude' | 'byok' | 'lab';
+export type { ProviderId };
 /** Safe catalog id. The main process decides whether the corresponding adapter is admitted. */
 type HarnessId = string;
 type HarnessPreference = { mode: 'automatic' } | { mode: 'explicit'; harnessId: HarnessId };

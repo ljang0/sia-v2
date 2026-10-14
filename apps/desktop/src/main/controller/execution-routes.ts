@@ -1,7 +1,13 @@
 /** Which provider routes a new or restored thread may pin. */
 
+import type { ProviderId as ProtocolProviderId } from '@sia/protocol';
 import { legacyModelRoute } from '@sia/runtime';
 import type { HarnessId, ProviderId, ThreadView } from '../../shared/bridge.js';
+
+// The renderer-safe provider list must stay identical to the runtime protocol's enum.
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+const providerIdsMatch: Same<ProviderId, ProtocolProviderId> = true;
+void providerIdsMatch;
 
 export function modelRouteKey(provider: ProviderId, model: string): string {
   return `${provider}\u0000${model}`;
