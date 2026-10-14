@@ -78,7 +78,7 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
               {request.kind === 'foreground'
                 ? 'Sia needs to control the pointer for a moment.'
                 : request.kind === 'connector'
-                  ? `${request.app} will make this change only after you approve it.`
+                  ? `${request.app} will make this change only after you allow it.`
                   : `Review this ${request.category.toLowerCase()} action before Sia continues.`}
             </p>
           ) : null}
