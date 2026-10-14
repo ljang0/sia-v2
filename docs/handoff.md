@@ -208,6 +208,12 @@ The older 4:17 narrated video remains on disk but is superseded as the main prev
    Keep the proposed ten-year refresh lifetime out of deployment unless separately approved.
    Research recruitment and public connector access retain their own signoffs.
 
+7. **Deploy and accept the sponsor and phone work.** The source now supports sponsor labs in any
+   model API format, per-lab/model/harness metering with credit ceilings, four preview harnesses
+   for included models, and an encrypted phone relay. None of it is deployed. Follow
+   [arena-model-harness.md](./arena-model-harness.md) and
+   [phone-cloud-relay.md](./phone-cloud-relay.md); each cloud step is a scoped, reviewed change set.
+
 After those gates, publish the accepted installer/update artifacts through the documented release
 commands and verify a recipient download. No alpha.25 installer was published during this work.
 

@@ -13,6 +13,10 @@ superseded records stay in Git history and at their release tags.
 - [`harness-policy.md`](./harness-policy.md) — how a thread resolves and pins its provider, model,
   and harness.
 - [`model-lab-integration.md`](./model-lab-integration.md) — adding an included model lab safely.
+- [`arena-model-harness.md`](./arena-model-harness.md) — sponsored models across harnesses, and
+  the operator steps to make that live.
+- [`phone-cloud-relay.md`](./phone-cloud-relay.md) — the encrypted phone relay that replaces the
+  plain-HTTP Wi-Fi remote.
 - [`ui-quality.md`](./ui-quality.md) — renderer design and accessibility constraints.
 - [`cloud-computer.md`](./cloud-computer.md) — the current local/cloud execution boundary, with the
   remote-computer decision record in [`cloud-provider-decision.md`](./cloud-provider-decision.md).
