@@ -52,25 +52,26 @@
   display: flex;
   flex: none;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 8px clamp(16px, 2.5vw, 32px);
+  gap: 6px;
+  padding: 10px clamp(16px, 2.5vw, 32px);
   border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 76%, transparent);
   background: var(--bg-canvas);
 }
 
 .settingsNav button {
   display: flex;
-  min-height: 32px;
+  min-height: 40px;
   flex: none;
   align-items: center;
-  gap: 7px;
-  padding: 7px 8px;
+  gap: 8px;
+  padding: 8px 12px;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: var(--text-md);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
   text-align: left;
   transition:
     background-color var(--motion-fast) var(--ease-standard),
@@ -164,15 +165,15 @@
 }
 
 .settingsContent {
-  max-width: 1040px;
+  max-width: 1120px;
   width: 100%;
   margin: 0 auto;
 }
 
-/* The title, the tabs, and each section share one left edge: the section column is 900px wide,
+/* The title, the tabs, and each section share one left edge: the section column is 960px wide,
    centered in the pane, and never closer to the edge than the content padding. */
 .settingsPage {
-  --settings-inset: max(clamp(24px, 4vw, 48px), calc((100% - 900px) / 2));
+  --settings-inset: max(clamp(24px, 4vw, 48px), calc((100% - 960px) / 2));
 }
 
 .settingsTopbar {
@@ -182,9 +183,9 @@
 .settingsNav {
   /* Compact tiers keep one row; wrapping is only a last resort so no tab is ever clipped. */
   flex-wrap: wrap;
-  padding-right: calc(var(--settings-inset) - 8px);
-  /* Tab buttons have 8px of their own padding, so their icons meet the same edge. */
-  padding-left: calc(var(--settings-inset) - 8px);
+  padding-right: calc(var(--settings-inset) - 12px);
+  /* Tab buttons have 12px of their own padding, so their icons meet the same edge. */
+  padding-left: calc(var(--settings-inset) - 12px);
 }
 
 @media (max-width: 920px) {
@@ -213,7 +214,7 @@
   }
 
   .settingsNav {
-    max-height: 90px;
+    max-height: 112px;
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 7px;
@@ -221,7 +222,7 @@
 
   .settingsNav button {
     flex: none;
-    padding: 0 9px;
+    padding: 0 10px;
   }
 
   .settingsContent {
