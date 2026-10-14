@@ -159,8 +159,8 @@ export function CommandLauncher() {
         <span className={styles.mark} aria-hidden="true" />
         <strong>Sia</strong>
         <kbd className={styles.hint}>⌘ E</kbd>
-        <button aria-label="Close launcher" onClick={() => void dismiss()}>
-          <X size={14} aria-hidden="true" />
+        <button aria-label="Close" title="Close" onClick={() => void dismiss()}>
+          <X size={16} aria-hidden="true" />
         </button>
       </header>
       {task && (
@@ -173,7 +173,7 @@ export function CommandLauncher() {
               title="New request"
               onClick={() => void action(() => window.siaLauncher.newRequest(task.sessionId))}
             >
-              <Plus size={16} aria-hidden="true" />
+              <Plus size={18} aria-hidden="true" />
             </button>
           </div>
           <p className={styles.progress} role="status" data-status={task.status}>
@@ -186,7 +186,7 @@ export function CommandLauncher() {
           {task.response && (
             <div className={styles.response}>
               {task.truncated && (
-                <small>Showing the latest part. Open Sia for the full response.</small>
+                <small>This is the latest part. Open Sia to see all of it.</small>
               )}
               {task.response}
             </div>
@@ -202,7 +202,7 @@ export function CommandLauncher() {
             )}
             <button disabled={busy} onClick={() => void openConversation(task.sessionId)}>
               {task.status === 'waiting' ? 'Review in Sia' : 'Open conversation'}{' '}
-              <ArrowUpRight size={13} aria-hidden="true" />
+              <ArrowUpRight size={16} aria-hidden="true" />
             </button>
           </div>
         </section>
@@ -255,7 +255,7 @@ export function CommandLauncher() {
               </select>
             )}
             <span className={styles.keyboardHint}>
-              {working ? 'You can keep working elsewhere' : '↵ to send'}
+              {working ? 'You can keep working elsewhere' : 'Press Return to send'}
             </span>
             <LiquidMetalButton
               type="submit"

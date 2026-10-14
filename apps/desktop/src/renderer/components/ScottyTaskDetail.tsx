@@ -32,9 +32,7 @@ export function ScottyTaskDetail({
       )}
       {task.response && (
         <div className={styles.response}>
-          {task.truncated && (
-            <small>Latest part of the response. Open Sia for the full conversation.</small>
-          )}
+          {task.truncated && <small>This is the latest part. Open Sia to see all of it.</small>}
           {task.response}
         </div>
       )}
@@ -49,7 +47,7 @@ export function ScottyTaskDetail({
           <h3>{task.approval.title}</h3>
           <p>{task.approval.summary}</p>
           <dl>
-            <dt>Target</dt>
+            <dt>Where</dt>
             <dd>{task.approval.target}</dd>
             {task.approval.account && (
               <>
@@ -59,11 +57,11 @@ export function ScottyTaskDetail({
             )}
             {task.approval.dataLeaving && (
               <>
-                <dt>Data leaving your Mac</dt>
+                <dt>Information that leaves your Mac</dt>
                 <dd>{task.approval.dataLeaving}</dd>
               </>
             )}
-            <dt>Reversible</dt>
+            <dt>Can it be undone?</dt>
             <dd>{task.approval.reversible ? 'Yes' : 'No'}</dd>
           </dl>
           {task.approval.requiresMainApp ? (
@@ -71,7 +69,7 @@ export function ScottyTaskDetail({
               className={styles.primary}
               onClick={() => void act({ kind: 'open', token: task.token })}
             >
-              Review full action in Sia
+              Review in Sia
             </button>
           ) : (
             <div className={styles.actions}>
@@ -87,7 +85,7 @@ export function ScottyTaskDetail({
                   })
                 }
               >
-                Deny
+                Don&apos;t allow
               </button>
               <button
                 disabled={busy}
@@ -101,7 +99,7 @@ export function ScottyTaskDetail({
                   })
                 }
               >
-                Approve once
+                Allow once
               </button>
             </div>
           )}
@@ -123,7 +121,7 @@ export function ScottyTaskDetail({
             disabled={busy}
             onClick={() => void act({ kind: 'read', token: task.token })}
           >
-            <Check size={13} /> Mark read
+            <Check size={16} /> Mark as read
           </button>
         )}
         <button
@@ -131,7 +129,7 @@ export function ScottyTaskDetail({
           disabled={busy}
           onClick={() => void act({ kind: 'open', token: task.token })}
         >
-          Open in Sia <ArrowUpRight size={13} />
+          Open in Sia <ArrowUpRight size={16} />
         </button>
       </div>
     </section>

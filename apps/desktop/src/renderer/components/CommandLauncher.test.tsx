@@ -110,7 +110,7 @@ it('routes reply and Stop through the displayed session, and clears drafts when 
 it('restores input focus when the command box is reopened', async () => {
   setup();
   const field = await screen.findByRole('textbox', { name: 'Your request' });
-  screen.getByRole('button', { name: 'Close launcher' }).focus();
+  screen.getByRole('button', { name: 'Close' }).focus();
   fireEvent.focus(window);
   await waitFor(() => expect(document.activeElement).toBe(field));
 });
