@@ -50,7 +50,7 @@ export function WelcomeHome({
       ) : null}
       {onOpenApps ? (
         <button className={home.connect} type="button" onClick={onOpenApps} style={step(4)}>
-          <Plugs size={16} aria-hidden="true" />
+          <Plugs size={18} aria-hidden="true" />
           Connect work apps
           <span aria-hidden="true">for suggestions from your mail, files, and chats</span>
         </button>
