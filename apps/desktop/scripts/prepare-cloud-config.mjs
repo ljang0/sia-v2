@@ -12,6 +12,9 @@ const values = {
   cognitoClientId: process.env.SIA_RELEASE_COGNITO_CLIENT_ID,
 };
 const updateManifestUrl = process.env.SIA_RELEASE_UPDATE_MANIFEST_URL;
+// The encrypted phone relay (docs/phone-cloud-relay.md): both or neither.
+const phoneRelayUrl = process.env.SIA_RELEASE_PHONE_RELAY_URL;
+const phonePageUrl = process.env.SIA_RELEASE_PHONE_PAGE_URL;
 const updateManifestPublicKey = process.env.SIA_RELEASE_UPDATE_MANIFEST_PUBLIC_KEY;
 const supplied = Object.values(values).filter(Boolean).length;
 let config;
@@ -35,7 +38,21 @@ if (supplied === 0 && mode === '--allow-disabled') {
     ...values,
     ...(updateManifestUrl ? { updateManifestUrl } : {}),
     ...(updateManifestPublicKey ? { updateManifestPublicKey } : {}),
+    ...(phoneRelayUrl ? { phoneRelayUrl, phonePageUrl } : {}),
   };
+}
+
+if (Boolean(phoneRelayUrl) !== Boolean(phonePageUrl)) {
+  throw new Error(
+    'The phone relay requires SIA_RELEASE_PHONE_RELAY_URL and SIA_RELEASE_PHONE_PAGE_URL together.',
+  );
+}
+if (phoneRelayUrl && !config.enabled) {
+  throw new Error('The phone relay requires an enabled cloud configuration.');
+}
+if (phoneRelayUrl) {
+  validateUrl(phoneRelayUrl, 'SIA_RELEASE_PHONE_RELAY_URL', 'wss:');
+  validateHttpsUrl(phonePageUrl, 'SIA_RELEASE_PHONE_PAGE_URL');
 }
 
 if (Boolean(updateManifestUrl) !== Boolean(updateManifestPublicKey)) {
@@ -72,13 +89,17 @@ function validate(value) {
 }
 
 function validateHttpsUrl(value, label) {
+  validateUrl(value, label, 'https:');
+}
+
+function validateUrl(value, label, protocol) {
   let url;
   try {
     url = new URL(value);
   } catch {
     throw new Error(`${label} must be a valid URL.`);
   }
-  if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) {
-    throw new Error(`${label} must be a clean HTTPS URL.`);
+  if (url.protocol !== protocol || url.username || url.password || url.search || url.hash) {
+    throw new Error(`${label} must be a clean ${protocol === 'wss:' ? 'WSS' : 'HTTPS'} URL.`);
   }
 }
