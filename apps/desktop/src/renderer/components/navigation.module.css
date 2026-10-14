@@ -33,14 +33,25 @@ aside.navigation {
   font-size: var(--text-sm);
   font-weight: 550;
   transition:
-    background 150ms ease,
-    transform 150ms ease;
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-standard) var(--ease-spring);
+}
+.newTask > svg {
+  transition: transform var(--motion-standard) var(--ease-spring);
 }
 .newTask:hover {
+  border-color: color-mix(in srgb, var(--shell-text) 22%, var(--shell-line));
   background: var(--shell-selected);
 }
+/* The pencil leans in to write. */
+.newTask:hover > svg {
+  transform: rotate(-8deg) translateY(calc(var(--motion-nudge) / -3));
+}
 .newTask:active {
-  transform: scale(0.985);
+  transform: translateY(calc(var(--motion-nudge) / 3))
+    scale(calc(1 - (1 - var(--motion-pop-scale)) / 2));
+  transition-duration: var(--motion-fast);
 }
 .newTask kbd {
   margin-left: auto;
@@ -58,12 +69,17 @@ aside.navigation {
   border-radius: 8px;
   color: var(--shell-muted);
   transition:
-    background 160ms ease,
-    border-color 160ms ease;
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+.search:hover {
+  color: var(--shell-dim);
 }
 .search:focus-within {
   background: var(--shell-hover);
   border-color: var(--shell-line);
+  color: var(--shell-text);
 }
 .search input {
   min-width: 0;
@@ -94,7 +110,7 @@ aside.navigation {
   position: relative;
   z-index: 1;
   background: var(--shell-bg);
-  transition: box-shadow 150ms ease;
+  transition: box-shadow var(--motion-fast) var(--ease-standard);
   padding: 0 12px 0 24px;
   font-size: var(--text-2xs);
   letter-spacing: 0.06em;
@@ -121,7 +137,7 @@ aside.navigation {
   gap: 8px;
 }
 .group {
-  --navigation-duration: 220ms;
+  --navigation-duration: var(--motion-surface);
   min-width: 0;
 }
 .group[data-identity='0'] {
@@ -143,9 +159,37 @@ aside.navigation {
   min-height: 40px;
   border-radius: 8px;
   color: var(--shell-dim);
+  isolation: isolate;
   transition:
-    background 150ms ease,
-    color 150ms ease;
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard);
+}
+/* The selected agent's header carries a wash of its hue, so switching agents reads as the
+   identity moving from one group to the next. */
+.groupHeader::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: color-mix(in srgb, var(--agent-color) 16%, transparent);
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transform: scaleX(var(--motion-pop-scale));
+  transform-origin: left center;
+  transition:
+    opacity var(--motion-surface) var(--ease-out-soft),
+    transform var(--motion-emphasis) var(--ease-spring);
+}
+.group[data-selected='true'] .groupHeader::before {
+  opacity: 1;
+  transform: none;
+}
+.groupIcon > * {
+  transition: transform var(--motion-emphasis) var(--ease-spring);
+}
+.group[data-selected='true'] .groupIcon > * {
+  transform: scale(calc(2 - var(--motion-pop-scale)));
 }
 .groupHeader:hover {
   background: var(--shell-hover);
@@ -198,7 +242,7 @@ aside.navigation {
   font-weight: 650;
   line-height: 16px;
   text-align: center;
-  animation: badgePop 320ms var(--ease-out-soft) both;
+  animation: badgePop var(--motion-emphasis) var(--ease-out-soft) both;
 }
 @keyframes badgePop {
   from {
@@ -216,8 +260,8 @@ aside.navigation {
   color: var(--shell-muted);
   opacity: 0.7;
   transition:
-    transform var(--navigation-duration) var(--ease-standard),
-    opacity 150ms ease;
+    transform var(--navigation-duration) var(--ease-spring),
+    opacity var(--motion-fast) var(--ease-standard);
 }
 .groupHeader:hover .chevron,
 .groupTrigger:focus-visible .chevron {
@@ -240,11 +284,21 @@ aside.navigation {
   height: 28px;
   opacity: 0;
   color: var(--shell-muted);
+  transform: translateX(calc(var(--motion-nudge) * -1));
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-standard) var(--ease-spring);
+}
+.groupActions > button + button {
+  transition-delay: var(--motion-stagger);
 }
 .groupHeader:hover .groupActions > button,
 .groupHeader:focus-within .groupActions > button,
 .groupActions > button[data-state='open'] {
   opacity: 1;
+  transform: none;
 }
 .groupContent {
   display: grid;
@@ -253,7 +307,7 @@ aside.navigation {
   visibility: hidden;
   transition:
     grid-template-rows var(--navigation-duration) var(--ease-standard),
-    opacity var(--navigation-duration) ease,
+    opacity var(--motion-exit) var(--ease-exit),
     visibility 0s var(--navigation-duration);
 }
 .groupContent[data-open='true'] {
@@ -261,6 +315,39 @@ aside.navigation {
   opacity: 1;
   visibility: visible;
   transition-delay: 0s;
+  transition-duration: var(--navigation-duration), var(--navigation-duration), 0s;
+  transition-timing-function: var(--ease-standard), var(--ease-out-soft), linear;
+}
+/* Opening a group deals its conversations in from the top, one step apart, up to eight. */
+.groupContent[data-open='true'] .taskList > :not([data-motion]) {
+  animation: taskDeal var(--motion-emphasis) var(--ease-spring) backwards;
+}
+.groupContent[data-open='true'] .taskList > :nth-child(2) {
+  animation-delay: calc(var(--motion-stagger) * 1);
+}
+.groupContent[data-open='true'] .taskList > :nth-child(3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+.groupContent[data-open='true'] .taskList > :nth-child(4) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+.groupContent[data-open='true'] .taskList > :nth-child(5) {
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+.groupContent[data-open='true'] .taskList > :nth-child(6) {
+  animation-delay: calc(var(--motion-stagger) * 5);
+}
+.groupContent[data-open='true'] .taskList > :nth-child(7) {
+  animation-delay: calc(var(--motion-stagger) * 6);
+}
+.groupContent[data-open='true'] .taskList > :nth-child(n + 8) {
+  animation-delay: calc(var(--motion-stagger) * 7);
+}
+@keyframes taskDeal {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-rise) * -1));
+  }
 }
 .groupClip {
   min-height: 0;
@@ -276,16 +363,19 @@ aside.navigation {
   position: relative;
   margin: 0;
   border-radius: 8px;
-  transition: background-color 150ms ease;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-standard) var(--ease-spring);
 }
 .navigation .task > button:first-child {
   transition:
-    color 150ms ease,
-    transform 120ms ease;
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-standard) var(--ease-spring);
 }
 .navigation .task > button:first-child:active {
   opacity: 1;
-  transform: scale(0.985);
+  transform: scale(calc(1 - (1 - var(--motion-pop-scale)) / 2));
+  transition-duration: var(--motion-fast);
 }
 /* The row's status dot sits where its menu button appears on hover. */
 .taskSignal {
@@ -299,19 +389,27 @@ aside.navigation {
   background: var(--signal-unread);
   pointer-events: none;
   transition:
-    opacity 150ms ease,
-    transform 150ms ease;
+    background-color var(--motion-surface) var(--ease-standard),
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-standard) var(--ease-spring);
+  /* Each signal has its own gesture, so the dock is legible at a glance: unread pops in once,
+     working sends out a slow sonar ring, needing you pops then breathes, a problem pops and holds. */
+  animation: badgePop var(--motion-emphasis) var(--ease-out-soft) both;
 }
 .taskSignal[data-signal='working'] {
   background: var(--signal-working);
-  animation: signalPulse 1.8s var(--ease-standard) infinite;
+  animation: signalPulse calc(var(--motion-spin) * 1.8) var(--ease-out-soft) infinite;
 }
 .taskSignal[data-signal='needs-you'] {
   background: var(--signal-needs-you);
-  animation: badgePop 320ms var(--ease-out-soft) both;
+  animation:
+    badgePop var(--motion-emphasis) var(--ease-out-soft) both,
+    signalBreathe calc(var(--motion-spin) * 2.4) var(--ease-standard) var(--motion-emphasis)
+      infinite;
 }
 .taskSignal[data-signal='problem'] {
   background: var(--signal-problem);
+  animation: signalAlert var(--motion-emphasis) var(--ease-standard) both;
 }
 .task:hover .taskSignal,
 .task:focus-within .taskSignal,
@@ -327,6 +425,24 @@ aside.navigation {
   100% {
     box-shadow: 0 0 0 6px transparent;
   }
+}
+@keyframes signalBreathe {
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal-needs-you) 26%, transparent);
+  }
+}
+/* A problem arrives with a ring that settles, without bounce. */
+@keyframes signalAlert {
+  from {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--signal-problem) 40%, transparent);
+    opacity: 0;
+  }
+}
+.taskMeta > span {
+  transition: color var(--motion-surface) var(--ease-standard);
+}
+.navigation .taskTitle {
+  transition: color var(--motion-surface) var(--ease-standard);
 }
 .taskMeta[data-signal='needs-you'] > span {
   color: var(--signal-needs-you);
@@ -439,8 +555,9 @@ aside.rail {
   box-shadow:
     0 16px 54px #0002,
     0 2px 8px #0001;
-  animation: previewEnter 160ms ease-out;
+  animation: previewEnter var(--motion-surface) var(--ease-spring) both;
   overflow-wrap: anywhere;
+  transform-origin: left center;
 }
 .previewState {
   display: flex;
@@ -490,14 +607,28 @@ aside.rail {
   color: var(--text-secondary);
   font-size: var(--text-xs);
 }
+/* The preview grows out of the row it describes; its contents follow a step behind. */
 @keyframes previewEnter {
   from {
     opacity: 0;
-    transform: translateX(-4px);
+    transform: translateX(calc(var(--motion-rise) * -1)) scale(var(--motion-pop-scale));
   }
   to {
     opacity: 1;
     transform: none;
+  }
+}
+.preview > * {
+  animation: previewContent var(--motion-surface) var(--ease-out-soft) both;
+  animation-delay: var(--motion-stagger);
+}
+.preview > :nth-child(n + 3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+@keyframes previewContent {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-nudge));
   }
 }
 @media (max-width: 1000px) {
@@ -517,10 +648,10 @@ aside.rail {
     --navigation-duration: 0ms;
   }
   .taskSignal[data-signal],
-  .groupBadge {
-    animation: none;
-  }
-  .preview {
+  .groupBadge,
+  .groupContent[data-open='true'] .taskList > :not([data-motion]),
+  .preview,
+  .preview > * {
     animation: none;
   }
   .newTask,

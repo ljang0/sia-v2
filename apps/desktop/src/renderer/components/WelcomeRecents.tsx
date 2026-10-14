@@ -1,4 +1,5 @@
 import { ArrowRight } from '@phosphor-icons/react';
+import type { CSSProperties } from 'react';
 import type { ThreadSummary } from '../types';
 import { threadDisplayTitle } from '../threadTitle';
 import { timeAgo } from '../welcome';
@@ -23,7 +24,7 @@ export function WelcomeRecents({
     <section className={styles.recents} aria-label="Pick up where you left off">
       <h3>Pick up where you left off</h3>
       <div className={styles.list}>
-        {threads.map((thread) => {
+        {threads.map((thread, index) => {
           const status = STATUS[thread.status];
           const preview = thread.draft?.trim()
             ? 'You have an unsent draft here.'
@@ -33,6 +34,7 @@ export function WelcomeRecents({
               key={thread.id}
               type="button"
               data-status={thread.status}
+              style={{ '--i': index } as CSSProperties}
               onClick={() => onOpen(thread.id)}
             >
               <span className={styles.dot} aria-hidden="true" />

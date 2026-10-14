@@ -31,6 +31,26 @@
   text-align: left;
   cursor: pointer;
   transition: background-color var(--motion-fast) var(--ease-standard);
+  /* Rows follow the block in, one stagger step apart (index set per row, capped at eight). */
+  --i: 0;
+  animation: recentDeal var(--motion-emphasis) var(--ease-spring) backwards;
+  animation-delay: calc((6 + min(var(--i), 7)) * var(--motion-stagger) * 2);
+}
+@keyframes recentDeal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-nudge));
+  }
+}
+.list button > * {
+  transition: transform var(--motion-standard) var(--ease-spring);
+}
+.list button:active > * {
+  transform: scale(calc(1 - (1 - var(--motion-pop-scale)) / 2));
+  transition-duration: var(--motion-fast);
+}
+.list button:hover .dot {
+  transform: scale(calc(1 + (1 - var(--motion-pop-scale)) * 8));
 }
 .list button + button {
   border-top: 1px solid var(--border-subtle);
@@ -125,8 +145,12 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .list button,
+  .list button > *,
   .arrow {
     transition: none;
+  }
+  .list button {
+    animation: none;
   }
   .arrow {
     transform: none;
@@ -134,6 +158,9 @@
   [data-status] .dot {
     animation: none;
   }
+}
+:global([data-appearance='calm']) .list button {
+  animation: none;
 }
 @media (forced-colors: active) {
   .dot {
