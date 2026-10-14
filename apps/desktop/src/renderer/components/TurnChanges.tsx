@@ -110,7 +110,7 @@ export const TurnChangesBar = memo(function TurnChangesBar({
       data-testid="turn-changes"
       data-state={undone ? 'undone' : 'ready'}
     >
-      {undone ? <CheckCircle size={14} className={local.doneIcon} aria-hidden="true" /> : null}
+      {undone ? <CheckCircle size={16} className={local.doneIcon} aria-hidden="true" /> : null}
       <span className={local.label}>{undone ? 'Changes undone' : `Changed ${files}`}</span>
       <span className={local.separator} aria-hidden="true">
         ·
@@ -124,11 +124,11 @@ export const TurnChangesBar = memo(function TurnChangesBar({
         data-testid={undone ? 'turn-changes-redo' : 'turn-changes-undo'}
       >
         {pending ? (
-          <SpinnerGap size={13} className={primitives.spin} aria-hidden="true" />
+          <SpinnerGap size={16} className={primitives.spin} aria-hidden="true" />
         ) : undone ? (
-          <ArrowArcRight size={13} aria-hidden="true" />
+          <ArrowArcRight size={16} aria-hidden="true" />
         ) : (
-          <ArrowArcLeft size={13} aria-hidden="true" />
+          <ArrowArcLeft size={16} aria-hidden="true" />
         )}
         {undone ? 'Redo' : 'Undo changes'}
       </button>

@@ -15,7 +15,7 @@ export function ReplyFeedbackButtons({ onRate }: { onRate(rating: ReplyRating): 
         aria-label="Good reply"
         title="Good reply"
       >
-        <ThumbsUp size={14} aria-hidden="true" />
+        <ThumbsUp size={16} aria-hidden="true" />
       </button>
       <button
         type="button"
@@ -24,7 +24,7 @@ export function ReplyFeedbackButtons({ onRate }: { onRate(rating: ReplyRating): 
         aria-label="Bad reply"
         title="Bad reply"
       >
-        <ThumbsDown size={14} aria-hidden="true" />
+        <ThumbsDown size={16} aria-hidden="true" />
       </button>
     </>
   );

@@ -43,9 +43,9 @@ export function WorkGroup({
         aria-expanded={open}
       >
         {problems ? (
-          <WarningCircle size={15} className={styles.workGroupProblemIcon} aria-hidden="true" />
+          <WarningCircle size={16} className={styles.workGroupProblemIcon} aria-hidden="true" />
         ) : (
-          <CheckCircle size={15} className={styles.workGroupDoneIcon} aria-hidden="true" />
+          <CheckCircle size={16} className={styles.workGroupDoneIcon} aria-hidden="true" />
         )}
         <span>
           {duration ? `Worked for ${duration}` : 'Worked on this'}
@@ -57,7 +57,7 @@ export function WorkGroup({
           </span>
         ) : null}
         <CaretDown
-          size={13}
+          size={16}
           className={open ? activityRow.caretExpanded : activityRow.caret}
           aria-hidden="true"
         />
@@ -127,7 +127,7 @@ export function WorkingStatus({
       data-testid="turn-running"
       data-quiet={quiet || undefined}
     >
-      <CircleNotch size={15} className={styles.workingSpinner} aria-hidden="true" />
+      <CircleNotch size={16} className={styles.workingSpinner} aria-hidden="true" />
       {/* Keyed by its words so a new phase fades in instead of snapping. */}
       <span key={label} className={styles.workingLabel}>
         {label}

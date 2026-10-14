@@ -61,10 +61,10 @@
   top: 50%;
   left: 50%;
   display: inline-flex;
-  min-height: 32px;
+  min-height: var(--target-min);
   align-items: center;
   gap: 6px;
-  padding: 0 11px;
+  padding: 0 14px;
   border: 1px solid color-mix(in srgb, var(--border-strong) 58%, var(--border-subtle));
   border-radius: var(--radius-round);
   background: var(--bg-raised);
@@ -124,20 +124,20 @@
 
 .message {
   width: 100%;
-  max-width: min(100%, 700px);
+  max-width: min(100%, 820px);
 }
 
 .message {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) 16px;
-  gap: 4px 14px;
+  grid-template-columns: 32px minmax(0, 1fr) 16px;
+  gap: 6px 14px;
 }
 
 .message header {
   display: flex;
-  min-height: 28px;
+  min-height: var(--target-min);
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   color: var(--text-tertiary);
   font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
@@ -154,8 +154,8 @@
 
 .messageAvatar {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
+  width: 32px;
+  height: 32px;
   flex: none;
   align-items: center;
   justify-content: center;
@@ -165,7 +165,7 @@
   background: var(--bg-subtle);
   color: var(--text-secondary);
   font-family: var(--font-sans);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: 800;
 }
 
@@ -182,17 +182,17 @@
 
 .messageActionButton {
   display: inline-flex;
-  width: 24px;
-  height: 24px;
+  width: var(--target-min);
+  height: var(--target-min);
   align-items: center;
   justify-content: center;
   padding: 0;
   border: 0;
   border-radius: var(--radius-tight);
   background: transparent;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   cursor: pointer;
-  opacity: 0.42;
+  opacity: 0.78;
   transition:
     color var(--motion-fast) var(--ease-standard),
     opacity var(--motion-fast) var(--ease-standard),
@@ -229,7 +229,7 @@
   position: absolute;
   bottom: calc(100% + 4px);
   left: 50%;
-  padding: 2px 7px;
+  padding: 3px 9px;
   border-radius: var(--radius-round);
   background: var(--text-primary);
   color: var(--bg-canvas);
@@ -271,9 +271,9 @@
 
 .messageContent {
   grid-column: 2;
-  max-width: 66ch;
+  max-width: 72ch;
   font-size: var(--text-lg);
-  line-height: 1.6;
+  line-height: 1.62;
   overflow-wrap: anywhere;
   text-wrap: pretty;
 }
@@ -284,7 +284,7 @@
 }
 
 .messageContent p {
-  margin: 0 0 9px;
+  margin: 0 0 12px;
 }
 
 .messageContent p:last-child {
@@ -462,7 +462,8 @@
 .streamingContent > blockquote:last-child > :last-child::after {
   display: inline-block;
   width: 2px;
-  height: 13px;
+  height: 1em;
+  vertical-align: -0.15em;
   margin-left: 4px;
   border-radius: var(--radius-round);
   background: var(--agent-color);
@@ -490,7 +491,7 @@
   z-index: var(--layer-sticky);
   display: grid;
   width: min(620px, calc(100% - 40px));
-  min-height: 42px;
+  min-height: var(--row-min);
   grid-template-columns: auto minmax(140px, 1fr) auto auto auto auto;
   align-items: center;
   gap: 6px;
@@ -767,7 +768,7 @@
   padding: 0 12px;
   border-bottom: 1px solid var(--border-subtle);
   color: var(--text-secondary);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 
 .attachmentTextPreview > header span {
@@ -786,7 +787,7 @@
   overflow: auto;
   color: var(--text-primary);
   font-family: var(--font-mono);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   line-height: 1.55;
   tab-size: 2;
   text-align: left;
@@ -814,7 +815,7 @@
 }
 
 .eventList {
-  gap: 22px;
+  gap: 28px;
 }
 
 .assistantMessage {
@@ -828,9 +829,9 @@
 }
 
 .userMessage {
-  width: min(88%, 640px);
+  width: min(88%, 700px);
   align-self: flex-end;
-  padding: 12px 14px;
+  padding: 14px 18px;
   border: 1px solid color-mix(in srgb, var(--border-strong) 24%, var(--border-subtle));
   border-radius: var(--radius-surface) var(--radius-surface) var(--radius-tight)
     var(--radius-surface);
@@ -844,7 +845,7 @@
 
 .userMessage .messageContent {
   font-size: var(--text-base);
-  line-height: 1.55;
+  line-height: 1.58;
 }
 
 .userMessage .messageContent > p {
@@ -880,10 +881,8 @@
 .emptyStateKicker {
   margin-top: 20px;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.055em;
-  text-transform: uppercase;
 }
 
 @media (prefers-reduced-motion: reduce) {

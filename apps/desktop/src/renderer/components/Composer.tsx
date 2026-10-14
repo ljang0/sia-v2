@@ -325,9 +325,9 @@ export function Composer({
             {attachments.map((attachment) => (
               <span className={styles.attachmentChip} key={attachment.id}>
                 {attachment.kind === 'image' ? (
-                  <Image size={14} aria-hidden="true" />
+                  <Image size={16} aria-hidden="true" />
                 ) : (
-                  <File size={14} aria-hidden="true" />
+                  <File size={16} aria-hidden="true" />
                 )}
                 <button
                   type="button"
@@ -348,7 +348,7 @@ export function Composer({
                     aria-label={`Remove ${attachment.name}`}
                     disabled={disabled || sending}
                   >
-                    <X size={12} aria-hidden="true" />
+                    <X size={14} aria-hidden="true" />
                   </button>
                 ) : null}
               </span>
@@ -383,7 +383,7 @@ export function Composer({
                     : 'Attachments are unavailable for this model'
                 }
               >
-                <Paperclip size={15} aria-hidden="true" />
+                <Paperclip size={16} aria-hidden="true" />
               </button>
             ) : null}
             {voiceEnabled && onTranscribe ? (
@@ -428,11 +428,11 @@ export function Composer({
                   data-testid="composer-voice-input"
                 >
                   {voicePhase === 'transcribing' && !voiceConversation ? (
-                    <SpinnerGap className={primitives.spin} size={15} aria-hidden="true" />
+                    <SpinnerGap className={primitives.spin} size={16} aria-hidden="true" />
                   ) : voicePhase === 'recording' ? (
-                    <Stop size={15} weight="fill" aria-hidden="true" />
+                    <Stop size={16} weight="fill" aria-hidden="true" />
                   ) : (
-                    <Microphone size={15} weight="fill" aria-hidden="true" />
+                    <Microphone size={16} weight="fill" aria-hidden="true" />
                   )}
                 </button>
                 {onVoiceConversationChange ? (
@@ -454,7 +454,7 @@ export function Composer({
                     title={voiceConversation ? 'End voice conversation' : 'Voice conversation'}
                     data-testid="composer-voice-conversation"
                   >
-                    <Waveform size={15} weight="bold" aria-hidden="true" />
+                    <Waveform size={16} weight="bold" aria-hidden="true" />
                   </button>
                 ) : null}
               </>
@@ -493,7 +493,7 @@ export function Composer({
               disabled={stopping}
               aria-label="Stop current turn"
             >
-              <Stop weight="fill" size={13} aria-hidden="true" />
+              <Stop weight="fill" size={16} aria-hidden="true" />
               {stopping ? 'Stopping…' : 'Stop'}
             </LiquidMetalButton>
           ) : null}

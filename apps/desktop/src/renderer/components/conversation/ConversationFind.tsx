@@ -24,7 +24,7 @@ export function ConversationFind({
 }: ConversationFindProps) {
   return (
     <div className={styles.conversationFind} role="search">
-      <MagnifyingGlass size={15} aria-hidden="true" />
+      <MagnifyingGlass size={16} aria-hidden="true" />
       <input
         autoFocus
         type="search"
@@ -54,7 +54,7 @@ export function ConversationFind({
         onClick={() => onIndexChange((current) => (current - 1 + matchCount) % matchCount)}
         aria-label="Previous match"
       >
-        <CaretUp size={14} aria-hidden="true" />
+        <CaretUp size={16} aria-hidden="true" />
       </button>
       <button
         type="button"
@@ -63,7 +63,7 @@ export function ConversationFind({
         onClick={() => onIndexChange((current) => (current + 1) % matchCount)}
         aria-label="Next match"
       >
-        <CaretDown size={14} aria-hidden="true" />
+        <CaretDown size={16} aria-hidden="true" />
       </button>
       <button
         type="button"
@@ -71,7 +71,7 @@ export function ConversationFind({
         onClick={() => onClose()}
         aria-label="Close find"
       >
-        <X size={14} aria-hidden="true" />
+        <X size={16} aria-hidden="true" />
       </button>
     </div>
   );

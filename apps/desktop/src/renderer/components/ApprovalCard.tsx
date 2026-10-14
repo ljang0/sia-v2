@@ -105,13 +105,13 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
         <div className={styles.approvalDetails}>
           <div className={styles.connectorMeta}>
             <span>{request.account}</span>
-            <ArrowSquareOut size={14} aria-hidden="true" />
+            <ArrowSquareOut size={16} aria-hidden="true" />
             <span>{request.destination}</span>
           </div>
           <pre className={styles.connectorPreview}>{request.preview}</pre>
           {request.expiresAt && status === 'pending' ? (
             <div className={styles.expiryNote}>
-              <Clock size={14} aria-hidden="true" />
+              <Clock size={16} aria-hidden="true" />
               <span>{formatExpiry(request.expiresAt, now)}</span>
             </div>
           ) : null}
@@ -152,7 +152,7 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
           </div>
           {request.expiresAt && !resolved ? (
             <div className={styles.expiryNote}>
-              <Clock size={14} aria-hidden="true" />
+              <Clock size={16} aria-hidden="true" />
               <span>{formatExpiry(request.expiresAt, now, 'Sia will skip this step')}</span>
             </div>
           ) : null}
@@ -173,7 +173,7 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
       {resolved ? (
         <details className={styles.resolvedDetails}>
           <summary className={styles.resolvedSummary}>
-            <CaretRight size={14} className={styles.resolvedCaret} aria-hidden="true" />
+            <CaretRight size={16} className={styles.resolvedCaret} aria-hidden="true" />
             <span className={styles.resolvedTitle}>{request.title}</span>
             <span className={styles.approvalStatus}>
               {displayStatus === 'approved' ? (

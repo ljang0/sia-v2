@@ -23,7 +23,7 @@ export function BrowserWindowPicker({
           aria-label={`Use ${window.label}${window.detail ? `: ${window.detail}` : ''}`}
         >
           <span className={styles.browserWindowIcon}>
-            <Browser size={17} aria-hidden="true" />
+            <Browser size={18} aria-hidden="true" />
           </span>
           <span className={styles.browserWindowText}>
             <strong>{window.label}</strong>
@@ -31,7 +31,7 @@ export function BrowserWindowPicker({
           </span>
           <span className={styles.browserWindowAction}>
             {pending ? 'Connecting…' : 'Use window'}
-            {!pending ? <ArrowRight size={14} aria-hidden="true" /> : null}
+            {!pending ? <ArrowRight size={16} aria-hidden="true" /> : null}
           </span>
         </button>
       ))}

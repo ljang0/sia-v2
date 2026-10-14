@@ -176,7 +176,7 @@ function EventViewContent({
         className={`${primitives.notice} ${primitives[`notice_${event.tone}`]}`}
         role="status"
       >
-        <WarningCircle size={17} aria-hidden="true" />
+        <WarningCircle size={18} aria-hidden="true" />
         <div>
           <NoticeText
             title={event.title}
@@ -192,7 +192,7 @@ function EventViewContent({
   if (event.type === 'question') {
     return (
       <div className={primitives.notice} role="status">
-        <ChatCircle size={17} aria-hidden="true" />
+        <ChatCircle size={18} aria-hidden="true" />
         <div>
           <strong>{agentName} has a question</strong>
           <SafeMarkdown content={event.prompt} />
@@ -211,7 +211,7 @@ function EventViewContent({
     >
       <span className={styles.messageAvatar} aria-hidden="true">
         {event.role === 'user' ? (
-          <User size={14} weight="bold" />
+          <User size={16} weight="bold" />
         ) : (
           <AgentForm identity={agentHue} size="small" />
         )}
@@ -231,7 +231,7 @@ function EventViewContent({
             title="Edit message"
             data-testid="message-edit"
           >
-            <PencilSimple size={14} aria-hidden="true" />
+            <PencilSimple size={16} aria-hidden="true" />
           </button>
         ) : null}
         {event.role === 'assistant' && onTryAgain && !streaming ? (
@@ -244,7 +244,7 @@ function EventViewContent({
             title="Ask again for a new reply"
             data-testid="message-try-again"
           >
-            <ArrowClockwise size={14} aria-hidden="true" />
+            <ArrowClockwise size={16} aria-hidden="true" />
           </button>
         ) : null}
         {event.role === 'assistant' && onToggleSpeech && !streaming ? (
@@ -263,11 +263,11 @@ function EventViewContent({
             data-testid="message-read-aloud"
           >
             {speechPhase === 'loading' ? (
-              <SpinnerGap className={primitives.spin} size={14} aria-hidden="true" />
+              <SpinnerGap className={primitives.spin} size={16} aria-hidden="true" />
             ) : speechPhase === 'playing' ? (
-              <StopCircle size={14} weight="fill" aria-hidden="true" />
+              <StopCircle size={16} weight="fill" aria-hidden="true" />
             ) : (
-              <SpeakerHigh size={14} aria-hidden="true" />
+              <SpeakerHigh size={16} aria-hidden="true" />
             )}
           </button>
         ) : null}
@@ -393,9 +393,9 @@ function CopyMessageButton({ content }: { content: string }) {
       data-copied={copied ? 'true' : undefined}
     >
       {copied ? (
-        <Check size={14} weight="bold" className={styles.copiedCheck} aria-hidden="true" />
+        <Check size={16} weight="bold" className={styles.copiedCheck} aria-hidden="true" />
       ) : (
-        <Copy size={14} aria-hidden="true" />
+        <Copy size={16} aria-hidden="true" />
       )}
       {copied ? (
         <span className={styles.copiedTip} aria-hidden="true">

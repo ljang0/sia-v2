@@ -580,7 +580,7 @@ export function Conversation({
               role="status"
               data-entering={openedState.status !== 'queued' ? 'true' : undefined}
             >
-              <Clock size={17} aria-hidden="true" />
+              <Clock size={18} aria-hidden="true" />
               <div>
                 <strong>Queued</strong>
                 <span>
@@ -660,7 +660,7 @@ export function Conversation({
                 onClick={() => void onRetry()}
                 data-testid="interrupted-turn-retry"
               >
-                <ArrowClockwise size={15} aria-hidden="true" />
+                <ArrowClockwise size={16} aria-hidden="true" />
                 Continue task
               </button>
             </div>
@@ -677,7 +677,7 @@ export function Conversation({
               onClick={jumpToLatest}
               data-attention={waitingOnPerson(thread) ? 'true' : undefined}
             >
-              <ArrowDown size={14} aria-hidden="true" />
+              <ArrowDown size={16} aria-hidden="true" />
               {waitingOnPerson(thread)?.label ?? 'Jump to latest'}
             </button>
           ) : null}
@@ -711,7 +711,7 @@ export function Conversation({
 
       {usageWarning ? (
         <p className={styles.usageWarning} role="status" data-testid="usage-warning">
-          <WarningCircle size={14} aria-hidden="true" />
+          <WarningCircle size={16} aria-hidden="true" />
           {usageWarning}
         </p>
       ) : null}
