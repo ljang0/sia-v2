@@ -68,7 +68,7 @@ export function VoiceSettings({
       title="Voice"
       description={
         nativeVoice
-          ? 'Hear replies with the voices installed on your Mac. Supported dictation is processed on this Mac.'
+          ? 'Hear replies in the voices built into your Mac. Where your Mac supports it, what you say is turned into text on this Mac.'
           : 'Dictate a message or hear a reply. Voice audio goes to ElevenLabs only when you use a voice control.'
       }
     >
@@ -147,7 +147,8 @@ export function VoiceSettings({
               {nativeVoice ? 'Use your Mac’s built-in voice' : 'Use ElevenLabs voice'}
             </strong>
             <p>
-              {voice.detail ?? 'Sign in to use dictation and read aloud. No API key is needed.'}
+              {voice.detail ??
+                'Sign in to talk to Sia and hear replies. Nothing else to set up.'}
             </p>
             <button
               type="button"
@@ -159,7 +160,7 @@ export function VoiceSettings({
             </button>
             <p className={styles.voicePrivacyNote}>
               {nativeVoice
-                ? 'Read aloud needs no microphone permission, cloud account, or API key. Dictation requires separate Speech Recognition permission and an available on-device recognizer.'
+                ? 'Read aloud works right away. Talking to Sia also needs the Speech Recognition permission in System Settings, and speech support on this Mac.'
                 : 'Audio is sent only when you dictate, hold Fn, or choose Read aloud. You can turn voice off at any time.'}
             </p>
           </div>
@@ -198,7 +199,7 @@ export function VoiceSettings({
             </label>
             <label className={settings.voicePreference}>
               <span>
-                <strong>Speak Fn replies</strong>
+                <strong>Read Fn replies out loud</strong>
                 <small>
                   Hear a brief result without opening Sia. Hold Fn or press Escape to stop it.
                 </small>
@@ -242,9 +243,7 @@ export function VoiceSettings({
               recording is not used.
             </p>
             {pushToTalk.detail ? <p role="status">{pushToTalk.detail}</p> : null}
-            {!pushToTalk.available ? (
-              <p>Fn push-to-talk is available in the macOS app.</p>
-            ) : null}
+            {!pushToTalk.available ? <p>Hold Fn to talk works in the Mac app.</p> : null}
           </div>
         </div>
       ) : null}
