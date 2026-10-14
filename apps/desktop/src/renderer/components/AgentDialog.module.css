@@ -13,23 +13,59 @@
   transform: translate(-50%, -50%);
 }
 
+/* The panel springs up out of the backdrop, then its header and form rows follow in a short
+   stagger, so creating an agent feels like something taking shape. */
 .dialogContent[data-state='open'] {
-  animation: dialogEnter var(--motion-surface) var(--ease-standard);
+  animation:
+    dialogFade var(--motion-surface) var(--ease-out-soft) backwards,
+    dialogEnter var(--motion-emphasis) var(--ease-spring) backwards;
+  animation-delay: var(--motion-stagger);
+}
+
+.dialogContent[data-state='open'] .dialogHeader,
+.dialogContent[data-state='open'] .agentForm > * {
+  animation: rowEnter var(--motion-emphasis) var(--ease-out-soft) backwards;
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+
+.dialogContent[data-state='open'] .agentForm > :nth-child(1) {
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+
+.dialogContent[data-state='open'] .agentForm > :nth-child(2) {
+  animation-delay: calc(var(--motion-stagger) * 5);
+}
+
+.dialogContent[data-state='open'] .agentForm > :nth-child(n + 3) {
+  animation-delay: calc(var(--motion-stagger) * 6);
 }
 
 /* Unmount immediately: occluded windows can suspend animationend indefinitely. */
-.dialogContent[data-state='closed'] {
+.dialogContent[data-state='closed'],
+.dialogContent[data-state='closed'] * {
   animation: none;
+}
+
+@keyframes dialogFade {
+  from {
+    opacity: 0;
+  }
 }
 
 @keyframes dialogEnter {
   from {
-    opacity: 0;
-    transform: translate(-50%, calc(-50% + 6px));
+    transform: translate(-50%, calc(-50% + var(--motion-rise) * 2))
+      scale(var(--motion-pop-scale));
   }
   to {
-    opacity: 1;
     transform: translate(-50%, -50%);
+  }
+}
+
+@keyframes rowEnter {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise));
   }
 }
 
@@ -65,6 +101,19 @@
   flex-direction: column;
   gap: 16px;
   padding: 16px 24px 22px;
+}
+
+.identityRow {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 16px;
+}
+
+.identityFields {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
 }
 
 .modelSetupNotice {
@@ -181,8 +230,19 @@
   outline: none;
 }
 
+@media (max-width: 520px) {
+  .identityRow {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .identityRow > :first-child {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .dialogContent {
+  .dialogContent,
+  .dialogContent * {
     animation: none;
   }
 }

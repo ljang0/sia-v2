@@ -11,6 +11,7 @@ import type {
 import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
 import styles from './AgentDialog.module.css';
+import { AgentIdentityPreview } from './AgentIdentity';
 import { modelChoices, firstReadyModel } from '../agentModels';
 import { voiceOptionLabel } from '../voiceReadiness';
 import { errorMessage } from '../plainErrors';
@@ -185,30 +186,34 @@ export function AgentDialog({
           </div>
 
           <form className={styles.agentForm} onSubmit={(event) => void submit(event)}>
-            <label className={dialogs.field} htmlFor={`${formId}-name`}>
-              <span>Name</span>
-              <input
-                id={`${formId}-name`}
-                value={draft.name}
-                onChange={(event) => update('name', event.target.value)}
-                placeholder="Example: Trip planner"
-                autoFocus
-                required
-                aria-invalid={error === 'Give this agent a name.'}
-              />
-            </label>
-
-            <div className={dialogs.field}>
-              <label htmlFor={`${formId}-instructions`}>Instructions</label>
-              <textarea
-                id={`${formId}-instructions`}
-                value={draft.instructions}
-                onChange={(event) => update('instructions', event.target.value)}
-                rows={3}
-                placeholder="Example: Help me compare sources. Ask before changing files or sending anything."
-                aria-required="true"
-                aria-invalid={error === 'Add a short instruction for this agent.'}
-              />
+            <div className={styles.identityRow}>
+              <AgentIdentityPreview identity={draft.hue} name={draft.name} />
+              <div className={styles.identityFields}>
+                <label className={dialogs.field} htmlFor={`${formId}-name`}>
+                  <span>Name</span>
+                  <input
+                    id={`${formId}-name`}
+                    value={draft.name}
+                    onChange={(event) => update('name', event.target.value)}
+                    placeholder="Example: Trip planner"
+                    autoFocus
+                    required
+                    aria-invalid={error === 'Give this agent a name.'}
+                  />
+                </label>
+                <div className={dialogs.field}>
+                  <label htmlFor={`${formId}-instructions`}>Instructions</label>
+                  <textarea
+                    id={`${formId}-instructions`}
+                    value={draft.instructions}
+                    onChange={(event) => update('instructions', event.target.value)}
+                    rows={3}
+                    placeholder="Example: Help me compare sources. Ask before changing files or sending anything."
+                    aria-required="true"
+                    aria-invalid={error === 'Add a short instruction for this agent.'}
+                  />
+                </div>
+              </div>
             </div>
 
             {readyChoices.length === 0 || !selectedChoice?.ready ? (

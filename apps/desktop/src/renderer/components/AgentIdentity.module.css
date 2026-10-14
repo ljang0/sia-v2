@@ -1,0 +1,50 @@
+/* Living agent identity preview in the agent dialog (components/AgentIdentity.tsx). */
+.preview {
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  width: 104px;
+  padding: 12px 6px 10px;
+  border-radius: var(--radius-surface);
+  background: var(--bg-subtle);
+}
+
+.preview .previewForm {
+  --agent-form-size: 56px;
+
+  transition:
+    filter var(--motion-surface) var(--ease-standard),
+    opacity var(--motion-surface) var(--ease-standard);
+}
+
+/* The form greets the person: its shape and tilt spring as it arrives and as the name changes. */
+.preview .previewForm > span {
+  transition:
+    border-radius var(--motion-emphasis) var(--ease-spring),
+    transform var(--motion-emphasis) var(--ease-spring),
+    scale var(--motion-emphasis) var(--ease-spring),
+    background-color var(--motion-surface) var(--ease-standard),
+    border-color var(--motion-surface) var(--ease-standard),
+    box-shadow var(--motion-surface) var(--ease-standard);
+}
+
+.preview[data-listening] .previewForm > span {
+  scale: calc(2 - var(--motion-pop-scale));
+}
+
+.preview[data-auto] .previewForm {
+  filter: saturate(0.15);
+  opacity: 0.72;
+}
+
+.previewName {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--text-primary);
+  font-family: var(--font-display);
+  font-size: var(--text-md);
+  font-weight: var(--weight-display);
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
