@@ -1,4 +1,25 @@
-/* Shared buttons: primary, secondary, danger, text, and icon buttons. */
+/* Shared buttons: primary, secondary, danger, text, and icon buttons.
+
+   Every button answers the hand: hover lifts its surface, a press settles it in one quick step,
+   and release springs back. The press depth derives from --motion-pop-scale, so Reduced Motion
+   and Calm keep the colour feedback and drop the movement. */
+
+.iconButton,
+.iconButtonSmall,
+.primaryButton,
+.secondaryButton,
+.dangerButton,
+.textButton,
+.textButtonDanger {
+  /* Wide buttons settle half as far as compact ones so long labels never look squashed. */
+  --press-scale: calc(1 - (1 - var(--motion-pop-scale)) / 2);
+  --press-travel: calc(var(--motion-nudge) / 3);
+}
+
+.iconButton,
+.iconButtonSmall {
+  --press-scale: var(--motion-pop-scale);
+}
 
 .iconButton,
 .iconButtonSmall {
@@ -15,7 +36,7 @@
     background-color var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard),
     opacity var(--motion-fast) var(--ease-standard),
-    transform var(--motion-fast) var(--ease-standard);
+    transform var(--motion-standard) var(--ease-spring);
 }
 
 .iconButton,
@@ -30,13 +51,14 @@
   color: var(--text-primary);
 }
 
-.iconButton:active,
-.iconButtonSmall:active,
-.primaryButton:active,
-.secondaryButton:active,
-.dangerButton:active,
-.textButtonDanger:active {
-  transform: scale(0.985);
+.iconButton:hover > svg,
+.iconButtonSmall:hover > svg {
+  transform: scale(calc(2 - var(--press-scale)));
+}
+
+.iconButton > svg,
+.iconButtonSmall > svg {
+  transition: transform var(--motion-standard) var(--ease-spring);
 }
 
 .iconButton:disabled,
@@ -64,7 +86,7 @@
     border-color var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard),
     opacity var(--motion-fast) var(--ease-standard),
-    transform var(--motion-fast) var(--ease-standard),
+    transform var(--motion-standard) var(--ease-spring),
     box-shadow var(--motion-fast) var(--ease-standard);
 }
 
@@ -77,9 +99,17 @@
   box-shadow: none;
 }
 
-.primaryButton:hover {
+.primaryButton:hover:not(:disabled) {
   background: var(--bg-accent-hover);
-  box-shadow: none;
+  box-shadow: 0 var(--motion-nudge) calc(var(--motion-nudge) * 3)
+    color-mix(in srgb, var(--bg-accent) 22%, transparent);
+  transform: translateY(calc(var(--press-travel) * -1));
+}
+
+/* Destructive buttons sit on confirmations: they settle without lift or spring. */
+.dangerButton,
+.textButtonDanger {
+  transition-timing-function: var(--ease-standard);
 }
 
 .secondaryButton {
@@ -90,10 +120,10 @@
   box-shadow: none;
 }
 
-.secondaryButton:hover {
+.secondaryButton:hover:not(:disabled) {
   border-color: color-mix(in srgb, var(--border-strong) 52%, var(--border-subtle));
   background: var(--bg-hover);
-  box-shadow: none;
+  box-shadow: var(--shadow-raised);
 }
 
 .dangerButton {
@@ -140,7 +170,10 @@
   font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
   white-space: nowrap;
-  transition: background-color var(--motion-fast) var(--ease-standard);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-standard) var(--ease-spring);
 }
 
 .textButton:hover {
@@ -152,11 +185,33 @@
   opacity: 0.45;
 }
 
-.primaryButton:active,
-.secondaryButton:active,
-.dangerButton:active {
+.primaryButton:active:not(:disabled),
+.secondaryButton:active:not(:disabled),
+.dangerButton:active:not(:disabled) {
   box-shadow: none;
-  transform: scale(0.985);
+}
+
+.iconButton:disabled > svg,
+.iconButtonSmall:disabled > svg {
+  transform: none;
+}
+
+/* Pressing is quick and settles down; letting go springs back on the slower base transition. */
+.iconButton:active:not(:disabled),
+.iconButtonSmall:active:not(:disabled),
+.primaryButton:active:not(:disabled),
+.secondaryButton:active:not(:disabled),
+.dangerButton:active:not(:disabled),
+.textButton:active:not(:disabled),
+.textButtonDanger:active:not(:disabled) {
+  transform: translateY(var(--press-travel)) scale(var(--press-scale));
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--ease-out-soft);
+}
+
+.iconButton:active:not(:disabled) > svg,
+.iconButtonSmall:active:not(:disabled) > svg {
+  transform: none;
 }
 
 @media (prefers-contrast: more) {
