@@ -301,7 +301,7 @@ export function Composer({
         : voicePhase === 'transcribing'
           ? 'Transcribing…'
           : presence === 'working'
-            ? `${queued ? 'Queued' : 'Working'} · ${executionLabel ?? 'Local'}`
+            ? `${queued ? 'Queued' : 'Working'} · ${executionLabel ?? 'On this Mac'}`
             : presence === 'waiting'
               ? 'Waiting for you'
               : presence === 'complete'
@@ -310,7 +310,7 @@ export function Composer({
                   ? 'Needs attention'
                   : presence === 'speaking'
                     ? 'Speaking…'
-                    : (executionLabel ?? 'Local');
+                    : (executionLabel ?? 'On this Mac');
   return (
     <div className={styles.composerArea} data-companion-composer>
       <div
@@ -380,7 +380,7 @@ export function Composer({
                 title={
                   acceptingAttachments
                     ? 'Add files or images'
-                    : 'Attachments are unavailable for this model'
+                    : "This assistant can't open files or images"
                 }
               >
                 <Paperclip size={16} aria-hidden="true" />

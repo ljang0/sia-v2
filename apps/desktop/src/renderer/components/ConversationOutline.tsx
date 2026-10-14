@@ -164,12 +164,12 @@ export function ConversationOutline({
         className={styles.conversationOutlineTrigger}
         aria-controls={panelId}
         aria-expanded={open}
-        aria-label="Thread outline"
-        title="Thread outline"
+        aria-label="Overview of this conversation"
+        title="Overview of this conversation"
         onClick={() => setOpen((current) => !current)}
       >
         <ListBullets size={16} aria-hidden="true" />
-        <span>Outline</span>
+        <span>Overview</span>
         <small>{messageCount + workCount}</small>
       </button>
 
@@ -178,11 +178,11 @@ export function ConversationOutline({
           ref={panelRef}
           id={panelId}
           className={styles.conversationOutlinePanel}
-          aria-label="Conversation outline"
+          aria-label="Conversation overview"
         >
           <header>
             <div>
-              <span>Thread trail</span>
+              <span>Overview</span>
               <h2>How this conversation unfolded</h2>
               <p>{outlineSummary(messageCount, workCount)}</p>
             </div>
@@ -193,7 +193,7 @@ export function ConversationOutline({
                 setOpen(false);
                 requestAnimationFrame(() => triggerRef.current?.focus());
               }}
-              aria-label="Close thread outline"
+              aria-label="Close overview"
             >
               <X size={16} aria-hidden="true" />
             </button>
@@ -299,7 +299,7 @@ function activityKindLabel(kind: ActivityEvent['kind']): string {
   if (kind === 'connector') return 'Connected app';
   if (kind === 'plan') return 'Plan';
   if (kind === 'other') return 'Work step';
-  return 'Command';
+  return 'Task on your Mac';
 }
 
 function subagentPhaseLabel(phase: 'started' | 'message' | 'completed' | 'failed'): string {

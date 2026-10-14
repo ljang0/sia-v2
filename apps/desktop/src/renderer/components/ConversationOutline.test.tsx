@@ -88,19 +88,19 @@ describe('ConversationOutline', () => {
     const onNavigate = vi.fn();
     render(<ConversationOutline events={events} agentName="Moss" onNavigate={onNavigate} />);
 
-    const trigger = screen.getByRole('button', { name: 'Thread outline' });
+    const trigger = screen.getByRole('button', { name: 'Overview of this conversation' });
     expect(trigger.getAttribute('aria-expanded')).toBe('false');
-    expect(screen.queryByRole('complementary', { name: 'Conversation outline' })).toBeNull();
+    expect(screen.queryByRole('complementary', { name: 'Conversation overview' })).toBeNull();
 
     fireEvent.click(trigger);
     expect(trigger.getAttribute('aria-expanded')).toBe('true');
-    expect(screen.getByRole('complementary', { name: 'Conversation outline' })).toBeTruthy();
+    expect(screen.getByRole('complementary', { name: 'Conversation overview' })).toBeTruthy();
     expect(screen.getByText('1 message · 2 work notes')).toBeTruthy();
     expect(screen.getByText('How this conversation unfolded')).toBeTruthy();
 
     fireEvent.click(screen.getByRole('button', { name: /Run participant acceptance/ }));
     expect(onNavigate).toHaveBeenCalledWith('plan-1');
-    expect(screen.queryByRole('complementary', { name: 'Conversation outline' })).toBeNull();
+    expect(screen.queryByRole('complementary', { name: 'Conversation overview' })).toBeNull();
   });
 
   it('closes on Escape and returns focus to its trigger', () => {
@@ -109,13 +109,13 @@ describe('ConversationOutline', () => {
       return 1;
     });
     render(<ConversationOutline events={events} onNavigate={() => undefined} />);
-    const trigger = screen.getByRole('button', { name: 'Thread outline' });
+    const trigger = screen.getByRole('button', { name: 'Overview of this conversation' });
 
     fireEvent.click(trigger);
-    expect(screen.getByRole('complementary', { name: 'Conversation outline' })).toBeTruthy();
+    expect(screen.getByRole('complementary', { name: 'Conversation overview' })).toBeTruthy();
     fireEvent.keyDown(document, { key: 'Escape' });
 
-    expect(screen.queryByRole('complementary', { name: 'Conversation outline' })).toBeNull();
+    expect(screen.queryByRole('complementary', { name: 'Conversation overview' })).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
 });
