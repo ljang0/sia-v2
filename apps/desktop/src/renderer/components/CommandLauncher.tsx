@@ -8,6 +8,7 @@ import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
 import { useTextSize } from '../textSize';
 import { errorMessage } from '../plainErrors';
+import { dismissMotion, summon } from './floatingMotion';
 export function CommandLauncher() {
   const [state, setState] = useState<LauncherState>({ agents: [] });
   useTextSize(state.textSize);
@@ -54,17 +55,24 @@ export function CommandLauncher() {
       handoff.current++;
       exitAnimation.current?.cancel();
     };
+    // The window is shown and hidden rather than remounted; each summon replays the arrival.
+    const summoned = () => {
+      const root = panel.current;
+      if (root)
+        summon([...root.children].filter((part) => !part.classList.contains(styles.aurora!)));
+      refresh();
+    };
     window.addEventListener('blur', cancelHandoff);
     const unsubscribe = window.siaLauncher.onState(receive);
     refresh();
     field.current?.focus();
-    window.addEventListener('focus', refresh);
+    window.addEventListener('focus', summoned);
     return () => {
       active = false;
       cancelHandoff();
       window.removeEventListener('blur', cancelHandoff);
       unsubscribe();
-      window.removeEventListener('focus', refresh);
+      window.removeEventListener('focus', summoned);
     };
   }, []);
   const task = state.task;
@@ -88,21 +96,9 @@ export function CommandLauncher() {
     opening.current = true;
     const ticket = ++handoff.current;
     await action(async () => {
-      let animation: Animation | undefined;
+      const animation = dismissMotion(panel.current);
       try {
-        if (
-          state.appearance !== 'calm' &&
-          typeof matchMedia === 'function' &&
-          !matchMedia('(prefers-reduced-motion: reduce)').matches &&
-          panel.current?.animate
-        ) {
-          animation = panel.current.animate(
-            [
-              { opacity: 1, transform: 'translateY(0) scale(1)' },
-              { opacity: 0, transform: 'translateY(5px) scale(0.98)' },
-            ],
-            { duration: 160, easing: 'cubic-bezier(.2,.7,.2,1)', fill: 'forwards' },
-          );
+        if (animation) {
           exitAnimation.current = animation;
           await animation.finished.catch(() => undefined);
         }
@@ -115,12 +111,26 @@ export function CommandLauncher() {
       }
     });
   }
-  function dismiss() {
-    handoff.current++;
-    exitAnimation.current?.cancel();
-    void window.siaLauncher
-      .dismiss()
-      .catch(() => setError('Could not close the launcher. Try again.'));
+  async function dismiss() {
+    const ticket = ++handoff.current;
+    const leaving = exitAnimation.current;
+    exitAnimation.current = undefined;
+    leaving?.cancel();
+    // A second Escape while the panel is leaving closes it at once.
+    const animation = leaving ? undefined : dismissMotion(panel.current);
+    if (animation) {
+      exitAnimation.current = animation;
+      await animation.finished.catch(() => undefined);
+      if (ticket !== handoff.current) return;
+    }
+    try {
+      await window.siaLauncher.dismiss();
+    } catch {
+      setError('Could not close the launcher. Try again.');
+    } finally {
+      animation?.cancel();
+      if (exitAnimation.current === animation) exitAnimation.current = undefined;
+    }
   }
   async function send() {
     if (busy || working || !text.trim() || !agentId) return;
@@ -141,7 +151,7 @@ export function CommandLauncher() {
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault();
-          dismiss();
+          void dismiss();
         }
       }}
     >
@@ -150,7 +160,7 @@ export function CommandLauncher() {
         <span className={styles.mark} aria-hidden="true" />
         <strong>Sia</strong>
         <kbd className={styles.hint}>⌘ E</kbd>
-        <button aria-label="Close launcher" onClick={dismiss}>
+        <button aria-label="Close launcher" onClick={() => void dismiss()}>
           <X size={14} aria-hidden="true" />
         </button>
       </header>
@@ -168,8 +178,11 @@ export function CommandLauncher() {
             </button>
           </div>
           <p className={styles.progress} role="status" data-status={task.status}>
-            <span className={styles.statusDot} aria-hidden="true" />
-            {task.progress}
+            {/* Keyed by status so each change of state plays its own arrival, not each update. */}
+            <span key={task.status} className={styles.statusLine}>
+              <span className={styles.statusDot} aria-hidden="true" />
+              {task.progress}
+            </span>
           </p>
           {task.response && (
             <div className={styles.response}>
@@ -197,6 +210,7 @@ export function CommandLauncher() {
       )}
       {state.agents.length ? (
         <form
+          data-ready={Boolean(text.trim()) && !working && !busy}
           onSubmit={(event) => {
             event.preventDefault();
             void send();
