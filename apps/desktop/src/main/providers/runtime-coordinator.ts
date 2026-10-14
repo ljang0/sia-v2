@@ -17,6 +17,7 @@ import {
   createCodexAdapter,
   createGeminiAdapter,
   createOpenCodeAdapter,
+  createOpenHandsAdapter,
   createGrokAdapter,
   createMetaAdapter,
   legacyModelRoute,
@@ -135,7 +136,7 @@ export class RuntimeCoordinator {
         session: ProviderSessionOptions,
       ) => Promise<{ baseUrl: string; apiKey: string }>;
       /** Executables for optional harnesses; each defaults to its name on PATH. */
-      harnessCommands?: { readonly opencode?: string };
+      harnessCommands?: { readonly opencode?: string; readonly openhands?: string };
       acpMcpServerFactory?: (
         provider: 'grok' | 'gemini' | 'claude',
         session: ProviderSessionOptions,
@@ -221,6 +222,22 @@ export class RuntimeCoordinator {
           modelEndpoint: (session) => endpoint('opencode_acp', session),
           ...(options.harnessCommands?.opencode
             ? { command: options.harnessCommands.opencode }
+            : {}),
+          ...(options.acpMcpServerFactory
+            ? { mcpServerFactory: (session) => options.acpMcpServerFactory!('claude', session) }
+            : {}),
+        }),
+        false,
+      );
+      this.#registerAdapter(
+        'meta',
+        'openhands_acp',
+        createOpenHandsAdapter({
+          providerId: 'meta',
+          accountOverride: included,
+          modelEndpoint: (session) => endpoint('openhands_acp', session),
+          ...(options.harnessCommands?.openhands
+            ? { command: options.harnessCommands.openhands }
             : {}),
           ...(options.acpMcpServerFactory
             ? { mcpServerFactory: (session) => options.acpMcpServerFactory!('claude', session) }

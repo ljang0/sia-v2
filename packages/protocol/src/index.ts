@@ -30,6 +30,7 @@ export const BUILTIN_HARNESS_IDS = [
   'claude_code',
   'legacy_acp',
   'opencode_acp',
+  'openhands_acp',
   'pi_rpc',
   'sia_direct',
 ] as const;

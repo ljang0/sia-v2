@@ -18,6 +18,7 @@ the pinned harness and model for audit attribution.
 | Sia direct       | authenticated cloud stream | legacy threads only                       | Sia-managed, server-side lab key                                                              |
 | Claude Code      | isolated CLI stream        | legacy; included models in signed preview | provider-owned Claude subscription, or included models via the loopback proxy (`sia_managed`) |
 | OpenCode         | ACP over nd-JSON           | included models in signed preview         | included models via the loopback proxy (`sia_managed`); private HOME per session              |
+| OpenHands        | ACP over stdio             | included models in signed preview         | included models via the loopback proxy (`sia_managed`); private HOME per session              |
 | Pi               | JSONL RPC over stdio       | hidden, fail-closed                       | no route approved yet                                                                         |
 | Lab harness test | ACP over stdio             | signed testing manifest only              | lab-owned; see [model lab integration](./model-lab-integration.md)                            |
 
@@ -91,6 +92,15 @@ provider (the loopback Responses proxy), sets `tools: {"*": false, "sia_*": true
 permission except Sia's MCP tools, so OpenCode's shell, file, and web tools are never offered to the
 model. The opt-in `SIA_OPENCODE_ENDPOINT_SMOKE` test verifies this against the real binary. It is
 not yet release-admitted: items 6 and 8 above still need the signed-app run.
+
+OpenHands 1.16 (`openhands acp`) also runs included models in signed preview. Each session gets a
+private HOME and `OPENHANDS_PERSISTENCE_DIR` holding only Sia's `agent_settings.json` (LiteLLM
+`openai/<model>` against the loopback proxy's Chat Completions route). OpenHands always adds its own
+terminal and file-editor tools, which run on the host without a sandbox, so it is admitted only
+with OpenHands' default "always ask" confirmation: every native action becomes a Sia approval card,
+and Sia answers by ACP option kind and never selects OpenHands' "always proceed" option. Model
+choice is fixed in its settings and enforced by the model-scoped proxy capability, since OpenHands
+does not advertise an ACP model selector. Verify with `SIA_OPENHANDS_ENDPOINT_SMOKE`.
 
 The current release has no admitted OpenCode or Pi adapter. They remain absent from the UI, and the
 main process independently rejects a crafted or migrated unapproved route.

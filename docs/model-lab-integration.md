@@ -110,8 +110,20 @@ The manifest is signed and loaded exactly like a lab harness manifest below
 (`SIA_LAB_HARNESS_MANIFEST`), expires the same way, and only accepts built-in harness ids. Release
 admission is still flipping `productionEnabled` after the conformance matrix passes.
 
-Claude Code's routing has an opt-in real-binary check that needs no network, account, or model
-turn: `SIA_CLAUDE_ENDPOINT_SMOKE=1 pnpm --filter @sia/runtime exec vitest run src/claude-endpoint.smoke.test.ts`.
+Each previewable harness has an opt-in real-binary check against a loopback stub of the model
+proxy. It needs no network model, account, or model turn, and asserts the scoped capability and
+model on every request, a completed Sia MCP tool loop, and an untouched workspace:
+
+```sh
+SIA_CLAUDE_ENDPOINT_SMOKE=1 \
+SIA_OPENCODE_ENDPOINT_SMOKE=1 SIA_OPENCODE_COMMAND=/abs/path/opencode \
+SIA_OPENHANDS_ENDPOINT_SMOKE=1 SIA_OPENHANDS_COMMAND=/abs/path/openhands \
+  pnpm --filter @sia/runtime exec vitest run src/claude-endpoint.smoke.test.ts \
+    src/opencode-endpoint.smoke.test.ts src/openhands-endpoint.smoke.test.ts
+```
+
+On a tester's Mac, `SIA_OPENCODE_COMMAND` and `SIA_OPENHANDS_COMMAND` point Sia at those binaries;
+otherwise each is looked up on PATH.
 
 ## Sponsored credit and usage reports
 

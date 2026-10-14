@@ -26,7 +26,11 @@ export interface AcpPeerHandle {
  */
 export interface AcpSessionProcess {
   readonly env: Readonly<Record<string, string>>;
-  readonly model: string;
+  /**
+   * The ACP model value to select and confirm. Omit only when the process is configured for
+   * exactly one model and Sia's loopback model proxy rejects any other.
+   */
+  readonly model?: string;
   dispose(): Promise<void>;
 }
 
@@ -69,6 +73,12 @@ interface ActivePrompt {
 interface DeferredPermission {
   readonly resolve: (response: ProviderRequestResponse) => void;
   readonly reject: (error: Error) => void;
+}
+
+/** One permission option exactly as the harness offered it. */
+interface AcpPermissionOption {
+  readonly optionId: string;
+  readonly kind: string | undefined;
 }
 
 interface AcpSessionState {
@@ -168,13 +178,10 @@ export class AcpAdapter implements ProviderAdapter {
       );
       const nativeId = stringAt(result, ['sessionId'], ['session', 'id'], ['id']);
       if (!nativeId) throw new Error(`${this.id} ACP session/new did not return a session id`);
-      await this.#selectModel(
-        peer,
-        nativeId,
-        dedicated?.process.model ?? options.model,
-        result,
-        signal,
-      );
+      const requestedModel = dedicated ? dedicated.process.model : options.model;
+      if (requestedModel !== undefined) {
+        await this.#selectModel(peer, nativeId, requestedModel, result, signal);
+      }
       const session: ProviderSession = {
         id: options.threadId,
         provider: this.id,
@@ -563,10 +570,41 @@ export class AcpAdapter implements ProviderAdapter {
     const response = await new Promise<ProviderRequestResponse>((resolve, reject) => {
       this.#pendingPermissions.set(requestId, { resolve, reject });
     });
-    return response.choiceId
-      ? { outcome: { outcome: 'selected', optionId: response.choiceId } }
+    const offered = rawOptions.map((option, index) => {
+      const value = record(option);
+      return {
+        optionId: stringAt(value, ['optionId'], ['id']) ?? String(index),
+        kind: stringAt(value, ['kind']),
+      };
+    });
+    const optionId = permissionOptionId(offered, response.choiceId);
+    return optionId
+      ? { outcome: { outcome: 'selected', optionId } }
       : { outcome: { outcome: 'cancelled' } };
   }
+}
+
+/**
+ * Sia answers with its own decision (`allow_once`, `allow_task`, `deny`); harnesses name their
+ * options freely, so the answer is matched by ACP option kind. Sia approves one action at a time,
+ * so a harness's "always allow" option is never chosen on the person's behalf.
+ */
+export function permissionOptionId(
+  offered: readonly AcpPermissionOption[],
+  choiceId: string | undefined,
+): string | undefined {
+  if (!choiceId) return undefined;
+  if (offered.length === 0) return choiceId;
+  if (offered.some(({ optionId }) => optionId === choiceId)) {
+    const exact = offered.find(({ optionId }) => optionId === choiceId)!;
+    if (exact.kind !== 'allow_always') return exact.optionId;
+  }
+  const wanted = choiceId === 'deny' ? ['reject_once', 'reject_always'] : ['allow_once'];
+  for (const kind of wanted) {
+    const match = offered.find((option) => option.kind === kind);
+    if (match) return match.optionId;
+  }
+  return undefined;
 }
 
 async function disposeDedicated(dedicated: DedicatedPeer): Promise<void> {

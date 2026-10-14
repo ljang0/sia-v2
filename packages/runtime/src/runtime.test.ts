@@ -21,12 +21,14 @@ import {
 import { CodexAppServerAdapter } from './providers/codex.js';
 import {
   AcpAdapter,
+  permissionOptionId,
   createGeminiAdapter,
   createAcpAdapter,
   createGrokAdapter,
   defaultAcpCommandArgs,
 } from './providers/acp.js';
 import { openCodeConfig } from './providers/opencode.js';
+import { openHandsAgentSettings } from './providers/openhands.js';
 import {
   claudeCliArgs,
   claudeEndpointEnvironment,
@@ -737,6 +739,52 @@ describe('Codex app-server adapter', () => {
     ]);
     await adapter.dispose();
     expect(spawned.every(({ disposed }) => disposed)).toBe(true);
+  });
+
+  it('answers harness permission prompts by option kind, never with an "always" option', () => {
+    const openHands = [
+      { optionId: 'accept', kind: 'allow_once' },
+      { optionId: 'reject', kind: 'reject_once' },
+      { optionId: 'always_proceed', kind: 'allow_always' },
+      { optionId: 'risk_based', kind: 'allow_once' },
+    ];
+    expect(permissionOptionId(openHands, 'allow_once')).toBe('accept');
+    expect(permissionOptionId(openHands, 'allow_task')).toBe('accept');
+    expect(permissionOptionId(openHands, 'deny')).toBe('reject');
+    expect(permissionOptionId(openHands, 'always_proceed')).toBe('accept');
+    expect(permissionOptionId(openHands, undefined)).toBeUndefined();
+    // Fails closed when the harness offers no one-time allow.
+    expect(
+      permissionOptionId([{ optionId: 'always', kind: 'allow_always' }], 'allow_once'),
+    ).toBe(undefined);
+    // Harnesses whose ids already match Sia's keep working.
+    expect(
+      permissionOptionId(
+        [
+          { optionId: 'allow_once', kind: 'allow_once' },
+          { optionId: 'deny', kind: 'reject_once' },
+        ],
+        'deny',
+      ),
+    ).toBe('deny');
+  });
+
+  it('writes OpenHands settings for only the scoped model on the loopback endpoint', () => {
+    expect(
+      openHandsAgentSettings(
+        { baseUrl: 'http://127.0.0.1:4100/v1', apiKey: 'cap' },
+        'sponsor/m',
+      ),
+    ).toEqual({
+      kind: 'Agent',
+      llm: {
+        model: 'openai/sponsor/m',
+        base_url: 'http://127.0.0.1:4100/v1',
+        api_key: 'cap',
+        usage_id: 'agent',
+      },
+      tools: [],
+    });
   });
 
   it('configures OpenCode with only the scoped Sia model and Sia tools', () => {

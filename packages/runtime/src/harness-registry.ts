@@ -54,6 +54,14 @@ export const BUILTIN_HARNESS_DEFINITIONS = [
     productionEnabled: false,
   },
   {
+    id: 'openhands_acp',
+    name: 'OpenHands ACP',
+    // LiteLLM's `openai/` route; included models only, through the loopback model proxy.
+    modelProtocols: ['openai_chat_completions'],
+    credentialSources: ['sia_managed'],
+    productionEnabled: false,
+  },
+  {
     id: 'pi_rpc',
     name: 'Pi RPC',
     modelProtocols: ['openai_responses', 'openai_chat_completions', 'anthropic_messages'],

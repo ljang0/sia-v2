@@ -775,6 +775,9 @@ async function performApplicationCreation(): Promise<void> {
         ...(process.env.SIA_OPENCODE_COMMAND
           ? { opencode: process.env.SIA_OPENCODE_COMMAND }
           : {}),
+        ...(process.env.SIA_OPENHANDS_COMMAND
+          ? { openhands: process.env.SIA_OPENHANDS_COMMAND }
+          : {}),
       },
       harnessAdapters: labHarnesses.map((harness) => ({
         provider: 'lab' as const,

@@ -2,7 +2,11 @@ import { mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { SMOKE_RESULT, startHarnessEndpointStub } from './harness-endpoint-stub.js';
+import {
+  SMOKE_MCP_SERVER,
+  SMOKE_RESULT,
+  startHarnessEndpointStub,
+} from './harness-endpoint-stub.js';
 import { createOpenCodeAdapter } from './providers/opencode.js';
 
 /**
@@ -18,20 +22,6 @@ const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => {
   await Promise.all(cleanup.splice(0).map((step) => step()));
 });
-
-export const SMOKE_MCP_SERVER = [
-  "import { createInterface } from 'node:readline';",
-  'const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });',
-  'for await (const line of lines) {',
-  '  const request = JSON.parse(line);',
-  '  if (request.id == null) continue;',
-  "  if (request.method === 'initialize') respond(request.id, { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'sia-smoke', version: '1.0.0' } });",
-  "  else if (request.method === 'tools/list') respond(request.id, { tools: [{ name: 'smoke_tool', description: 'Return the fixed Sia smoke value.', inputSchema: { type: 'object', additionalProperties: false, properties: {} } }] });",
-  `  else if (request.method === 'tools/call') respond(request.id, { content: [{ type: 'text', text: '${SMOKE_RESULT}' }], isError: false });`,
-  '  else respond(request.id, {});',
-  '}',
-  "function respond(id, result) { process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\\n'); }",
-].join('\n');
 
 describe.runIf(runReal)('real OpenCode on a loopback model endpoint', () => {
   it('uses only the scoped Sia model and tools and completes a Sia tool loop', async () => {

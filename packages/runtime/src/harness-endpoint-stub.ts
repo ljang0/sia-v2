@@ -20,6 +20,21 @@ export interface HarnessEndpointStub {
 
 export const SMOKE_RESULT = 'SIA_TOOL_RESULT';
 
+/** A stdio MCP server exposing Sia's `smoke_tool`, which returns SMOKE_RESULT. */
+export const SMOKE_MCP_SERVER = [
+  "import { createInterface } from 'node:readline';",
+  'const lines = createInterface({ input: process.stdin, crlfDelay: Infinity });',
+  'for await (const line of lines) {',
+  '  const request = JSON.parse(line);',
+  '  if (request.id == null) continue;',
+  "  if (request.method === 'initialize') respond(request.id, { protocolVersion: '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'sia-smoke', version: '1.0.0' } });",
+  "  else if (request.method === 'tools/list') respond(request.id, { tools: [{ name: 'smoke_tool', description: 'Return the fixed Sia smoke value.', inputSchema: { type: 'object', additionalProperties: false, properties: {} } }] });",
+  `  else if (request.method === 'tools/call') respond(request.id, { content: [{ type: 'text', text: '${SMOKE_RESULT}' }], isError: false });`,
+  '  else respond(request.id, {});',
+  '}',
+  "function respond(id, result) { process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id, result }) + '\\n'); }",
+].join('\n');
+
 export async function startHarnessEndpointStub(): Promise<HarnessEndpointStub> {
   const requests: StubRequest[] = [];
   const server: Server = createServer((request, response) => {
@@ -42,7 +57,7 @@ export async function startHarnessEndpointStub(): Promise<HarnessEndpointStub> {
         response.writeHead(200, {
           'content-type': body.stream ? 'text/event-stream' : 'application/json',
         });
-        response.end(chatTurn(body, answered || !toolName, toolName));
+        response.end(chatTurn(body, answered || !toolName, toolName, smokeToolArguments(body)));
         return;
       }
       response.writeHead(404, { 'content-type': 'application/json' });
@@ -74,13 +89,29 @@ async function readJson(request: IncomingMessage): Promise<Record<string, unknow
 
 /** The harness-visible name of Sia's smoke tool, e.g. `sia_smoke_tool`. */
 function smokeToolName(body: Record<string, unknown>): string | undefined {
+  return smokeTool(body)?.name;
+}
+
+/** Arguments the harness's schema for the smoke tool requires (OpenHands adds `security_risk`). */
+function smokeToolArguments(body: Record<string, unknown>): string {
+  const parameters = smokeTool(body)?.parameters as Record<string, unknown> | undefined;
+  const properties = (parameters?.properties ?? {}) as Record<string, unknown>;
+  return JSON.stringify('security_risk' in properties ? { security_risk: 'LOW' } : {});
+}
+
+function smokeTool(
+  body: Record<string, unknown>,
+): { name: string; parameters: unknown } | undefined {
   const tools = Array.isArray(body.tools) ? (body.tools as Array<Record<string, unknown>>) : [];
   return tools
     .map((tool) => {
       const fn = tool.function as Record<string, unknown> | undefined;
-      return String(tool.name ?? fn?.name ?? '');
+      return {
+        name: String(tool.name ?? fn?.name ?? ''),
+        parameters: tool.parameters ?? fn?.parameters,
+      };
     })
-    .find((name) => name.endsWith('smoke_tool'));
+    .find(({ name }) => name.endsWith('smoke_tool'));
 }
 
 function sse(events: Array<Record<string, unknown>>): string {
@@ -180,6 +211,7 @@ function chatTurn(
   body: Record<string, unknown>,
   answer: boolean,
   toolName: string | undefined,
+  toolArguments: string,
 ): string {
   const model = String(body.model);
   const usage = { prompt_tokens: 5, completion_tokens: 3, total_tokens: 8 };
@@ -192,7 +224,7 @@ function chatTurn(
           {
             id: 'call_stub',
             type: 'function',
-            function: { name: toolName, arguments: '{}' },
+            function: { name: toolName, arguments: toolArguments },
           },
         ],
       };
@@ -225,7 +257,7 @@ function chatTurn(
             index: 0,
             id: 'call_stub',
             type: 'function',
-            function: { name: toolName, arguments: '{}' },
+            function: { name: toolName, arguments: toolArguments },
           },
         ],
       };
