@@ -282,6 +282,35 @@ export function Composer({
     }
   };
 
+  const contextLabel = voiceConversation
+    ? voiceError
+      ? 'Voice stopped'
+      : voicePhase === 'starting'
+        ? 'Voice · starting microphone…'
+        : voicePhase === 'transcribing'
+          ? 'Voice · transcribing…'
+          : running || !voiceCanListen
+            ? 'Voice · waiting…'
+            : voicePhase === 'recording'
+              ? 'Voice · listening…'
+              : 'Voice · ready'
+    : voicePhase === 'starting'
+      ? 'Starting microphone…'
+      : voicePhase === 'recording'
+        ? 'Listening · click stop to finish'
+        : voicePhase === 'transcribing'
+          ? 'Transcribing…'
+          : presence === 'working'
+            ? `${queued ? 'Queued' : 'Working'} · ${executionLabel ?? 'Local'}`
+            : presence === 'waiting'
+              ? 'Waiting for you'
+              : presence === 'complete'
+                ? 'Done'
+                : presence === 'error'
+                  ? 'Needs attention'
+                  : presence === 'speaking'
+                    ? 'Speaking…'
+                    : (executionLabel ?? 'Local');
   return (
     <div className={styles.composerArea} data-companion-composer>
       <div
@@ -442,35 +471,9 @@ export function Composer({
             />
             {voicePhase === 'recording' ? <VoiceWave level={voiceLevel} /> : null}
             <span className={styles.composerContext} role="status">
-              {voiceConversation
-                ? voiceError
-                  ? 'Voice stopped'
-                  : voicePhase === 'starting'
-                    ? 'Voice · starting microphone…'
-                    : voicePhase === 'transcribing'
-                      ? 'Voice · transcribing…'
-                      : running || !voiceCanListen
-                        ? 'Voice · waiting…'
-                        : voicePhase === 'recording'
-                          ? 'Voice · listening…'
-                          : 'Voice · ready'
-                : voicePhase === 'starting'
-                  ? 'Starting microphone…'
-                  : voicePhase === 'recording'
-                    ? 'Listening · click stop to finish'
-                    : voicePhase === 'transcribing'
-                      ? 'Transcribing…'
-                      : presence === 'working'
-                        ? `${queued ? 'Queued' : 'Working'} · ${executionLabel ?? 'Local'}`
-                        : presence === 'waiting'
-                          ? 'Waiting for you'
-                          : presence === 'complete'
-                            ? 'Done'
-                            : presence === 'error'
-                              ? 'Needs attention'
-                              : presence === 'speaking'
-                                ? 'Speaking…'
-                                : (executionLabel ?? 'Local')}
+              <span key={contextLabel} className={styles.composerContextWord}>
+                {contextLabel}
+              </span>
             </span>
           </div>
           {stoppable ? (

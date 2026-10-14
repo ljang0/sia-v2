@@ -100,7 +100,7 @@
   background: linear-gradient(
       105deg,
       transparent 40%,
-      color-mix(in srgb, var(--text-success) 9%, transparent) 50%,
+      color-mix(in srgb, var(--text-success) 14%, transparent) 50%,
       transparent 60%
     )
     120% 0 / 300% 100% no-repeat;
