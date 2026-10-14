@@ -4,6 +4,12 @@
   padding: 8px 32px 0;
 }
 
+/* Empty, the queue keeps only its list mounted, so the last follow-up can fold away. */
+.queue[data-empty] {
+  margin-bottom: 0;
+  padding-top: 0;
+}
+
 .heading {
   display: flex;
   align-items: center;
@@ -63,10 +69,14 @@
   flex: none;
   place-items: center;
   border: 0;
-  border-radius: 6px;
+  border-radius: var(--radius-tight);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
 }
 
 .remove:hover,
@@ -89,11 +99,19 @@
   height: 24px;
   padding: 0 8px;
   border: 1px solid var(--border-subtle);
-  border-radius: 6px;
+  border-radius: var(--radius-tight);
   background: var(--bg-raised);
   color: var(--text-primary);
   font-size: var(--text-xs);
   cursor: pointer;
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.remove:active:not(:disabled),
+.sendNow:active:not(:disabled) {
+  transform: scale(var(--motion-pop-scale));
 }
 
 .sendNow:hover,

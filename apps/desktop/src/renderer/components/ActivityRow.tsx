@@ -58,7 +58,9 @@ export function ActivityRow({ event }: ActivityRowProps) {
           : Clock;
   const statusIconClass =
     event.status === 'error'
-      ? styles.activityErrorIcon
+      ? watchedLive.current
+        ? `${styles.activityErrorIcon} ${styles.activityStatusArrive}`
+        : styles.activityErrorIcon
       : event.status === 'running'
         ? styles.activitySpinner
         : event.status === 'complete'

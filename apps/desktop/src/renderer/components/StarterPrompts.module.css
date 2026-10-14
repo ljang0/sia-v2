@@ -20,10 +20,32 @@
   text-align: left;
   cursor: pointer;
   transition:
-    background 200ms var(--ease-standard),
-    border-color 200ms var(--ease-standard),
-    transform 220ms var(--ease-out-soft),
-    box-shadow 220ms var(--ease-out-soft);
+    background-color var(--motion-fast) var(--ease-standard),
+    border-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-standard) var(--ease-out-soft),
+    box-shadow var(--motion-standard) var(--ease-out-soft);
+  animation: starterIn var(--motion-emphasis) var(--ease-out-soft) backwards;
+}
+
+/* A new conversation's suggestions arrive one after another, capped at eight. */
+.starterPrompts button:nth-child(2) {
+  animation-delay: var(--motion-stagger);
+}
+.starterPrompts button:nth-child(3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+.starterPrompts button:nth-child(4) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+.starterPrompts button:nth-child(n + 5) {
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+
+@keyframes starterIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise));
+  }
 }
 
 .starterPrompts button:hover {
@@ -34,7 +56,8 @@
 }
 
 .starterPrompts button:active {
-  transform: translateY(0);
+  transform: scale(calc(1 - (1 - var(--motion-pop-scale)) / 2));
+  transition-duration: var(--motion-fast);
 }
 
 .starterIcon {
@@ -54,7 +77,7 @@
 
 .starterText strong {
   font-size: var(--text-md);
-  font-weight: 600;
+  font-weight: var(--weight-semibold);
   line-height: 18px;
 }
 
@@ -67,8 +90,8 @@
 .starterArrow {
   color: var(--text-tertiary);
   transition:
-    transform 220ms var(--ease-out-soft),
-    color 220ms ease;
+    transform var(--motion-standard) var(--ease-out-soft),
+    color var(--motion-fast) var(--ease-standard);
 }
 
 .starterPrompts button:hover .starterArrow {
@@ -80,6 +103,7 @@
   .starterPrompts button,
   .starterArrow {
     transition: none;
+    animation: none;
   }
   .starterPrompts button:hover {
     transform: none;

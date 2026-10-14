@@ -79,6 +79,27 @@
 
 .composerAction {
   gap: 6px;
+  animation: composerActionIn var(--motion-standard) var(--ease-out-soft) backwards;
+}
+
+@keyframes composerActionIn {
+  from {
+    opacity: 0;
+    transform: scale(var(--motion-pop-scale));
+  }
+}
+
+/* The status words under the field change with the turn; each new phrase rises into place. */
+.composerContextWord {
+  display: inline-block;
+  animation: composerContextIn var(--motion-surface) var(--ease-out-soft) both;
+}
+
+@keyframes composerContextIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-nudge));
+  }
 }
 
 .composerError {
@@ -99,7 +120,7 @@
   display: inline-flex;
   min-width: 0;
   max-width: 280px;
-  animation: attachmentChipIn 220ms var(--ease-out-soft) both;
+  animation: attachmentChipIn var(--motion-emphasis) var(--ease-spring) both;
   height: 28px;
   align-items: center;
   gap: 6px;
@@ -114,7 +135,7 @@
 @keyframes attachmentChipIn {
   from {
     opacity: 0;
-    transform: scale(0.94);
+    transform: translateY(var(--motion-nudge)) scale(var(--motion-pop-scale));
   }
 }
 
@@ -148,7 +169,13 @@
   cursor: pointer;
   transition:
     background-color var(--motion-fast) var(--ease-standard),
-    color var(--motion-fast) var(--ease-standard);
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.composerAttachButton:active:not(:disabled),
+.composerVoiceButton:active:not(:disabled) {
+  transform: scale(var(--motion-pop-scale));
 }
 
 .attachmentChip button:hover,
@@ -165,15 +192,35 @@
   opacity: 0.4;
 }
 
+.composerVoiceButton {
+  position: relative;
+}
+
+/* Listening: the button holds steady in the danger tint while a soft ring keeps radiating from
+   it, so the live microphone is unmistakable without the control itself blinking. */
 .composerVoiceRecording {
   background: var(--surface-danger);
   color: var(--text-danger);
-  animation: voicePulse 1.4s var(--ease-standard) infinite;
 }
 
-@keyframes voicePulse {
-  50% {
-    opacity: 0.58;
+.composerVoiceRecording::after {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid color-mix(in srgb, var(--text-danger) 55%, transparent);
+  border-radius: inherit;
+  content: '';
+  pointer-events: none;
+  animation: voiceRing calc(var(--motion-spin) * 1.6) var(--ease-out-soft) infinite;
+}
+
+@keyframes voiceRing {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.6);
   }
 }
 
@@ -186,9 +233,21 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .attachmentChip {
+  .attachmentChip,
+  .composerAction,
+  .composerContextWord {
     animation: none;
   }
+
+  /* Reduced motion keeps the ring as a still outline so listening stays visible. */
+  .composerVoiceRecording::after {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+[data-appearance='calm'] .composerVoiceRecording::after {
+  animation: none;
 }
 
 .attachmentChip .attachmentPreviewButton {
@@ -244,13 +303,13 @@
       )
       border-box;
   background-size: 260% 100%;
-  animation: auroraDrift 22s ease-in-out infinite alternate;
+  animation: auroraDrift calc(var(--motion-spin) * 22) var(--ease-standard) infinite alternate;
   box-shadow:
     0 8px 28px color-mix(in srgb, var(--aurora-emerald) 6%, transparent),
     var(--shadow-composer);
   transition:
-    box-shadow 360ms var(--ease-out-soft),
-    border-color 360ms ease;
+    box-shadow var(--motion-emphasis) var(--ease-out-soft),
+    border-color var(--motion-emphasis) var(--ease-standard);
 }
 
 .composer:focus-within {

@@ -80,13 +80,13 @@
 }
 
 .jumpToLatest {
-  animation: jumpToLatestIn 220ms var(--ease-out-soft) both;
+  animation: jumpToLatestIn var(--motion-surface) var(--ease-spring) backwards;
 }
 
 @keyframes jumpToLatestIn {
   from {
     opacity: 0;
-    transform: translate(-50%, calc(-50% + 6px));
+    transform: translate(-50%, calc(-50% + var(--motion-rise))) scale(var(--motion-pop-scale));
   }
 }
 
@@ -98,6 +98,10 @@
 .jumpToLatest:hover {
   color: var(--text-primary);
   transform: translate(-50%, calc(-50% - 1px));
+}
+
+.jumpToLatest:active {
+  transform: translate(-50%, -50%) scale(var(--motion-pop-scale));
 }
 
 .jumpToLatest:active {
@@ -203,7 +207,7 @@
 }
 
 .messageActionButton:active {
-  transform: scale(0.94);
+  transform: scale(var(--motion-pop-scale));
 }
 
 .messageActionButton:disabled {
@@ -217,7 +221,7 @@
 }
 
 .copiedCheck {
-  animation: copiedPop 320ms var(--ease-out-soft) both;
+  animation: copiedPop var(--motion-emphasis) var(--ease-spring) both;
 }
 
 /* A small “Copied” tag above the button confirms the copy without moving the header. */
@@ -234,22 +238,19 @@
   pointer-events: none;
   transform: translateX(-50%);
   white-space: nowrap;
-  animation: copiedTip 1.6s var(--ease-standard) both;
+  animation: copiedTip calc(var(--motion-emphasis) * 4) var(--ease-standard) both;
 }
 
 @keyframes copiedPop {
-  0% {
-    transform: scale(0.5);
-  }
-  60% {
-    transform: scale(1.2);
+  from {
+    transform: scale(calc(var(--motion-pop-scale) - 0.46));
   }
 }
 
 @keyframes copiedTip {
   0% {
     opacity: 0;
-    transform: translate(-50%, 3px);
+    transform: translate(-50%, var(--motion-nudge));
   }
   12%,
   78% {
@@ -415,7 +416,7 @@
 .skeletonActivity,
 .skeletonComposer {
   background: var(--bg-subtle);
-  animation: skeleton 1.4s var(--ease-standard) infinite alternate;
+  animation: skeleton calc(var(--motion-spin) * 1.4) var(--ease-standard) infinite alternate;
 }
 
 .skeletonMessage {
@@ -466,11 +467,11 @@
   border-radius: var(--radius-round);
   background: var(--agent-color);
   content: '';
-  animation: responseCursor 1.1s var(--ease-standard) infinite;
+  animation: responseCursor calc(var(--motion-spin) * 1.1) var(--ease-standard) infinite;
 }
 
 .messageSettled {
-  animation: responseSettle 320ms var(--ease-standard) both;
+  animation: responseSettle var(--motion-emphasis) var(--ease-out-soft) both;
 }
 
 @keyframes responseCursor {
@@ -482,7 +483,6 @@
 @keyframes responseSettle {
   from {
     opacity: 0.88;
-    transform: translateY(1px);
   }
 }
 
@@ -530,14 +530,14 @@
   font-size: var(--text-base);
   font-weight: var(--weight-semibold);
   pointer-events: none;
-  animation: dropOverlayIn 160ms var(--ease-standard) both;
+  animation: dropOverlayIn var(--motion-standard) var(--ease-standard) both;
 }
 
 .attachmentDropCard {
   display: grid;
   justify-items: center;
   gap: 6px;
-  animation: dropCardIn 260ms var(--ease-out-soft) both;
+  animation: dropCardIn var(--motion-emphasis) var(--ease-spring) both;
 }
 
 .attachmentDropCard > svg {
@@ -548,6 +548,7 @@
   border-radius: 50%;
   background: color-mix(in srgb, var(--focus-ring) 14%, transparent);
   color: var(--focus-ring);
+  animation: dropIconLift var(--motion-emphasis) var(--ease-spring) var(--motion-stagger) both;
 }
 
 .attachmentDropCard small {
@@ -565,13 +566,21 @@
 @keyframes dropCardIn {
   from {
     opacity: 0;
-    transform: translateY(6px) scale(0.97);
+    transform: translateY(var(--motion-rise)) scale(var(--motion-pop-scale));
+  }
+}
+
+/* The paperclip lifts toward the pointer, saying “let go here”. */
+@keyframes dropIconLift {
+  from {
+    transform: translateY(var(--motion-rise));
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .attachmentDropOverlay,
-  .attachmentDropCard {
+  .attachmentDropCard,
+  .attachmentDropCard > svg {
     animation: none;
   }
 }
@@ -615,32 +624,66 @@
   border: 2px solid var(--focus-ring);
 }
 
-/* Rows that arrive while the thread is open ease in; a sent message rises from the composer. */
+/* Rows that arrive while the thread is open ease in; history that was there on open stays
+   still. A sent message rises out of the composer with a soft spring, as if handed up. */
 .eventSearchAnchor[data-entering='true']:not(:has(> .userMessage)) {
-  animation: rowEnter 280ms var(--ease-out-soft) both;
+  animation: rowEnter var(--motion-surface) var(--ease-out-soft) both;
 }
 
 .eventSearchAnchor[data-entering='true'] > .userMessage {
-  animation: sentRise 360ms var(--ease-out-soft) both;
+  transform-origin: right bottom;
+  animation: sentRise var(--motion-emphasis) var(--ease-spring) both;
 }
 
 @keyframes rowEnter {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(var(--motion-rise));
   }
 }
 
 @keyframes sentRise {
   from {
     opacity: 0.4;
-    transform: translateY(18px) scale(0.985);
+    transform: translateY(calc(var(--motion-rise) * 2)) scale(var(--motion-pop-scale));
   }
+}
+
+/* An approval request is a consent surface: it fades and settles without a spring, and its
+   header carries a brief wash of the agent's hue so the eye finds it, then rests. */
+.eventSearchAnchor[data-entering='true']:has([data-approval='pending']) {
+  animation: approvalSettle var(--motion-emphasis) var(--ease-out-soft) both;
+}
+
+.eventSearchAnchor[data-entering='true'] [data-approval='pending'] > header {
+  animation: approvalWash calc(var(--motion-emphasis) * 3) var(--ease-standard) both;
+}
+
+@keyframes approvalSettle {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise));
+  }
+}
+
+@keyframes approvalWash {
+  from {
+    background-color: color-mix(in srgb, var(--agent-color) 16%, var(--bg-subtle));
+  }
+}
+
+/* Banners that appear while the thread is open (a failure, a queue) settle in quietly. */
+.errorBanner[data-entering='true'],
+.queueBanner[data-entering='true'] {
+  animation: approvalSettle var(--motion-surface) var(--ease-out-soft) both;
 }
 
 @media (prefers-reduced-motion: reduce) {
   .eventSearchAnchor[data-entering='true']:not(:has(> .userMessage)),
-  .eventSearchAnchor[data-entering='true'] > .userMessage {
+  .eventSearchAnchor[data-entering='true'] > .userMessage,
+  .eventSearchAnchor[data-entering='true'] [data-approval='pending'] > header,
+  .errorBanner[data-entering='true'],
+  .queueBanner[data-entering='true'] {
     animation: none;
   }
 }

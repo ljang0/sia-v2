@@ -6,6 +6,10 @@
   border-radius: var(--radius-surface);
   background: var(--bg-raised);
   box-shadow: var(--shadow-raised);
+  /* Resolving lets the card's edge and fill fade back into the conversation. */
+  transition:
+    background-color var(--motion-surface) var(--ease-standard),
+    border-color var(--motion-surface) var(--ease-standard);
 }
 
 .approvalResolved {
@@ -23,6 +27,7 @@
   font-size: var(--text-sm);
   cursor: pointer;
   list-style: none;
+  transition: color var(--motion-fast) var(--ease-standard);
 }
 
 .resolvedSummary::-webkit-details-marker {
@@ -42,6 +47,11 @@
 
 .resolvedCaret {
   flex: none;
+  transition: transform var(--motion-standard) var(--ease-standard);
+}
+
+.resolvedSummary:hover {
+  color: var(--text-primary);
 }
 
 .resolvedDetails[open] > .resolvedSummary .resolvedCaret {
@@ -243,4 +253,11 @@
   justify-content: flex-end;
   gap: 8px;
   padding: 4px 14px 14px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .approvalCard,
+  .resolvedCaret {
+    transition: none;
+  }
 }
