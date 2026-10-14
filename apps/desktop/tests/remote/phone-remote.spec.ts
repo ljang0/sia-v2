@@ -361,7 +361,9 @@ test('revoked pairing shows a useful reconnect message and removes old task cont
     await route.fulfill({ response });
   });
   await expect(
-    page.getByText('Remote unavailable. Scan the current QR code in Sia on your Mac.'),
+    page.getByText(
+      'This phone isn’t linked to Sia anymore. On your Mac, open Sia and scan the new QR code with your phone camera.',
+    ),
   ).toBeVisible();
   await page.getByRole('textbox').fill('Do not send');
   await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();

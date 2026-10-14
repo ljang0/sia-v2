@@ -156,10 +156,10 @@ export function Welcome({
       >
         <div className="welcome-suggestions-content" ref={content}>
           <div className="ideas-heading">
-            <span>A PLACE TO START</span>
+            <span>Ideas to try</span>
             <button onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
               {expanded ? 'Show less' : 'More ideas'}
-              <ArrowRight size={14} />
+              <ArrowRight size={16} />
             </button>
           </div>
           <div className="idea-grid">
@@ -181,7 +181,7 @@ export function Welcome({
           </div>
           {!!recents.length && (
             <div className="recent-prompts">
-              <span className="eyebrow">PICK IT BACK UP</span>
+              <span className="eyebrow">Your recent requests</span>
               {recents.slice(0, 2).map((prompt) => (
                 <button key={prompt} onClick={() => onChoose(prompt)}>
                   <ClockCounterClockwise size={17} />
@@ -223,12 +223,12 @@ export function Activity({
   return (
     <section className="activity-page">
       <div className="page-heading">
-        <span className="eyebrow">OFF YOUR PLATE. RIGHT HERE.</span>
+        <span className="eyebrow">Your tasks</span>
         <h1>A little less to do.</h1>
         <p>
           {active
-            ? `${active} ${active === 1 ? 'task in motion' : 'tasks in motion'}. ${online ? 'Follow along below.' : 'Reconnecting for updates.'}`
-            : 'Every request, reply, and result in this chat.'}
+            ? `${active} ${active === 1 ? 'task is' : 'tasks are'} still going. ${online ? 'Follow along below.' : 'Waiting for your Mac to send updates.'}`
+            : 'Everything you asked for in this chat, and what came back.'}
         </p>
       </div>
       <div className="activity-filters" aria-label="Task filter">
@@ -253,9 +253,9 @@ export function Activity({
                 <div className="task-card-top">
                   <span className="turn-status" data-status={turn.status} key={turn.status}>
                     {turn.status === 'done' ? (
-                      <Check size={13} />
+                      <Check size={16} />
                     ) : turn.status === 'working' ? (
-                      <CircleNotch size={13} className="spin" />
+                      <CircleNotch size={16} className="spin" />
                     ) : (
                       <span className="status-disc" />
                     )}
