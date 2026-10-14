@@ -27,7 +27,7 @@
 }
 
 .dialogOverlay[data-state='open'] {
-  animation: overlayEnter var(--motion-standard) var(--ease-standard);
+  animation: overlayEnter var(--motion-surface) var(--ease-out-soft);
 }
 
 /* Unmount immediately: occluded windows can suspend animationend indefinitely. */
@@ -50,8 +50,12 @@
   transform: translate(-50%, -50%);
 }
 
+/* Alert dialogs carry confirmations, consent, and destructive choices: they fade and settle a
+   short rise into place, trailing the backdrop slightly, and never bounce or scale. */
 .alertDialogContent[data-state='open'] {
-  animation: dialogEnter var(--motion-surface) var(--ease-standard);
+  animation: dialogEnter var(--motion-surface) var(--ease-out-soft);
+  animation-delay: calc(var(--motion-stagger) * 2);
+  animation-fill-mode: backwards;
 }
 
 .alertDialogContent[data-state='closed'] {
@@ -93,7 +97,7 @@
 @keyframes dialogEnter {
   from {
     opacity: 0;
-    transform: translate(-50%, calc(-50% + 6px));
+    transform: translate(-50%, calc(-50% + var(--motion-rise)));
   }
   to {
     opacity: 1;

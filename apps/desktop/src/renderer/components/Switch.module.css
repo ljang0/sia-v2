@@ -12,10 +12,18 @@ input[type='checkbox'].switch {
   background: var(--bg-subtle);
   cursor: pointer;
   transition:
-    background-color var(--motion-fast) var(--ease-standard),
-    border-color var(--motion-fast) var(--ease-standard);
+    background-color var(--motion-standard) var(--ease-standard),
+    border-color var(--motion-standard) var(--ease-standard),
+    box-shadow var(--motion-fast) var(--ease-standard);
 }
 
+input[type='checkbox'].switch:hover:not(:disabled) {
+  box-shadow: 0 0 0 3px var(--bg-hover);
+}
+
+/* The thumb springs to its side and, while held, stretches toward where it is going, so the switch
+   reads as a physical toggle. The stretch derives from the pop scale, so Reduced Motion and Calm
+   (which set it to 1) keep the thumb still. */
 input[type='checkbox'].switch::before {
   position: absolute;
   top: 2px;
@@ -25,7 +33,15 @@ input[type='checkbox'].switch::before {
   border-radius: 50%;
   background: var(--text-tertiary);
   content: '';
-  transition: transform var(--motion-fast) var(--ease-standard);
+  transform-origin: left center;
+  transition:
+    translate var(--motion-emphasis) var(--ease-spring),
+    scale var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-standard) var(--ease-standard);
+}
+
+input[type='checkbox'].switch:active:not(:disabled)::before {
+  scale: calc(1 + (1 - var(--motion-pop-scale)) * 5) 1;
 }
 
 input[type='checkbox'].switch:checked {
@@ -35,7 +51,8 @@ input[type='checkbox'].switch:checked {
 
 input[type='checkbox'].switch:checked::before {
   background: var(--bg-canvas);
-  transform: translateX(14px);
+  transform-origin: right center;
+  translate: 14px 0;
 }
 
 input[type='checkbox'].switch:focus-visible {

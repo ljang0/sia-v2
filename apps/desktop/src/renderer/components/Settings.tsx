@@ -36,6 +36,7 @@ import { AppearanceSettings } from './settings/AppearanceSettings';
 import type { TextSize, ThemePreference } from '../../shared/display';
 import { VoiceSettings } from './settings/VoiceSettings';
 import { StartupSettings } from './settings/StartupSettings';
+import { useNavIndicator } from './settings/useNavIndicator';
 
 export type SettingsSection =
   | 'appearance'
@@ -186,6 +187,13 @@ export function Settings({
     canReviewRelease && snapshot.cloudAuth.features?.researchArchive !== false,
   );
 
+  const moreActive =
+    ['appearance', 'about', 'advanced', 'assistant', 'release', 'research'].includes(section) ||
+    (compactNav && (section === 'scotty' || section === 'phone')) ||
+    (narrowNav && section === 'voice') ||
+    (usesMac && section === 'apps');
+  const indicator = useNavIndicator(nav, `${section}:${compactNav}:${narrowNav}:${usesMac}`);
+
   useEffect(() => {
     if (
       (section === 'release' && !canReviewRelease) ||
@@ -214,6 +222,7 @@ export function Settings({
 
       <div className={styles.settingsLayout}>
         <nav ref={nav} className={styles.settingsNav} aria-label="Settings sections">
+          <span ref={indicator} className={styles.settingsNavIndicator} aria-hidden="true" />
           <SettingsNavButton
             active={section === 'providers'}
             icon={<Sparkle size={17} aria-hidden="true" />}
@@ -268,21 +277,8 @@ export function Settings({
             <DropdownMenu.Trigger asChild>
               <button
                 type="button"
-                className={
-                  [
-                    'appearance',
-                    'about',
-                    'advanced',
-                    'assistant',
-                    'release',
-                    'research',
-                  ].includes(section) ||
-                  (compactNav && (section === 'scotty' || section === 'phone')) ||
-                  (narrowNav && section === 'voice') ||
-                  (usesMac && section === 'apps')
-                    ? styles.settingsNavActive
-                    : undefined
-                }
+                className={moreActive ? styles.settingsNavActive : undefined}
+                data-nav-active={moreActive || undefined}
                 aria-label="More settings"
               >
                 More <CaretDown size={12} aria-hidden="true" />
@@ -523,6 +519,7 @@ function SettingsNavButton({
       onClick={onClick}
       aria-label={label}
       aria-current={active ? 'page' : undefined}
+      data-nav-active={active || undefined}
       title={label}
     >
       {icon}

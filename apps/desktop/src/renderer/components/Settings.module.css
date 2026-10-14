@@ -85,13 +85,58 @@
 
 .settingsNav button:active {
   opacity: 0.72;
-  transform: none;
+  transform: scale(var(--motion-pop-scale));
 }
 
 .settingsNav .settingsNavActive {
   background: var(--bg-selected);
   color: var(--text-primary);
   font-weight: var(--weight-semibold);
+}
+
+/* One highlight glides between tabs (settings/useNavIndicator.ts): it covers the nav and is clipped
+   to the active tab, so only clip-path animates. Until it is measured, tabs keep their own fill. */
+.settingsNav {
+  --indicator-clip: inset(50%);
+
+  position: relative;
+  isolation: isolate;
+}
+
+.settingsNavIndicator {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  background: var(--bg-selected);
+  clip-path: var(--indicator-clip);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settingsNav[data-indicator] .settingsNavIndicator {
+  opacity: 1;
+}
+
+.settingsNav[data-indicator='ready'] .settingsNavIndicator {
+  transition: clip-path var(--motion-emphasis) var(--ease-spring);
+}
+
+.settingsNav[data-indicator] .settingsNavActive,
+.settingsNav[data-indicator] .settingsNavActive:hover {
+  background: transparent;
+}
+
+/* A new section crossfades in and its blocks follow in a short stagger (SettingsShared.module.css). */
+.settingsContent {
+  animation: settingsPaneEnter var(--motion-surface) var(--ease-out-soft);
+}
+
+@keyframes settingsPaneEnter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-rise) / 2));
+  }
 }
 
 .settingsContent {
@@ -193,7 +238,17 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .settingsContent {
+    animation: none;
+  }
+}
+
 @media (forced-colors: active) {
+  .settingsNavIndicator {
+    display: none;
+  }
+
   .settingsNavActive {
     outline: 2px solid Highlight;
     outline-offset: -2px;

@@ -45,7 +45,7 @@ interface InspectorProps {
 
 type AccessTab = 'browser' | 'computer' | 'data';
 
-/** Matches --motion-fast, the panel's closing animation. */
+/** At least --motion-exit, the panel's closing animation. */
 const CLOSE_MS = 160;
 
 export function Inspector({

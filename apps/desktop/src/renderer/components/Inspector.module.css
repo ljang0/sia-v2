@@ -76,7 +76,10 @@
   border-radius: var(--radius-dialog);
   background: var(--bg-raised);
   box-shadow: var(--shadow-float);
-  animation: inspectorEnter var(--motion-surface) var(--ease-standard);
+  /* Access is a permissions surface: it slides in and settles without overshoot. */
+  animation:
+    inspectorFade var(--motion-surface) var(--ease-out-soft),
+    inspectorEnter var(--motion-emphasis) var(--ease-out-soft);
 }
 
 .inspectorOverlay {
@@ -84,21 +87,22 @@
   z-index: var(--layer-overlay);
   inset: 0;
   background: color-mix(in srgb, var(--overlay) 76%, transparent);
-  animation: overlayEnter var(--motion-standard) var(--ease-standard);
+  animation: overlayEnter var(--motion-surface) var(--ease-out-soft);
 }
 
+/* Leaving is quicker than arriving and accelerates away toward the edge it came from. */
 .inspector[data-state='closed'] {
-  animation: inspectorExit var(--motion-fast) ease-in forwards;
+  animation: inspectorExit var(--motion-exit) var(--ease-exit) forwards;
 }
 
 .inspectorOverlay[data-state='closed'] {
-  animation: inspectorOverlayExit var(--motion-fast) ease-in forwards;
+  animation: inspectorOverlayExit var(--motion-exit) var(--ease-exit) forwards;
 }
 
 @keyframes inspectorExit {
   to {
     opacity: 0;
-    transform: translateX(10px);
+    transform: translateX(calc(var(--motion-rise) * 2));
   }
 }
 
@@ -108,13 +112,17 @@
   }
 }
 
-@keyframes inspectorEnter {
+@keyframes inspectorFade {
   from {
     opacity: 0;
-    transform: translateX(10px);
+  }
+}
+
+@keyframes inspectorEnter {
+  from {
+    transform: translateX(calc(var(--motion-rise) * 3));
   }
   to {
-    opacity: 1;
     transform: translateX(0);
   }
 }
@@ -133,6 +141,36 @@
   min-height: 0;
   overflow-y: auto;
   padding: 18px 16px;
+}
+
+/* Opening the panel or switching its tab brings the panel's sections in a short stagger after the
+   surface itself has mostly landed. */
+.inspectorBody > *,
+.inspectorEmpty > * {
+  animation: inspectorSectionEnter var(--motion-surface) var(--ease-out-soft) backwards;
+  animation-delay: var(--motion-stagger);
+}
+
+.inspectorBody > :nth-child(2),
+.inspectorEmpty > :nth-child(2) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+
+.inspectorBody > :nth-child(3),
+.inspectorEmpty > :nth-child(3) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+
+.inspectorBody > :nth-child(n + 4),
+.inspectorEmpty > :nth-child(n + 4) {
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+
+@keyframes inspectorSectionEnter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-rise) / 2));
+  }
 }
 
 .inspectorEmpty {
@@ -370,7 +408,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   .inspector,
-  .inspectorOverlay {
+  .inspectorOverlay,
+  .inspectorBody > *,
+  .inspectorEmpty > * {
     animation: none;
   }
 }
