@@ -20,6 +20,7 @@ import { SetupConnections } from './OnboardingConnections';
 import { SetupMacAccess } from './SetupMacAccess';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import buttons from '../styles/buttons.module.css';
+import layout from '../styles/layout.module.css';
 import styles from './Onboarding.module.css';
 import { errorMessage } from '../plainErrors';
 
@@ -273,7 +274,12 @@ export function Onboarding({
               <CheckCircle size={30} weight="fill" />
             </span>
           ) : null}
-          <h1 ref={title} tabIndex={-1}>
+          <h1
+            ref={title}
+            tabIndex={-1}
+            data-done={done || undefined}
+            className={done ? layout.gradientHeading : undefined}
+          >
             {starting
               ? 'Let’s set up Sia.'
               : connectedSetup
@@ -282,7 +288,7 @@ export function Onboarding({
                   ? 'You’re all set.'
                   : 'Give Sia access to your Mac.'}
           </h1>
-          <p className={styles.intro}>
+          <p className={styles.intro} data-done={done || undefined}>
             {starting
               ? 'A few quick steps, then Sia can help with everyday tasks in the apps you already use.'
               : connectedSetup
@@ -568,15 +574,28 @@ export function Onboarding({
 }
 
 /** A calm, one-time note that setup finished; it steps aside on its own. */
-function SetupDoneToast({ onDone }: { onDone(): void }) {
+export function SetupDoneToast({ onDone }: { onDone(): void }) {
   const done = useRef(onDone);
   done.current = onDone;
+  const [leaving, setLeaving] = useState(false);
   useEffect(() => {
-    const timer = window.setTimeout(() => done.current(), 6000);
-    return () => window.clearTimeout(timer);
+    const leave = window.setTimeout(() => setLeaving(true), 6000);
+    // Removes the note even when a hidden window suppresses the exit animation's end event.
+    const remove = window.setTimeout(() => done.current(), 6400);
+    return () => {
+      window.clearTimeout(leave);
+      window.clearTimeout(remove);
+    };
   }, []);
   return (
-    <div className={styles.doneToast} role="status">
+    <div
+      className={styles.doneToast}
+      role="status"
+      data-leaving={leaving || undefined}
+      onAnimationEnd={(event) => {
+        if (leaving && event.target === event.currentTarget) done.current();
+      }}
+    >
       <CheckCircle size={18} weight="fill" aria-hidden="true" />
       <span>
         <strong>You’re all set.</strong> Ask Sia anything, or try a suggestion below.

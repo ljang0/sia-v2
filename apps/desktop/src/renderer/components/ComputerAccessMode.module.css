@@ -62,8 +62,33 @@
   cursor: pointer;
 }
 
+.choice {
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    background-color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-standard) var(--ease-out-soft),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.choice:hover {
+  border-color: var(--border-strong);
+}
+
+.choice:active {
+  transform: translateY(calc(var(--motion-nudge) / 3));
+}
+
+/* The chosen mode lifts slightly so the current choice is obvious at a glance. */
 .choice:has(input:checked) {
   border-color: var(--focus-ring);
+  background: var(--bg-raised);
+  box-shadow: 0 0 0 3px var(--surface-success);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .choice {
+    transition: none;
+  }
 }
 
 .choice:has(input:focus-visible) {

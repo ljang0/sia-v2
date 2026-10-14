@@ -207,6 +207,8 @@ export function SetupMacAccess({
   const [skipped, setSkipped] = useState<readonly string[]>(initialSkipped ?? []);
   const [asked, setAsked] = useState<readonly string[]>([]);
   const requested = useRef(new Set<string>());
+  // Rows seen waiting in this view; only these play the settle when they turn ready.
+  const waited = useRef(new Set<string>());
   const requesting = useRef(false);
   const refreshing = useRef(false);
   const generation = useRef(0);
@@ -379,8 +381,15 @@ export function SetupMacAccess({
         : row.state === 'denied' || !row.guided
           ? 'Open Settings'
           : 'Allow';
+    if (row.state !== 'ready') waited.current.add(row.id);
     return (
-      <li className={styles.permission} key={row.id} data-state={row.state}>
+      <li
+        className={styles.permission}
+        key={row.id}
+        data-state={row.state}
+        data-settled={(row.state === 'ready' && waited.current.has(row.id)) || undefined}
+        data-current={(active && current?.id === row.id) || undefined}
+      >
         <div>
           <strong>{row.name}</strong>
           <p>{row.why}</p>
@@ -409,10 +418,10 @@ export function SetupMacAccess({
   };
 
   return (
-    <section aria-label="Guided Mac permissions">
+    <section className={styles.accessSection} aria-label="Guided Mac permissions">
       {!compact && <h3>Set up Mac access in one go</h3>}
       <p className={styles.accessSummary} role="status">
-        <strong>
+        <strong key={readyCount} data-ready={(requiredReady && !current) || undefined}>
           {requiredReady && !current
             ? 'Mac access is ready.'
             : `${readyCount} of ${shown.length} permissions ready`}
@@ -424,9 +433,13 @@ export function SetupMacAccess({
         {shown.some((row) => row.state === 'closed') && (
           <span>Closed apps need to open before macOS can check their existing access.</span>
         )}
-        <span className={styles.meter} aria-hidden="true">
+        <span
+          className={styles.meter}
+          aria-hidden="true"
+          data-full={readyCount === shown.length || undefined}
+        >
           <span
-            style={{ width: `${shown.length ? (readyCount / shown.length) * 100 : 100}%` }}
+            style={{ transform: `scaleX(${shown.length ? readyCount / shown.length : 1})` }}
           />
         </span>
       </p>
@@ -446,7 +459,8 @@ export function SetupMacAccess({
         </div>
       ) : null}
       {active && current && (
-        <div className={styles.permissionGuide}>
+        // Keyed so each step of the pass arrives on its own instead of swapping text in place.
+        <div className={styles.permissionGuide} key={current.id}>
           <span className={styles.eyebrow}>
             Step {walk.indexOf(current) + 1} of {walk.length}
             {current.optional ? ' · Optional' : ''}

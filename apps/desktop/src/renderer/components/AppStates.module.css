@@ -7,7 +7,21 @@
   padding: 7px 14px;
   border-bottom: 1px solid var(--border-subtle);
   font-size: var(--text-sm);
-  animation: statusEnter var(--motion-standard) var(--ease-out-soft) both;
+  animation: statusEnter var(--motion-emphasis) var(--ease-out-soft) both;
+}
+
+.offlineBanner > svg,
+.actionError > svg {
+  flex: none;
+  animation: iconSettle var(--motion-emphasis) var(--ease-spring) var(--motion-stagger) both;
+}
+
+/* While offline, the icon breathes slowly: Sia is still waiting to reconnect, not stuck. */
+.offlineBanner > svg {
+  animation:
+    iconSettle var(--motion-emphasis) var(--ease-spring) var(--motion-stagger) both,
+    waitingBreath calc(var(--motion-spin) * 2.4) var(--ease-standard) var(--motion-emphasis)
+      infinite alternate;
 }
 
 .offlineBanner {
@@ -73,23 +87,34 @@
 }
 
 .actionError button:active {
-  transform: translateY(1px) scale(0.98);
+  transform: translateY(calc(var(--motion-nudge) / 3)) scale(0.98);
 }
 
 @keyframes statusEnter {
   from {
     opacity: 0;
-    transform: translateY(-3px);
+    transform: translateY(calc(var(--motion-nudge) * -1));
   }
+}
+
+@keyframes iconSettle {
+  from {
+    opacity: 0;
+    transform: scale(var(--motion-pop-scale));
+  }
+}
+
+@keyframes waitingBreath {
   to {
-    opacity: 1;
-    transform: translateY(0);
+    opacity: 0.55;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .offlineBanner,
-  .actionError {
+  .actionError,
+  .offlineBanner > svg,
+  .actionError > svg {
     animation: none;
   }
 }

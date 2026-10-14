@@ -24,8 +24,12 @@
   padding: 16px 0;
   border-top: 1px solid var(--border-subtle);
 }
+.choice:has(input:not(:disabled)) {
+  cursor: pointer;
+}
 .choice input {
   flex-shrink: 0;
+  accent-color: var(--bg-accent);
 }
 .description {
   display: grid;
@@ -41,15 +45,55 @@
   font-size: var(--text-sm);
   line-height: 1.5;
 }
+/* Status reads as a chip, matching the Mac permission rows above it in setup. */
 .ready,
 .status {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  max-width: 150px;
+  padding: 3px 9px;
+  border-radius: var(--radius-round);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
   font-size: var(--text-xs);
-  max-width: 130px;
   text-align: right;
 }
 .ready {
+  background: var(--surface-success);
   color: var(--text-success);
   font-weight: 650;
+  animation: chipSettle var(--motion-emphasis) var(--ease-spring) both;
+}
+/* Waiting on a browser sign-in: a small breathing dot says Sia is listening for the result. */
+.status[data-approving]::before {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: var(--radius-round);
+  background: var(--focus-ring);
+  content: '';
+  animation: approvingBreath calc(var(--motion-spin) * 1.2) var(--ease-standard) infinite
+    alternate;
+}
+@keyframes chipSettle {
+  from {
+    opacity: 0;
+    transform: scale(var(--motion-pop-scale));
+  }
+}
+@keyframes approvingBreath {
+  from {
+    opacity: 0.35;
+    transform: scale(var(--motion-pop-scale));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ready,
+  .status[data-approving]::before {
+    animation: none;
+  }
 }
 .error {
   color: var(--text-danger);
@@ -58,4 +102,16 @@
 }
 .pending {
   margin-top: 14px;
+  animation: pendingIn var(--motion-emphasis) var(--ease-out-soft) both;
+}
+@keyframes pendingIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pending {
+    animation: none;
+  }
 }

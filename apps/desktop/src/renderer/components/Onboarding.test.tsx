@@ -1,12 +1,12 @@
 // @vitest-environment jsdom
 import { StrictMode } from 'react';
 import { automationApps } from '../../shared/mac-permissions';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { demoSnapshot } from '../demo/snapshot';
 import type { RendererApi } from '../types';
 import type { OnboardingStep } from '../../shared/bridge';
-import { Onboarding, onboardingStep } from './Onboarding';
+import { Onboarding, onboardingStep, SetupDoneToast } from './Onboarding';
 
 afterEach(cleanup);
 
@@ -679,4 +679,23 @@ it('summarizes the chosen way of working, including confirmations', () => {
   fireEvent.click(screen.getByRole('checkbox', { name: /Ask before each action/ }));
   fireEvent.click(screen.getByRole('radio', { name: /Connected apps only/ }));
   expect(screen.getByText('Works in your connected apps')).toBeTruthy();
+});
+
+it('lets the finished note step aside with a short exit before it is removed', () => {
+  vi.useFakeTimers();
+  const done = vi.fn();
+  render(<SetupDoneToast onDone={done} />);
+  const note = screen.getByRole('status');
+  expect(note.dataset.leaving).toBeUndefined();
+  act(() => {
+    vi.advanceTimersByTime(6000);
+  });
+  expect(note.dataset.leaving).toBe('true');
+  expect(done).not.toHaveBeenCalled();
+  // A hidden window may never report the exit animation's end; the note still goes.
+  act(() => {
+    vi.advanceTimersByTime(400);
+  });
+  expect(done).toHaveBeenCalled();
+  vi.useRealTimers();
 });

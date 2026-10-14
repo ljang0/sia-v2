@@ -75,7 +75,10 @@ export function ConnectionChecklist({
               <strong>{name}</strong>
               <span>{detail}</span>
             </span>
-            <span className={ready ? styles.ready : styles.status}>
+            <span
+              className={ready ? styles.ready : styles.status}
+              data-approving={(!ready && approving) || undefined}
+            >
               {ready
                 ? 'Connected'
                 : approving
