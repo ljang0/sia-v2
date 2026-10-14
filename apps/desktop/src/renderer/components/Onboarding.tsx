@@ -44,8 +44,8 @@ const INCLUDED: readonly { icon: Icon; title: string; detail: string }[] = [
   },
   {
     icon: Microphone,
-    title: 'Microphone and Fn dictation',
-    detail: 'Hold Fn and talk instead of typing.',
+    title: 'Talk instead of typing',
+    detail: 'Hold the Fn key and speak. Uses your microphone.',
   },
   {
     icon: LockKey,
@@ -83,7 +83,7 @@ function SetupProgress({ stage, connected }: { stage: number; connected: boolean
           aria-current={index === stage ? 'step' : undefined}
         >
           <span className={styles.progressMark} aria-hidden="true">
-            {index < stage ? <Check size={11} weight="bold" /> : index + 1}
+            {index < stage ? <Check size={13} weight="bold" /> : index + 1}
           </span>
           <span>{label}</span>
         </li>
@@ -295,7 +295,7 @@ export function Onboarding({
                 ? 'Choose the accounts you want Sia to use. You can also start chatting now and connect them later. No Mac permissions are needed.'
                 : done
                   ? 'Sia is ready to help. Connect more apps below, or jump right in.'
-                  : 'One guided pass through Mac access, voice, and your everyday apps. macOS asks you to approve each permission. You can pause and keep chatting anytime.'}
+                  : 'Sia walks you through each permission, one at a time. You approve each one in macOS. You can pause and keep chatting anytime.'}
           </p>
           {starting ? (
             <>
@@ -381,9 +381,7 @@ export function Onboarding({
                   </button>
                 </div>
               ) : (
-                <p className={styles.note}>
-                  Connect AI access above, then continue to permissions. No terminal is needed.
-                </p>
+                <p className={styles.note}>Connect an AI service above to continue.</p>
               )}
               <details ref={customize} className={styles.details}>
                 <summary>Customize setup</summary>
@@ -479,7 +477,7 @@ export function Onboarding({
           ) : (
             <>
               {connectedSetup ? null : restarting ? (
-                <p role="status">Relaunching Sia…</p>
+                <p role="status">Reopening Sia…</p>
               ) : (
                 <SetupMacAccess
                   snapshot={snapshot}
@@ -596,7 +594,7 @@ export function SetupDoneToast({ onDone }: { onDone(): void }) {
         if (leaving && event.target === event.currentTarget) done.current();
       }}
     >
-      <CheckCircle size={18} weight="fill" aria-hidden="true" />
+      <CheckCircle size={22} weight="fill" aria-hidden="true" />
       <span>
         <strong>You’re all set.</strong> Ask Sia anything, or try a suggestion below.
       </span>
