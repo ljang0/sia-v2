@@ -1144,6 +1144,10 @@ Resources:
               - Effect: Allow
                 Action: execute-api:ManageConnections
                 Resource: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${RemoteApi}/v1/*/@connections/*
+              # The control table is encrypted with the stack's key.
+              - Effect: Allow
+                Action: kms:Decrypt
+                Resource: !GetAtt DataKey.Arn
 
   RemoteFunction:
     Type: AWS::Serverless::Function
