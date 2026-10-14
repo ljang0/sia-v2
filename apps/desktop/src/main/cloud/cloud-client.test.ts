@@ -90,7 +90,7 @@ describe('CloudClient', () => {
     });
     const body = JSON.stringify({ model: 'meta/spark', stream: true, input: 'hello' });
 
-    const response = await client.forwardHostedResponses(body, undefined, {
+    const response = await client.forwardModelRequest('responses', body, undefined, {
       harnessId: 'codex_app_server',
     });
 

@@ -11,8 +11,13 @@ import { isRecord } from '../actions/records.js';
 const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
 const MAX_SCOPES = 256;
 
-export interface HostedResponsesForwarder {
-  forwardHostedResponses(
+/** The model APIs a harness may call through the proxy; each maps to the same cloud path. */
+export const MODEL_API_ROUTES = ['responses', 'messages', 'chat/completions'] as const;
+export type ModelApiRoute = (typeof MODEL_API_ROUTES)[number];
+
+export interface ModelRequestForwarder {
+  forwardModelRequest(
+    route: ModelApiRoute,
     body: string,
     signal?: AbortSignal,
     attribution?: { harnessId: string },
@@ -34,12 +39,13 @@ interface Scope {
 }
 
 /**
- * A loopback-only capability proxy between Codex App Server and Sia cloud.
- * Its bearer tokens authorize exactly one included model and reveal neither the
- * Sia identity token nor the model lab's permanent API key.
+ * A loopback-only capability proxy between a harness (Codex, Claude Code, OpenCode, …) and
+ * Sia cloud or the person's own provider. Its tokens authorize exactly one model and reveal
+ * neither the Sia identity token nor any lab or personal API key. Each harness calls the model
+ * API it speaks natively; the cloud relay translates to the lab's own protocol.
  */
-export class HostedResponsesProxy {
-  readonly #forwarder: HostedResponsesForwarder;
+export class HostedModelProxy {
+  readonly #forwarder: ModelRequestForwarder;
   readonly #scopes = new Map<string, Scope>();
   readonly #requests = new Set<AbortController>();
   #generation = 0;
@@ -48,16 +54,19 @@ export class HostedResponsesProxy {
   #starting: Promise<void> | undefined;
 
   readonly #provider: { readonly id: string; readonly name: string };
+  readonly #routes: ReadonlySet<ModelApiRoute>;
 
   constructor(
-    forwarder: HostedResponsesForwarder,
+    forwarder: ModelRequestForwarder,
     provider: { readonly id: string; readonly name: string } = {
       id: 'sia_included',
       name: 'Sia included models',
     },
+    routes: readonly ModelApiRoute[] = MODEL_API_ROUTES,
   ) {
     this.#forwarder = forwarder;
     this.#provider = provider;
+    this.#routes = new Set(routes);
   }
 
   async issue(model: string, harnessId: string): Promise<HostedCodexProvider> {
@@ -145,11 +154,13 @@ export class HostedResponsesProxy {
       if (!isLoopback(request.socket.remoteAddress)) {
         return jsonError(response, 403, 'forbidden', 'Loopback access is required.');
       }
-      if (request.method !== 'POST' || request.url !== '/v1/responses') {
+      const route = modelApiRoute(request.url);
+      if (request.method !== 'POST' || !route || !this.#routes.has(route)) {
         request.resume();
         return jsonError(response, 404, 'not_found', 'That local route is unavailable.');
       }
-      const token = bearerToken(request.headers.authorization);
+      // OpenAI clients send a bearer token; Anthropic clients send x-api-key.
+      const token = bearerToken(request.headers.authorization) ?? apiKeyHeader(request);
       const scope = token ? this.#scopes.get(token) : undefined;
       if (!scope) {
         request.resume();
@@ -190,7 +201,7 @@ export class HostedResponsesProxy {
       response.once('close', () => {
         if (!response.writableEnded) abort?.abort();
       });
-      const upstream = await this.#forwarder.forwardHostedResponses(body, signal, {
+      const upstream = await this.#forwarder.forwardModelRequest(route, body, signal, {
         harnessId: scope.harnessId,
       });
       if (signal.aborted || response.destroyed) {
@@ -252,6 +263,17 @@ function bearerToken(value: string | undefined): string | undefined {
   if (!value?.startsWith('Bearer ')) return undefined;
   const token = value.slice('Bearer '.length);
   return token.length > 0 ? token : undefined;
+}
+
+function apiKeyHeader(request: IncomingMessage): string | undefined {
+  const value = request.headers['x-api-key'];
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+/** `/v1/messages?beta=true` and similar client query strings select the same route. */
+function modelApiRoute(url: string | undefined): ModelApiRoute | undefined {
+  const path = url?.split('?', 1)[0];
+  return MODEL_API_ROUTES.find((route) => path === `/v1/${route}`);
 }
 
 function isLoopback(address: string | undefined): boolean {

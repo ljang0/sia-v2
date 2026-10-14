@@ -56,7 +56,7 @@ import { chromeRemoteDebuggingStatus } from './mac/chrome-debug-setup.js';
 import { MessagesService } from './mac/messages-service.js';
 
 import { CloudClient } from './cloud/cloud-client.js';
-import { HostedResponsesProxy } from './providers/hosted-responses-proxy.js';
+import { HostedModelProxy } from './providers/hosted-model-proxy.js';
 import { createAcpAdapter } from '@sia/runtime';
 import { LAB_HARNESS_MANIFEST_ENV, loadLabHarnessManifest } from './providers/lab-harness.js';
 import {
@@ -424,7 +424,7 @@ async function performApplicationCreation(): Promise<void> {
             openExternal: openSafeExternal,
           })
         : undefined;
-    const hostedResponsesProxy = fakeServices ? undefined : new HostedResponsesProxy(cloud);
+    const hostedModelProxy = fakeServices ? undefined : new HostedModelProxy(cloud);
     // The person's own API key: encrypted on disk, attached only by this loopback proxy.
     const byokCredential = fakeServices
       ? undefined
@@ -432,11 +432,13 @@ async function performApplicationCreation(): Promise<void> {
           encrypt: (value) => new ElectronPayloadCipher().encrypt(value),
           decrypt: (value) => new ElectronPayloadCipher().decrypt(value),
         });
-    const byokResponsesProxy = byokCredential
-      ? new HostedResponsesProxy(new ByokForwarder(() => byokCredential.read()), {
-          id: 'sia_byok',
-          name: 'Your API key',
-        })
+    const byokModelProxy = byokCredential
+      ? new HostedModelProxy(
+          new ByokForwarder(() => byokCredential.read()),
+          { id: 'sia_byok', name: 'Your API key' },
+          // Your own key is validated against a Responses endpoint only.
+          ['responses'],
+        )
       : undefined;
     let activeController!: DesktopController;
     const computer = new CuaService(
@@ -747,16 +749,16 @@ async function performApplicationCreation(): Promise<void> {
       ...(codexCommand ? { codexCommand } : {}),
       macContext: () => browserWindows.macContext(),
       metaTransport: cloud,
-      ...(hostedResponsesProxy
+      ...(hostedModelProxy
         ? {
             hostedCodexProvider: (providerSession) =>
-              hostedResponsesProxy.issue(providerSession.model, 'codex_app_server'),
+              hostedModelProxy.issue(providerSession.model, 'codex_app_server'),
           }
         : {}),
-      ...(byokResponsesProxy
+      ...(byokModelProxy
         ? {
             byokCodexProvider: (providerSession) =>
-              byokResponsesProxy.issue(providerSession.model, 'codex_app_server'),
+              byokModelProxy.issue(providerSession.model, 'codex_app_server'),
           }
         : {}),
       harnessAdapters: labHarnesses.map((harness) => ({
@@ -783,12 +785,12 @@ async function performApplicationCreation(): Promise<void> {
             onSessionsReset: () => capabilityHost!.revokeAll(),
           }
         : {}),
-      ...(hostedResponsesProxy || byokResponsesProxy || capabilityHost
+      ...(hostedModelProxy || byokModelProxy || capabilityHost
         ? {
             onDispose: async () => {
               await Promise.all([
-                hostedResponsesProxy?.dispose() ?? Promise.resolve(),
-                byokResponsesProxy?.dispose() ?? Promise.resolve(),
+                hostedModelProxy?.dispose() ?? Promise.resolve(),
+                byokModelProxy?.dispose() ?? Promise.resolve(),
                 capabilityHost ? capabilityHost.stop() : Promise.resolve(),
               ]);
             },

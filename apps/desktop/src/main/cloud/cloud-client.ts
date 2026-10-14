@@ -9,6 +9,7 @@ import type {
 } from '@sia/runtime';
 
 import type { CloudFeatureFlags, ConnectionId } from '../../shared/bridge.js';
+import type { ModelApiRoute } from '../providers/hosted-model-proxy.js';
 
 export interface IdTokenSource {
   read(): Promise<string | undefined>;
@@ -402,17 +403,18 @@ export class CloudClient implements MetaTransport {
   }
 
   /**
-   * Forwards only the Responses route used by the local Codex harness. The caller
-   * supplies opaque JSON; Sia identity is attached here and never enters Codex config.
+   * Forwards one model API call from the local model proxy to the matching cloud relay route.
+   * The caller supplies opaque JSON; Sia identity is attached here and never enters a harness.
    */
-  async forwardHostedResponses(
+  async forwardModelRequest(
+    route: ModelApiRoute,
     body: string,
     signal?: AbortSignal,
     attribution?: { harnessId: string },
   ): Promise<Response> {
     if (!this.#baseUrl) throw new Error('Sia cloud services are not configured.');
     const token = await this.#idTokens.read();
-    return await fetch(resolveCloudUrl(this.#baseUrl, '/v1/responses'), {
+    return await fetch(resolveCloudUrl(this.#baseUrl, `/v1/${route}`), {
       method: 'POST',
       headers: {
         accept: 'text/event-stream',

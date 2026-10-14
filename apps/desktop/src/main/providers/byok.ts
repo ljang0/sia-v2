@@ -14,7 +14,7 @@ import {
 import { dirname, join } from 'node:path';
 
 import type { PayloadCipher } from '../storage/persistence.js';
-import type { HostedResponsesForwarder } from './hosted-responses-proxy.js';
+import type { ModelApiRoute, ModelRequestForwarder } from './hosted-model-proxy.js';
 
 /**
  * A model the person reaches with their own API key. The key lives only in this encrypted
@@ -153,15 +153,19 @@ function summarize(config: ByokConfig): ByokSummary {
  * Attaches the person's key to the one Responses route the loopback proxy accepts. Provider
  * bodies pass through unchanged; request URLs and headers are never echoed.
  */
-export class ByokForwarder implements HostedResponsesForwarder {
+export class ByokForwarder implements ModelRequestForwarder {
   constructor(
     private readonly config: () => ByokConfig,
     private readonly request: typeof fetch = fetch,
   ) {}
 
-  async forwardHostedResponses(body: string, signal?: AbortSignal): Promise<Response> {
+  async forwardModelRequest(
+    route: ModelApiRoute,
+    body: string,
+    signal?: AbortSignal,
+  ): Promise<Response> {
     const { baseUrl, apiKey } = this.config();
-    return await this.request(`${baseUrl}/responses`, {
+    return await this.request(`${baseUrl}/${route}`, {
       method: 'POST',
       headers: {
         accept: 'text/event-stream',

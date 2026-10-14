@@ -11,11 +11,11 @@ import {
   DEFAULT_BYOK_BASE_URL,
   validateByokConfig,
 } from './byok.js';
-import { HostedResponsesProxy } from './hosted-responses-proxy.js';
+import { HostedModelProxy } from './hosted-model-proxy.js';
 
 const KEY = 'sk-test-0123456789abcdefghijklmnop';
 const directories: string[] = [];
-const proxies: HostedResponsesProxy[] = [];
+const proxies: HostedModelProxy[] = [];
 afterEach(async () => {
   await Promise.all(proxies.splice(0).map((proxy) => proxy.dispose()));
   for (const directory of directories.splice(0))
@@ -73,7 +73,7 @@ describe('your own API key', () => {
       model: 'lab/spark',
       apiKey: KEY,
     });
-    const proxy = new HostedResponsesProxy(
+    const proxy = new HostedModelProxy(
       new ByokForwarder(() => config, upstream as typeof fetch),
       { id: 'sia_byok', name: 'Your API key' },
     );

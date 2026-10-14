@@ -1,17 +1,17 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { HostedResponsesProxy } from './hosted-responses-proxy.js';
+import { HostedModelProxy, type ModelApiRoute } from './hosted-model-proxy.js';
 
-const proxies: HostedResponsesProxy[] = [];
+const proxies: HostedModelProxy[] = [];
 
 afterEach(async () => {
   await Promise.all(proxies.splice(0).map((proxy) => proxy.dispose()));
 });
 
-describe('HostedResponsesProxy', () => {
+describe('HostedModelProxy', () => {
   it('revokes an in-progress startup and can issue a fresh capability after reset', async () => {
-    const proxy = new HostedResponsesProxy({
-      forwardHostedResponses: vi.fn(async () => new Response('fresh')),
+    const proxy = new HostedModelProxy({
+      forwardModelRequest: vi.fn(async () => new Response('fresh')),
     });
     proxies.push(proxy);
     const issued = proxy.issue('meta/spark', 'codex_app_server');
@@ -34,8 +34,8 @@ describe('HostedResponsesProxy', () => {
   it('aborts active model streams when reset instead of waiting for them to finish', async () => {
     let upstreamSignal: AbortSignal | undefined;
     let closeUpstream: (() => void) | undefined;
-    const proxy = new HostedResponsesProxy({
-      forwardHostedResponses: vi.fn(async (_body, signal) => {
+    const proxy = new HostedModelProxy({
+      forwardModelRequest: vi.fn(async (_route, _body, signal) => {
         upstreamSignal = signal;
         return new Response(
           new ReadableStream<Uint8Array>({
@@ -71,8 +71,13 @@ describe('HostedResponsesProxy', () => {
   });
 
   it('uses an opaque model-scoped loopback capability and streams the forwarded response', async () => {
-    const forwardHostedResponses = vi.fn(
-      async (body: string, _signal?: AbortSignal, _attribution?: { harnessId: string }) => {
+    const forwardModelRequest = vi.fn(
+      async (
+        _route: ModelApiRoute,
+        body: string,
+        _signal?: AbortSignal,
+        _attribution?: { harnessId: string },
+      ) => {
         expect(JSON.parse(body)).toMatchObject({ model: 'meta/spark', stream: true });
         return new Response('data: {"type":"response.completed"}\n\ndata: [DONE]\n\n', {
           status: 200,
@@ -80,7 +85,7 @@ describe('HostedResponsesProxy', () => {
         });
       },
     );
-    const proxy = new HostedResponsesProxy({ forwardHostedResponses });
+    const proxy = new HostedModelProxy({ forwardModelRequest });
     proxies.push(proxy);
     const provider = await proxy.issue('meta/spark', 'codex_app_server');
     const endpoint = `${provider.baseUrl}/responses`;
@@ -116,15 +121,16 @@ describe('HostedResponsesProxy', () => {
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('text/event-stream');
     expect(await response.text()).toContain('response.completed');
-    expect(forwardHostedResponses).toHaveBeenCalledTimes(1);
-    expect(forwardHostedResponses.mock.calls[0]?.[2]).toEqual({
+    expect(forwardModelRequest).toHaveBeenCalledTimes(1);
+    expect(forwardModelRequest.mock.calls[0]?.[0]).toBe('responses');
+    expect(forwardModelRequest.mock.calls[0]?.[3]).toEqual({
       harnessId: 'codex_app_server',
     });
   });
 
   it('rejects a capability request for an unsafe harness id', async () => {
-    const proxy = new HostedResponsesProxy({
-      forwardHostedResponses: vi.fn(async () => new Response('unexpected')),
+    const proxy = new HostedModelProxy({
+      forwardModelRequest: vi.fn(async () => new Response('unexpected')),
     });
     proxies.push(proxy);
     await expect(proxy.issue('meta/spark', 'Codex App Server')).rejects.toThrow(
@@ -132,9 +138,59 @@ describe('HostedResponsesProxy', () => {
     );
   });
 
-  it('exposes no route beyond Responses and bounds request bodies', async () => {
-    const proxy = new HostedResponsesProxy({
-      forwardHostedResponses: vi.fn(async () => new Response('unexpected')),
+  it('serves Anthropic and Chat Completions clients with the same model-scoped capability', async () => {
+    const forwardModelRequest = vi.fn(
+      async (route: ModelApiRoute) => new Response(`relayed ${route}`, { status: 200 }),
+    );
+    const proxy = new HostedModelProxy({ forwardModelRequest });
+    proxies.push(proxy);
+    const provider = await proxy.issue('meta/spark', 'claude_code');
+    const body = JSON.stringify({ model: 'meta/spark', stream: true, messages: [] });
+
+    // Anthropic SDKs send x-api-key and may append a query string.
+    const messages = await fetch(`${provider.baseUrl}/messages?beta=true`, {
+      method: 'POST',
+      headers: { 'x-api-key': provider.bearerToken, 'content-type': 'application/json' },
+      body,
+    });
+    expect(await messages.text()).toBe('relayed messages');
+    const chat = await fetch(`${provider.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${provider.bearerToken}` },
+      body,
+    });
+    expect(await chat.text()).toBe('relayed chat/completions');
+    expect(forwardModelRequest.mock.calls.map(([route]) => route)).toEqual([
+      'messages',
+      'chat/completions',
+    ]);
+    const wrongKey = await fetch(`${provider.baseUrl}/messages`, {
+      method: 'POST',
+      headers: { 'x-api-key': 'not-the-capability' },
+      body,
+    });
+    expect(wrongKey.status).toBe(401);
+  });
+
+  it('limits a proxy to the routes it was built for', async () => {
+    const proxy = new HostedModelProxy(
+      { forwardModelRequest: vi.fn(async () => new Response('unexpected')) },
+      { id: 'sia_byok', name: 'Your API key' },
+      ['responses'],
+    );
+    proxies.push(proxy);
+    const provider = await proxy.issue('lab/spark', 'codex_app_server');
+    const response = await fetch(`${provider.baseUrl}/messages`, {
+      method: 'POST',
+      headers: { 'x-api-key': provider.bearerToken },
+      body: JSON.stringify({ model: 'lab/spark' }),
+    });
+    expect(response.status).toBe(404);
+  });
+
+  it('exposes no other route and bounds request bodies', async () => {
+    const proxy = new HostedModelProxy({
+      forwardModelRequest: vi.fn(async () => new Response('unexpected')),
     });
     proxies.push(proxy);
     const provider = await proxy.issue('meta/spark', 'codex_app_server');
