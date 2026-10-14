@@ -4,7 +4,6 @@ import {
   ArrowRight,
   ArrowUp,
   ArrowUpRight,
-  Check,
   ChatsCircle,
   ArrowsOutCardinal,
   Moon,
@@ -13,181 +12,15 @@ import {
   X,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
-import type { ScottyAction, ScottyApi, ScottyState, ScottyStatus } from '../../shared/scotty';
-import { ScottySprite, type ScottyPose } from './ScottySprite';
+import type { ScottyAction, ScottyApi } from '../../shared/scotty';
+import { ScottySprite } from './ScottySprite';
+import '../tokens.css';
 import styles from './Scotty.module.css';
-import { useTextSize } from '../textSize';
 import { errorMessage } from '../plainErrors';
-const empty: ScottyState = {
-  revision: -1,
-  settings: { enabled: false, size: 'medium', motion: true },
-  available: false,
-  status: 'idle',
-  agents: [],
-  tasks: [],
-  workingCount: 0,
-  attentionCount: 0,
-  moreTasks: false,
-};
-const labels: Record<ScottyStatus, string> = {
-  idle: 'Here with you',
-  working: 'Working',
-  input: 'Needs you',
-  ready: 'Ready',
-  blocked: 'Needs attention',
-};
-const poses: Record<ScottyStatus, ScottyPose> = {
-  idle: 'idle',
-  working: 'working',
-  input: 'curious',
-  ready: 'happy',
-  blocked: 'curious',
-};
-function useScotty(api: ScottyApi) {
-  const [state, setState] = useState(empty);
-  const [error, setError] = useState('');
-  useEffect(() => {
-    let active = true;
-    let received = false;
-    const receive = (next: ScottyState) => {
-      if (active) {
-        received = true;
-        setState(next);
-      }
-    };
-    const unsubscribe = api.onState(receive);
-    void api
-      .state()
-      .then((next) => {
-        if (active && !received) setState(next);
-      })
-      .catch(() => {
-        if (active) setError('Scotty could not connect to Sia.');
-      });
-    return () => {
-      active = false;
-      unsubscribe();
-    };
-  }, [api]);
-  useTextSize(state.textSize);
-  return { state, error, setError };
-}
-export function ScottyPet({ api = window.siaScotty }: { api?: ScottyApi }) {
-  const { state, error, setError } = useScotty(api);
-  const [dragging, setDragging] = useState(false);
-  const [sleeping, setSleeping] = useState(false);
-  const pointer = useRef<{ x: number; y: number; moved: boolean } | undefined>(undefined);
-  const interacting = useRef(false);
-  useEffect(() => {
-    setSleeping(false);
-    if (state.status !== 'idle') return;
-    const timeout = setTimeout(() => setSleeping(true), 60000);
-    return () => clearTimeout(timeout);
-  }, [state.status]);
-  useEffect(() => {
-    const move = (event: MouseEvent) => {
-      const interactive =
-        event.target instanceof Element && Boolean(event.target.closest('[data-scotty-hit]'));
-      if (interacting.current !== interactive) {
-        interacting.current = interactive;
-        api.interactive(interactive);
-      }
-    };
-    const leave = () => {
-      if (!pointer.current) {
-        interacting.current = false;
-        api.interactive(false);
-      }
-    };
-    document.addEventListener('mousemove', move);
-    document.addEventListener('mouseleave', leave);
-    return () => {
-      document.removeEventListener('mousemove', move);
-      document.removeEventListener('mouseleave', leave);
-    };
-  }, [api]);
-  const run = (promise: Promise<unknown>) => {
-    void promise.catch(() => setError('Open Sia to reconnect Scotty.'));
-  };
-  const finishDrag = (cancelled: boolean) => {
-    const was = pointer.current;
-    if (!was) return;
-    pointer.current = undefined;
-    setDragging(false);
-    run(api.move('end'));
-    if (!cancelled && !was.moved) run(api.expand(true));
-  };
-  const pose = dragging
-    ? 'trot'
-    : sleeping && state.status === 'idle'
-      ? 'sleep'
-      : poses[state.status];
-  const size = { small: 112, medium: 144, large: 176 }[state.settings.size];
-  return (
-    <main className={styles.pet} data-status={state.status} data-motion={state.settings.motion}>
-      <button
-        className={styles.dog}
-        data-scotty-hit
-        aria-label="Scotty. Drag to move; click to open tasks."
-        title="Drag Scotty to move · click for tasks"
-        data-dragging={dragging}
-        onPointerDown={(event) => {
-          if (event.button !== 0) return;
-          event.preventDefault();
-          event.currentTarget.setPointerCapture(event.pointerId);
-          pointer.current = { x: event.screenX, y: event.screenY, moved: false };
-          setSleeping(false);
-          run(api.move('start'));
-        }}
-        onPointerMove={(event) => {
-          const current = pointer.current;
-          if (!current) return;
-          if (Math.hypot(event.screenX - current.x, event.screenY - current.y) > 4)
-            current.moved = true;
-          if (current.moved) {
-            setDragging(true);
-            run(api.move('update'));
-          }
-        }}
-        onPointerUp={() => finishDrag(false)}
-        onPointerCancel={() => finishDrag(true)}
-        onLostPointerCapture={() => finishDrag(true)}
-        onClick={(event) => {
-          if (event.detail === 0) run(api.expand(true));
-        }}
-        onKeyDown={(event) => {
-          const deltas: Record<string, [number, number]> = {
-            ArrowLeft: [-20, 0],
-            ArrowRight: [20, 0],
-            ArrowUp: [0, -20],
-            ArrowDown: [0, 20],
-          };
-          const delta = deltas[event.key];
-          if (delta) {
-            event.preventDefault();
-            run(api.nudge(...delta));
-          }
-        }}
-      >
-        <ScottySprite pose={pose} size={size} motion={state.settings.motion} />
-      </button>
-      <button
-        data-scotty-hit
-        className={styles.badge}
-        onClick={() => run(api.expand(true))}
-        aria-label="Open Scotty tasks"
-      >
-        <span className={styles.dot} />
-        {error ? 'Open Sia' : labels[state.status]}
-        {state.attentionCount > 0 ? (
-          <b>{state.attentionCount}</b>
-        ) : state.workingCount > 0 ? (
-          <b>{state.workingCount}</b>
-        ) : null}
-      </button>
-    </main>
-  );
-}
+import { dismissMotion, summon } from './floatingMotion';
+import { ScottyTaskDetail } from './ScottyTaskDetail';
+import { poses, useScotty } from './useScotty';
+export { ScottyPet } from './ScottyPet';
 
 export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
   const { state, error, setError } = useScotty(api);
@@ -198,7 +31,27 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
   const [busy, setBusy] = useState(false);
   const [moving, setMoving] = useState(false);
   const field = useRef<HTMLTextAreaElement>(null);
+  const root = useRef<HTMLElement>(null);
+  const exit = useRef<Animation | undefined>(undefined);
+  const away = useRef(false);
+  const motion = state.settings.motion;
+  const loaded = state.revision >= 0;
   const task = state.tasks.find((item) => item.id === selectedId);
+  // The tray window is shown and hidden, not remounted: arrive once loaded, and again whenever it
+  // returns after closing itself. Clicking back into an open tray does not replay the arrival.
+  useEffect(() => {
+    if (!loaded) return;
+    summon([root.current!], motion);
+    const returned = () => {
+      exit.current?.cancel();
+      exit.current = undefined;
+      if (away.current) summon([root.current!], motion);
+      away.current = false;
+    };
+    window.addEventListener('focus', returned);
+    return () => window.removeEventListener('focus', returned);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- arrive once per load, not per toggle
+  }, [loaded]);
   useEffect(() => {
     setAgentId((current) =>
       state.agents.some((agent) => agent.id === current)
@@ -224,6 +77,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
     if (busy) return;
     setBusy(true);
     setError('');
+    if (action.kind === 'open') away.current = true;
     try {
       const result = await api.action(action);
       if (action.kind === 'new') {
@@ -240,6 +94,27 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
   const control = (promise: Promise<unknown>) => {
     void promise.catch(() => setError('Could not update Scotty.'));
   };
+  // Opening Sia hides the tray at once (navigation never waits); it arrives again next time.
+  const openSia = () => {
+    away.current = true;
+    control(api.openSia());
+  };
+  // Closing plays a short exit, quicker than the arrival, then hides the window.
+  const leave = (close: () => Promise<unknown>) => {
+    away.current = true;
+    if (exit.current) return;
+    const animation = dismissMotion(root.current, motion);
+    exit.current = animation;
+    void (animation?.finished ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(close)
+      .catch(() => {
+        exit.current?.cancel();
+        exit.current = undefined;
+        away.current = false;
+        setError('Could not update Scotty.');
+      });
+  };
   const send = () => {
     if (!text.trim() || busy || !state.available) return;
     if (composing && agentId) void act({ kind: 'new', agentId, text });
@@ -251,17 +126,18 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
   };
   return (
     <main
+      ref={root}
       className={styles.panel}
-      data-motion={state.settings.motion}
+      data-motion={motion}
       onKeyDown={(event) => {
         if (event.key === 'Escape') {
           event.preventDefault();
-          control(api.expand(false));
+          leave(() => api.expand(false));
         }
       }}
     >
       <header className={styles.header}>
-        <span className={styles.avatar}>
+        <span key={state.status} className={styles.avatar} data-status={state.status}>
           <ScottySprite pose={poses[state.status]} size={44} motion={false} />
         </span>
         <div>
@@ -272,7 +148,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
           className={styles.icon}
           title="Hide Scotty"
           aria-label="Hide Scotty"
-          onClick={() => control(api.hide())}
+          onClick={() => leave(() => api.hide())}
         >
           <Moon size={15} />
         </button>
@@ -280,7 +156,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
           className={styles.icon}
           title="Close task tray"
           aria-label="Close task tray"
-          onClick={() => control(api.expand(false))}
+          onClick={() => leave(() => api.expand(false))}
         >
           <X size={16} />
         </button>
@@ -295,7 +171,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
           <PawPrint size={28} />
           <h2>See you in Sia</h2>
           <p>Open Sia to set up your assistant or sign in.</p>
-          <button className={styles.primary} onClick={() => control(api.openSia())}>
+          <button className={styles.primary} onClick={openSia}>
             Open Sia
           </button>
         </div>
@@ -345,133 +221,13 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
                   </select>
                 </label>
                 {!state.agents.length && (
-                  <button className={styles.primary} onClick={() => control(api.openSia())}>
+                  <button className={styles.primary} onClick={openSia}>
                     Set up an agent in Sia
                   </button>
                 )}
               </section>
             ) : task ? (
-              <section className={styles.detail}>
-                <span className={styles.eyebrow}>{task.agent}</span>
-                <h2>{task.title}</h2>
-                <p className={styles.progress} data-status={task.status} role="status">
-                  <span className={styles.dot} />
-                  {task.progress}
-                </p>
-                {task.screen && (
-                  <small className={styles.screen}>
-                    {task.screen === 'foreground'
-                      ? 'Using your screen · Press ⌃Esc to stop'
-                      : 'Working quietly in the background'}
-                  </small>
-                )}
-                {task.response && (
-                  <div className={styles.response}>
-                    {task.truncated && (
-                      <small>
-                        Latest part of the response. Open Sia for the full conversation.
-                      </small>
-                    )}
-                    {task.response}
-                  </div>
-                )}
-                {task.question && (
-                  <div className={styles.question}>
-                    <span>A question for you</span>
-                    <p>{task.question}</p>
-                  </div>
-                )}
-                {task.approval && (
-                  <section className={styles.approval} aria-label="Review action">
-                    <h3>{task.approval.title}</h3>
-                    <p>{task.approval.summary}</p>
-                    <dl>
-                      <dt>Target</dt>
-                      <dd>{task.approval.target}</dd>
-                      {task.approval.account && (
-                        <>
-                          <dt>Account</dt>
-                          <dd>{task.approval.account}</dd>
-                        </>
-                      )}
-                      {task.approval.dataLeaving && (
-                        <>
-                          <dt>Data leaving your Mac</dt>
-                          <dd>{task.approval.dataLeaving}</dd>
-                        </>
-                      )}
-                      <dt>Reversible</dt>
-                      <dd>{task.approval.reversible ? 'Yes' : 'No'}</dd>
-                    </dl>
-                    {task.approval.requiresMainApp ? (
-                      <button
-                        className={styles.primary}
-                        onClick={() => void act({ kind: 'open', token: task.token })}
-                      >
-                        Review full action in Sia
-                      </button>
-                    ) : (
-                      <div className={styles.actions}>
-                        <button
-                          disabled={busy}
-                          className={styles.secondary}
-                          onClick={() =>
-                            void act({
-                              kind: 'approve',
-                              token: task.token,
-                              approvalId: task.approval!.id,
-                              decision: 'deny',
-                            })
-                          }
-                        >
-                          Deny
-                        </button>
-                        <button
-                          disabled={busy}
-                          className={styles.primary}
-                          onClick={() =>
-                            void act({
-                              kind: 'approve',
-                              token: task.token,
-                              approvalId: task.approval!.id,
-                              decision: 'approve',
-                            })
-                          }
-                        >
-                          Approve once
-                        </button>
-                      </div>
-                    )}
-                  </section>
-                )}
-                <div className={styles.actions}>
-                  {task.canStop && (
-                    <button
-                      className={styles.textButton}
-                      disabled={busy}
-                      onClick={() => void act({ kind: 'cancel', token: task.token })}
-                    >
-                      Stop task
-                    </button>
-                  )}
-                  {task.unread && !task.canStop && (
-                    <button
-                      className={styles.textButton}
-                      disabled={busy}
-                      onClick={() => void act({ kind: 'read', token: task.token })}
-                    >
-                      <Check size={13} /> Mark read
-                    </button>
-                  )}
-                  <button
-                    className={styles.textButton}
-                    disabled={busy}
-                    onClick={() => void act({ kind: 'open', token: task.token })}
-                  >
-                    Open in Sia <ArrowUpRight size={13} />
-                  </button>
-                </div>
-              </section>
+              <ScottyTaskDetail task={task} busy={busy} act={act} />
             ) : selectedId ? (
               <div className={styles.empty}>
                 <p>This task is no longer available.</p>
@@ -488,7 +244,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
                     onClick={() => setSelectedId(item.id)}
                     data-status={item.status}
                   >
-                    <span className={styles.dot} />
+                    <span key={item.status} className={styles.dot} />
                     <div>
                       <strong>{item.title}</strong>
                       <span>
@@ -499,7 +255,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
                   </button>
                 ))}
                 {state.moreTasks && (
-                  <button className={styles.textButton} onClick={() => control(api.openSia())}>
+                  <button className={styles.textButton} onClick={openSia}>
                     See all conversations in Sia <ArrowUpRight size={13} />
                   </button>
                 )}
@@ -585,7 +341,7 @@ export function ScottyPanel({ api = window.siaScotty }: { api?: ScottyApi }) {
           className={styles.icon}
           aria-label="Open Sia"
           title="Open Sia"
-          onClick={() => control(api.openSia())}
+          onClick={openSia}
         >
           <ChatsCircle size={16} />
         </button>

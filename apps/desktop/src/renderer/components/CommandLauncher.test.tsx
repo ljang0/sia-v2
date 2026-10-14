@@ -114,3 +114,31 @@ it('restores input focus when the command box is reopened', async () => {
   fireEvent.focus(window);
   await waitFor(() => expect(document.activeElement).toBe(field));
 });
+
+it('plays a short exit before hiding on Escape, and a second Escape closes at once', async () => {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({ matches: false, addEventListener() {}, removeEventListener() {} })),
+  );
+  let finish = () => undefined as void;
+  const finished = new Promise<void>((resolve) => (finish = resolve));
+  const animate = vi.fn(() => ({ finished, cancel: vi.fn() }) as unknown as Animation);
+  const original = HTMLElement.prototype.animate;
+  HTMLElement.prototype.animate = animate;
+  try {
+    const api = setup();
+    const field = await screen.findByRole('textbox', { name: 'Your request' });
+    fireEvent.keyDown(field, { key: 'Escape' });
+    expect(animate).toHaveBeenCalled();
+    expect(api.dismiss).not.toHaveBeenCalled();
+    await act(async () => finish());
+    await waitFor(() => expect(api.dismiss).toHaveBeenCalledOnce());
+    animate.mockClear();
+    fireEvent.keyDown(field, { key: 'Escape' });
+    fireEvent.keyDown(field, { key: 'Escape' });
+    await waitFor(() => expect(api.dismiss).toHaveBeenCalledTimes(2));
+  } finally {
+    HTMLElement.prototype.animate = original;
+    vi.unstubAllGlobals();
+  }
+});

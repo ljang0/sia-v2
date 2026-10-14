@@ -232,6 +232,16 @@ test('launcher retains native form submission, dismiss, and agent selection', as
   await send.click();
   await expect(field).toHaveValue('');
   await field.press('Escape');
+  // Escape plays the short exit first, then hides the window.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { launcherProbe: { dismissals: number } }).launcherProbe
+            .dismissals,
+      ),
+    )
+    .toBe(1);
   const probe = await page.evaluate(
     () =>
       (

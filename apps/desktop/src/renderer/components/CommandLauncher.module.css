@@ -1,3 +1,7 @@
+/* The launcher window loads tokens.css for the shared vocabulary; its own panel paints the room. */
+:global(body):has(.launcher) {
+  background: transparent;
+}
 .launcher {
   position: relative;
   isolation: isolate;
@@ -31,10 +35,14 @@
   contain: paint;
   opacity: 0.32;
   mask-image: linear-gradient(#000, transparent 100%);
-  transition: opacity 400ms var(--ease-out-soft);
+  transition: opacity var(--motion-emphasis) var(--ease-out-soft);
 }
 .launcher:focus-within .aurora {
   opacity: 0.48;
+}
+/* A request worth sending lifts the room a little further. */
+.launcher:has(form[data-ready='true']) .aurora {
+  opacity: 0.6;
 }
 .launcher header,
 .launcher footer {
@@ -140,6 +148,10 @@
   margin-left: auto;
   color: var(--muted);
   font-size: var(--text-xs);
+  transition: color var(--motion-fast) var(--ease-standard);
+}
+form[data-ready='true'] .keyboardHint {
+  color: var(--ink);
 }
 .result {
   min-height: 0;
@@ -163,12 +175,14 @@
   color: var(--ink);
 }
 .progress {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   color: var(--muted);
   font-size: var(--text-xs);
   margin: 6px 0 12px;
+}
+.statusLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .statusDot {
   width: 6px;
@@ -241,31 +255,75 @@
 @media (prefers-reduced-motion: no-preference) {
   .launcher button:not([data-size]) {
     transition:
-      background 120ms ease,
-      color 120ms ease;
+      background var(--motion-fast) var(--ease-standard),
+      color var(--motion-fast) var(--ease-standard),
+      transform var(--motion-fast) var(--ease-standard);
   }
+  .launcher button:not([data-size]):active:not(:disabled) {
+    transform: translateY(calc(var(--motion-nudge) / 3));
+  }
+  /* Handoff: the sent request rises out of the field into a running task, then its status and
+     actions follow one beat apart. */
   .result {
-    animation: enter 140ms ease-out;
+    animation: launcher-fade var(--motion-standard) var(--ease-out-soft) both;
   }
-  /* A running request breathes like the main window's working avatar; calm stays still. */
+  .result .taskHeading {
+    animation: launcher-rise var(--motion-emphasis) var(--ease-spring) both;
+  }
+  .result .statusLine {
+    animation: launcher-fade var(--motion-standard) var(--ease-out-soft) var(--motion-stagger)
+      both;
+  }
+  .result .taskActions {
+    animation: launcher-fade var(--motion-standard) var(--ease-out-soft)
+      calc(var(--motion-stagger) * 2) both;
+  }
+  .result .response {
+    animation: launcher-fade var(--motion-surface) var(--ease-out-soft) both;
+  }
+  /* Each state has its own mark: running breathes, finished lands, waiting settles soberly. */
   .launcher:not([data-appearance='calm']) .progress[data-status='running'] .statusDot {
-    animation: working 2s var(--ease-standard) infinite;
+    animation: launcher-working 2s var(--ease-standard) infinite;
   }
-  @keyframes working {
-    50% {
-      box-shadow: 0 0 0 4px #74958138;
-      transform: scale(0.84);
-    }
+  .progress[data-status='idle'] .statusDot {
+    animation: launcher-land var(--motion-emphasis) var(--ease-spring) both;
   }
-  @keyframes enter {
-    from {
-      opacity: 0;
-      transform: translateY(3px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  .progress[data-status='waiting'] .statusDot {
+    animation: launcher-settle var(--motion-emphasis) var(--ease-out-soft) both;
+  }
+}
+@keyframes launcher-working {
+  50% {
+    box-shadow: 0 0 0 4px #74958138;
+    transform: scale(0.84);
+  }
+}
+@keyframes launcher-rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise)) scale(var(--motion-pop-scale));
+  }
+}
+@keyframes launcher-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes launcher-land {
+  from {
+    transform: scale(0);
+  }
+  60% {
+    box-shadow: 0 0 0 5px #74958133;
+  }
+}
+@keyframes launcher-settle {
+  from {
+    opacity: 0;
+    box-shadow: 0 0 0 6px #bb904a00;
+  }
+  50% {
+    box-shadow: 0 0 0 4px #bb904a40;
   }
 }
 @media (prefers-reduced-motion: reduce) {
