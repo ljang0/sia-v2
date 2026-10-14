@@ -39,10 +39,24 @@ if (problems.length > 0) {
   throw new Error(`Site validation failed:\n${problems.join('\n')}`);
 }
 
+// The phone page for the encrypted relay is built by the desktop workspace
+// (`pnpm --filter @sia/desktop remote:build`) and served from /remote/.
+const phoneRemote = resolve(root, '../desktop/out/remote');
+let includedPhoneRemote = false;
+
 if (!checkOnly) {
   await rm(destination, { recursive: true, force: true });
   await mkdir(destination, { recursive: true });
   await cp(source, destination, { recursive: true });
+  try {
+    await stat(join(phoneRemote, 'index.html'));
+    await cp(phoneRemote, join(destination, 'remote'), { recursive: true });
+    includedPhoneRemote = true;
+  } catch {
+    // Not built in this checkout; the site deploys without the phone page.
+  }
 }
 
-console.log(`${checkOnly ? 'Validated' : 'Built'} ${files.length} public site files.`);
+console.log(
+  `${checkOnly ? 'Validated' : 'Built'} ${files.length} public site files${includedPhoneRemote ? ' and the phone page at /remote/' : ''}.`,
+);

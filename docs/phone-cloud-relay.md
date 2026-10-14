@@ -70,3 +70,36 @@ Mac (Sia, outbound only) ──────────────────�
 3. The relay's table and logs contain no plaintext prompt, reply, file name, or state.
 4. Speech recognition works on the HTTPS page.
 5. Load: 100 paired phones with live state stay inside the relay function's concurrency budget.
+
+## Where it lives
+
+| Part                    | Code                                                                     |
+| ----------------------- | ------------------------------------------------------------------------ |
+| Relay service           | `apps/cloud/src/services/remote-relay.ts`, `src/remote-lambda.ts`        |
+| Relay storage and push  | `apps/cloud/src/aws/remote-relay-store.ts`, `aws/api-gateway-pusher.ts`  |
+| Mac ID token check      | `apps/cloud/src/aws/cognito-id-token.ts`                                 |
+| Sealing (Mac and phone) | `apps/desktop/src/shared/remote-seal.ts`                                 |
+| Mac relay client        | `apps/desktop/src/main/remote/cloud-remote.ts` (owned by `PhoneRemote`)  |
+| Shared request handling | `PhoneRemote.dispatch` in `apps/desktop/src/main/remote/phone-remote.ts` |
+| Phone page transport    | `apps/desktop/src/mobile/relay.ts`, `src/mobile/api.ts`                  |
+| Infrastructure          | `infra/template.yaml` (`EnablePhoneRelay`), `infra/public-site.yaml`     |
+
+Automated coverage: relay unit tests (`apps/cloud/test/remote-relay.test.ts`), token verification
+against generated RSA keys, a Mac↔relay↔phone protocol test against the real relay service
+(`cloud-remote.test.ts`), and a Chromium/WebKit test of the built phone page through a local
+WebSocket relay (`tests/remote/phone-relay.spec.ts`). None of this is a deployed, physical-phone
+acceptance run.
+
+## Turning it on (operator)
+
+Nothing changes until all of these are done, in order, each as its own reviewed step:
+
+1. Deploy `sia-alpha` with `EnablePhoneRelay=true` through a reviewed change set, and note the
+   `PhoneRelayUrl` output.
+2. Deploy the public site with `PhoneRelayOrigin` set to that URL's `wss://host`, after
+   `pnpm --filter @sia/desktop remote:build && pnpm --filter @sia/site build`.
+3. Add `phoneRelayUrl` (the full `wss://…/v1`) and `phonePageUrl`
+   (`https://<site>/remote/`) to the packaged `sia-cloud.json`, then build and sign a release.
+   Builds with both values reach phones only through the relay; builds without them keep the
+   Wi-Fi remote.
+4. Run the acceptance checks above on that signed build with a physical phone.

@@ -23,7 +23,7 @@ import {
 import type { RemoteState } from '../shared/phone-remote';
 import { SiaLogo } from '../renderer/components/SiaLogo';
 import { VoiceWave } from '../renderer/components/VoiceWave';
-import { remoteRequest, RemoteRequestError, requestId } from './api';
+import { remoteRequest, RemoteRequestError, remoteTransport, requestId } from './api';
 import { MemoryGraph } from './memory-graph';
 import { DitherAurora as Aurora } from '../renderer/components/effects/DitherAurora';
 import { usePhoneViewport } from './use-phone-viewport';
@@ -132,7 +132,9 @@ function App() {
         setConnection(
           cause instanceof RemoteRequestError
             ? cause.message
-            : 'Reconnecting… Keep Sia open and your Mac awake on the same Wi-Fi.',
+            : remoteTransport === 'wifi'
+              ? 'Reconnecting… Keep Sia open and your Mac awake on the same Wi-Fi.'
+              : 'Reconnecting… Keep Sia open and your Mac awake and online.',
         );
         if (cause instanceof RemoteRequestError && cause.status === 404) setState(undefined);
       } finally {
@@ -638,7 +640,11 @@ function App() {
               <p>
                 <WifiHigh size={20} />
                 <span>
-                  <strong>Stay on the same Wi-Fi</strong>
+                  <strong>
+                    {remoteTransport === 'wifi'
+                      ? 'Stay on the same Wi-Fi'
+                      : 'Works on any network, encrypted end to end'}
+                  </strong>
                   <small>Keep Sia open and your Mac awake.</small>
                 </span>
               </p>

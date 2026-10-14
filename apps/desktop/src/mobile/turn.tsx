@@ -2,7 +2,7 @@ import { Check, DownloadSimple } from '@phosphor-icons/react';
 import type { RemoteTurn } from '../shared/phone-remote';
 import { SiaMark } from '../renderer/components/SiaMark';
 import { SafeMarkdown } from '../renderer/components/SafeMarkdown';
-import { remoteBase } from './api';
+import { remoteBase, remoteTransport, saveRemoteFile } from './api';
 import { ResultCard } from '../renderer/components/ResultCard';
 
 export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
@@ -15,25 +15,33 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
           <SafeMarkdown content={turn.response} />
         </div>
       )}
-      {turn.files.map((file) => (
-        <a
-          className="result-file"
-          href={
-            new URL(
-              turn.fileIds?.[file]
-                ? `results/${encodeURIComponent(turn.fileIds[file])}`
-                : `outbox/${encodeURIComponent(file)}`,
-              remoteBase,
-            ).href
-          }
-          download={file}
-          key={file}
-        >
-          <DownloadSimple size={19} />
-          <span>{file}</span>
-          <span className="muted">Save</span>
-        </a>
-      ))}
+      {turn.files.map((file) => {
+        const route = turn.fileIds?.[file]
+          ? `results/${encodeURIComponent(turn.fileIds[file])}`
+          : `outbox/${encodeURIComponent(file)}`;
+        return (
+          <a
+            className="result-file"
+            href={new URL(route, remoteBase).href}
+            download={file}
+            key={file}
+            onClick={(event) => {
+              if (remoteTransport === 'wifi') return;
+              // Over the relay, the file arrives sealed and is saved from memory.
+              event.preventDefault();
+              void saveRemoteFile(route, file).catch((cause: unknown) =>
+                window.alert(
+                  cause instanceof Error ? cause.message : 'This file could not be saved.',
+                ),
+              );
+            }}
+          >
+            <DownloadSimple size={19} />
+            <span>{file}</span>
+            <span className="muted">Save</span>
+          </a>
+        );
+      })}
     </>
   );
   return (
