@@ -139,6 +139,12 @@ user-friendly. Sia is for everyday consumers, so comfort wins over density:
 - Give content room: generous padding between groups, comfortable line height (≥1.45 for body
   copy), and content columns that use the window rather than a narrow strip in a large empty pane.
 - Everything must still fit at the supported 960×640 window and at the Larger text size.
+- The same applies to the phone remote: thumb-sized targets (at least 44px), readable body text
+  (at least 16px, which also stops iOS zooming fields), and no dense metadata rows.
+- Wording is for people who have never used a developer tool: plain words on every main path,
+  short action-first labels, and technical detail (model IDs, API terms, harness names) behind a
+  Details or Advanced disclosure. Keep a precise macOS permission name only where people will see
+  it in System Settings, with a plain explanation beside it.
 
 ## Motion language
 
