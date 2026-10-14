@@ -139,6 +139,7 @@ export class DeletionWorker {
         );
         await this.deps.invites.deleteInvitesForSubject(userId);
         await this.deps.quota.deleteUserUsage(userId);
+        await this.deps.remoteDevices.deleteUserDevices(userId);
         await this.deps.identity.deleteUser(userId);
         await this.deps.deletions.transitionDeletion(
           userId,

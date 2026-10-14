@@ -28,6 +28,9 @@ import type {
   ConnectorUploadRepository,
   ConsentReceipt,
   MetaUsageAttribution,
+  RemoteConnection,
+  RemoteDevice,
+  RemoteRelayStore,
   DeletionJob,
   DeletionQueue,
   DeletionRepository,
@@ -794,4 +797,80 @@ function emptyMetaUsage(): MetaUsageSnapshot {
 
 function clone<T>(value: T | undefined): T | undefined {
   return value === undefined ? undefined : structuredClone(value);
+}
+
+/** Test/dev adapter for the phone relay's device and connection records. */
+export class MemoryRemoteRelayStore implements RemoteRelayStore {
+  readonly devices = new Map<string, RemoteDevice>();
+  readonly connections = new Map<string, RemoteConnection>();
+  private readonly macs = new Map<string, string>();
+  private readonly frames = new Map<string, number>();
+
+  async getDevice(deviceId: string): Promise<RemoteDevice | undefined> {
+    return structuredClone(this.devices.get(deviceId));
+  }
+
+  async listDevices(userId: string): Promise<RemoteDevice[]> {
+    return [...this.devices.values()]
+      .filter((device) => device.userId === userId)
+      .map((device) => structuredClone(device));
+  }
+
+  async createDevice(device: RemoteDevice): Promise<void> {
+    this.devices.set(device.deviceId, structuredClone(device));
+  }
+
+  async deleteDevice(userId: string, deviceId: string): Promise<void> {
+    if (this.devices.get(deviceId)?.userId === userId) this.devices.delete(deviceId);
+  }
+
+  async touchDevice(deviceId: string, at: string): Promise<void> {
+    const device = this.devices.get(deviceId);
+    if (device) device.lastSeenAt = at;
+  }
+
+  async putConnection(connection: RemoteConnection): Promise<void> {
+    this.connections.set(connection.connectionId, structuredClone(connection));
+  }
+
+  async getConnection(connectionId: string): Promise<RemoteConnection | undefined> {
+    return structuredClone(this.connections.get(connectionId));
+  }
+
+  async deleteConnection(connectionId: string): Promise<void> {
+    this.connections.delete(connectionId);
+  }
+
+  async deviceConnections(deviceId: string): Promise<string[]> {
+    return [...this.connections.values()]
+      .filter((connection) => connection.role === 'phone' && connection.deviceId === deviceId)
+      .map(({ connectionId }) => connectionId);
+  }
+
+  async macConnection(userId: string): Promise<string | undefined> {
+    return this.macs.get(userId);
+  }
+
+  async setMacConnection(userId: string, connectionId: string): Promise<string | undefined> {
+    const previous = this.macs.get(userId);
+    this.macs.set(userId, connectionId);
+    return previous;
+  }
+
+  async clearMacConnection(userId: string, connectionId: string): Promise<void> {
+    if (this.macs.get(userId) === connectionId) this.macs.delete(userId);
+  }
+
+  async countFrame(connectionId: string, minute: number): Promise<number> {
+    const frameKey = key(connectionId, String(minute));
+    const count = (this.frames.get(frameKey) ?? 0) + 1;
+    this.frames.set(frameKey, count);
+    return count;
+  }
+
+  async deleteUserDevices(userId: string): Promise<void> {
+    for (const [deviceId, device] of this.devices) {
+      if (device.userId === userId) this.devices.delete(deviceId);
+    }
+  }
 }

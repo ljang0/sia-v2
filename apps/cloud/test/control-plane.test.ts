@@ -12,6 +12,7 @@ import {
   MemoryDeletionQueue,
   MemoryIdentity,
   MemoryQuota,
+  MemoryRemoteRelayStore,
   MemoryReleaseManifests,
   MemoryResearchObjects,
   MemoryResearchExportQueue,
@@ -1324,6 +1325,12 @@ describe('invites and deletion', () => {
     it(`recovers deletion abandoned in ${state} after the worker lease expires`, async () => {
       const fixture = makeFixture();
       fixture.identity.users.set(user.subject, user.email!);
+      await fixture.remoteDevices.createDevice({
+        deviceId: 'phone-1',
+        userId: user.subject,
+        tokenHash: 'hash',
+        createdAt: '2026-08-13T00:00:00.000Z',
+      });
       const requested = await fixture.services.research.requestDeletion(user, 'account');
       await fixture.state.transitionDeletion(
         user.subject,
@@ -1403,6 +1410,7 @@ describe('invites and deletion', () => {
     assert.equal(fixture.identity.users.has(user.subject), false);
     assert.equal(await fixture.state.getInvite(user.email!), undefined);
     assert.equal(await fixture.quota.getVoiceTokenUsage(user.subject, '2026-08-13'), 0);
+    assert.deepEqual(await fixture.remoteDevices.listDevices(user.subject), []);
     assert.equal(
       (await fixture.state.getDeletion(user.subject, requested.id))?.state,
       'completed',
@@ -1801,6 +1809,7 @@ function makeFixture(
   const audit = new MemoryAudit();
   const voiceProvider = new MemoryVoiceProvider();
   const quota = new MemoryQuota();
+  const remoteDevices = new MemoryRemoteRelayStore();
   const clock = new FixedClock(new Date('2026-08-13T00:00:00.000Z'));
   const metaConfig: MetaConfig = overrides.metaConfig ?? {
     apiKey: 'test-meta-key-with-enough-characters',
@@ -1844,6 +1853,7 @@ function makeFixture(
     metaProvider: new EchoMetaProvider(),
     voiceProvider,
     quota,
+    remoteDevices,
     audit,
     config: {
       actionTtlSeconds: 600,
@@ -1872,6 +1882,7 @@ function makeFixture(
     audit,
     voiceProvider,
     quota,
+    remoteDevices,
     clock,
     services: createServices(deps),
   };

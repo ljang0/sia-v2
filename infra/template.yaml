@@ -41,6 +41,16 @@ Parameters:
     Type: String
     Default: 'true'
     AllowedValues: ['true', 'false']
+  EnablePhoneRelay:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Creates the encrypted phone relay (docs/phone-cloud-relay.md).
+  RemoteReservedConcurrency:
+    Type: Number
+    Default: 20
+    MinValue: 1
+    MaxValue: 500
   EnableHostedVoice:
     Type: String
     Default: 'false'
@@ -104,6 +114,7 @@ Parameters:
     Description: Required operator-monitored SNS topic for privacy, research, queue, and function alarms.
 
 Conditions:
+  PhoneRelayEnabled: !Equals [!Ref EnablePhoneRelay, 'true']
   HasBootstrapAdmin: !Not [!Equals [!Ref BootstrapAdminEmail, '']]
   HasCustomEmailSender: !Not [!Equals [!Ref SesSourceArn, '']]
   HasDeveloperFrom: !And
@@ -1101,6 +1112,116 @@ Resources:
             BatchSize: 5
             FunctionResponseTypes: [ReportBatchItemFailures]
 
+  RemoteExecutionRole:
+    Type: AWS::IAM::Role
+    Condition: PhoneRelayEnabled
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/AWSXrayWriteOnlyAccess
+      Policies:
+        - PolicyName: SiaPhoneRelay
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  [
+                    dynamodb:GetItem,
+                    dynamodb:PutItem,
+                    dynamodb:UpdateItem,
+                    dynamodb:DeleteItem,
+                    dynamodb:Query,
+                  ]
+                Resource: !GetAtt ControlTable.Arn
+              - Effect: Allow
+                Action: execute-api:ManageConnections
+                Resource: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${RemoteApi}/v1/*/@connections/*
+
+  RemoteFunction:
+    Type: AWS::Serverless::Function
+    Condition: PhoneRelayEnabled
+    Properties:
+      CodeUri: ../apps/cloud/lambda/remote/
+      Handler: index.handler
+      Role: !GetAtt RemoteExecutionRole.Arn
+      Timeout: 10
+      MemorySize: 256
+      ReservedConcurrentExecutions: !Ref RemoteReservedConcurrency
+      Environment:
+        Variables:
+          USER_POOL_CLIENT_ID: !Ref DesktopClient
+
+  # Phone relay: the Mac and paired phones hold WebSockets; the function forwards sealed frames.
+  RemoteApi:
+    Type: AWS::ApiGatewayV2::Api
+    Condition: PhoneRelayEnabled
+    Properties:
+      Name: !Sub ${AWS::StackName}-phone-relay
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: $request.body.type
+
+  RemoteIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Condition: PhoneRelayEnabled
+    Properties:
+      ApiId: !Ref RemoteApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${RemoteFunction.Arn}/invocations
+
+  RemoteConnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: PhoneRelayEnabled
+    Properties:
+      ApiId: !Ref RemoteApi
+      RouteKey: $connect
+      AuthorizationType: NONE
+      Target: !Sub integrations/${RemoteIntegration}
+
+  RemoteDisconnectRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: PhoneRelayEnabled
+    Properties:
+      ApiId: !Ref RemoteApi
+      RouteKey: $disconnect
+      Target: !Sub integrations/${RemoteIntegration}
+
+  RemoteDefaultRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Condition: PhoneRelayEnabled
+    Properties:
+      ApiId: !Ref RemoteApi
+      RouteKey: $default
+      Target: !Sub integrations/${RemoteIntegration}
+
+  RemoteStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Condition: PhoneRelayEnabled
+    DependsOn: [RemoteConnectRoute, RemoteDisconnectRoute, RemoteDefaultRoute]
+    Properties:
+      ApiId: !Ref RemoteApi
+      StageName: v1
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 100
+        ThrottlingRateLimit: 50
+
+  RemoteInvokePermission:
+    Type: AWS::Lambda::Permission
+    Condition: PhoneRelayEnabled
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref RemoteFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${RemoteApi}/*
+
   ResearchExportFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -1467,6 +1588,9 @@ Resources:
                 uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
 
 Outputs:
+  PhoneRelayUrl:
+    Condition: PhoneRelayEnabled
+    Value: !Sub wss://${RemoteApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/v1
   ApiBaseUrl:
     Value: !Sub https://${RestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/${StageName}
   UserPoolId:

@@ -526,3 +526,56 @@ export interface AuditSink {
   write(event: AuditEvent): Promise<void>;
 }
 import type { HarnessId, HostedCatalogRoute, ModelApiProtocol } from '@sia/protocol';
+
+/** A phone paired with one account's Mac for the encrypted phone relay. */
+export interface RemoteDevice {
+  deviceId: string;
+  userId: string;
+  /** SHA-256 (base64url) of the device token; the token itself is never stored. */
+  tokenHash: string;
+  createdAt: string;
+  lastSeenAt?: string;
+}
+
+export type RemoteConnectionRole = 'pending' | 'mac' | 'phone';
+
+export interface RemoteConnection {
+  connectionId: string;
+  role: RemoteConnectionRole;
+  userId?: string;
+  deviceId?: string;
+  connectedAt: string;
+  /** DynamoDB TTL (epoch seconds) so abandoned records clean themselves up. */
+  expiresAt: number;
+}
+
+export interface RemoteRelayStore {
+  getDevice(deviceId: string): Promise<RemoteDevice | undefined>;
+  listDevices(userId: string): Promise<RemoteDevice[]>;
+  createDevice(device: RemoteDevice): Promise<void>;
+  deleteDevice(userId: string, deviceId: string): Promise<void>;
+  touchDevice(deviceId: string, at: string): Promise<void>;
+  putConnection(connection: RemoteConnection): Promise<void>;
+  getConnection(connectionId: string): Promise<RemoteConnection | undefined>;
+  deleteConnection(connectionId: string): Promise<void>;
+  /** Connection ids for every live connection of one device. */
+  deviceConnections(deviceId: string): Promise<string[]>;
+  macConnection(userId: string): Promise<string | undefined>;
+  setMacConnection(userId: string, connectionId: string): Promise<string | undefined>;
+  clearMacConnection(userId: string, connectionId: string): Promise<void>;
+  /** Increments and returns this connection's frame count for the given minute bucket. */
+  countFrame(connectionId: string, minute: number): Promise<number>;
+  deleteUserDevices(userId: string): Promise<void>;
+}
+
+/** Pushes frames to WebSocket connections held by API Gateway. */
+export interface ConnectionPusher {
+  /** Returns false when the connection no longer exists. */
+  send(connectionId: string, frame: Record<string, unknown>): Promise<boolean>;
+  close(connectionId: string): Promise<void>;
+}
+
+/** Verifies a Cognito ID token presented by a Mac in its first relay frame. */
+export interface IdTokenVerifier {
+  verify(idToken: string): Promise<{ subject: string }>;
+}
