@@ -124,9 +124,29 @@ restore the launcher; they do not discard the request or start another turn.
   `src/renderer/uiPolicy.test.ts` checks the face is on names/headings and off controls/body copy,
   that every hue slot is defined, and that the room maps every identity slot to a hue.
 
+## Motion language
+
+On 2026-10-14 Lawrence asked for a dedicated UI/UX and animation pass across every workflow because
+the product still felt stale. The motion dial moves from 3 to 6. Motion should make Sia feel alive and
+responsive, never slower: navigation and input stay immediate, and animation explains cause and
+effect (what appeared, what moved, what finished, what needs attention).
+
+- Arrivals use `--ease-spring` or `--ease-out-soft` over `--motion-standard`..`--motion-emphasis`, travel
+  at most `--motion-rise`, and may start from `--motion-pop-scale`. Exits use `--ease-exit` over
+  `--motion-exit` and are always quicker than the matching arrival.
+- Lists and groups that appear together stagger by `--motion-stagger`, capped at eight items.
+- Live state (working, waiting, approval needed, reply ready, voice) gets a distinct, recognisable
+  transition; streamed tokens still do not animate per token.
+- Hover and press feedback stays at `--motion-fast`; pressed controls may settle by `--motion-nudge`.
+- Animate only `transform`, `opacity`, `filter`, `clip-path`, and colour. Never animate layout
+  properties on large surfaces, and never block input on an animation.
+- Reduced Motion collapses durations, travel, scale, and stagger through the tokens. Calm keeps short
+  fades but removes travel, springs, and stagger. Safety, consent, and legal surfaces stay sober:
+  they may fade and settle, but do not bounce or celebrate.
+
 ## Locked dials
 
-Variance 5, motion 3, density 4. One deep-green dock, one mineral-neutral room surface system, four agent
+Variance 5, motion 6, density 4. One deep-green dock, one mineral-neutral room surface system, four agent
 forms with one job, ink for controls, Phosphor icons, system sans for the interface, one bundled
 identity/display face, and a four-step radius rule: `--radius-tight` 6px for chips/menus, `--radius-control`
 10px for controls and rows, `--radius-surface` 14px for the few contained surfaces that need an

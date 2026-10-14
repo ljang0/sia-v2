@@ -137,6 +137,32 @@
   --motion-spin: 1s;
   --ease-standard: cubic-bezier(0.2, 0.72, 0.2, 1);
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Shared motion vocabulary for the UI refresh (docs/ui-quality.md → Motion language). Arrivals
+     ease out with a soft spring, exits are quicker than arrivals, and lists stagger by a small step
+     capped by the component. Reduced motion and Calm collapse durations, distance, and stagger. */
+  --motion-emphasis: 380ms;
+  --motion-exit: 120ms;
+  --motion-stagger: 28ms;
+  --motion-rise: 8px;
+  --motion-nudge: 3px;
+  --motion-pop-scale: 0.96;
+  --ease-spring: linear(
+    0,
+    0.009,
+    0.035 2.1%,
+    0.141 4.4%,
+    0.723 12.9%,
+    0.938 16.7%,
+    1.017 19.4%,
+    1.067,
+    1.089 24.9%,
+    1.084 27.7%,
+    1.022 37.7%,
+    0.996 44.5%,
+    0.993 51%,
+    1
+  );
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 
   --sidebar-width: 260px;
   --inspector-width: 360px;
@@ -286,9 +312,25 @@ select,
     --motion-fast: 1ms;
     --motion-standard: 1ms;
     --motion-surface: 1ms;
+    --motion-emphasis: 1ms;
+    --motion-exit: 1ms;
+    --motion-stagger: 0ms;
+    --motion-rise: 0px;
+    --motion-nudge: 0px;
+    --motion-pop-scale: 1;
   }
 
   html {
     scroll-behavior: auto;
   }
+}
+
+/* Calm keeps state changes legible but removes travel, springs, and staggers. */
+[data-appearance='calm'] {
+  --motion-emphasis: var(--motion-surface);
+  --motion-stagger: 0ms;
+  --motion-rise: 0px;
+  --motion-nudge: 0px;
+  --motion-pop-scale: 1;
+  --ease-spring: var(--ease-standard);
 }
