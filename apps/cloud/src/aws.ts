@@ -15,7 +15,7 @@ import { CognitoIdentity } from './aws/cognito-identity.js';
 import { ComposioConnector } from './aws/composio-connector.js';
 import { DynamoState } from './aws/dynamo-state.js';
 import { ElevenLabsHttpProvider } from './aws/elevenlabs-voice.js';
-import { OpenAiCompatibleMetaProvider } from './aws/meta-provider.js';
+import { HostedLabProvider } from './aws/meta-provider.js';
 import { DynamoMetaQuota } from './aws/meta-quota.js';
 import { AwsDeletionQueue, AwsResearchExportQueue } from './aws/queues.js';
 import { S3ReleaseManifests } from './aws/release-manifests.js';
@@ -139,7 +139,7 @@ export function createAwsDependencies(config = loadRuntimeConfig()): ServiceDepe
     deletions: state,
     deletionQueue: new AwsDeletionQueue(sqs, config.deletionQueueUrl),
     secrets,
-    metaProvider: new OpenAiCompatibleMetaProvider(),
+    metaProvider: new HostedLabProvider(),
     voiceProvider: new ElevenLabsHttpProvider(),
     quota: new DynamoMetaQuota(documentClient, config.tableName, config.metaConcurrency),
     audit: new MetadataAuditSink(s3, config.auditBucketName, config.kmsKeyArn),

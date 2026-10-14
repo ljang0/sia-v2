@@ -11,18 +11,24 @@ path, because the Chat Completions → Responses conversion lives in Sia cloud.
 
 ## Compatibility contract
 
-For the broadest upstream compatibility, a lab should expose the OpenAI Responses API, streaming,
-tool calls, and `GET /v1/models`. Chat Completions labs also work because Sia normalizes their
-stream into Responses before Codex sees it:
+A hosted lab may expose any of three wire protocols, set per lab with `apiProtocol`. The cloud
+relay (`apps/cloud/src/aws/meta-provider.ts`, one `UPSTREAMS` entry per protocol) translates each
+into the same bounded stream, so Codex App Server always sees the Responses API:
 
-| Model API               | Sia direct | Codex app server | OpenCode | Pi  |
-| ----------------------- | ---------- | ---------------- | -------- | --- |
-| OpenAI Responses        | yes        | yes              | yes      | yes |
-| OpenAI Chat Completions | yes        | no               | yes      | yes |
-| Anthropic Messages      | no         | no               | yes      | yes |
+| Lab `apiProtocol`         | Request path / auth                            | Codex app server via Sia relay |
+| ------------------------- | ---------------------------------------------- | ------------------------------ |
+| `openai_responses`        | `/responses`, `Authorization: Bearer`          | yes                            |
+| `openai_chat_completions` | `/chat/completions`, `Authorization: Bearer`   | yes                            |
+| `anthropic_messages`      | `/messages`, `x-api-key` + `anthropic-version` | yes                            |
 
-Codex custom model providers accept the Responses wire API only. OpenCode and Pi accept both
-OpenAI Responses and Chat Completions. OpenCode and Pi also document their own ChatGPT Plus/Pro
+Each lab must also serve `GET /models` (Anthropic: `/models?limit=1000`) listing its allowed
+models, which is the live readiness check. Adding a protocol means adding one `UPSTREAMS` entry with
+its request translation and stream reader; nothing outside the relay changes.
+
+Natively, harnesses differ: OpenCode and Pi speak all three protocols directly, while Codex custom
+model providers accept Responses only.
+
+OpenCode and Pi also document their own ChatGPT Plus/Pro
 sign-in, so a Codex subscription can be used by those harnesses without Sia copying the credential.
 Each harness must own its login and token refresh.
 
