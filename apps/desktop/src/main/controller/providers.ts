@@ -1,6 +1,6 @@
 import { isLocalConnection } from './connection-ids.js';
 import type { ModelRoute } from '@sia/protocol';
-import { admitHostedRoutes } from '@sia/runtime';
+import { BUILTIN_HARNESS_DEFINITIONS, HarnessRegistry, admitHostedRoutes } from '@sia/runtime';
 import type {
   BridgeResultMap,
   DesktopSnapshot,
@@ -529,6 +529,7 @@ export class ProviderAccess {
           provider: 'meta',
           defaultHarnessId: hostedProvider.execution.defaultHarnessId,
           routes: hostedProvider.execution.routes,
+          registry: this.hostedHarnessRegistry(),
         });
         const routesByModel = Map.groupBy(admitted.allowedRoutes, ({ model }) => model);
         for (const [model, routes] of routesByModel) {
@@ -588,6 +589,16 @@ export class ProviderAccess {
         detail: 'Sia could not verify the authenticated model relay.',
       };
     }
+  }
+
+  /** Release admission, plus any built-in harness a signed testing manifest previews. */
+  private hostedHarnessRegistry(): HarnessRegistry {
+    const preview = new Set(this.ctx.deps.previewHarnesses);
+    return new HarnessRegistry(
+      BUILTIN_HARNESS_DEFINITIONS.map((definition) =>
+        preview.has(definition.id) ? { ...definition, productionEnabled: true } : definition,
+      ),
+    );
   }
 
   providerReadinessError(providerId: ProviderId, model?: string): string | undefined {

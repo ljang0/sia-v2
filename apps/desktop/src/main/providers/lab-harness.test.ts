@@ -58,12 +58,13 @@ const now = new Date('2026-10-05T00:00:00.000Z');
 
 describe('lab harness testing manifest', () => {
   it('loads harnesses signed by the release key whose command matches its hash', async () => {
-    const harnesses = await loadLabHarnessManifest({
+    const { harnesses, previewHarnesses } = await loadLabHarnessManifest({
       path: write(signed(payload())),
       publicKey: publicKeyText,
       now,
       hashFile: async () => hash,
     });
+    expect(previewHarnesses).toEqual([]);
     expect(harnesses).toMatchObject([
       { id: 'example_lab', command: '/opt/example/acp', models: [{ id: 'example/spark' }] },
     ]);
@@ -74,7 +75,7 @@ describe('lab harness testing manifest', () => {
     delete harness.args;
     delete harness.versionArgs;
     harness.name = ' Example Lab ';
-    const harnesses = await loadLabHarnessManifest({
+    const { harnesses } = await loadLabHarnessManifest({
       path: write(signed(payload({ harnesses: [harness] }))),
       publicKey: publicKeyText,
       now,
@@ -83,6 +84,32 @@ describe('lab harness testing manifest', () => {
     expect(harnesses).toMatchObject([
       { name: 'Example Lab', args: [], versionArgs: ['--version'] },
     ]);
+  });
+
+  it('previews only listed built-in harnesses and rejects an empty manifest', async () => {
+    const preview = await loadLabHarnessManifest({
+      path: write(signed(payload({ harnesses: [], previewHarnesses: ['claude_code'] }))),
+      publicKey: publicKeyText,
+      now,
+      hashFile: async () => hash,
+    });
+    expect(preview).toEqual({ harnesses: [], previewHarnesses: ['claude_code'] });
+    await expect(
+      loadLabHarnessManifest({
+        path: write(signed(payload({ harnesses: [], previewHarnesses: ['made_up_harness'] }))),
+        publicKey: publicKeyText,
+        now,
+        hashFile: async () => hash,
+      }),
+    ).rejects.toThrow();
+    await expect(
+      loadLabHarnessManifest({
+        path: write(signed(payload({ harnesses: [] }))),
+        publicKey: publicKeyText,
+        now,
+        hashFile: async () => hash,
+      }),
+    ).rejects.toThrow('must list a harness');
   });
 
   it('rejects payload edits even when schema normalization would hide the change', async () => {

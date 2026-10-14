@@ -33,8 +33,9 @@ export const BUILTIN_HARNESS_DEFINITIONS = [
     id: 'claude_code',
     name: 'Claude Code',
     modelProtocols: ['anthropic_messages'],
-    credentialSources: ['provider_subscription'],
-    // Retained so existing Claude threads keep their pinned route; not a release choice.
+    // `sia_managed` reaches included models through the loopback model proxy.
+    credentialSources: ['provider_subscription', 'sia_managed'],
+    // Not a release choice until the conformance matrix passes in the signed app.
     productionEnabled: false,
   },
   {

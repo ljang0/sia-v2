@@ -4,6 +4,13 @@ import { once } from 'node:events';
 const SAFE_ENVIRONMENT_NAME =
   /^(?:PATH|HOME|CODEX_HOME|USER|LOGNAME|SHELL|TMPDIR|TMP|TEMP|LANG|LC_[A-Z0-9_]+|TERM|COLORTERM|NO_COLOR|SSL_CERT_FILE|SSL_CERT_DIR|NODE_EXTRA_CA_CERTS)$/;
 
+/**
+ * Model-routing variables an adapter may set explicitly to point a harness at Sia's loopback
+ * model proxy. They are never inherited, so a person's own provider keys cannot leak in.
+ */
+const HARNESS_ROUTING_NAME =
+  /^(?:ANTHROPIC_BASE_URL|ANTHROPIC_API_KEY|ANTHROPIC_MODEL|ANTHROPIC_SMALL_FAST_MODEL|ANTHROPIC_DEFAULT_(?:HAIKU|SONNET|OPUS)_MODEL|CLAUDE_CONFIG_DIR|CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC|DISABLE_AUTOUPDATER|DISABLE_TELEMETRY|DISABLE_ERROR_REPORTING)$/;
+
 export function sanitizedEnvironment(
   source: NodeJS.ProcessEnv = process.env,
   overrides: Readonly<Record<string, string>> = {},
@@ -13,7 +20,7 @@ export function sanitizedEnvironment(
     if (value !== undefined && SAFE_ENVIRONMENT_NAME.test(key)) output[key] = value;
   }
   for (const [key, value] of Object.entries(overrides)) {
-    if (!SAFE_ENVIRONMENT_NAME.test(key))
+    if (!SAFE_ENVIRONMENT_NAME.test(key) && !HARNESS_ROUTING_NAME.test(key))
       throw new Error(`Environment variable ${key} is not permitted`);
     output[key] = value;
   }

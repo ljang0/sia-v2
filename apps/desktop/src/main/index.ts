@@ -480,7 +480,7 @@ async function performApplicationCreation(): Promise<void> {
     // Lab harness testing builds only: a manifest signed with Sia's release key pins each
     // lab's ACP command by hash. Anything invalid is reported and ignored; Codex stays default.
     const labManifestPath = process.env[LAB_HARNESS_MANIFEST_ENV];
-    const labHarnesses = labManifestPath
+    const { harnesses: labHarnesses, previewHarnesses } = labManifestPath
       ? await loadLabHarnessManifest({
           path: labManifestPath,
           publicKey: cloudConfiguration.updateManifestPublicKey,
@@ -488,10 +488,11 @@ async function performApplicationCreation(): Promise<void> {
           console.error(
             `[sia:lab-harness] ${error instanceof Error ? error.message : 'The manifest could not be loaded.'}`,
           );
-          return [];
+          return { harnesses: [], previewHarnesses: [] };
         })
-      : [];
+      : { harnesses: [], previewHarnesses: [] };
     activeController = new DesktopController({
+      previewHarnesses,
       labHarnesses: labHarnesses.map(({ id, name, disclosure, models }) => ({
         id,
         name,
@@ -753,6 +754,14 @@ async function performApplicationCreation(): Promise<void> {
         ? {
             hostedCodexProvider: (providerSession) =>
               hostedModelProxy.issue(providerSession.model, 'codex_app_server'),
+          }
+        : {}),
+      ...(hostedModelProxy
+        ? {
+            hostedModelEndpoint: async (harnessId, providerSession) => {
+              const issued = await hostedModelProxy.issue(providerSession.model, harnessId);
+              return { baseUrl: issued.baseUrl, apiKey: issued.bearerToken };
+            },
           }
         : {}),
       ...(byokModelProxy

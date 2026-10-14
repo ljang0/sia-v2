@@ -125,6 +125,14 @@ export class RuntimeCoordinator {
       hostedCodexProvider?: CodexCustomModelProviderResolver;
       /** The person's own API key, reached through a loopback proxy that holds the key. */
       byokCodexProvider?: CodexCustomModelProviderResolver;
+      /**
+       * Issues a loopback, model-scoped endpoint for a non-Codex harness running an included
+       * model. The harness calls the model API it speaks; the cloud relay translates it.
+       */
+      hostedModelEndpoint?: (
+        harnessId: HarnessId,
+        session: ProviderSessionOptions,
+      ) => Promise<{ baseUrl: string; apiKey: string }>;
       acpMcpServerFactory?: (
         provider: 'grok' | 'gemini' | 'claude',
         session: ProviderSessionOptions,
@@ -191,6 +199,26 @@ export class RuntimeCoordinator {
           'included',
           options.hostedCodexProvider,
         ),
+        false,
+      );
+    }
+    if (options.hostedModelEndpoint) {
+      const endpoint = options.hostedModelEndpoint;
+      this.#registerAdapter(
+        'meta',
+        'claude_code',
+        createClaudeAdapter({
+          providerId: 'meta',
+          accountOverride: {
+            state: 'authenticated',
+            label: 'Included with Sia',
+            billing: 'included',
+          },
+          modelEndpoint: (session) => endpoint('claude_code', session),
+          ...(options.acpMcpServerFactory
+            ? { mcpServerFactory: (session) => options.acpMcpServerFactory!('claude', session) }
+            : {}),
+        }),
         false,
       );
     }

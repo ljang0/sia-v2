@@ -1318,7 +1318,9 @@ Resources:
             post:
               responses:
                 '200':
-                  { description: Anthropic Messages-compatible stream for harnesses such as Claude Code }
+                  {
+                    description: Anthropic Messages-compatible stream for harnesses such as Claude Code,
+                  }
               x-amazon-apigateway-integration:
                 type: aws_proxy
                 httpMethod: POST
@@ -1330,7 +1332,9 @@ Resources:
             post:
               responses:
                 '200':
-                  { description: OpenAI Chat Completions-compatible stream for LiteLLM-based harnesses }
+                  {
+                    description: OpenAI Chat Completions-compatible stream for LiteLLM-based harnesses,
+                  }
               x-amazon-apigateway-integration:
                 type: aws_proxy
                 httpMethod: POST

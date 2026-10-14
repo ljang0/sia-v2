@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import { chmod, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
 import type {
   ProviderAccount,
   ProviderAdapter,
+  ProviderId,
   ProviderProbeResult,
   ProviderRequestResponse,
   ProviderSession,
@@ -29,7 +30,22 @@ const DEFAULT_SUPPORTED_VERSIONS: SupportedVersionRange = {
 const MAX_CAPTURED_OUTPUT = 1024 * 1024;
 const MAX_CONVERSATION_CHARACTERS = 160_000;
 
+/** A loopback Anthropic Messages endpoint holding a model-scoped capability, not a real key. */
+export interface ClaudeModelEndpoint {
+  readonly baseUrl: string;
+  readonly apiKey: string;
+}
+
+export type ClaudeModelEndpointResolver = (
+  session: ProviderSessionOptions,
+) => Promise<ClaudeModelEndpoint>;
+
 export interface ClaudeCliAdapterOptions {
+  /** Runs Claude Code for another provider's model, e.g. an included lab model. */
+  readonly providerId?: ProviderId;
+  readonly accountOverride?: ProviderAccount;
+  /** Routes every model call to this endpoint instead of the person's Claude account. */
+  readonly modelEndpoint?: ClaudeModelEndpointResolver;
   readonly command?: string;
   readonly supportedVersions?: SupportedVersionRange;
   readonly commandRunner?: CommandRunner;
@@ -50,6 +66,7 @@ interface ClaudeSessionState {
   readonly mcpConfigPath: string;
   readonly mcpServerNames: readonly string[];
   readonly conversation: ClaudeConversationMessage[];
+  readonly endpoint?: ClaudeModelEndpoint;
 }
 
 interface ClaudeResult {
@@ -98,6 +115,33 @@ export function claudeCliArgs(options: {
     '--system-prompt-file',
     options.systemPromptPath,
   ];
+}
+
+/**
+ * Points Claude Code at a loopback model endpoint. A private config directory keeps the
+ * person's own Claude login and settings out of the turn, and every model alias resolves to
+ * the one model the capability is scoped to.
+ */
+export function claudeEndpointEnvironment(
+  endpoint: ClaudeModelEndpoint,
+  model: string,
+  configDirectory: string,
+): Record<string, string> {
+  return {
+    // Claude Code appends /v1/messages itself.
+    ANTHROPIC_BASE_URL: endpoint.baseUrl.replace(/\/v1\/?$/, ''),
+    ANTHROPIC_API_KEY: endpoint.apiKey,
+    ANTHROPIC_MODEL: model,
+    ANTHROPIC_SMALL_FAST_MODEL: model,
+    ANTHROPIC_DEFAULT_HAIKU_MODEL: model,
+    ANTHROPIC_DEFAULT_SONNET_MODEL: model,
+    ANTHROPIC_DEFAULT_OPUS_MODEL: model,
+    CLAUDE_CONFIG_DIR: configDirectory,
+    CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+    DISABLE_AUTOUPDATER: '1',
+    DISABLE_TELEMETRY: '1',
+    DISABLE_ERROR_REPORTING: '1',
+  };
 }
 
 export function claudeMcpConfig(servers: readonly AcpMcpServer[]): Record<string, unknown> {
@@ -156,7 +200,7 @@ export function parseClaudeAuthStatus(value: string): ProviderAccount {
 
 /** Claude Code print-mode adapter with no provider-native tools or persistence. */
 export class ClaudeCliAdapter implements ProviderAdapter {
-  readonly id = 'claude' as const;
+  readonly id: ProviderId;
   readonly productionEnabled = true;
   readonly #options: ClaudeCliAdapterOptions;
   readonly #supervisor: ProcessSupervisor;
@@ -165,6 +209,7 @@ export class ClaudeCliAdapter implements ProviderAdapter {
 
   constructor(options: ClaudeCliAdapterOptions = {}) {
     this.#options = options;
+    this.id = options.providerId ?? 'claude';
     this.#supervisor = options.supervisor ?? new ProcessSupervisor();
   }
 
@@ -178,6 +223,7 @@ export class ClaudeCliAdapter implements ProviderAdapter {
   }
 
   async account(signal?: AbortSignal): Promise<ProviderAccount> {
+    if (this.#options.accountOverride) return this.#options.accountOverride;
     const result = this.#options.commandRunner
       ? await this.#options.commandRunner.run(
           this.#options.command ?? 'claude',
@@ -202,6 +248,7 @@ export class ClaudeCliAdapter implements ProviderAdapter {
     const account = await this.account(signal);
     if (account.state !== 'authenticated')
       throw new Error('Claude Code is not signed in. Run `claude auth login`, then recheck.');
+    const endpoint = await this.#options.modelEndpoint?.(options);
     const servers = this.#options.mcpServerFactory?.(options) ?? [];
     const config = claudeMcpConfig(servers);
     const directory = await mkdtemp(join(tmpdir(), 'sia-claude-'));
@@ -213,6 +260,7 @@ export class ClaudeCliAdapter implements ProviderAdapter {
         mode: 0o600,
         flag: 'wx',
       });
+      if (endpoint) await mkdir(join(directory, 'config'), { mode: 0o700 });
     } catch (error) {
       await rm(directory, { recursive: true, force: true });
       throw error;
@@ -232,6 +280,7 @@ export class ClaudeCliAdapter implements ProviderAdapter {
       mcpConfigPath,
       mcpServerNames: servers.map(({ name }) => name),
       conversation: [],
+      ...(endpoint ? { endpoint } : {}),
     });
     return session;
   }
@@ -265,6 +314,15 @@ export class ClaudeCliAdapter implements ProviderAdapter {
           ...(this.#options.maxTurns === undefined ? {} : { maxTurns: this.#options.maxTurns }),
         }),
         cwd: state.options.workspace,
+        ...(state.endpoint
+          ? {
+              env: claudeEndpointEnvironment(
+                state.endpoint,
+                input.model ?? state.options.model,
+                join(state.directory, 'config'),
+              ),
+            }
+          : {}),
       });
     } catch (error) {
       await rm(systemPromptPath, { force: true });

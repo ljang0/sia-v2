@@ -483,6 +483,44 @@ describe('hosted model lab secret configuration', () => {
     );
   });
 
+  it('lets a Sia-managed harness route speak a protocol the relay translates', async () => {
+    const load = (credentialSource: string) =>
+      new SecretsManagerProvider(
+        {
+          send: async () => ({
+            SecretString: JSON.stringify({
+              apiKey: 'sponsor-test-key-never-used',
+              endpoint: 'https://sponsor.example/v1',
+              model: 'sponsor/model',
+              apiProtocol: 'openai_chat_completions',
+              enabled: true,
+              defaultHarnessId: 'claude_code',
+              harnessRoutes: [
+                {
+                  model: 'sponsor/model',
+                  harnessId: 'claude_code',
+                  harnessModelId: 'sponsor/model',
+                  credentialSource,
+                  apiProtocol: 'anthropic_messages',
+                },
+              ],
+            }),
+          }),
+        } as never,
+        'meta-secret',
+        'voice-secret',
+        'composio-secret',
+        'google-secret',
+        'registration-secret',
+      ).meta();
+
+    assert.equal((await load('sia_managed')).defaultHarnessId, 'claude_code');
+    await assert.rejects(
+      load('provider_api'),
+      (error: unknown) => error instanceof CloudError && error.code === 'secret_invalid',
+    );
+  });
+
   it('fails closed when two labs advertise the same canonical model', async () => {
     const client = {
       send: async () => ({

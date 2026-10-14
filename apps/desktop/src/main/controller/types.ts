@@ -79,6 +79,11 @@ export interface ControllerOptions {
    * The person's own model API key. The key is write-only from here on: it is validated,
    * checked against the endpoint, and stored encrypted; only the model and host come back.
    */
+  /**
+   * Built-in harnesses a verified testing manifest lets run included models before release
+   * admission; absent in every ordinary build.
+   */
+  previewHarnesses?: readonly string[];
   /** Lab harnesses from a verified testing manifest; absent in every ordinary build. */
   labHarnesses?: readonly {
     id: string;

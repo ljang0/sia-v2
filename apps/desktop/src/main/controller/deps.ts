@@ -35,6 +35,7 @@ export interface ControllerDeps {
   readonly installCodex: ControllerOptions['installCodex'];
   readonly byok: ControllerOptions['byok'];
   readonly labHarnesses: NonNullable<ControllerOptions['labHarnesses']>;
+  readonly previewHarnesses: readonly string[];
   readonly chooseDirectory: () => Promise<string | null>;
   readonly defaultWorkspaceRoot: string | undefined;
   readonly createDirectory: (path: string) => Promise<void>;
@@ -81,6 +82,7 @@ export function resolveControllerDeps(options: ControllerOptions): ControllerDep
     installCodex: options.installCodex,
     byok: options.byok,
     labHarnesses: options.labHarnesses ?? [],
+    previewHarnesses: options.previewHarnesses ?? [],
     chooseDirectory: options.chooseDirectory,
     defaultWorkspaceRoot: options.defaultWorkspaceRoot
       ? normalizeWorkspace(options.defaultWorkspaceRoot)

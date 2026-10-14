@@ -179,7 +179,11 @@ function parseHostedLabConfig(value: unknown): HostedLabConfig {
   }
   const enabledModels = new Set(allowedModels ?? [configString(value.model, 'model')]);
   for (const route of harnessRoutes ?? []) {
-    if (!enabledModels.has(route.model) || route.apiProtocol !== apiProtocolResult.data) {
+    // Sia-managed routes go through the relay, which accepts every protocol and translates to
+    // the lab's own. A harness that calls the lab directly must speak the lab's protocol.
+    const protocolOk =
+      route.credentialSource === 'sia_managed' || route.apiProtocol === apiProtocolResult.data;
+    if (!enabledModels.has(route.model) || !protocolOk) {
       throw new CloudError(
         503,
         'secret_invalid',

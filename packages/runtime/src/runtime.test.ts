@@ -28,6 +28,7 @@ import {
 } from './providers/acp.js';
 import {
   claudeCliArgs,
+  claudeEndpointEnvironment,
   claudeMcpConfig,
   ClaudeCliAdapter,
   parseClaudeAuthStatus,
@@ -353,6 +354,69 @@ describe('CLI discovery', () => {
     expect(() => sanitizedEnvironment({}, { DATABASE_URL: 'postgres://secret' })).toThrow(
       /not permitted/,
     );
+  });
+
+  it('lets an adapter route a harness to the model proxy without inheriting personal keys', () => {
+    expect(
+      sanitizedEnvironment(
+        {
+          PATH: '/bin',
+          ANTHROPIC_API_KEY: 'personal-key',
+          CLAUDE_CONFIG_DIR: '/Users/me/.claude',
+        },
+        { ANTHROPIC_API_KEY: 'loopback-capability', ANTHROPIC_BASE_URL: 'http://127.0.0.1:1' },
+      ),
+    ).toEqual({
+      PATH: '/bin',
+      ANTHROPIC_API_KEY: 'loopback-capability',
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:1',
+    });
+    expect(() => sanitizedEnvironment({}, { ANTHROPIC_AUTH_TOKEN: 'no' })).toThrow(
+      /not permitted/,
+    );
+  });
+
+  it('points Claude Code at one scoped model on a loopback endpoint with a private config', () => {
+    expect(
+      claudeEndpointEnvironment(
+        { baseUrl: 'http://127.0.0.1:4100/v1', apiKey: 'capability' },
+        'sponsor/model',
+        '/tmp/sia-claude-x/config',
+      ),
+    ).toEqual({
+      ANTHROPIC_BASE_URL: 'http://127.0.0.1:4100',
+      ANTHROPIC_API_KEY: 'capability',
+      ANTHROPIC_MODEL: 'sponsor/model',
+      ANTHROPIC_SMALL_FAST_MODEL: 'sponsor/model',
+      ANTHROPIC_DEFAULT_HAIKU_MODEL: 'sponsor/model',
+      ANTHROPIC_DEFAULT_SONNET_MODEL: 'sponsor/model',
+      ANTHROPIC_DEFAULT_OPUS_MODEL: 'sponsor/model',
+      CLAUDE_CONFIG_DIR: '/tmp/sia-claude-x/config',
+      CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1',
+      DISABLE_AUTOUPDATER: '1',
+      DISABLE_TELEMETRY: '1',
+      DISABLE_ERROR_REPORTING: '1',
+    });
+  });
+
+  it("runs Claude Code for an included model without the person's Claude account", async () => {
+    const runner = {
+      run: vi.fn(async () => ({ code: 1, stdout: '', stderr: 'not logged in' })),
+    };
+    const adapter = new ClaudeCliAdapter({
+      providerId: 'meta',
+      accountOverride: {
+        state: 'authenticated',
+        label: 'Included with Sia',
+        billing: 'included',
+      },
+      modelEndpoint: async () => ({ baseUrl: 'http://127.0.0.1:1/v1', apiKey: 'capability' }),
+      commandRunner: runner,
+    });
+    expect(adapter.id).toBe('meta');
+    await expect(adapter.account()).resolves.toMatchObject({ billing: 'included' });
+    expect(runner.run).not.toHaveBeenCalled();
+    await adapter.dispose();
   });
 
   it('observes provider spawn failures without creating a second rejected promise', async () => {

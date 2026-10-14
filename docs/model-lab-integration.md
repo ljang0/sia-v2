@@ -87,6 +87,32 @@ Every model automatically receives a managed `codex_app_server` Responses route.
 `harnessRoutes` add lab-specific routes without removing that baseline. Every route must name an
 allowed model. `defaultHarnessId` chooses between routes in the same lab entry.
 
+A `sia_managed` route's `apiProtocol` is what the harness speaks to Sia, not what the lab speaks:
+the relay accepts Responses (`/v1/responses`), Anthropic Messages (`/v1/messages`), and Chat
+Completions (`/v1/chat/completions`) and translates each to the lab's own protocol. So a Chat
+Completions lab can run in Claude Code with
+`{ "harnessId": "claude_code", "credentialSource": "sia_managed", "apiProtocol": "anthropic_messages" }`.
+On the Mac, the harness gets a loopback base URL and a model-scoped capability from
+`HostedModelProxy`; neither Sia identity nor any lab key reaches it, and the cloud meters the
+request against that lab, model, and harness.
+
+## Preview a built-in harness before release admission
+
+Routes for a harness whose registry entry is not `productionEnabled` are dropped in ordinary
+builds. To test one (for example Claude Code with a sponsor's models) on a tester's signed app,
+the release owner signs a manifest that lists it under `previewHarnesses`:
+
+```json
+{ "previewHarnesses": ["claude_code"], "harnesses": [] }
+```
+
+The manifest is signed and loaded exactly like a lab harness manifest below
+(`SIA_LAB_HARNESS_MANIFEST`), expires the same way, and only accepts built-in harness ids. Release
+admission is still flipping `productionEnabled` after the conformance matrix passes.
+
+Claude Code's routing has an opt-in real-binary check that needs no network, account, or model
+turn: `SIA_CLAUDE_ENDPOINT_SMOKE=1 pnpm --filter @sia/runtime exec vitest run src/claude-endpoint.smoke.test.ts`.
+
 ## Sponsored credit and usage reports
 
 Each lab is metered on its own. Its `dailyRequestLimit` and `dailyTokenLimit` apply per account
