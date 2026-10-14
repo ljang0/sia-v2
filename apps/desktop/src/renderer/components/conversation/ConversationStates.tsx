@@ -44,7 +44,7 @@ export function ConversationWelcome({
             ? recentThreads.length
               ? 'Pick up a recent conversation, or start with something you want off your list.'
               : 'Start with something you want off your list.'
-            : 'Give it a name and one short instruction. Sia chooses a model, color, and private folder.'}
+            : 'Give it a name and say what it should help with. Sia sets up the rest.'}
         </p>
         {onCreateThread ? (
           <LiquidMetalButton tone="sage" onClick={onCreateThread}>

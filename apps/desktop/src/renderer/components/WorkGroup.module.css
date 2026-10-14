@@ -1,22 +1,23 @@
 .workGroup,
 .workGroupSteps {
   display: grid;
-  gap: 2px;
+  gap: 4px;
 }
 
 .workGroupSummary {
   display: inline-flex;
   width: fit-content;
   align-items: center;
-  gap: 8px;
-  margin-left: 42px;
-  padding: 5px 10px 5px 12px;
+  min-height: var(--target-min);
+  gap: 10px;
+  margin-left: 46px;
+  padding: 6px 12px;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: var(--weight-medium);
   transition:
     background-color var(--motion-fast) var(--ease-standard),
@@ -89,10 +90,11 @@
 .workingStatus {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-left: 54px;
+  min-height: var(--target-min);
+  gap: 10px;
+  margin-left: 58px;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: var(--weight-medium);
 }
 

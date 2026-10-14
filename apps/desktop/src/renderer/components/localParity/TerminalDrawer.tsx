@@ -89,7 +89,7 @@ export function TerminalDrawer({
             </div>
             <Dialog.Close asChild>
               <button type="button" className={buttons.iconButton} aria-label="Close terminal">
-                <X size={17} aria-hidden="true" />
+                <X size={18} aria-hidden="true" />
               </button>
             </Dialog.Close>
           </header>
@@ -116,9 +116,9 @@ export function TerminalDrawer({
               data-testid="terminal-run"
             >
               {run.status === 'running' ? (
-                <SpinnerGap className={primitives.spin} size={14} aria-hidden="true" />
+                <SpinnerGap className={primitives.spin} size={16} aria-hidden="true" />
               ) : (
-                <Play size={14} aria-hidden="true" />
+                <Play size={16} aria-hidden="true" />
               )}
               Run once
             </button>
@@ -134,9 +134,9 @@ export function TerminalDrawer({
                 data-testid="terminal-start-background"
               >
                 {backgroundStarting ? (
-                  <SpinnerGap className={primitives.spin} size={14} aria-hidden="true" />
+                  <SpinnerGap className={primitives.spin} size={16} aria-hidden="true" />
                 ) : (
-                  <Play size={14} aria-hidden="true" />
+                  <Play size={16} aria-hidden="true" />
                 )}
                 Background
               </button>
@@ -147,7 +147,7 @@ export function TerminalDrawer({
             <section className={styles.terminalOutput} aria-live="polite">
               <header>
                 <span>
-                  <CaretRight size={13} aria-hidden="true" />
+                  <CaretRight size={16} aria-hidden="true" />
                   {run.command}
                 </span>
                 {run.exitCode !== undefined ? (
@@ -174,7 +174,7 @@ export function TerminalDrawer({
                 >
                   <header>
                     <span>
-                      <CaretRight size={13} aria-hidden="true" />
+                      <CaretRight size={16} aria-hidden="true" />
                       {session.command}
                     </span>
                     <span data-testid="background-terminal-status">{session.status}</span>
@@ -186,7 +186,7 @@ export function TerminalDrawer({
                         aria-label={`Stop ${session.command}`}
                         data-testid="background-terminal-stop"
                       >
-                        <Stop size={12} weight="fill" aria-hidden="true" />
+                        <Stop size={14} weight="fill" aria-hidden="true" />
                       </button>
                     ) : null}
                   </header>

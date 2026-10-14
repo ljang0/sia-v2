@@ -35,7 +35,7 @@ export function QueuedMessages({
     >
       {empty ? null : (
         <header className={styles.heading}>
-          <Clock size={13} aria-hidden="true" />
+          <Clock size={16} aria-hidden="true" />
           {messages.length === 1
             ? `Queued · ${agentName ?? 'Sia'} will pick this up next`
             : `${messages.length} queued · ${agentName ?? 'Sia'} will pick these up in order`}
@@ -65,7 +65,7 @@ export function QueuedMessages({
                     void onSendNow(message.id).finally(() => setSending(undefined));
                   }}
                 >
-                  <ArrowUp size={12} weight="bold" aria-hidden="true" />
+                  <ArrowUp size={14} weight="bold" aria-hidden="true" />
                   {sending === message.id ? 'Sending…' : 'Send now'}
                 </button>
               ) : null}
@@ -81,7 +81,7 @@ export function QueuedMessages({
                     void onRemove(message.id).finally(() => setRemoving(undefined));
                   }}
                 >
-                  <X size={13} aria-hidden="true" />
+                  <X size={16} aria-hidden="true" />
                 </button>
               ) : null}
             </div>

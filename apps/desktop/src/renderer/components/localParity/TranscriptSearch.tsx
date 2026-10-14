@@ -43,7 +43,7 @@ export function TranscriptSearch({
         <h2 id={labelId}>Search conversations</h2>
       </div>
       <label className={surface.threadSearch}>
-        <MagnifyingGlass size={14} aria-hidden="true" />
+        <MagnifyingGlass size={16} aria-hidden="true" />
         <input
           autoFocus={focusOnMount}
           type="search"

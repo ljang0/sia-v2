@@ -293,7 +293,7 @@ export function ScheduleForm({
       ) : null}
       <div className={styles.scheduleFormFooter}>
         <p className={styles.scheduleSummaryLine} id={summaryId} aria-live="polite">
-          <Repeat size={14} aria-hidden="true" />
+          <Repeat size={16} aria-hidden="true" />
           {needsDays
             ? 'Choose at least one day.'
             : describeScheduleDraft({

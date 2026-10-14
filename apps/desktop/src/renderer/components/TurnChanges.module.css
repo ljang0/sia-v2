@@ -4,9 +4,9 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 6px;
-  margin: -12px 0 0 42px;
+  margin: -14px 0 0 46px;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
 }
 
 .label {
@@ -25,8 +25,9 @@
 .action {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 8px;
+  min-height: var(--target-min);
+  gap: 6px;
+  padding: 0 10px;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;

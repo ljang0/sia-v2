@@ -61,7 +61,7 @@ export function ArchivedThreadsSection({
                 onClick={() => void onRestore(thread.id)}
                 aria-label={`Restore ${thread.title}`}
               >
-                <ArrowCounterClockwise size={14} aria-hidden="true" />
+                <ArrowCounterClockwise size={16} aria-hidden="true" />
               </button>
             </article>
           ))}

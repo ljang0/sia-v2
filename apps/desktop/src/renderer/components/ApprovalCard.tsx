@@ -76,9 +76,9 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
           {!resolved ? (
             <p>
               {request.kind === 'foreground'
-                ? 'Sia needs to use the pointer in the foreground.'
+                ? 'Sia needs to control the pointer for a moment.'
                 : request.kind === 'connector'
-                  ? `${request.app} will make this change only after you approve it.`
+                  ? `${request.app} will make this change only after you allow it.`
                   : `Review this ${request.category.toLowerCase()} action before Sia continues.`}
             </p>
           ) : null}
@@ -105,13 +105,13 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
         <div className={styles.approvalDetails}>
           <div className={styles.connectorMeta}>
             <span>{request.account}</span>
-            <ArrowSquareOut size={14} aria-hidden="true" />
+            <ArrowSquareOut size={16} aria-hidden="true" />
             <span>{request.destination}</span>
           </div>
           <pre className={styles.connectorPreview}>{request.preview}</pre>
           {request.expiresAt && status === 'pending' ? (
             <div className={styles.expiryNote}>
-              <Clock size={14} aria-hidden="true" />
+              <Clock size={16} aria-hidden="true" />
               <span>{formatExpiry(request.expiresAt, now)}</span>
             </div>
           ) : null}
@@ -132,7 +132,7 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
             </div>
           )}
           <div className={styles.detailPair}>
-            <span>Target</span>
+            <span>Applies to</span>
             <strong>{request.target}</strong>
           </div>
           {request.dataLeaving ? (
@@ -146,13 +146,13 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
           <div className={styles.restoreNote}>
             <ShieldCheck size={16} aria-hidden="true" />
             <span>
-              This approval applies only to the target shown. Sia does not provide an automatic
-              undo.
+              Allowing this covers only what is shown here. Sia can&apos;t undo it
+              automatically.
             </span>
           </div>
           {request.expiresAt && !resolved ? (
             <div className={styles.expiryNote}>
-              <Clock size={14} aria-hidden="true" />
+              <Clock size={16} aria-hidden="true" />
               <span>{formatExpiry(request.expiresAt, now, 'Sia will skip this step')}</span>
             </div>
           ) : null}
@@ -173,7 +173,7 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
       {resolved ? (
         <details className={styles.resolvedDetails}>
           <summary className={styles.resolvedSummary}>
-            <CaretRight size={14} className={styles.resolvedCaret} aria-hidden="true" />
+            <CaretRight size={16} className={styles.resolvedCaret} aria-hidden="true" />
             <span className={styles.resolvedTitle}>{request.title}</span>
             <span className={styles.approvalStatus}>
               {displayStatus === 'approved' ? (
@@ -181,11 +181,9 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
               ) : (
                 <XCircle size={16} aria-hidden="true" />
               )}
-              {displayStatus === 'approved' && event.scope === 'task' ? (
-                <span className={styles.approvalStatusPlain}>Allowed for this task</span>
-              ) : (
-                displayStatus
-              )}
+              {displayStatus === 'approved' && event.scope === 'task'
+                ? 'Allowed for this task'
+                : STATUS_LABEL[displayStatus]}
             </span>
           </summary>
           {content}
@@ -221,13 +219,20 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
             onClick={() => onResolve(request.id, 'approve')}
             disabled={busy}
           >
-            {request.kind === 'foreground' ? 'Take over briefly' : 'Approve'}
+            {request.kind === 'foreground' ? 'Take over briefly' : 'Allow'}
           </button>
         </footer>
       ) : null}
     </section>
   );
 }
+
+const STATUS_LABEL = {
+  pending: 'Waiting',
+  approved: 'Allowed',
+  rejected: 'Not allowed',
+  expired: 'Expired',
+} as const;
 
 const COMMAND_PREFIX = 'Run a command: ';
 
