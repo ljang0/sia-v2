@@ -82,6 +82,36 @@
   box-shadow: 0 3px 14px #09221c25;
   font: 500 var(--text-xs) var(--font-sans);
   cursor: pointer;
+  position: relative;
+  transition:
+    border-color var(--motion-standard) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+.badgeLabel,
+.statusLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+/* At a glance: the pill's edge carries the state colour as well as the dot. */
+.pet[data-status='working'] .badge {
+  border-color: #82b89c55;
+}
+.pet[data-status='input'] .badge {
+  border-color: #daae6599;
+}
+.pet[data-status='blocked'] .badge {
+  border-color: #d9907c99;
+}
+.pet[data-status='ready'] .badge {
+  border-color: #82b89c99;
+}
+.badge:active {
+  transform: translateY(calc(var(--motion-nudge) / 3));
+}
+.stage {
+  display: block;
 }
 .badge b {
   min-width: 15px;
@@ -111,16 +141,112 @@
   background: #82b89c;
   box-shadow: 0 0 0 2px #82b89c33;
 }
-/* Working reads as alive, the same soft halo the main window's agent avatars use. */
+/* Working reads as alive, the same soft halo the main window's agent avatars use. Every other
+   state plays one beat when it begins and then rests, so an idle Scotty costs no animation work. */
+/* Rows that arrive together stagger, capped at eight. */
+.task:nth-child(2) {
+  --item: 1;
+}
+.task:nth-child(3) {
+  --item: 2;
+}
+.task:nth-child(4) {
+  --item: 3;
+}
+.task:nth-child(5) {
+  --item: 4;
+}
+.task:nth-child(6) {
+  --item: 5;
+}
+.task:nth-child(7) {
+  --item: 6;
+}
+.task:nth-child(n + 8) {
+  --item: 7;
+}
 @media (prefers-reduced-motion: no-preference) {
   [data-motion='true'] [data-status='working'] .dot,
   [data-motion='true'][data-status='working'] .dot {
     animation: scotty-working 2s var(--ease-standard) infinite;
   }
+  /* Arrival: Scotty trots up, then the badge follows a beat behind. */
+  [data-motion='true'] .dog {
+    animation: scotty-arrive var(--motion-emphasis) var(--ease-spring) both;
+  }
+  [data-motion='true'] .badge {
+    animation: scotty-arrive var(--motion-emphasis) var(--ease-spring)
+      calc(var(--motion-stagger) * 3) both;
+  }
+  [data-motion='true'] .badgeLabel,
+  [data-motion='true'] .badge b,
+  [data-motion='true'] .statusLine {
+    animation: scotty-swap var(--motion-standard) var(--ease-spring) both;
+  }
+  /* One recognisable beat per state. */
+  [data-motion='true'][data-status='working'] .stage {
+    animation: scotty-lean var(--motion-emphasis) var(--ease-out-soft) both;
+  }
+  [data-motion='true'][data-status='ready'] .stage {
+    animation: scotty-hop var(--motion-emphasis) var(--ease-out-soft) 2;
+  }
+  [data-motion='true'][data-status='ready'] .badge {
+    animation: scotty-pop var(--motion-emphasis) var(--ease-spring) both;
+  }
+  [data-motion='true'][data-status='input'] .stage,
+  [data-motion='true'][data-status='blocked'] .stage {
+    animation: scotty-perk var(--motion-emphasis) var(--ease-out-soft) both;
+  }
+  /* Needing you stays sober: a soft halo widens and fades twice, no bounce. */
+  [data-motion='true'][data-status='input'] .badge::after,
+  [data-motion='true'][data-status='blocked'] .badge::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    box-shadow: 0 0 0 1px currentColor;
+    color: #daae65;
+    pointer-events: none;
+    animation: scotty-halo calc(var(--motion-emphasis) * 3) var(--ease-out-soft) 2 both;
+  }
+  [data-motion='true'][data-status='blocked'] .badge::after {
+    color: #d9907c;
+  }
+  [data-motion='true'] .task:not([data-status='working']) .dot {
+    animation: scotty-dot-in var(--motion-emphasis) var(--ease-spring) both;
+  }
+  [data-motion='true'] .avatar {
+    animation: scotty-pop var(--motion-emphasis) var(--ease-spring) both;
+  }
   [data-motion='true'] .detail,
-  [data-motion='true'] .taskList,
   [data-motion='true'] .composeIntro {
-    animation: scotty-enter var(--motion-surface) var(--ease-out-soft) both;
+    animation: scotty-forward var(--motion-surface) var(--ease-out-soft) both;
+  }
+  [data-motion='true'] .taskList {
+    animation: scotty-fade var(--motion-standard) var(--ease-out-soft) both;
+  }
+  [data-motion='true'] .task {
+    animation: scotty-enter var(--motion-emphasis) var(--ease-spring)
+      calc(var(--item, 0) * var(--motion-stagger)) both;
+  }
+  [data-motion='true'] .question {
+    animation: scotty-enter var(--motion-emphasis) var(--ease-spring) both;
+  }
+  /* Review surfaces fade and settle only. */
+  [data-motion='true'] .approval {
+    animation: scotty-fade var(--motion-surface) var(--ease-standard) both;
+  }
+  [data-motion='true'] .empty > :not(.sprite) {
+    animation: scotty-enter var(--motion-emphasis) var(--ease-spring) both;
+  }
+  [data-motion='true'] .empty > :nth-child(2) {
+    animation-delay: var(--motion-stagger);
+  }
+  [data-motion='true'] .empty > :nth-child(3) {
+    animation-delay: calc(var(--motion-stagger) * 2);
+  }
+  [data-motion='true'] .empty > :nth-child(n + 4) {
+    animation-delay: calc(var(--motion-stagger) * 3);
   }
 }
 @keyframes scotty-working {
@@ -132,7 +258,65 @@
 @keyframes scotty-enter {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    transform: translateY(var(--motion-rise));
+  }
+}
+@keyframes scotty-forward {
+  from {
+    opacity: 0;
+    transform: translateX(var(--motion-rise));
+  }
+}
+@keyframes scotty-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes scotty-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise)) scale(var(--motion-pop-scale));
+  }
+}
+@keyframes scotty-swap {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-rise) / 2));
+  }
+}
+@keyframes scotty-pop {
+  from {
+    transform: scale(var(--motion-pop-scale));
+  }
+}
+@keyframes scotty-dot-in {
+  from {
+    transform: scale(calc(var(--motion-pop-scale) - 0.3));
+  }
+}
+@keyframes scotty-lean {
+  40% {
+    transform: translateX(var(--motion-nudge));
+  }
+}
+@keyframes scotty-hop {
+  45% {
+    transform: translateY(calc(var(--motion-rise) * -1));
+  }
+}
+@keyframes scotty-perk {
+  50% {
+    transform: translateY(calc(var(--motion-nudge) * -1));
+  }
+}
+@keyframes scotty-halo {
+  from {
+    opacity: 0.9;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.12, 1.4);
   }
 }
 .panel {
@@ -183,6 +367,16 @@
   height: 42px;
   border-radius: 14px;
   background: var(--bg-selected);
+  transition: box-shadow var(--motion-standard) var(--ease-standard);
+}
+.avatar[data-status='input'] {
+  box-shadow: 0 0 0 2px #daae6566;
+}
+.avatar[data-status='blocked'] {
+  box-shadow: 0 0 0 2px #d9907c66;
+}
+.avatar[data-status='ready'] {
+  box-shadow: 0 0 0 2px #82b89c66;
 }
 .header > div {
   flex: 1;
@@ -209,6 +403,20 @@
 }
 .icon:hover {
   background: var(--bg-hover);
+}
+.icon,
+.task,
+.textButton,
+.primary,
+.secondary,
+.send {
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+.panel button:active:not(:disabled) {
+  transform: translateY(calc(var(--motion-nudge) / 3));
 }
 .toolbar {
   min-height: 36px;
@@ -342,9 +550,6 @@
   margin: 4px 0 10px;
 }
 .progress {
-  display: flex;
-  align-items: center;
-  gap: 7px;
   margin: 0 0 16px;
   color: var(--text-secondary);
   font-size: var(--text-xs);
