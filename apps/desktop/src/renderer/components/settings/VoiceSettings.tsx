@@ -82,7 +82,7 @@ export function VoiceSettings({
         <div className={styles.voiceConnected}>
           <div className={styles.voiceStatusLine}>
             <span className={styles.voiceMark} aria-hidden="true">
-              <SpeakerHigh size={18} />
+              <SpeakerHigh size={20} />
             </span>
             <div>
               <strong>{nativeVoice ? 'Read aloud ready' : 'ElevenLabs voice ready'}</strong>
