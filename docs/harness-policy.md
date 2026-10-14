@@ -19,7 +19,7 @@ the pinned harness and model for audit attribution.
 | Claude Code      | isolated CLI stream        | legacy; included models in signed preview | provider-owned Claude subscription, or included models via the loopback proxy (`sia_managed`) |
 | OpenCode         | ACP over nd-JSON           | included models in signed preview         | included models via the loopback proxy (`sia_managed`); private HOME per session              |
 | OpenHands        | ACP over stdio             | included models in signed preview         | included models via the loopback proxy (`sia_managed`); private HOME per session              |
-| Pi               | JSONL RPC over stdio       | hidden, fail-closed                       | no route approved yet                                                                         |
+| Pi               | JSONL RPC over stdio       | included models in signed preview         | included models via the loopback proxy (`sia_managed`); private HOME per session              |
 | Lab harness test | ACP over stdio             | signed testing manifest only              | lab-owned; see [model lab integration](./model-lab-integration.md)                            |
 
 OpenCode documents `opencode acp` as an nd-JSON stdin/stdout server and supports explicit permission
@@ -102,7 +102,16 @@ and Sia answers by ACP option kind and never selects OpenHands' "always proceed"
 choice is fixed in its settings and enforced by the model-scoped proxy capability, since OpenHands
 does not advertise an ACP model selector. Verify with `SIA_OPENHANDS_ENDPOINT_SMOKE`.
 
-The current release has no admitted OpenCode or Pi adapter. They remain absent from the UI, and the
+Pi 1.2 (`pi --mode rpc`) runs included models in signed preview too. Each session starts its own
+process with a private HOME and `PI_CODING_AGENT_DIR` holding only Sia's `models.json` (the `sia`
+provider on the loopback Responses proxy) and `mcp.json` (Sia's tool server with `direct`
+exposure), and runs with `--no-session --no-extensions -e builtin:mcp --tools 'mcp__sia__*'
+--no-skills --no-prompt-templates --no-themes --no-context-files --no-approve --offline`, so Pi's
+own read/bash/edit/write tools are never declared. Pi frames JSONL on LF only, so its adapter does
+not use Node's `readline`. Verify with `SIA_PI_ENDPOINT_SMOKE`.
+
+No OpenCode, OpenHands, or Pi adapter is release-admitted yet; each runs only under a signed
+`previewHarnesses` manifest until the remaining checks above pass in the signed app. They remain absent from the UI, and the
 main process independently rejects a crafted or migrated unapproved route.
 
 ## Lab-hosted proprietary harnesses

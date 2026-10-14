@@ -778,6 +778,7 @@ async function performApplicationCreation(): Promise<void> {
         ...(process.env.SIA_OPENHANDS_COMMAND
           ? { openhands: process.env.SIA_OPENHANDS_COMMAND }
           : {}),
+        ...(process.env.SIA_PI_COMMAND ? { pi: process.env.SIA_PI_COMMAND } : {}),
       },
       harnessAdapters: labHarnesses.map((harness) => ({
         provider: 'lab' as const,

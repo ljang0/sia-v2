@@ -18,6 +18,7 @@ import {
   createGeminiAdapter,
   createOpenCodeAdapter,
   createOpenHandsAdapter,
+  createPiAdapter,
   createGrokAdapter,
   createMetaAdapter,
   legacyModelRoute,
@@ -136,7 +137,11 @@ export class RuntimeCoordinator {
         session: ProviderSessionOptions,
       ) => Promise<{ baseUrl: string; apiKey: string }>;
       /** Executables for optional harnesses; each defaults to its name on PATH. */
-      harnessCommands?: { readonly opencode?: string; readonly openhands?: string };
+      harnessCommands?: {
+        readonly opencode?: string;
+        readonly openhands?: string;
+        readonly pi?: string;
+      };
       acpMcpServerFactory?: (
         provider: 'grok' | 'gemini' | 'claude',
         session: ProviderSessionOptions,
@@ -223,6 +228,20 @@ export class RuntimeCoordinator {
           ...(options.harnessCommands?.opencode
             ? { command: options.harnessCommands.opencode }
             : {}),
+          ...(options.acpMcpServerFactory
+            ? { mcpServerFactory: (session) => options.acpMcpServerFactory!('claude', session) }
+            : {}),
+        }),
+        false,
+      );
+      this.#registerAdapter(
+        'meta',
+        'pi_rpc',
+        createPiAdapter({
+          providerId: 'meta',
+          accountOverride: included,
+          modelEndpoint: (session) => endpoint('pi_rpc', session),
+          ...(options.harnessCommands?.pi ? { command: options.harnessCommands.pi } : {}),
           ...(options.acpMcpServerFactory
             ? { mcpServerFactory: (session) => options.acpMcpServerFactory!('claude', session) }
             : {}),

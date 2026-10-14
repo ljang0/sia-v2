@@ -118,11 +118,14 @@ model on every request, a completed Sia MCP tool loop, and an untouched workspac
 SIA_CLAUDE_ENDPOINT_SMOKE=1 \
 SIA_OPENCODE_ENDPOINT_SMOKE=1 SIA_OPENCODE_COMMAND=/abs/path/opencode \
 SIA_OPENHANDS_ENDPOINT_SMOKE=1 SIA_OPENHANDS_COMMAND=/abs/path/openhands \
+SIA_PI_ENDPOINT_SMOKE=1 SIA_PI_COMMAND=/abs/path/pi \
   pnpm --filter @sia/runtime exec vitest run src/claude-endpoint.smoke.test.ts \
-    src/opencode-endpoint.smoke.test.ts src/openhands-endpoint.smoke.test.ts
+    src/opencode-endpoint.smoke.test.ts src/openhands-endpoint.smoke.test.ts \
+    src/pi-endpoint.smoke.test.ts
 ```
 
-On a tester's Mac, `SIA_OPENCODE_COMMAND` and `SIA_OPENHANDS_COMMAND` point Sia at those binaries;
+On a tester's Mac, `SIA_OPENCODE_COMMAND`, `SIA_OPENHANDS_COMMAND`, and `SIA_PI_COMMAND` point Sia at
+those binaries;
 otherwise each is looked up on PATH.
 
 ## Sponsored credit and usage reports

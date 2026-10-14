@@ -65,7 +65,8 @@ export const BUILTIN_HARNESS_DEFINITIONS = [
     id: 'pi_rpc',
     name: 'Pi RPC',
     modelProtocols: ['openai_responses', 'openai_chat_completions', 'anthropic_messages'],
-    credentialSources: ['provider_subscription', 'provider_api'],
+    // `sia_managed` reaches included models through the loopback model proxy (Responses).
+    credentialSources: ['provider_subscription', 'provider_api', 'sia_managed'],
     productionEnabled: false,
   },
   {

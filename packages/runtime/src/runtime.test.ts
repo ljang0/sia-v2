@@ -29,6 +29,7 @@ import {
 } from './providers/acp.js';
 import { openCodeConfig } from './providers/opencode.js';
 import { openHandsAgentSettings } from './providers/openhands.js';
+import { piArgs, piMcpConfig, piModels } from './providers/pi.js';
 import {
   claudeCliArgs,
   claudeEndpointEnvironment,
@@ -785,6 +786,51 @@ describe('Codex app-server adapter', () => {
       },
       tools: [],
     });
+  });
+
+  it('starts Pi with only the scoped Sia model and Sia tools and nothing inherited', () => {
+    expect(
+      piModels({ baseUrl: 'http://127.0.0.1:4100/v1', apiKey: 'cap' }, 'sponsor/m'),
+    ).toEqual({
+      providers: {
+        sia: {
+          baseUrl: 'http://127.0.0.1:4100/v1',
+          api: 'openai-responses',
+          apiKey: 'cap',
+          models: [{ id: 'sponsor/m' }],
+        },
+      },
+    });
+    expect(
+      piMcpConfig([
+        {
+          name: 'sia',
+          command: '/bin/bridge',
+          args: ['--x'],
+          env: [{ name: 'T', value: '1' }],
+        },
+      ]),
+    ).toEqual({
+      mcpServers: {
+        sia: { command: '/bin/bridge', args: ['--x'], env: { T: '1' }, exposure: 'direct' },
+      },
+    });
+    const args = piArgs('sponsor/m', ' Be brief. ');
+    for (const flag of [
+      '--no-session',
+      '--no-extensions',
+      '--no-skills',
+      '--no-prompt-templates',
+      '--no-themes',
+      '--no-context-files',
+      '--no-approve',
+      '--offline',
+    ])
+      expect(args).toContain(flag);
+    expect(args.join(' ')).toContain('--provider sia --model sponsor/m');
+    expect(args.join(' ')).toContain('-e builtin:mcp --tools mcp__sia__*');
+    expect(args.slice(-2)).toEqual(['--append-system-prompt', 'Be brief.']);
+    expect(piArgs('sponsor/m', '   ')).not.toContain('--append-system-prompt');
   });
 
   it('configures OpenCode with only the scoped Sia model and Sia tools', () => {
