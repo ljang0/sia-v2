@@ -2,7 +2,7 @@
 
 .threadSearch {
   display: flex;
-  height: 32px;
+  height: var(--target-min);
   align-items: center;
   gap: 7px;
   margin: 0 4px 8px;
@@ -164,7 +164,7 @@
 }
 
 .localSurfaceHeader .surfaceSegments button {
-  min-height: 26px;
+  min-height: var(--target-min);
   padding: 0 8px;
 }
 

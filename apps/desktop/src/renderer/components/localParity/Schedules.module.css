@@ -94,7 +94,7 @@
 
 .scheduleIdeas button {
   display: inline-flex;
-  min-height: 32px;
+  min-height: var(--target-min);
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
@@ -211,7 +211,7 @@
 
 .scheduleDays > button {
   min-width: 46px;
-  min-height: 32px;
+  min-height: var(--target-min);
   padding: 0 10px;
   border: 1px solid var(--border-control);
   border-radius: var(--radius-round);
