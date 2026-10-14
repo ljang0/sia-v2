@@ -44,8 +44,8 @@
 
 .browserWindowIcon {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
+  width: var(--target-min);
+  height: var(--target-min);
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-control);

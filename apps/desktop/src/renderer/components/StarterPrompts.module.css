@@ -63,8 +63,8 @@
 .starterIcon {
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: var(--target-min);
+  height: var(--target-min);
   border-radius: var(--radius-control);
   background: var(--agent-soft);
   color: var(--text-primary);
@@ -76,9 +76,9 @@
 }
 
 .starterText strong {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
-  line-height: 18px;
+  line-height: 1.35;
 }
 
 .starterText span {
