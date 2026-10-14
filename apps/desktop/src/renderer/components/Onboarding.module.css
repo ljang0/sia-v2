@@ -1,3 +1,11 @@
+/* Ticks grow from small and turn slightly as they land. Both derive from the shared pop scale,
+   so Reduced Motion and Calm (pop scale 1) settle them in place without travel. */
+.setup,
+.accessSection,
+.doneToast {
+  --tick-from: calc(1 - (1 - var(--motion-pop-scale)) * 15);
+  --tick-turn: calc((1 - var(--motion-pop-scale)) * -300deg);
+}
 .setup {
   flex: 1;
   min-width: 0;
@@ -34,12 +42,74 @@
   line-height: 1.6;
 }
 .permission {
+  position: relative;
   display: flex;
   gap: 16px;
   align-items: center;
   justify-content: space-between;
   padding: 16px 0;
   border-top: 1px solid var(--border-subtle);
+}
+/* The row the guided pass is on carries a quiet rail, so the list and the guide stay linked. */
+.permission::before {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: -14px;
+  width: 3px;
+  border-radius: var(--radius-round);
+  background: var(--focus-ring);
+  content: '';
+  opacity: 0;
+  transform: scaleY(0.4);
+  transition:
+    opacity var(--motion-exit) var(--ease-exit),
+    transform var(--motion-exit) var(--ease-exit);
+}
+.permission[data-current]::before {
+  opacity: 1;
+  transform: scaleY(1);
+  transition:
+    opacity var(--motion-standard) var(--ease-out-soft),
+    transform var(--motion-emphasis) var(--ease-spring);
+}
+/* A row that just turned on settles: a brief wash across the row and the chip lands. */
+.permission::after {
+  position: absolute;
+  inset: 1px -10px 0;
+  border-radius: var(--radius-control);
+  background: var(--surface-success);
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+.permission[data-settled]::after {
+  animation: rowWash calc(var(--motion-emphasis) * 3) var(--ease-out-soft) both;
+}
+.permission[data-settled] .ready {
+  animation: chipSettle var(--motion-emphasis) var(--ease-spring) both;
+}
+.permission[data-settled] .ready svg {
+  animation: tickIn var(--motion-emphasis) var(--ease-spring) var(--motion-stagger) both;
+}
+@keyframes rowWash {
+  from {
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.85;
+  }
+}
+@keyframes chipSettle {
+  from {
+    opacity: 0;
+    transform: scale(var(--motion-pop-scale)) translateY(var(--motion-nudge));
+  }
+}
+.permission[data-current] .status {
+  background: var(--surface-info);
+  color: var(--text-primary);
 }
 .permission strong {
   font-size: var(--text-md);
@@ -171,6 +241,8 @@
   color: var(--text-secondary);
 }
 .accessList {
+  position: relative;
+  z-index: 0;
   list-style: none;
   padding: 0;
   margin: 0 0 18px;
@@ -212,10 +284,18 @@
   height: 1px;
   margin-right: 2px;
   background: var(--border-control);
+  transform-origin: left center;
 }
+/* The connector draws toward the step that just opened, so progress reads as forward motion. */
 .progress li[data-state='done']::before,
 .progress li[data-state='current']::before {
   background: var(--focus-ring);
+  animation: connectorDraw var(--motion-emphasis) var(--ease-out-soft) both;
+}
+@keyframes connectorDraw {
+  from {
+    transform: scaleX(var(--tick-from));
+  }
 }
 .progressMark {
   display: grid;
@@ -240,22 +320,70 @@
   border-color: var(--bg-accent);
   background: var(--bg-accent);
   color: var(--text-on-accent);
+  box-shadow: 0 0 0 3px var(--surface-success);
+  animation: markArrive var(--motion-emphasis) var(--ease-spring) both;
 }
 .progress li[data-state='done'] .progressMark {
   border-color: var(--focus-ring);
   background: var(--surface-success);
   color: var(--text-success);
+  animation: markDone var(--motion-emphasis) var(--ease-spring) both;
 }
-.stageBody {
-  animation: stageIn var(--motion-surface) var(--ease-out-soft) both;
+.progress li[data-state='done'] .progressMark svg {
+  animation: tickIn var(--motion-emphasis) var(--ease-spring) both;
+}
+@keyframes markArrive {
+  from {
+    transform: scale(var(--motion-pop-scale));
+  }
+}
+@keyframes markDone {
+  from {
+    transform: scale(var(--motion-pop-scale));
+  }
+}
+@keyframes tickIn {
+  from {
+    opacity: 0;
+    transform: scale(var(--tick-from)) rotate(var(--tick-turn));
+  }
+}
+/* Each step arrives as a short cascade: mark, heading, intro, then the content beneath. */
+.stageBody > *,
+.included li {
+  animation: stageIn var(--motion-emphasis) var(--ease-spring) both;
+}
+.stageBody > :nth-child(2),
+.included li:nth-child(1) {
+  animation-delay: var(--motion-stagger);
+}
+.stageBody > :nth-child(3),
+.included li:nth-child(2) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+.stageBody > :nth-child(4),
+.included li:nth-child(3) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+.stageBody > :nth-child(5) {
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+.stageBody > :nth-child(n + 6) {
+  animation-delay: calc(var(--motion-stagger) * 5);
+}
+.included li:nth-child(n + 4) {
+  animation-delay: calc(var(--motion-stagger) * 4);
 }
 @keyframes stageIn {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(var(--motion-rise));
   }
 }
+/* The finish line: the mark lands, its check turns into place, and two soft rings spread out
+   once. Nothing loops, and the workspace stays one click away. */
 .doneMark {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 52px;
@@ -264,12 +392,54 @@
   border-radius: var(--radius-round);
   background: var(--surface-success);
   color: var(--text-success);
-  animation: donePop 420ms var(--ease-out-soft) both;
+  animation: donePop var(--motion-emphasis) var(--ease-spring) both;
+}
+.doneMark svg {
+  animation: tickIn var(--motion-emphasis) var(--ease-spring) var(--motion-fast) both;
+}
+.doneMark::before,
+.doneMark::after {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--focus-ring);
+  border-radius: inherit;
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  animation: doneRing calc(var(--motion-emphasis) * 3) var(--ease-out-soft)
+    var(--motion-standard);
+}
+.doneMark::after {
+  animation-delay: calc(var(--motion-standard) + var(--motion-emphasis) / 2);
 }
 @keyframes donePop {
   from {
     opacity: 0;
-    transform: scale(0.7);
+    transform: scale(var(--tick-from));
+  }
+}
+@keyframes doneRing {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(calc(2 - var(--tick-from) / 2));
+  }
+}
+/* The heading and intro re-settle when the step flips to ready without remounting the form. */
+.stage h1[data-done='true'],
+.intro[data-done='true'] {
+  animation: doneSettle var(--motion-emphasis) var(--ease-spring) var(--motion-stagger) both;
+}
+.intro[data-done='true'] {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+@keyframes doneSettle {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise));
   }
 }
 .modeSummary {
@@ -333,27 +503,52 @@
   color: var(--text-primary);
   font-size: var(--text-md);
   line-height: 1.45;
-  animation: toastIn var(--motion-surface) var(--ease-out-soft) both;
+  animation: toastIn var(--motion-emphasis) var(--ease-spring) both;
 }
 .doneToast svg {
   flex: none;
   color: var(--text-success);
+  animation: tickIn var(--motion-emphasis) var(--ease-spring) var(--motion-standard) both;
+}
+.doneToast[data-leaving] {
+  animation: toastOut var(--motion-exit) var(--ease-exit) both;
 }
 @keyframes toastIn {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(calc(var(--motion-rise) * -1)) scale(var(--motion-pop-scale));
+  }
+}
+@keyframes toastOut {
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-nudge) * -1));
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .stageBody,
+  .stageBody > *,
+  .included li,
   .doneMark,
-  .doneToast {
+  .doneMark svg,
+  .doneMark::before,
+  .doneMark::after,
+  .stage h1[data-done='true'],
+  .intro[data-done='true'],
+  .progress li::before,
+  .progressMark,
+  .progressMark svg,
+  .doneToast,
+  .doneToast svg {
     animation: none;
   }
   .progressMark {
     transition: none;
   }
+}
+/* Calm keeps the fades but drops the rings, the cascade, and the spring. */
+:global([data-appearance='calm']) .doneMark::before,
+:global([data-appearance='calm']) .doneMark::after {
+  animation: none;
 }
 .stage h1 {
   color: var(--text-primary);
@@ -506,7 +701,13 @@
   height: 100%;
   border-radius: inherit;
   background: var(--focus-ring);
-  transition: width 420ms var(--ease-out-soft);
+  transform-origin: left center;
+  transition:
+    transform var(--motion-emphasis) var(--ease-spring),
+    background-color var(--motion-surface) var(--ease-standard);
+}
+.meter[data-full] > span {
+  background: var(--text-success);
 }
 .permission .ready,
 .permission .status {
@@ -520,10 +721,43 @@
 .permission .ready {
   background: var(--surface-success);
 }
+/* The count ticks up in place each time a permission turns on. */
+.accessSummary strong {
+  animation: countTick var(--motion-standard) var(--ease-out-soft) both;
+}
+.accessSummary strong[data-ready] {
+  color: var(--text-success);
+}
+@keyframes countTick {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-nudge));
+  }
+}
+.permissionGuide {
+  animation: guideIn var(--motion-emphasis) var(--ease-out-soft) both;
+}
+@keyframes guideIn {
+  from {
+    opacity: 0;
+    transform: translateX(var(--motion-rise));
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .meter > span {
+  .meter > span,
+  .permission::before {
     transition: none;
   }
+  .permission[data-settled]::after,
+  .permission[data-settled] .ready,
+  .permission[data-settled] .ready svg,
+  .accessSummary strong,
+  .permissionGuide {
+    animation: none;
+  }
+}
+:global([data-appearance='calm']) .permission[data-settled]::after {
+  animation: none;
 }
 .permissionEnd {
   display: inline-flex;
