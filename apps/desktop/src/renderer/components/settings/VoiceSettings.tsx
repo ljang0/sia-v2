@@ -87,7 +87,7 @@ export function VoiceSettings({
             <div>
               <strong>{nativeVoice ? 'Read aloud ready' : 'ElevenLabs voice ready'}</strong>
               <span>
-                <CheckCircle size={13} aria-hidden="true" />
+                <CheckCircle size={16} aria-hidden="true" />
                 {voice.selectedVoiceName ?? 'Voice ready'}
               </span>
             </div>
@@ -123,7 +123,7 @@ export function VoiceSettings({
                 disabled={Boolean(pending)}
                 onClick={() => void run('refresh', onRefresh)}
               >
-                <ArrowClockwise size={14} aria-hidden="true" />
+                <ArrowClockwise size={16} aria-hidden="true" />
                 {pending === 'refresh' ? 'Refreshing…' : 'Refresh voices'}
               </button>
               <button

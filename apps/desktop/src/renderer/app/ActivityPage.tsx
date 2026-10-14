@@ -32,7 +32,7 @@ export function ActivityPage({ app, snapshot }: ActivityPageProps) {
           onClick={app.closeActivity}
           aria-label="Close activity"
         >
-          <X size={17} aria-hidden="true" />
+          <X size={18} aria-hidden="true" />
         </button>
       </header>
       <div className={`${styles.activityPageContent} ${motion.enter}`}>

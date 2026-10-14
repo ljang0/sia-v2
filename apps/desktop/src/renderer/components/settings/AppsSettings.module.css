@@ -22,22 +22,22 @@
 }
 
 .connectionSetupHeader strong {
-  font-size: var(--text-md);
+  font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
 }
 
 .connectionSetupProgress {
   color: var(--text-tertiary);
-  font-size: var(--text-sm);
-  font-weight: var(--weight-semibold);
+  font-size: var(--text-md);
+  font-weight: var(--weight-medium);
 }
 
 .connectionSetup p {
-  max-width: 620px;
-  margin: 4px 0 0;
+  max-width: 720px;
+  margin: 6px 0 0;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
-  line-height: 1.48;
+  font-size: var(--text-md);
+  line-height: 1.5;
 }
 
 .connectionGroups {
@@ -52,11 +52,11 @@
 
 .connectionGroup {
   display: grid;
-  min-height: 76px;
-  grid-template-columns: 34px minmax(0, 1fr) auto;
+  min-height: 84px;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 11px;
-  padding: 14px 4px;
+  gap: 18px;
+  padding: 20px 4px;
   border-bottom: 1px solid var(--border-subtle);
   background: transparent;
   transition: background-color var(--motion-fast) var(--ease-standard);
@@ -68,11 +68,11 @@
 
 .connectionGroupIcon {
   display: inline-flex;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   align-items: center;
   justify-content: center;
-  border-radius: var(--radius-control);
+  border-radius: var(--radius-round);
   background: var(--bg-subtle);
   color: var(--text-primary);
 }
@@ -80,18 +80,19 @@
 .connectionGroupBody {
   display: grid;
   min-width: 0;
-  gap: 2px;
+  gap: 4px;
 }
 
 .connectionGroupBody strong {
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
 
 .connectionGroupBody > span {
   overflow: hidden;
   color: var(--text-secondary);
-  font-size: var(--text-xs);
+  font-size: var(--text-md);
+  line-height: 1.45;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -130,49 +131,16 @@
 .appGlyph {
   position: relative;
   display: inline-flex;
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border-subtle);
-  border-radius: 6px;
-  background: transparent;
+  border: 0;
+  border-radius: var(--radius-round);
+  background: var(--bg-subtle);
   color: var(--text-secondary);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.035em;
-}
-
-.appGlyph[data-app='gmail'] {
-  color: var(--text-secondary);
-}
-
-.appGlyph[data-app='drive'] {
-  color: var(--text-secondary);
-}
-
-.appGlyph[data-app='docs'] {
-  color: var(--text-secondary);
-}
-
-.appGlyph[data-app='sheets'] {
-  color: var(--text-secondary);
-}
-
-.appGlyph[data-app='slides'] {
-  color: var(--text-secondary);
-}
-
-.appGlyph[data-app='slack'] {
-  color: var(--text-secondary);
-}
-
-.appGlyph[data-app='chrome'] {
-  color: var(--text-secondary);
-}
-
-.appGlyph[data-app='messages'] {
-  color: var(--text-secondary);
 }
 
 .connection_connected {
@@ -186,66 +154,72 @@
 .rowMeta {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px 12px;
-  margin-top: 7px;
+  gap: 4px 14px;
+  margin-top: 8px;
   color: var(--text-tertiary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
 }
 
 .browserSettingsPicker {
   display: grid;
-  gap: 10px;
-  padding: 14px 0 18px 38px;
+  gap: 12px;
+  padding: 16px 0 20px 58px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .browserSettingsPicker > div:first-child strong {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
 
 .browserSettingsPicker > div:first-child p {
-  margin: 3px 0 0;
+  margin: 4px 0 0;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
-  line-height: 1.45;
+  font-size: var(--text-md);
+  line-height: 1.5;
 }
 
 .googleServiceAccess {
   display: grid;
-  gap: 14px;
-  padding: 18px 0 24px;
+  gap: 16px;
+  padding: 24px 0 28px;
   border-bottom: 1px solid var(--border-subtle);
 }
 
 .googleServiceAccess > div:first-child {
   display: grid;
-  gap: 3px;
+  gap: 4px;
+}
+
+.googleServiceAccess > div:first-child strong {
+  font-size: var(--text-base);
 }
 
 .googleServiceAccess > div:first-child span,
 .legacyConnectionCleanup p {
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
+  line-height: 1.5;
 }
 
 .googleServiceToggles {
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 8px;
 }
 
 .googleServiceToggle {
   display: inline-flex;
-  min-height: 38px;
+  min-height: var(--row-min);
   align-items: center;
-  gap: 8px;
-  padding: 0 11px;
+  gap: 10px;
+  padding: 0 14px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-control);
   background: var(--bg-field);
   color: var(--text-secondary);
   cursor: pointer;
+  font-size: var(--text-md);
 }
 
 .googleServiceToggle[data-enabled='true'] {
@@ -260,8 +234,8 @@
 
 .legacyConnectionCleanup {
   display: grid;
-  gap: 6px;
-  padding: 18px 0;
+  gap: 8px;
+  padding: 24px 0;
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -271,12 +245,12 @@
 
 .legacyConnectionRow {
   display: grid;
-  min-height: 42px;
+  min-height: var(--row-min);
   grid-template-columns: minmax(100px, 0.7fr) minmax(130px, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
 }
 
 @media (max-width: 860px) {
@@ -285,7 +259,7 @@
   }
 
   .connectionGroup {
-    grid-template-columns: 34px minmax(0, 1fr);
+    grid-template-columns: 40px minmax(0, 1fr);
   }
 
   .connectionGroup > button,
@@ -307,36 +281,36 @@
 
 .moreApps {
   display: grid;
-  gap: 8px;
-  margin-top: 18px;
+  gap: 10px;
+  margin-top: 28px;
 }
 
 .moreAppsHeader {
   display: grid;
-  gap: 2px;
+  gap: 4px;
 }
 
 .moreAppsHeader strong {
-  font-size: var(--text-sm);
+  font-size: var(--text-lg);
   font-weight: var(--weight-semibold);
 }
 
 .moreAppsHeader p {
   margin: 0;
   color: var(--text-secondary);
-  font-size: var(--text-xs);
-  line-height: 1.48;
+  font-size: var(--text-md);
+  line-height: 1.5;
 }
 
 .deviceCode {
   justify-self: start;
   margin-top: 4px;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: var(--radius-control);
   background: var(--bg-subtle);
   color: var(--text-primary);
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   letter-spacing: 0.08em;
   user-select: all;
 }

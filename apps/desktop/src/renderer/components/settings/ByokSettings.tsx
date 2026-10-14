@@ -78,7 +78,7 @@ export function ByokSettings({
         data-ready={configured}
         aria-hidden="true"
       >
-        <Key size={17} />
+        <Key size={20} />
       </div>
       <div className={settings.settingsRowBody}>
         <div className={settings.rowTitleLine}>

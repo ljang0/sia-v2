@@ -189,7 +189,7 @@ export function Inspector({
                 aria-label="Close access"
                 title="Close access"
               >
-                <X size={17} aria-hidden="true" />
+                <X size={18} aria-hidden="true" />
               </button>
             </Dialog.Close>
           </header>
@@ -279,7 +279,7 @@ function BrowserPanel({
             onSelect={onAttach}
           />
           <div className={styles.inspectorFootnote}>
-            <LockKey size={15} aria-hidden="true" />
+            <LockKey size={16} aria-hidden="true" />
             <span>
               Sia uses each visible window title only for this chooser. It does not copy
               cookies.
@@ -327,7 +327,7 @@ function BrowserPanel({
           <strong>{browser.profileName}</strong>
         </div>
         <button type="button" className={buttons.textButtonDanger} onClick={onDetach}>
-          <LinkBreak size={15} aria-hidden="true" />
+          <LinkBreak size={16} aria-hidden="true" />
           Detach
         </button>
       </section>
@@ -375,7 +375,7 @@ function BrowserPanel({
       </form>
 
       <div className={styles.inspectorFootnote}>
-        <LockKey size={15} aria-hidden="true" />
+        <LockKey size={16} aria-hidden="true" />
         <span>
           Only granted sites are listed. Sia does not receive a complete inventory of your tabs.
         </span>
@@ -439,7 +439,7 @@ function ComputerPanel({
       </section>
 
       <div className={styles.inspectorFootnote}>
-        <LockKey size={15} aria-hidden="true" />
+        <LockKey size={16} aria-hidden="true" />
         <span>
           Sia’s own browser and computer actions can’t use password fields, sign-in screens, or
           security settings.
@@ -487,7 +487,7 @@ function DataPanel({
         <h2 className={styles.inspectorSectionTitle}>Data access</h2>
         <div className={styles.dataAccessList}>
           <div className={styles.dataAccessRow}>
-            <CloudIcon size={17} aria-hidden="true" />
+            <CloudIcon size={18} aria-hidden="true" />
             <div>
               <strong>Sia cloud</strong>
               <span>
@@ -499,7 +499,7 @@ function DataPanel({
             </button>
           </div>
           <div className={styles.dataAccessRow}>
-            <Database size={17} aria-hidden="true" />
+            <Database size={18} aria-hidden="true" />
             <div>
               <strong>Research capture</strong>
               <span>
@@ -525,7 +525,7 @@ function DataPanel({
       </section>
 
       <div className={styles.inspectorFootnote}>
-        <LockKey size={15} aria-hidden="true" />
+        <LockKey size={16} aria-hidden="true" />
         <span>
           Research and optional cloud settings remain separate from browser and computer grants.
         </span>

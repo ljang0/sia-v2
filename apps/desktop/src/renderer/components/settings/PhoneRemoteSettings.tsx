@@ -193,7 +193,7 @@ export function PhoneRemoteSettings({
                       );
                   }}
                 >
-                  {copied ? <Check size={15} /> : <Copy size={15} />}
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
                   {copied ? 'Copied' : 'Copy private link'}
                 </button>
               </div>
@@ -205,7 +205,7 @@ export function PhoneRemoteSettings({
                 disabled={pending}
                 onClick={() => void run('rotate')}
               >
-                <ArrowClockwise size={15} />
+                <ArrowClockwise size={16} />
                 Create a new link
               </button>
               <button

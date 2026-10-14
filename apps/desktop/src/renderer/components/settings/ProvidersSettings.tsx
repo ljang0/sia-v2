@@ -218,9 +218,9 @@ function providerDescription(provider: ProviderSetup): string {
 
 /** Plain, brand-neutral marks: a gift for the included model, a plug for a connected plan. */
 function ProviderIcon({ provider }: { provider: ProviderId }) {
-  if (provider === 'meta') return <Gift size={17} />;
-  if (provider === 'codex') return <Plug size={17} />;
-  return <Sparkle size={17} />;
+  if (provider === 'meta') return <Gift size={20} />;
+  if (provider === 'codex') return <Plug size={20} />;
+  return <Sparkle size={20} />;
 }
 
 function setupAction(provider: ProviderSetup): string {
@@ -260,7 +260,7 @@ function ProviderStatusLabel({ provider }: { provider: ProviderSetup }) {
         : providerStatusLabel(provider);
   return (
     <span className={`${settings.stateLabel} ${settings[`state_${provider.status}`]}`}>
-      {provider.status === 'ready' ? <CheckCircle size={14} aria-hidden="true" /> : null}
+      {provider.status === 'ready' ? <CheckCircle size={16} aria-hidden="true" /> : null}
       {label}
     </span>
   );

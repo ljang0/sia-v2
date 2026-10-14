@@ -89,7 +89,7 @@ export function TextSiaSettings({
               disabled={pending}
               onClick={() => void run({ operation: 'untrust', handle: contact.handle })}
             >
-              <X size={13} />
+              <X size={16} />
             </button>
           </li>
         ))}

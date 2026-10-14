@@ -71,7 +71,7 @@ export function PrivacySettings({
       <InlineSettingsError message={error} />
       {uploadsPaused ? (
         <div className={settings.inlineWarning} role="status">
-          <WarningCircle size={15} aria-hidden="true" />
+          <WarningCircle size={16} aria-hidden="true" />
           <div>
             <strong>Research is not enabled for this account</strong>
             <p>
@@ -117,7 +117,7 @@ export function PrivacySettings({
             disabled={pending === 'capture'}
             onClick={() => void run('capture', () => onSetCapturePaused(false))}
           >
-            <ArrowClockwise size={15} aria-hidden="true" />
+            <ArrowClockwise size={16} aria-hidden="true" />
             {pending === 'capture' ? 'Checking storage…' : 'Retry capture'}
           </button>
         ) : (
@@ -128,9 +128,9 @@ export function PrivacySettings({
             onClick={() => void run('capture', () => onSetCapturePaused(!paused))}
           >
             {paused ? (
-              <Play size={15} weight="fill" aria-hidden="true" />
+              <Play size={16} weight="fill" aria-hidden="true" />
             ) : (
-              <Pause size={15} weight="fill" aria-hidden="true" />
+              <Pause size={16} weight="fill" aria-hidden="true" />
             )}
             {pending === 'capture' ? 'Updating…' : paused ? 'Resume' : 'Pause'}
           </button>
@@ -141,7 +141,7 @@ export function PrivacySettings({
         <summary>How research data is handled</summary>
         <div className={styles.privacyFacts}>
           <div>
-            <LockKey size={17} aria-hidden="true" />
+            <LockKey size={18} aria-hidden="true" />
             <div>
               <strong>Raw research record</strong>
               <p>
@@ -153,7 +153,7 @@ export function PrivacySettings({
             </div>
           </div>
           <div>
-            <ShieldCheck size={17} aria-hidden="true" />
+            <ShieldCheck size={18} aria-hidden="true" />
             <div>
               <strong>Your controls</strong>
               <p>
@@ -173,7 +173,7 @@ export function PrivacySettings({
 
       {blocked ? (
         <div className={primitives.inlineError} role="alert">
-          <WarningCircle size={15} aria-hidden="true" />
+          <WarningCircle size={16} aria-hidden="true" />
           <div>
             <strong>Research capture is blocked</strong>
             <p>
@@ -184,7 +184,7 @@ export function PrivacySettings({
         </div>
       ) : snapshot.research.consented && snapshot.research.pendingItems ? (
         <div className={settings.inlineWarning} role="status">
-          <WarningCircle size={15} aria-hidden="true" />
+          <WarningCircle size={16} aria-hidden="true" />
           <div>
             <strong>
               {snapshot.research.pendingItems} research items ·{' '}

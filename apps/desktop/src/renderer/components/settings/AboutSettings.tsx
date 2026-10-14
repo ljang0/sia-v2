@@ -85,7 +85,7 @@ export function AboutSettings({
               className={buttons.primaryButton}
               onClick={() => void onOpenUpdateDownload()}
             >
-              <DownloadSimple size={15} aria-hidden="true" />
+              <DownloadSimple size={16} aria-hidden="true" />
               Download
             </button>
           ) : updates.status === 'unconfigured' ? null : (

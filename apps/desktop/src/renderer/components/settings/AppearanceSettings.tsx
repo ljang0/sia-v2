@@ -7,9 +7,9 @@ import styles from './AppearanceSettings.module.css';
 import { errorMessage } from '../../plainErrors';
 
 const THEME_CHOICES = [
-  { value: 'system', label: 'System', icon: <Desktop size={15} aria-hidden="true" /> },
-  { value: 'light', label: 'Light', icon: <Sun size={15} aria-hidden="true" /> },
-  { value: 'dark', label: 'Dark', icon: <MoonStars size={15} aria-hidden="true" /> },
+  { value: 'system', label: 'System', icon: <Desktop size={16} aria-hidden="true" /> },
+  { value: 'light', label: 'Light', icon: <Sun size={16} aria-hidden="true" /> },
+  { value: 'dark', label: 'Dark', icon: <MoonStars size={16} aria-hidden="true" /> },
 ] as const satisfies readonly { value: ThemePreference; label: string; icon: unknown }[];
 
 const TEXT_SIZE_CHOICES = [
@@ -172,7 +172,7 @@ export function AppearanceSettings({
               {mode === 'calm' ? <Moon size={18} /> : <Sparkle size={18} />}
               {mode === 'calm' ? 'Calm' : 'Expressive'}
               {value === mode && (
-                <Check className={styles.check} size={17} aria-hidden="true" />
+                <Check className={styles.check} size={18} aria-hidden="true" />
               )}
             </span>
             <span className={styles.description}>
