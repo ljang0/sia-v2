@@ -91,7 +91,7 @@ export function PhoneRemoteSettings({
       <div className={phone.card}>
         <div className={phone.intro}>
           <span className={phone.mark}>
-            <DeviceMobile size={25} />
+            <DeviceMobile size={24} />
           </span>
           <div>
             <h3>Take Sia with you</h3>

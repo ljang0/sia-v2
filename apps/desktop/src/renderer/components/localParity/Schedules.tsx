@@ -193,7 +193,7 @@ function ScheduleRow({
               onClick={() => setHistoryExpanded((value) => !value)}
             >
               {runs.length} recent
-              <CaretDown size={14} weight="bold" aria-hidden="true" />
+              <CaretDown size={14} aria-hidden="true" />
             </button>
           ) : null}
         </div>

@@ -84,7 +84,7 @@ function SetupProgress({ stage, connected }: { stage: number; connected: boolean
           aria-current={index === stage ? 'step' : undefined}
         >
           <span className={styles.progressMark} aria-hidden="true">
-            {index < stage ? <Check size={13} weight="bold" /> : index + 1}
+            {index < stage ? <Check size={14} weight="bold" /> : index + 1}
           </span>
           <span>{label}</span>
         </li>

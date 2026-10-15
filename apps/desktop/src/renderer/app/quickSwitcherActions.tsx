@@ -37,7 +37,7 @@ export function quickSwitcherActions({
             label: 'New conversation',
             detail: `Start in ${selectedAgent.name}`,
             keywords: 'new chat task thread',
-            icon: <ChatCircle size={17} />,
+            icon: <ChatCircle size={18} />,
             opensConversation: true,
             run: () => {
               app.closeSettings();
@@ -52,7 +52,7 @@ export function quickSwitcherActions({
       label: 'Keyboard shortcuts',
       detail: '⌘/',
       keywords: 'keys hotkeys help',
-      icon: <Keyboard size={17} />,
+      icon: <Keyboard size={18} />,
       run: openShortcuts,
     },
     {
@@ -60,7 +60,7 @@ export function quickSwitcherActions({
       label: 'Send feedback',
       detail: 'Review a note in your mail app',
       keywords: 'bug issue suggestion support',
-      icon: <EnvelopeSimple size={17} />,
+      icon: <EnvelopeSimple size={18} />,
       run: openFeedback,
     },
     {
@@ -68,7 +68,7 @@ export function quickSwitcherActions({
       label: 'New agent',
       detail: 'Start another kind of work',
       keywords: 'new room assistant',
-      icon: <Plus size={17} />,
+      icon: <Plus size={18} />,
       run: () => {
         app.closeSettings();
         app.closeActivity();
@@ -80,7 +80,7 @@ export function quickSwitcherActions({
       label: 'Search all conversations',
       detail: 'Every message, including archived ones',
       keywords: 'find messages history transcripts',
-      icon: <MagnifyingGlass size={17} />,
+      icon: <MagnifyingGlass size={18} />,
       run: () => app.openActivity('search'),
     },
     {
@@ -88,7 +88,7 @@ export function quickSwitcherActions({
       label: 'Open Activity',
       detail: 'Running and unread work',
       keywords: 'tasks status',
-      icon: <Pulse size={17} />,
+      icon: <Pulse size={18} />,
       run: () => app.openActivity('activity'),
     },
     {
@@ -96,7 +96,7 @@ export function quickSwitcherActions({
       label: 'Open Scheduled',
       detail: 'Everything set to run later or on repeat',
       keywords: 'schedules automations recurring later timer',
-      icon: <CalendarDots size={17} />,
+      icon: <CalendarDots size={18} />,
       run: () => app.openActivity('scheduled'),
     },
     {
@@ -104,7 +104,7 @@ export function quickSwitcherActions({
       label: 'Open archived conversations',
       detail: 'Restore or revisit a conversation',
       keywords: 'history old threads',
-      icon: <Archive size={17} />,
+      icon: <Archive size={18} />,
       run: () => app.openActivity('archived'),
     },
     {
@@ -112,7 +112,7 @@ export function quickSwitcherActions({
       label: 'Open Settings',
       detail: 'AI, connections, computer, voice, privacy',
       keywords: 'preferences configuration',
-      icon: <GearSix size={17} />,
+      icon: <GearSix size={18} />,
       run: () => app.openSettings(),
     },
   ];

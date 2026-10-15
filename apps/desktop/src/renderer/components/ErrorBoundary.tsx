@@ -56,7 +56,7 @@ export class AppErrorBoundary extends Component<AppBoundaryProps, AppBoundarySta
     return (
       <div className={styles.fatalState} role="alert" data-testid="app-error-boundary">
         <span className={styles.fatalIcon} aria-hidden="true">
-          <WarningCircle size={26} weight="duotone" />
+          <WarningCircle size={26} />
         </span>
         <h1>Something went wrong</h1>
         <p>

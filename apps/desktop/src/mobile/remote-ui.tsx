@@ -171,7 +171,7 @@ export function Welcome({
                 onClick={() => onChoose(idea.prompt)}
               >
                 <span className="idea-icon">
-                  <idea.icon size={22} weight="duotone" />
+                  <idea.icon size={22} />
                 </span>
                 <ArrowUpRight className="idea-arrow" size={16} />
                 <strong>{idea.title}</strong>
@@ -184,9 +184,9 @@ export function Welcome({
               <span className="eyebrow">Your recent requests</span>
               {recents.slice(0, 2).map((prompt) => (
                 <button key={prompt} onClick={() => onChoose(prompt)}>
-                  <ClockCounterClockwise size={17} />
+                  <ClockCounterClockwise size={16} />
                   <span>{prompt}</span>
-                  <ArrowUpRight size={15} />
+                  <ArrowUpRight size={16} />
                 </button>
               ))}
             </div>
@@ -279,7 +279,7 @@ export function Activity({
                 </p>
                 {!!turn.files.length && (
                   <span className="task-file-count">
-                    <FolderSimple size={15} />
+                    <FolderSimple size={16} />
                     {turn.files.length} {turn.files.length === 1 ? 'file ready' : 'files ready'}
                   </span>
                 )}
@@ -289,7 +289,7 @@ export function Activity({
         ) : (
           <div className="activity-empty" key={filter}>
             <span className="empty-symbol">
-              <Stack size={32} weight="duotone" />
+              <Stack size={32} />
             </span>
             <h2>
               {filter === 'files' ? 'Good things take shape.' : 'Room for your next idea.'}
@@ -301,7 +301,7 @@ export function Activity({
             </p>
             <ActionButton className="text-action" tone="accent" onClick={onStart}>
               Ask Sia
-              <ArrowRight size={17} />
+              <ArrowRight size={18} />
             </ActionButton>
           </div>
         )}

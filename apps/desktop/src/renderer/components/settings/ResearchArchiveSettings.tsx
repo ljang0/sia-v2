@@ -175,7 +175,7 @@ export function ResearchArchiveSettings({
     >
       <section className={styles.archiveInvitePanel} aria-labelledby="archive-invite-title">
         <div className={styles.archiveInviteCopy}>
-          <EnvelopeSimple size={19} aria-hidden="true" />
+          <EnvelopeSimple size={18} aria-hidden="true" />
           <div>
             <strong id="archive-invite-title">Invite a participant</strong>
             <p>

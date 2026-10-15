@@ -232,7 +232,7 @@ export function AppsSettings({
             {googleConnected || googleError || googleNeedsUpgrade ? (
               <section className={styles.connectionGroup} data-connected={googleConnected}>
                 <span className={styles.connectionGroupIcon} aria-hidden="true">
-                  <GoogleLogo size={20} weight="bold" />
+                  <GoogleLogo size={20} />
                 </span>
                 <div className={styles.connectionGroupBody}>
                   <strong>Google Workspace</strong>
@@ -266,7 +266,7 @@ export function AppsSettings({
                     {pending === 'connect-google' || setupActive ? (
                       <CircleNotch className={primitives.spin} size={16} aria-hidden="true" />
                     ) : (
-                      <GoogleLogo size={16} weight="bold" aria-hidden="true" />
+                      <GoogleLogo size={16} aria-hidden="true" />
                     )}
                     {setupActive
                       ? 'Finish in browser'

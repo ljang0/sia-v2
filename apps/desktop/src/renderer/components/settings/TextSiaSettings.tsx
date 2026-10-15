@@ -59,7 +59,7 @@ export function TextSiaSettings({
     <div className={`${phone.card} ${phone.textCard}`}>
       <div className={phone.intro}>
         <span className={phone.mark}>
-          <ChatCircleText size={25} />
+          <ChatCircleText size={24} />
         </span>
         <div>
           <h3>Text Sia from anywhere</h3>

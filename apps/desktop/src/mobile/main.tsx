@@ -362,7 +362,7 @@ function App() {
           aria-label="More options"
           onClick={() => openSheet('options')}
         >
-          <DotsThree size={25} weight="bold" />
+          <DotsThree size={24} weight="bold" />
         </button>
       </header>
       {!online && (
@@ -414,7 +414,7 @@ function App() {
                   disabled={busy || pending || !online}
                   onClick={() => void action('clear')}
                 >
-                  <Plus size={21} />
+                  <Plus size={22} />
                 </button>
               </div>
             )}
@@ -604,7 +604,7 @@ function App() {
                       {pending ? (
                         <CircleNotch className="spin" size={20} />
                       ) : (
-                        <ArrowUp size={21} weight="bold" />
+                        <ArrowUp size={20} weight="bold" />
                       )}
                     </ActionButton>
                   )}
@@ -645,7 +645,7 @@ function App() {
             }}
           >
             <span className="nav-icon">
-              <item.icon size={21} weight={view === item.id ? 'fill' : 'regular'} />
+              <item.icon size={22} weight={view === item.id ? 'fill' : 'regular'} />
               {item.id === 'activity' && busy && <i className="nav-dot" />}
             </span>
             {item.label}
@@ -672,7 +672,7 @@ function App() {
           <>
             <div className="device-card">
               <div className="device-icon">
-                <Desktop size={38} weight="duotone" />
+                <Desktop size={38} />
               </div>
               <strong>{state?.agent ?? 'Sia'} on your Mac</strong>
               <span className={`device-status ${online ? 'online' : ''}`}>

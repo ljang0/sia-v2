@@ -23,17 +23,14 @@
   font-size: var(--phone-text-meta);
   color: var(--text-secondary);
 }
+/* The logo is already an app-icon tile, so the avatar is just the logo at a fixed size. */
 .assistant-avatar {
   display: grid;
   place-items: center;
   width: 38px;
   height: 38px;
-  background: var(--bg-selected);
-  border-radius: 14px;
+  font-size: 38px;
   flex: none;
-}
-.assistant-avatar > span {
-  font-size: 28px;
 }
 .turns {
   padding: 22px 22px 12px;

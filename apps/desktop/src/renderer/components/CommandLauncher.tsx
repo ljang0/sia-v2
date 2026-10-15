@@ -266,7 +266,7 @@ export function CommandLauncher() {
               title="Send request"
               disabled={busy || working || !text.trim()}
             >
-              <ArrowUp size={17} weight="bold" aria-hidden="true" />
+              <ArrowUp size={16} weight="bold" aria-hidden="true" />
             </ActionButton>
           </footer>
         </form>

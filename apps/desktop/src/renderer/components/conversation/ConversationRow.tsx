@@ -211,7 +211,7 @@ function EventViewContent({
     >
       <span className={styles.messageAvatar} aria-hidden="true">
         {event.role === 'user' ? (
-          <User size={16} weight="bold" />
+          <User size={16} />
         ) : (
           <AgentForm identity={agentHue} size="small" />
         )}

@@ -295,7 +295,7 @@ function BrowserPanel({
         role="tabpanel"
         aria-labelledby={labelledBy}
       >
-        <Browser size={25} aria-hidden="true" />
+        <Browser size={24} aria-hidden="true" />
         <h2>{pending ? 'Looking for Chrome…' : 'Use your signed-in Chrome'}</h2>
         <p>
           Open the Chrome window you want to use. If several are open, Sia will let you choose
