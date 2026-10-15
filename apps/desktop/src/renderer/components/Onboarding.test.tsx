@@ -188,7 +188,7 @@ it('prefers an available Astra model for Use my Mac while honoring a model the u
   );
   const selector = screen.getByRole('combobox', { name: 'AI access' }) as HTMLSelectElement;
   expect(selector.value).toBe('codex:gpt-6-astra');
-  expect(screen.getByText(/Sia starts in the background/)).toBeTruthy();
+  expect(screen.getByText(/click through a website without asking you first/)).toBeTruthy();
   fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
   await waitFor(() =>
     expect(api.createAgent).toHaveBeenCalledWith(
@@ -661,7 +661,7 @@ it('skipping setup does not claim it finished', async () => {
   expect(screen.queryByText(/You’re all set/)).toBeNull();
 });
 
-it('summarizes the chosen way of working, including confirmations', () => {
+it('discloses that Sia acts on its own by default and offers asking first', () => {
   const { props } = setup();
   props.snapshot.computer.trust = 'auto';
   render(
@@ -669,16 +669,21 @@ it('summarizes the chosen way of working, including confirmations', () => {
       <div />
     </Onboarding>,
   );
-  expect(screen.getByText('Works quietly in the background')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Change' }));
+  expect(screen.getByRole('heading', { name: 'Sia acts on its own' })).toBeTruthy();
+  expect(screen.getByText(/without asking you first/)).toBeTruthy();
+  const ask = screen.getByRole('checkbox', { name: /Ask before each action/ }) as HTMLInputElement;
+  expect(ask.checked).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: 'Ask me first instead' }));
+  expect(screen.getByRole('heading', { name: 'Sia asks you first' })).toBeTruthy();
+  expect(ask.checked).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Let Sia act on its own' }));
+  expect(ask.checked).toBe(false);
+  fireEvent.click(screen.getByRole('button', { name: 'More choices' }));
   expect(screen.getByRole('textbox', { name: 'Agent name' }).closest('details')!.open).toBe(
     true,
   );
-  fireEvent.click(screen.getByRole('checkbox', { name: /Ask before each action/ }));
-  expect(screen.getByText('Asks before it acts')).toBeTruthy();
-  fireEvent.click(screen.getByRole('checkbox', { name: /Ask before each action/ }));
   fireEvent.click(screen.getByRole('radio', { name: /Connected apps only/ }));
-  expect(screen.getByText('Works in your connected apps')).toBeTruthy();
+  expect(screen.getByText(/send a Slack message/)).toBeTruthy();
 });
 
 it('lets the finished note step aside with a short exit before it is removed', () => {

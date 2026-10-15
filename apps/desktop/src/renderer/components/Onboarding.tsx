@@ -4,10 +4,10 @@ import {
   CheckCircle,
   CursorClick,
   LockKey,
+  Lightning,
   Microphone,
   Moon,
   PlugsConnected,
-  Sparkle,
   type Icon,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -18,6 +18,7 @@ import { STARTER_INSTRUCTIONS } from '../welcome';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { SetupConnections } from './OnboardingConnections';
 import { SetupMacAccess } from './SetupMacAccess';
+import { SiaLogo } from './SiaLogo';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import buttons from '../styles/buttons.module.css';
 import layout from '../styles/layout.module.css';
@@ -263,7 +264,7 @@ export function Onboarding({
       <section className={styles.stage}>
         <div className={styles.topline}>
           <div className={styles.brand} aria-hidden="true">
-            <Sparkle size={22} weight="fill" /> sia
+            <SiaLogo /> Sia
           </div>
           <SetupProgress stage={starting ? 0 : done ? 2 : 1} connected={connectedSetup} />
         </div>
@@ -325,49 +326,49 @@ export function Onboarding({
                   />
                 </div>
               ) : null}
-              <div className={styles.modeSummary}>
+              {/* Owner decision: Sia acts without per-step approval by default. Say so plainly,
+                  with a one-click way to opt into confirmations before setup starts. */}
+              <section className={styles.modeSummary} aria-labelledby="setup-autonomy-title">
                 <span className={styles.includedIcon} aria-hidden="true">
-                  {confirmActions ? (
-                    <ChatsCircle size={18} />
-                  ) : setupRoute === 'mac-bypass' ? (
-                    <Moon size={18} />
-                  ) : (
-                    <PlugsConnected size={18} />
-                  )}
+                  {confirmActions ? <ChatsCircle size={18} /> : <Lightning size={18} />}
                 </span>
-                <p>
-                  <strong>
+                <div>
+                  <h2 id="setup-autonomy-title">
+                    {confirmActions ? 'Sia asks you first' : 'Sia acts on its own'}
+                  </h2>
+                  <p>
                     {confirmActions
-                      ? 'Asks before it acts'
-                      : setupRoute === 'mac-bypass'
-                        ? 'Works quietly in the background'
-                        : 'Works in your connected apps'}
-                  </strong>
-                  <span>
-                    {setupRoute === 'mac-bypass'
-                      ? confirmActions
-                        ? 'Sia starts in the background and asks before actions. If an app needs your screen, Sia pauses for you.'
-                        : 'Sia starts in the background without asking before each step. If an app needs your screen, Sia pauses for you. Change access in Settings → Computer.'
-                      : confirmActions
-                        ? 'Sia asks before taking actions in connected apps.'
-                        : 'Sia takes actions in connected apps without asking each time. You can turn on confirmations in Settings → Computer.'}
-                  </span>
-                </p>
-                <button
-                  type="button"
-                  className={styles.link}
-                  disabled={busy || connecting}
-                  onClick={() => {
-                    const details = customize.current;
-                    if (!details) return;
-                    details.open = true;
-                    details.scrollIntoView?.({ block: 'nearest' });
-                    details.querySelector<HTMLInputElement>('input:checked')?.focus();
-                  }}
-                >
-                  Change
-                </button>
-              </div>
+                      ? 'Before Sia sends a message, changes a file, or clicks anything, it shows you and waits for your OK.'
+                      : connectedSetup
+                        ? 'For example, it can send a Slack message or create a Gmail draft without asking you first.'
+                        : 'For example, it can send an email, move a file, or click through a website without asking you first.'}
+                  </p>
+                  <div className={styles.modeActions}>
+                    <button
+                      type="button"
+                      className={buttons.secondaryButton}
+                      disabled={busy || connecting}
+                      onClick={() => setConfirmActions((value) => !value)}
+                    >
+                      {confirmActions ? 'Let Sia act on its own' : 'Ask me first instead'}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.link}
+                      disabled={busy || connecting}
+                      onClick={() => {
+                        const details = customize.current;
+                        if (!details) return;
+                        details.open = true;
+                        details.scrollIntoView?.({ block: 'nearest' });
+                        details.querySelector<HTMLInputElement>('input:checked')?.focus();
+                      }}
+                    >
+                      More choices
+                    </button>
+                  </div>
+                </div>
+              </section>
               {aiReady ? (
                 <div className={styles.actions}>
                   <button
