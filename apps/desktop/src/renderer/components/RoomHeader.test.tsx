@@ -80,6 +80,6 @@ describe('RoomHeader', () => {
     expect(screen.getByText('New conversation')).toBeTruthy();
     rerender(<RoomHeader agent={demoSnapshot.agents[0]} controls={null} setup />);
     expect(screen.getByText('Welcome')).toBeTruthy();
-    expect(screen.getByText(/· getting set up/)).toBeTruthy();
+    expect(screen.getByText(/· Getting set up/)).toBeTruthy();
   });
 });

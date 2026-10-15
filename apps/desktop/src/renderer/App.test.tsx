@@ -41,14 +41,14 @@ describe('app privacy routing', () => {
     await screen.findByRole('button', { name: 'Access' });
 
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
-    expect(await screen.findByRole('dialog', { name: 'Move through Sia' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Search everything' })).toBeTruthy();
 
     const search = screen.getByRole('combobox', { name: 'Search conversations and actions' });
     fireEvent.change(search, { target: { value: 'archived' } });
     fireEvent.click(screen.getByRole('option', { name: /Open archived conversations/ }));
 
     expect(await screen.findByRole('region', { name: 'Archived' })).toBeTruthy();
-    expect(screen.queryByRole('dialog', { name: 'Move through Sia' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Search everything' })).toBeNull();
   });
 
   it('opens the selected launcher conversation even when Settings is already open', async () => {
