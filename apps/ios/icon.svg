@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="sheen" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff" stop-opacity="0.14"/><stop offset="0.5" stop-color="#ffffff" stop-opacity="0"/></linearGradient>
+    <linearGradient id="bg" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#1f4d44"/><stop offset="1" stop-color="#0d2925"/></linearGradient>
+    <linearGradient id="mint" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="256" y2="256"><stop offset="0" stop-color="#f6fcf9"/><stop offset="1" stop-color="#76e3a8"/></linearGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#sheen)"/>
+  <g transform="translate(176.6 178.0) scale(2.61)" fill="url(#mint)">
+    <path id="u" d="M212 18 Q222 18 222 28 V58 Q222 68 212 68 H104 L168 104 Q173 108 167 111 L82 139 C52 137 35 116 35 92 V84 C35 47 64 18 100 18 Z"/><use href="#u" transform="rotate(180 128 128)"/></g>
+</svg>
