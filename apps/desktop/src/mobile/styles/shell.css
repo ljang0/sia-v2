@@ -44,6 +44,13 @@
   color: var(--text-primary);
   font-size: 38px;
 }
+/* One logo at a time: the welcome hero shows it, so the header keeps only its slot. Short
+   screens hide the hero instead and keep the header logo. */
+@media (min-height: 601px) {
+  .phone-shell[data-scene='welcome'] .phone-brand {
+    visibility: hidden;
+  }
+}
 .connection-pill {
   margin-left: auto;
   display: flex;

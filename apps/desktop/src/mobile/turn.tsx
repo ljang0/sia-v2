@@ -1,4 +1,4 @@
-import { Check, DownloadSimple } from '@phosphor-icons/react';
+import { CaretRight, Check, DownloadSimple } from '@phosphor-icons/react';
 import type { RemoteTurn } from '../shared/phone-remote';
 import { SiaMark } from '../renderer/components/SiaMark';
 import { SafeMarkdown } from '../renderer/components/SafeMarkdown';
@@ -74,6 +74,7 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
       {turn.steps.length > 0 && (
         <details className="task-steps">
           <summary>
+            <CaretRight className="steps-caret" size={16} weight="bold" aria-hidden="true" />
             <span
               className="step-line"
               key={turn.status === 'working' ? turn.steps.length : 'all'}

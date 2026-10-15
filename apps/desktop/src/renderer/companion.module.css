@@ -276,6 +276,11 @@
   letter-spacing: var(--tracking-display);
 }
 
+.onboardingBrand > img {
+  width: 1.4em;
+  height: 1.4em;
+}
+
 .onboardingVisual h2 {
   max-width: 10ch;
   margin: 0 0 16px;

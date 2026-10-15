@@ -200,7 +200,19 @@ test('phone layout, send, immediate completion, persistence and result download'
   const download = page.waitForEvent('download');
   await page.getByRole('link', { name: /report.txt/ }).click();
   expect((await download).suggestedFilename()).toBe('report.txt');
+  // The steps disclosure uses Sia's caret, not the browser triangle, and turns when opened.
+  const steps = page.locator('.task-steps').last();
+  const caret = steps.locator('summary .steps-caret');
+  await expect(caret).toBeVisible();
+  expect(
+    await steps
+      .locator('summary')
+      .evaluate((node) => getComputedStyle(node).display),
+  ).toBe('flex');
   await page.screenshot({ path: testInfo.outputPath('phone-conversation.png') });
+  await steps.locator('summary').click();
+  await expect(steps.locator('ol')).toBeVisible();
+  await expect(caret).toHaveCSS('transform', /matrix/);
   expect(errors).toEqual([]);
 });
 
@@ -244,14 +256,16 @@ test('Home Screen and phone branding load the supplied logo through the paired l
   for (const route of ['', 'graph']) {
     await page.goto(new URL(route, remote.url).href);
     await expect(page).toHaveTitle('Sia');
+    // One logo on screen: the welcome hero carries it there; other views use the header.
+    const shown = route ? '.phone-brand' : '.hero-presence';
+    const logo = page.locator(`${shown} .sia-logo`);
+    await expect(logo).toBeVisible();
+    await expect
+      .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
+      .toBe(256);
+    await expect(page.locator('.sia-logo:visible')).toHaveCount(1);
     if (!route) {
-      for (const location of ['.phone-brand', '.hero-presence']) {
-        const logo = page.locator(`${location} .sia-logo`);
-        await expect(logo).toBeVisible();
-        await expect
-          .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
-          .toBe(256);
-      }
+      await expect(page.locator('.phone-brand .sia-logo')).toBeHidden();
       await page.screenshot({ path: info.outputPath('phone-logo.png') });
     }
     await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute(
@@ -1145,4 +1159,48 @@ test('metal fallback stays usable without WebGL2', async ({ page, remote }) => {
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Finished', { exact: true })).toBeVisible();
   expect(remote.sends).toEqual(['A quick answer']);
+});
+
+test('dark appearance keeps welcome labels, tabs, and the connection pill readable', async ({
+  page,
+  remote,
+}, testInfo) => {
+  // Reduced motion settles arrivals and colour transitions, so this measures the resting state.
+  await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  // Measure each label against the solid surface it sits on (the token behind its gradient).
+  const ratios = await page.evaluate(() => {
+    const rgb = (value: string) => {
+      const probe = document.createElement('i');
+      probe.style.color = value;
+      document.body.append(probe);
+      const parts = getComputedStyle(probe).color.match(/[\d.]+/g)!.map(Number);
+      probe.remove();
+      return parts.slice(0, 3);
+    };
+    const luminance = (channels: number[]) => {
+      const [r, g, b] = channels.map((channel) => {
+        const c = channel / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const ratio = (fg: number[], bg: number[]) => {
+      const [hi, lo] = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
+      return (hi! + 0.05) / (lo! + 0.05);
+    };
+    const root = getComputedStyle(document.documentElement);
+    const token = (name: string) => rgb(root.getPropertyValue(name).trim());
+    const color = (selector: string) => rgb(getComputedStyle(document.querySelector(selector)!).color);
+    return {
+      ideaTitle: ratio(color('.idea-card strong'), token('--bg-raised')),
+      moreIdeas: ratio(color('.ideas-heading button'), token('--bg-canvas')),
+      tabLabel: ratio(color('.phone-nav button:not([aria-current])'), token('--bg-canvas')),
+      currentTab: ratio(color('.phone-nav [aria-current]'), token('--bg-canvas')),
+      pill: ratio(color('.connection-pill'), rgb('#2b3b33')),
+    };
+  });
+  for (const value of Object.values(ratios)) expect(value).toBeGreaterThanOrEqual(4.5);
+  await page.screenshot({ path: testInfo.outputPath('phone-dark-settled.png') });
 });

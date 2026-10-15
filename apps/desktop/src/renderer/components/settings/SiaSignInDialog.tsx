@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import type { RendererSnapshot } from '../../types';
 import companion from '../../companion.module.css';
-import { AgentForm } from '../AgentForm';
+import { SiaLogo } from '../SiaLogo';
 import { CloudAccountSettings } from './CloudAccountSettings';
 
 export function SiaSignInDialog({
@@ -30,7 +30,7 @@ export function SiaSignInDialog({
         >
           <aside className={companion.onboardingVisual} aria-hidden="true">
             <div className={companion.onboardingBrand}>
-              <AgentForm identity={3} size="medium" />
+              <SiaLogo />
               <span>Sia</span>
             </div>
             <div>

@@ -40,7 +40,9 @@ errors replace the animation with the existing reconnect action. For local visua
 supports `?startup-delay=2200#demo`; this delay is unavailable in production.
 
 Desktop navigation and phone branding share the supplied mint-gradient **S** logo. The sidebar,
-phone header, welcome screen, favicon, and iOS Home Screen icon all load the same bundled PNG.
+setup welcome, sign-in, phone header, phone welcome, favicon, and iOS Home Screen icon all load the
+same bundled PNG. Only one logo is on screen at a time: the phone welcome hero carries it, so the
+header keeps an empty slot there.
 The original image is preserved, and the Home Screen name remains **Sia**.
 An existing iOS Home Screen shortcut may need to be removed and added again to refresh its cached icon.
 

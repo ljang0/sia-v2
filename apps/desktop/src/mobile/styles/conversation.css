@@ -180,8 +180,24 @@
 }
 .task-steps summary {
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   padding: 13px 14px;
   min-height: var(--phone-target);
+  list-style: none;
+}
+/* A themed caret replaces the browser's triangle and turns when the steps open. */
+.task-steps summary::-webkit-details-marker {
+  display: none;
+}
+.steps-caret {
+  flex: none;
+  color: var(--text-tertiary);
+  transition: transform var(--motion-standard) var(--ease-out-soft);
+}
+.task-steps[open] .steps-caret {
+  transform: rotate(90deg);
 }
 /* A new step slides in under the last one; the text itself is never animated per token. */
 .step-line {
