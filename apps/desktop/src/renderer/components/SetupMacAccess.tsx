@@ -45,21 +45,6 @@ const STATE_LABEL: Record<AccessState, string> = {
   error: 'Could not check',
 };
 
-/**
- * Plain reasons for each app row. The row keeps the name macOS shows in its prompt and in
- * System Settings → Automation, so people recognise it there.
- */
-const APP_WHY: Partial<Record<(typeof automationApps)[number]['id'], string>> = {
-  system_events:
-    'Lets Sia use menus and keyboard shortcuts in any app. macOS calls this “System Events”.',
-  safari: 'Lets Sia use Safari, where you’re already signed in.',
-  chrome: 'Lets Sia use Chrome, where you’re already signed in.',
-  calendar: 'Lets Sia find events and help plan your day.',
-  reminders: 'Lets Sia find and update your reminders.',
-  finder: 'Lets Sia work with the files you choose.',
-  messages: 'Lets Sia send texts you approve.',
-};
-
 const automationState: Record<AutomationStatus, AccessState> = {
   ready: 'ready',
   needs_permission: 'needed',
@@ -153,7 +138,7 @@ export function macAccessRows(
     rows.push({
       id,
       name,
-      why: APP_WHY[id] ?? detail,
+      why: detail,
       guide:
         state === 'closed'
           ? `Open ${name} so macOS can check it. If macOS asks, choose Allow.`

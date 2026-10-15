@@ -28,16 +28,21 @@ export const automationApps = [
   {
     id: 'system_events',
     name: 'System Events',
-    detail: 'Click, type, and use keyboard shortcuts across Mac apps.',
+    detail:
+      'Lets Sia use menus and keyboard shortcuts in any app. macOS calls this “System Events”.',
   },
-  { id: 'safari', name: 'Safari', detail: 'Navigate your existing signed-in browser.' },
-  { id: 'chrome', name: 'Chrome', detail: 'Use Chrome directly without connecting a window.' },
-  { id: 'calendar', name: 'Calendar', detail: 'Find events and plan your schedule.' },
-  { id: 'reminders', name: 'Reminders', detail: 'Find and manage your reminders.' },
-  { id: 'finder', name: 'Finder', detail: 'Work with the files you select.' },
   {
-    id: 'messages',
-    name: 'Messages',
-    detail: 'Send messages you approve. History also needs Full Disk Access.',
+    id: 'safari',
+    name: 'Safari',
+    detail: 'Lets Sia use Safari, where you’re already signed in.',
   },
+  {
+    id: 'chrome',
+    name: 'Chrome',
+    detail: 'Lets Sia use Chrome, where you’re already signed in.',
+  },
+  { id: 'calendar', name: 'Calendar', detail: 'Lets Sia find events and help plan your day.' },
+  { id: 'reminders', name: 'Reminders', detail: 'Lets Sia find and update your reminders.' },
+  { id: 'finder', name: 'Finder', detail: 'Lets Sia work with the files you choose.' },
+  { id: 'messages', name: 'Messages', detail: 'Lets Sia send texts you approve.' },
 ] as const;

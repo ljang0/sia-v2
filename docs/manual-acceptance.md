@@ -87,7 +87,7 @@ On a slow connection, downloaded megabytes must advance beyond two minutes witho
 connection must offer an actionable retry and preserve the previous runtime.
 While Sia shows **Waiting for sign-in…**, press **Cancel** once (or leave the browser tab closed) and
 verify **Try again** starts a fresh sign-in in Sia; ordinary launches must not reopen it.
-**Grant all** must show individual statuses, skip granted access, and refresh after returning
+**Allow all** must show individual statuses, skip granted access, and refresh after returning
 from System Settings without a restart. The tester completes any macOS approval dialogs.
 
 Check both a fresh install and an upgrade from the previous signed release. Create a disposable
@@ -330,12 +330,12 @@ Research recruitment is a separate release. It requires every approval in
   no subsequent permissions open. Chat remains available with the access already granted.
 - At Screen Recording, choose **Later** in macOS’s quit prompt. Within a few seconds the row must
   read **Reopen Sia** (real-Mac check of the fresh-process probe). Finish or skip the remaining
-  voice/app and optional Full Disk Access steps before one final **Relaunch Sia** action appears.
+  voice/app and optional Full Disk Access steps before one final **Reopen Sia** action appears.
   Relaunch: setup must reopen on Mac access, retain grants and skips, and finish without requesting
   already completed permissions again. Also pause before the last step and verify resume.
 - Skip **Talk with Fn** and one app. Finish setup, then start a task that needs the skipped app and
   confirm macOS asks once, in its own words.
-- Repeat from **Settings → Computer → Grant all**. Verify unavailable apps and existing grants are
+- Repeat from **Settings → Computer → Allow all**. Verify unavailable apps and existing grants are
   skipped. For Screen Recording changes, quit and reopen Sia when the row says **Reopen Sia**.
 - Launch while another app is foreground. The secure-workspace explanation must appear before
   any Keychain wait, with instructions for bringing Sia’s native prompt forward. Confirm no

@@ -227,14 +227,14 @@ After any required email sign-in:
 2. The checklist lists every permission Sia can ask for, each with a plain name, one line on why,
    a live status (**Allowed**, **Needs you**, **Turned off**, or **Reopen Sia**), and one button
    (**Allow** shows the real macOS prompt; **Open Settings** opens the exact System Settings pane).
-   **Grant all** walks them in order, one prompt at a time, and moves on only when macOS reports
+   **Allow all** walks them in order, one prompt at a time, and moves on only when macOS reports
    the grant. **I don’t see the prompt** reopens the current step; optional steps have **Skip**.
    Statuses refresh on their own every few seconds and when you return from System Settings, so
    rows flip to **Allowed** without restarting Sia.
 3. When the needed permissions are on, setup opens your conversation. There is no routine
    restart. If macOS applies a grant only after Sia reopens (usually Screen Recording), the row
    shows **Reopen Sia**. The guided pass finishes the remaining prompts before showing one
-   **Relaunch Sia** button. It saves the step, relaunches,
+   **Reopen Sia** button. It saves the step, relaunches,
    and resumes the checklist where it was, without asking again for anything already granted or
    skipped. **Finish later** stops the pass; **Start using Sia** continues with the access granted.
 
@@ -264,7 +264,7 @@ Once macOS lists both Accessibility and Screen Recording, Sia confirms they work
 other app's window (preferring Finder) through the same driver its tools use. The window is
 discarded immediately. If that read fails, **See your screen** shows **Reopen Sia** instead of a
 check, because macOS usually applies the grant only after Sia reopens.
-**Settings → Computer** shows the same checklist and **Grant all** later.
+**Settings → Computer** shows the same checklist and **Allow all** later.
 
 The default is **Use my Mac** with bypass: Sia works in the background with signed-in Mac apps
 and may send messages or change files without per-action approval. **Customize setup** contains the
@@ -285,7 +285,7 @@ grants already allowed and never records during setup. Status checks only read; 
 prompt. To tell when a relaunch is needed, Sia reads the same two grants from a short-lived child
 process (Electron as Node, `out/main/permission-probe.js`): a fresh “on” next to the running
 app’s “off” means macOS is waiting for a relaunch. If that check cannot run, a **Turned it on?
-Relaunch Sia** link appears after you ask for a needed permission. A relaunch resumes an
+Reopen Sia** link appears after you ask for a needed permission. A relaunch resumes an
 explicitly active pass, while a paused pass stays paused. A closed app may need to be opened
 before its Automation grant can be checked.
 
@@ -297,7 +297,7 @@ an inline **Reconnect Google Workspace** or **Reconnect Slack** button in setup.
 sends require separate consent. In an unconfigured build, use your signed-in websites through
 Mac access instead. Chrome window selection remains available in **Settings → Computer**.
 
-Restart is not an onboarding step. The only relaunch is **Relaunch Sia** in the checklist, shown
+Restart is not an onboarding step. The only relaunch is **Reopen Sia** in the checklist, shown
 when macOS needs it. Progress is saved before relaunch; active tasks, recordings, or account
 approvals block it. Development restarts keep the same profile and service configuration.
 Older saved setup steps resume on the simplified screen. **Start using Sia** opens the existing

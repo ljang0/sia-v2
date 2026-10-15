@@ -576,7 +576,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   The guide waits for observed grants before advancing and never treats a request returning as consent.
   Passive focus/poll checks do not replay prompts. A persisted `permissionSetup` records the app
   choice, skipped optional rows, and whether an authorized pass should resume after the one
-  **Relaunch Sia** (offered only when a short-lived child process reads a grant the running app
+  **Reopen Sia** (offered only when a short-lived child process reads a grant the running app
   cannot see yet); pausing prevents
   further steps even if an outstanding native request completes. Accessibility and Screen Recording
   are requested separately so one Settings pane cannot hide the other. Protected macOS approval
