@@ -302,7 +302,7 @@ test('lost acknowledgement is retryable without duplicating the command', async 
   });
   await page.getByRole('textbox').fill('A quick answer with a dropped connection');
   await page.getByRole('button', { name: 'Send message' }).click();
-  await expect(page.getByRole('alert')).toContainText('safely retry');
+  await expect(page.getByRole('alert')).toContainText('try again safely');
   await expect(page.getByRole('textbox')).toHaveValue(
     'A quick answer with a dropped connection',
   );
@@ -361,7 +361,9 @@ test('revoked pairing shows a useful reconnect message and removes old task cont
     await route.fulfill({ response });
   });
   await expect(
-    page.getByText('Remote unavailable. Scan the current QR code in Sia on your Mac.'),
+    page.getByText(
+      'This phone isn’t linked to Sia anymore. On your Mac, open Sia and scan the new QR code with your phone camera.',
+    ),
   ).toBeVisible();
   await page.getByRole('textbox').fill('Do not send');
   await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();
@@ -472,7 +474,7 @@ test('connection sheet traps focus, closes with Escape and restores focus', asyn
   await page.getByRole('button', { name: 'Connection details' }).click();
   const panel = page.getByRole('dialog', { name: 'Your Mac, connected.' });
   await expect(panel).toBeVisible();
-  await expect(panel.getByText('Confirm actions on your Mac')).toBeVisible();
+  await expect(panel.getByText('Your Mac asks first')).toBeVisible();
   await expect(panel.getByText('Keep Sia open and your Mac awake.')).toBeVisible();
   await panel.getByRole('button', { name: 'Close panel' }).press('Tab');
   await expect(panel.getByRole('button', { name: 'Close panel' })).toBeFocused();

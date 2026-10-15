@@ -15,13 +15,13 @@
 }
 .conversation-heading strong {
   display: block;
-  font: 550 17px var(--font-brand);
+  font: 550 calc(18px * var(--text-scale, 1)) var(--font-brand);
   overflow-wrap: anywhere;
 }
 .conversation-heading small {
   display: block;
-  font-size: 10px;
-  color: var(--text-tertiary);
+  font-size: var(--phone-text-meta);
+  color: var(--text-secondary);
 }
 .assistant-avatar {
   display: grid;
@@ -66,8 +66,8 @@
   background: var(--bg-selected);
   border-radius: 19px 19px 5px 19px;
   padding: 13px 17px;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--phone-text-body);
+  line-height: 1.5;
   width: fit-content;
   max-width: calc(100% - 28px);
   margin: 0 0 24px auto;
@@ -96,7 +96,8 @@
   gap: 5px;
   align-items: center;
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: var(--phone-text-meta);
+  font-weight: 550;
   white-space: nowrap;
   animation: settle var(--motion-surface) var(--ease-out-soft) both;
 }
@@ -111,9 +112,9 @@
 }
 .turn-status[data-status='waiting'],
 .turn-status[data-status='error'] {
-  padding: 3px 8px;
+  padding: 4px 10px;
   border-radius: 20px;
-  margin-block: -3px;
+  margin-block: -4px;
 }
 .turn-status[data-status='waiting'] {
   background: color-mix(in srgb, var(--text-warning) 12%, transparent);
@@ -133,15 +134,15 @@
 }
 .status-disc,
 .working-dot {
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   display: inline-block;
   background: currentColor;
 }
 .remote-response {
-  font-size: 14px;
-  line-height: 1.75;
+  font-size: var(--phone-text-body);
+  line-height: 1.6;
   overflow-wrap: anywhere;
 }
 .remote-response p {
@@ -162,7 +163,7 @@
   padding: 12px;
   background: var(--bg-subtle);
   border-radius: 10px;
-  font-size: 12px;
+  font-size: var(--phone-text-meta);
 }
 .remote-response h1,
 .remote-response h2,
@@ -171,16 +172,16 @@
   line-height: 1.2;
 }
 .task-steps {
-  color: var(--text-tertiary);
-  font-size: 11px;
+  color: var(--text-secondary);
+  font-size: var(--phone-text-label);
   margin: 4px 0 12px;
   background: var(--bg-subtle);
   border-radius: 12px;
 }
 .task-steps summary {
   cursor: pointer;
-  padding: 14px 12px;
-  min-height: 44px;
+  padding: 13px 14px;
+  min-height: var(--phone-target);
 }
 /* A new step slides in under the last one; the text itself is never animated per token. */
 .step-line {
@@ -192,8 +193,8 @@
 }
 .task-steps ol {
   margin: 0;
-  padding: 0 18px 14px 30px;
-  line-height: 1.9;
+  padding: 0 18px 14px 32px;
+  line-height: 1.6;
 }
 .result-file {
   display: flex;
@@ -206,7 +207,8 @@
   padding: 17px 14px;
   text-decoration: none;
   margin: 16px 0;
-  font-size: 12px;
+  min-height: var(--phone-row);
+  font-size: var(--phone-text-body);
 }
 .result-file svg {
   flex: none;
@@ -231,12 +233,13 @@
 }
 .result-file span:last-child {
   margin-left: auto;
-  color: var(--text-tertiary);
-  font-size: 10px;
+  color: var(--text-secondary);
+  font-size: var(--phone-text-label);
 }
 .connection-banner,
 .waiting-note {
-  font-size: 12px;
+  font-size: var(--phone-text-label);
+  line-height: 1.45;
   padding: 12px 18px;
   background: var(--surface-info);
   color: var(--text-secondary);
@@ -245,7 +248,7 @@
 .waiting-note {
   border-radius: 12px;
   margin-top: 15px;
-  line-height: 1.6;
+  line-height: 1.5;
   animation: settle var(--motion-surface) var(--ease-out-soft) both;
 }
 /* Approval is a safety surface: sober, warm, and plainly marked; no bounce. */
@@ -262,8 +265,9 @@
   color: var(--text-danger);
   background: var(--surface-danger);
   border-radius: 12px;
-  padding: 10px 12px;
-  font-size: 12px;
+  padding: 10px 6px 10px 14px;
+  font-size: var(--phone-text-label);
+  line-height: 1.45;
   margin: 0 0 12px;
   display: flex;
   align-items: center;
@@ -277,20 +281,24 @@
   animation: arrive var(--motion-surface) var(--ease-out-soft) both;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px 8px;
   padding: 0 3px 10px;
-  font-size: 10px;
-  color: var(--text-secondary);
+  font-size: var(--phone-text-label);
+  font-weight: 550;
+  color: var(--text-primary);
   flex-wrap: wrap;
 }
+/* The reassurance sits under the status, lined up with its words, instead of squeezing beside it. */
 .live-task-line > span:last-child {
-  margin-left: auto;
-  font-size: 9px;
-  color: var(--text-tertiary);
+  flex-basis: 100%;
+  padding-left: 16px;
+  font-size: var(--phone-text-meta);
+  font-weight: 400;
+  color: var(--text-secondary);
 }
 .activity-light {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--text-success);
 }
@@ -306,7 +314,7 @@
 }
 .jump-latest {
   position: absolute;
-  top: -40px;
+  top: -52px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -317,7 +325,8 @@
   border-radius: 25px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-raised);
-  font-size: 11px;
+  font-size: var(--phone-text-label);
+  white-space: nowrap;
   box-shadow: var(--shadow-raised);
   animation: jump-arrive var(--motion-emphasis) var(--phone-spring) both;
 }
@@ -338,8 +347,8 @@
 .thinking-dots i {
   display: inline-block;
   background: var(--text-success);
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   animation: thinking var(--motion-spin) var(--ease-standard) infinite;
 }

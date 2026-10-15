@@ -49,9 +49,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 0 12px;
-  font-size: 11px;
+  min-height: var(--phone-target);
+  padding: 0 14px;
+  font-size: var(--phone-text-meta);
+  white-space: nowrap;
   font-weight: 550;
   background: var(--bg-raised);
   border: 1px solid var(--border-subtle);
@@ -63,8 +64,8 @@
 }
 .connection-dot i,
 .device-status i {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--text-tertiary);
 }
@@ -86,8 +87,8 @@
     border-color var(--motion-standard) var(--ease-standard);
 }
 .icon {
-  width: 44px;
-  height: 44px;
+  width: var(--phone-target);
+  height: var(--phone-target);
   flex: none;
   border: 0;
   background: transparent;

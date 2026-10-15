@@ -16,11 +16,11 @@
 .page-heading h1 {
   font: 500 clamp(31px, 8vw, 40px)/1.1 var(--font-brand);
   letter-spacing: -0.055em;
-  margin: 12px 0 9px;
+  margin: 10px 0 10px;
 }
 .page-heading p {
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--phone-text-body);
+  line-height: 1.5;
   color: var(--text-secondary);
   margin: 0;
 }
@@ -39,9 +39,9 @@
   border-radius: 30px;
   background: none;
   border: 1px solid var(--border-subtle);
-  padding: 0 15px;
-  min-height: 44px;
-  font-size: 12px;
+  padding: 0 16px;
+  min-height: var(--phone-target);
+  font-size: var(--phone-text-label);
 }
 .activity-filters {
   animation: arrive var(--motion-emphasis) var(--phone-spring) both;
@@ -98,12 +98,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 .task-card h2 {
   font: 520 20px/1.25 var(--font-brand);
   letter-spacing: -0.03em;
-  margin: 18px 0 8px;
+  margin: 14px 0 8px;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -118,17 +118,17 @@
   overflow-wrap: anywhere;
   color: var(--text-secondary);
   margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--phone-text-label);
+  line-height: 1.5;
 }
 .task-file-count {
   display: inline-flex;
   gap: 6px;
   align-items: center;
   margin-top: 15px;
-  padding: 6px 9px;
-  border-radius: 8px;
-  font-size: 10px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  font-size: var(--phone-text-meta);
   background: var(--bg-subtle);
 }
 .activity-empty {
@@ -165,8 +165,8 @@
 }
 .activity-empty p {
   color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: var(--phone-text-body);
+  line-height: 1.5;
 }
 .text-action {
   background: var(--shell-bg);
@@ -177,7 +177,7 @@
   border: 0;
   padding: 13px 20px;
   border-radius: 30px;
-  min-height: 48px;
-  font-size: 12px;
+  min-height: var(--phone-row);
+  font-size: var(--phone-text-body);
   margin-top: 15px;
 }

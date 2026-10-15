@@ -12,6 +12,15 @@
   --phone-sheet-rise: calc(var(--motion-rise) * 6);
   /* Each phone breath: live dots and the reconnecting light. */
   --phone-breath: calc(var(--motion-spin) * 1.6);
+  /* Phone comfort scale (docs/ui-quality.md "Comfortable reading"): body copy and fields are at
+     least 16px, which also stops iOS zooming into a focused field; labels and supporting lines
+     stay at 15px; 13px is the floor, kept for counts and small status chips. Targets are thumb
+     sized. These follow Larger text through --text-scale like the shared type tokens. */
+  --phone-text-body: calc(16px * var(--text-scale, 1));
+  --phone-text-label: calc(15px * var(--text-scale, 1));
+  --phone-text-meta: calc(13px * var(--text-scale, 1));
+  --phone-target: 44px;
+  --phone-row: 52px;
 }
 body {
   background: var(--bg-app);

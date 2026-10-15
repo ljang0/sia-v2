@@ -29,7 +29,7 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
           download={file}
           key={file}
         >
-          <DownloadSimple size={19} />
+          <DownloadSimple size={22} />
           <span>{file}</span>
           <span className="muted">Save</span>
         </a>
@@ -57,7 +57,7 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
             'Needs attention'
           ) : (
             <>
-              <Check size={13} aria-hidden="true" />
+              <Check size={16} aria-hidden="true" />
               Finished
             </>
           )}
@@ -72,7 +72,7 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
             >
               {turn.status === 'working'
                 ? turn.steps.at(-1)
-                : `${turn.steps.length} ${turn.steps.length === 1 ? 'step' : 'steps'}`}
+                : `What Sia did (${turn.steps.length} ${turn.steps.length === 1 ? 'step' : 'steps'})`}
             </span>
           </summary>
           <ol>

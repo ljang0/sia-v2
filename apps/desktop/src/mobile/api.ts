@@ -30,7 +30,9 @@ export async function remoteRequest<T>(
     const data = await response.json();
     if (!response.ok)
       throw new RemoteRequestError(
-        typeof data.error === 'string' ? data.error : 'Sia could not complete this request.',
+        plainError(
+          typeof data.error === 'string' ? data.error : 'Sia could not complete this request.',
+        ),
         response.status,
       );
     return data as T;
@@ -38,6 +40,13 @@ export async function remoteRequest<T>(
     clearTimeout(timeout);
     signal?.removeEventListener('abort', abort);
   }
+}
+export const unpairedMessage =
+  'This phone isn’t linked to Sia anymore. On your Mac, open Sia and scan the new QR code with your phone camera.';
+/** The Mac speaks in terms of links and QR codes; on the phone, say what to do in plain words. */
+function plainError(message: string): string {
+  if (/^(remote unavailable|the remote link changed)/i.test(message)) return unpairedMessage;
+  return message;
 }
 // randomUUID is secure-context-only. getRandomValues also works on Notch-style LAN HTTP.
 export function requestId(): string {
