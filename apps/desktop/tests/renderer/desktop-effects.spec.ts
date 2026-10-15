@@ -524,3 +524,34 @@ test('navigation reveals a distant selected task without scrolling the app windo
   ).toEqual({ document: 0, body: 0 });
   await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
 });
+
+for (const viewport of [
+  { width: 1280, height: 900 },
+  { width: 960, height: 640 },
+]) {
+  test(`the Tools menu leaves a pending approval's choices uncovered at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/#demo');
+    const allow = page.getByRole('button', { name: 'Allow', exact: true });
+    await allow.scrollIntoViewIfNeeded();
+    // Measure first: an open menu hides the rest of the page from the accessibility tree.
+    const choices = [
+      (await allow.boundingBox())!,
+      (await page.getByRole('button', { name: "Don't allow" }).boundingBox())!,
+    ];
+    await page.getByRole('button', { name: /^Tools/ }).click();
+    const menu = page.getByRole('menu');
+    await expect(menu).toBeVisible();
+    const box = (await menu.boundingBox())!;
+    for (const target of choices) {
+      const overlaps =
+        box.x < target.x + target.width &&
+        target.x < box.x + box.width &&
+        box.y < target.y + target.height &&
+        target.y < box.y + box.height;
+      expect(overlaps).toBe(false);
+    }
+  });
+}

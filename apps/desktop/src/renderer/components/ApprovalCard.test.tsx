@@ -110,6 +110,11 @@ describe('ApprovalCard', () => {
     expect(screen.getByText('Sia workspace')).toBeTruthy();
     expect(screen.getByText('#alpha-research')).toBeTruthy();
     expect(screen.getByText('The browser checks passed.')).toBeTruthy();
+    // A plain From → To line, and no countdown while there is plenty of time.
+    expect(screen.getByText('Sia workspace').closest('p')!.textContent).toBe(
+      'From Sia workspaceTo #alpha-research',
+    );
+    expect(screen.queryByText(/expires/)).toBeNull();
   });
 
   it('does not mislabel browser and file approvals as connector writes', () => {

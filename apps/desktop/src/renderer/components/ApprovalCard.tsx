@@ -1,8 +1,7 @@
 import {
-  ArrowSquareOut,
+  ArrowRight,
   CheckCircle,
   CaretRight,
-  Clock,
   Desktop,
   EnvelopeSimple,
   ShieldCheck,
@@ -103,17 +102,20 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
         </div>
       ) : request.kind === 'connector' ? (
         <div className={styles.approvalDetails}>
-          <div className={styles.connectorMeta}>
-            <span>{request.account}</span>
-            <ArrowSquareOut size={16} aria-hidden="true" />
-            <span>{request.destination}</span>
-          </div>
+          <p className={styles.connectorMeta}>
+            <span>
+              <span className={styles.metaLabel}>From </span>
+              <span>{request.account}</span>
+            </span>
+            <ArrowRight size={16} aria-hidden="true" />
+            <span>
+              <span className={styles.metaLabel}>To </span>
+              <span>{request.destination}</span>
+            </span>
+          </p>
           <pre className={styles.connectorPreview}>{request.preview}</pre>
-          {request.expiresAt && status === 'pending' ? (
-            <div className={styles.expiryNote}>
-              <Clock size={16} aria-hidden="true" />
-              <span>{formatExpiry(request.expiresAt, now)}</span>
-            </div>
+          {displayStatus === 'expired' ? (
+            <p className={styles.expiryNote}>Preview expired</p>
           ) : null}
         </div>
       ) : (
@@ -150,11 +152,8 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
               automatically.
             </span>
           </div>
-          {request.expiresAt && !resolved ? (
-            <div className={styles.expiryNote}>
-              <Clock size={16} aria-hidden="true" />
-              <span>{formatExpiry(request.expiresAt, now, 'Sia will skip this step')}</span>
-            </div>
+          {displayStatus === 'expired' ? (
+            <p className={styles.expiryNote}>Request expired</p>
           ) : null}
         </div>
       )}
@@ -194,6 +193,16 @@ export function ApprovalCard({ event, busy, onResolve }: ApprovalCardProps) {
 
       {!resolved ? (
         <footer className={styles.approvalActions}>
+          {/* Time pressure stays quiet: it appears only near the end, beside the choices. */}
+          {expiresAt && new Date(expiresAt).getTime() - now <= EXPIRY_NOTICE_MS ? (
+            <span className={styles.expiryNote}>
+              {formatExpiry(
+                expiresAt,
+                now,
+                request.kind === 'connector' ? 'Preview expires' : 'Sia will skip this step',
+              )}
+            </span>
+          ) : null}
           <button
             type="button"
             className={buttons.secondaryButton}
@@ -234,6 +243,9 @@ const STATUS_LABEL = {
   expired: 'Expired',
 } as const;
 
+/** A countdown is shown only for the last two minutes; earlier it would only add pressure. */
+const EXPIRY_NOTICE_MS = 2 * 60_000;
+
 const COMMAND_PREFIX = 'Run a command: ';
 
 /** A native shell approval arrives as "Run a command: <command>"; show the command itself. */
@@ -242,10 +254,8 @@ function nativeCommand(summary: string): string | undefined {
   return summary.slice(COMMAND_PREFIX.length).trim() || undefined;
 }
 
-function formatExpiry(value: string, now: number, action = 'Preview expires') {
+function formatExpiry(value: string, now: number, action: string) {
   const remaining = new Date(value).getTime() - now;
-  if (remaining <= 0)
-    return action === 'Preview expires' ? 'Preview expired' : 'Request expired';
   if (remaining < 60_000) return `${action} in less than a minute`;
   const minutes = Math.ceil(remaining / 60_000);
   return `${action} in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;

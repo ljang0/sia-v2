@@ -22,7 +22,7 @@
 
 .threadMenuItem {
   display: flex;
-  min-height: 30px;
+  min-height: var(--target-min);
   align-items: center;
   gap: 8px;
   padding: 0 8px;

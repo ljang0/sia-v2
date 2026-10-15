@@ -144,7 +144,9 @@ export function ThreadWorkspaceTools({
           <DropdownMenu.Portal>
             <DropdownMenu.Content
               className={primitives.threadMenuContent}
-              side="top"
+              // Drop over the composer rather than up into the conversation, where it covered
+              // a pending approval's Allow / Don't allow. Radix flips up only if it can't fit.
+              side="bottom"
               align="end"
               sideOffset={6}
               onCloseAutoFocus={(event) => {
