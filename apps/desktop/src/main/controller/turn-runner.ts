@@ -94,7 +94,7 @@ export class TurnRunner {
         const assistantEventId = randomUUID();
         const assistantTimestamp = new Date().toISOString();
         const assistantText =
-          'I am ready. This development turn used the deterministic local runtime, so no provider account or connected-app data was accessed.';
+          'All set. This was a practice reply, so no AI service or connected app was used.';
         this.ctx.appendTimeline(turn.threadId, {
           id: assistantEventId,
           turnId: turn.id,

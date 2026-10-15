@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const assistantReply =
-  'I am ready. This development turn used the deterministic local runtime, so no provider account or connected-app data was accessed.';
+  'All set. This was a practice reply, so no AI service or connected app was used.';
 
 test('saved agents, threads, transcripts, and drafts survive a full app relaunch', async () => {
   const testRoot = await mkdtemp(join(tmpdir(), 'sia-electron-persistence-'));

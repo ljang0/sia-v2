@@ -50,7 +50,7 @@ test('launcher uses an isolated bridge, opens from the menu, and dispatches to t
     });
     await launcher.getByRole('textbox', { name: 'Your request' }).press('Enter');
     await expect(
-      launcher.getByText(/This development turn used the deterministic local runtime/),
+      launcher.getByText(/This was a practice reply/),
     ).toBeVisible();
     await expect(launcher.getByRole('button', { name: 'Open conversation' })).toBeVisible();
     const original = await launcher.evaluate(() => window.siaLauncher.state());

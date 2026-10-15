@@ -140,7 +140,7 @@ test('archive, transcript search, and fork preserve source context', async ({}, 
     await harness.page.getByRole('textbox', { name: 'Message' }).fill(`Remember ${token}.`);
     await harness.page.getByRole('textbox', { name: 'Message' }).press('Enter');
     await expect(
-      harness.page.getByLabel('Conversation').getByText(/deterministic local runtime/i),
+      harness.page.getByLabel('Conversation').getByText(/practice reply/i),
     ).toBeVisible();
 
     await harness.page.getByTestId(parityContract.threadLibrary.testIds[0]).click();
@@ -236,7 +236,7 @@ test('an interrupted turn is recovered without duplicating its user message', as
     await expect(recoveredPrompt).toHaveCount(1);
     await recovered.page.getByTestId(parityContract.interruptedTurnRecovery.testIds[2]).click();
     await expect(recoveredPrompt).toHaveCount(1);
-    await expect(recovered.page.getByText(/deterministic local runtime/i)).toBeVisible();
+    await expect(recovered.page.getByText(/practice reply/i)).toBeVisible();
     expect(recovered.rendererErrors).toEqual([]);
   } finally {
     await recovered?.close({ removeTestRoot: false });

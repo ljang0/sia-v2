@@ -42,7 +42,7 @@ export function PrivacySettings({
   const captureLabel = uploadsPaused
     ? 'Not available'
     : !snapshot.research.consented
-      ? 'Not enabled'
+      ? 'Off'
       : snapshot.research.capture === 'sync-pending'
         ? 'Sync pending'
         : blocked
@@ -66,7 +66,7 @@ export function PrivacySettings({
   return (
     <SettingsSectionHeader
       title="Privacy"
-      description="Research participation is optional and separate from model or connection permissions."
+      description="Sia never records your work for research unless you choose to join. This is separate from AI and app permissions."
     >
       <InlineSettingsError message={error} />
       {uploadsPaused ? (
@@ -81,10 +81,10 @@ export function PrivacySettings({
           </div>
         </div>
       ) : null}
-      <section className={settings.captureSettings} aria-label="Research capture">
+      <section className={settings.captureSettings} aria-label="Research participation">
         <div>
           <div className={settings.rowTitleLine}>
-            <strong>Research capture</strong>
+            <strong>Research participation</strong>
             <span
               className={`${settings.stateLabel} ${
                 !snapshot.research.consented
@@ -97,11 +97,18 @@ export function PrivacySettings({
               {captureLabel}
             </span>
           </div>
-          <p>
-            Stores the raw prompts, responses, surfaced reasoning, tool arguments/results,
-            commands and output, browser/computer activity, and captured images Sia observes. It
-            is not used for model training.
-          </p>
+          {snapshot.research.consented ? (
+            <p>
+              Stores the raw prompts, responses, surfaced reasoning, tool arguments/results,
+              commands and output, browser/computer activity, and captured images Sia observes.
+              It is not used for model training.
+            </p>
+          ) : (
+            <p>
+              Optional and off. If you join, researchers can review what you ask Sia and what it
+              does, including screenshots. You can pause, export, or delete it anytime.
+            </p>
+          )}
         </div>
         {uploadsPaused ? (
           <span className={settings.stateLabel}>Not enabled for this account</span>

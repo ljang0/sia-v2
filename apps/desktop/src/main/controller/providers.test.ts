@@ -512,7 +512,7 @@ describe('DesktopController', () => {
     expect(controller.snapshot().providers.find(({ id }) => id === 'codex')).toMatchObject({
       status: 'ready',
       version: '0.147.0',
-      account: 'Deterministic test runtime',
+      account: 'Practice mode',
     });
     await controller.invoke('providers.login', { providerId: 'codex' });
     expect(openExternal).not.toHaveBeenCalled();

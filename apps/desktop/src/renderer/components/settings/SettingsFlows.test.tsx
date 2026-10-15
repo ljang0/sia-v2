@@ -523,7 +523,7 @@ describe('research consent settings', () => {
       />,
     );
 
-    expect(screen.getByText('Not enabled')).toBeTruthy();
+    expect(screen.getByText('Off')).toBeTruthy();
     expect(screen.getByText(/Anything the task can observe may be included raw/)).toBeTruthy();
     expect(screen.queryByText(/always excluded|withdraw consent/i)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Review & enable' }));
@@ -552,6 +552,8 @@ describe('research consent settings', () => {
       />,
     );
     expect(screen.queryByText('Recording')).toBeNull();
+    expect(screen.getByText('Research participation')).toBeTruthy();
+    expect(screen.getByText('Off')).toBeTruthy();
     expect(
       (screen.getByRole('button', { name: 'Review & enable' }) as HTMLButtonElement).disabled,
     ).toBe(false);
@@ -576,9 +578,11 @@ describe('research consent settings', () => {
   });
 
   it('keeps research capture optional while an account is signed in', () => {
+    const snapshot = structuredClone(demoSnapshot);
+    snapshot.research = { ...snapshot.research, consented: true, capture: 'recording' };
     render(
       <PrivacySettings
-        snapshot={structuredClone(demoSnapshot)}
+        snapshot={snapshot}
         onSetCapturePaused={vi.fn()}
         onExport={vi.fn()}
         onDelete={vi.fn()}

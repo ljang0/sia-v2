@@ -49,7 +49,7 @@ test('background skills use gateway execution and native titles survive restart'
     await gateway.getByRole('button', { name: 'Run skill' }).click();
     await page.getByRole('button', { name: 'Review run in a new conversation' }).click();
     await expect(
-      page.getByText(/This development turn used the deterministic local runtime/),
+      page.getByText(/This was a practice reply/),
     ).toBeVisible();
     expect(sia.rendererErrors).toEqual([]);
     await sia.close({ removeTestRoot: false });
@@ -141,7 +141,7 @@ test('personal library saves memory, edits workflow parameters and runs through 
     await page.getByRole('button', { name: 'Start in a new conversation' }).click();
     await expect(page.getByRole('textbox', { name: 'Message' })).toBeVisible();
     await expect(
-      page.getByText(/This development turn used the deterministic local runtime/),
+      page.getByText(/This was a practice reply/),
     ).toBeVisible();
     const state = await page.evaluate(() => window.sia.bootstrap());
     expect(state.computer.trust).toBe('ask');
@@ -209,7 +209,7 @@ test('automatic learning and executable skills persist and dispatch through the 
     await page.getByLabel('Input JSON', { exact: true }).fill('{"topic":"Notes"}');
     await page.getByRole('button', { name: 'Review run in a new conversation' }).click();
     await expect(
-      page.getByText(/This development turn used the deterministic local runtime/),
+      page.getByText(/This was a practice reply/),
     ).toBeVisible();
     const state = await page.evaluate(() => window.sia.bootstrap());
     expect(
