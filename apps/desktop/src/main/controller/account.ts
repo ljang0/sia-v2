@@ -369,8 +369,10 @@ export class CloudAccount {
       this.ctx.state.researchIdentity !== identity
     ) {
       if (storedBatches.some(({ batchId }) => !this.ctx.researchOutbox.batchSynced(batchId))) {
-        this.ctx.researchOutbox.blockCapture(
-          'This Mac has unsynced research for another Sia account. Sign in with that account or delete its local research before continuing.',
+        // The other account's records stay queued for that account (sync only uploads under the
+        // identity that recorded them). Recording stops for this account, but chat keeps working.
+        this.ctx.researchOutbox.pauseForOtherAccount(
+          'This Mac has unsynced research for another Sia account, so research recording is paused. Sign in with that account to finish uploading it, or delete its local research.',
         );
         this.ctx.connections.lockConnections(
           'This grant belongs to another Sia cloud account.',

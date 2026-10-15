@@ -270,6 +270,15 @@ export class ResearchOutbox {
     }
   }
 
+  /** Stops recording without blocking turns, for records that belong to another account. */
+  pauseForOtherAccount(reason: string): void {
+    this.ctx.state.capture.status = 'paused';
+    delete this.ctx.state.capture.blockedReason;
+    this.ctx.state.capture.lastSyncError = reason;
+    this.refreshPendingCount();
+    this.ctx.commit();
+  }
+
   refreshPendingCount(): void {
     const pending = this.batches().filter(
       (batch) => batch.syncEligible !== false && !this.batchSynced(batch.batchId),

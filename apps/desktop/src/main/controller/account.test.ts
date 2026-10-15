@@ -101,6 +101,75 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('keeps chat working when another account signs in over unsynced research', async () => {
+    let email = 'first@example.com';
+    const identity = {
+      initialize: async () => ({ state: 'signed_in' as const, email }),
+      status: () => ({ state: 'signed_in' as const, email }),
+      startEmailSignIn: async () => ({ state: 'signed_in' as const, email }),
+      completeEmailSignIn: async () => ({ state: 'signed_in' as const, email }),
+      signOut: async () => ({ state: 'signed_out' as const }),
+    } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+    const uploadResearchBatch = vi.fn(async () => {
+      throw new Error('offline');
+    });
+    const cloud = {
+      configured: true,
+      sessionStatus: async () => ({
+        features: {
+          researchUploads: true,
+          researchArchive: true,
+          connectors: true,
+          schedules: true,
+        },
+      }),
+      uploadResearchBatch,
+    } as unknown as CloudClient;
+    const { controller, repository } = await createHarness({
+      cloud,
+      identity,
+      fakeServices: false,
+    });
+    await controller.invoke('research.setCapture', {
+      enabled: true,
+      consentVersion: 'alpha-research-v3-raw',
+    });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Research participant',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const thread = await controller.invoke('threads.create', { agentId: agent.agentId });
+    await controller.invoke('threads.send', {
+      threadId: thread.threadId,
+      text: 'First account',
+    });
+    await vi.waitFor(() => expect(repository.list('research').length).toBeGreaterThan(0));
+    const queued = repository.list('research').length;
+
+    email = 'second@example.com';
+    await controller.invoke('auth.complete', { code: '123456' });
+
+    const capture = controller.snapshot().capture;
+    expect(capture.status).toBe('paused');
+    expect(capture.blockedReason).toBeUndefined();
+    expect(capture.lastSyncError).toContain('another Sia account');
+    // The first account's records are kept for that account, and nothing new is recorded.
+    expect(repository.list('research')).toHaveLength(queued);
+    uploadResearchBatch.mockClear();
+    await expect(
+      controller.invoke('threads.send', { threadId: thread.threadId, text: 'Second account' }),
+    ).resolves.toBeTruthy();
+    expect(repository.list('research')).toHaveLength(queued);
+    expect(uploadResearchBatch).not.toHaveBeenCalled();
+    await expect(controller.invoke('research.setCapture', { enabled: true })).rejects.toThrow(
+      'another Sia account',
+    );
+    await controller.shutdown();
+  });
+
   it('retains local research until cloud deletion is confirmed and preserves it on failure', async () => {
     const deletion = Promise.withResolvers<{
       id: string;
