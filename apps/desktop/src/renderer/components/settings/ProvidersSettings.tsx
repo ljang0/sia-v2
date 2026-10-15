@@ -33,7 +33,8 @@ export function ProvidersSettings({
 }) {
   const [pending, setPending] = useState<ProviderId>();
   const [error, setError] = useState<string>();
-  const setup = providers.find(({ id }) => id === 'codex')?.setup;
+  // One engine install serves every choice that runs on it, so its progress blocks them all.
+  const setup = providers.find((provider) => provider.setup)?.setup;
   const setupBusy = Boolean(setup && setup.phase !== 'error');
   const busy = Boolean(pending) || setupBusy;
   const providerStates = providers.map(({ id, status }) => `${id}:${status}`).join(',');
@@ -116,24 +117,6 @@ export function ProvidersSettings({
               >
                 Sign in
               </button>
-            ) : provider.id === 'meta' &&
-              (provider.status === 'needs-install' || provider.status === 'incompatible') ? (
-              visibleProviders.some(({ id }) => id === 'codex') ? null : (
-                <button
-                  type="button"
-                  className={buttons.primaryButton}
-                  disabled={busy}
-                  onClick={() =>
-                    void run(
-                      provider,
-                      () => onOpenProviderSetup('codex'),
-                      'ChatGPT setup could not be opened.',
-                    )
-                  }
-                >
-                  {pending === provider.id ? pendingAction(provider) : 'Connect ChatGPT'}
-                </button>
-              )
             ) : provider.status === 'ready' ||
               provider.status === 'disabled' ? null : provider.status === 'unavailable' ? (
               <button
@@ -178,7 +161,7 @@ export function ProvidersSettings({
                   )
                 }
               >
-                {pending === provider.id || (provider.id === 'codex' && setupBusy)
+                {pending === provider.id || (provider.setup && provider.setup.phase !== 'error')
                   ? pendingAction(provider)
                   : provider.setup?.phase === 'error'
                     ? 'Try again'
@@ -220,6 +203,12 @@ function providerName(provider: ProviderSetup): string {
 }
 
 function providerDescription(provider: ProviderSetup): string {
+  // Included AI runs on the same engine as the ChatGPT plan, but needs no ChatGPT account.
+  if (
+    provider.id === 'meta' &&
+    (provider.status === 'needs-install' || provider.status === 'incompatible')
+  )
+    return 'Sia needs to finish setting up its AI engine. One click installs it and restarts Sia.';
   if (provider.status === 'needs-install' || provider.status === 'incompatible')
     return provider.status === 'incompatible'
       ? 'Connect your ChatGPT plan. One click updates ChatGPT support, restarts Sia, and opens ChatGPT sign-in.'
@@ -252,6 +241,7 @@ function ProviderIcon({ provider }: { provider: ProviderId }) {
 }
 
 function setupAction(provider: ProviderSetup): string {
+  if (provider.id === 'meta') return 'Finish setup';
   if (
     provider.id === 'codex' ||
     provider.status === 'needs-install' ||

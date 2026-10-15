@@ -181,8 +181,8 @@ export class Snapshots {
         ...(this.ctx.providers.usageLimits.has(provider.id)
           ? { limits: { ...this.ctx.providers.usageLimits.get(provider.id)! } }
           : {}),
-        ...(provider.id === 'codex' && this.ctx.providers.codexSetup
-          ? { setup: { ...this.ctx.providers.codexSetup } }
+        ...(this.ctx.providers.setupFor(provider)
+          ? { setup: { ...this.ctx.providers.setupFor(provider)! } }
           : {}),
       })),
       connections: structuredClone(this.ctx.state.connections).map((connection) =>

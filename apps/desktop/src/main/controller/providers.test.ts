@@ -645,6 +645,123 @@ describe('DesktopController', () => {
     }
   });
 
+  it.each(['needs_install', 'incompatible'] as const)(
+    'finishes Included AI setup by installing the managed Codex harness without ChatGPT sign-in (%s)',
+    async (harnessStatus) => {
+      let finish!: () => void;
+      const installCodex = vi.fn(
+        (onProgress: (message: string) => void) =>
+          new Promise<void>((resolve) => {
+            onProgress('Downloading Codex… 5 MB of 116 MB.');
+            finish = resolve;
+          }),
+      );
+      const restartApp = vi.fn();
+      const openExternal = vi.fn(async () => undefined);
+      const identity = {
+        initialize: async () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+        status: () => ({ state: 'signed_in' as const, email: 'person@example.com' }),
+        startEmailSignIn: async () => ({ state: 'signed_in' as const }),
+        completeEmailSignIn: async () => ({
+          state: 'signed_in' as const,
+          email: 'person@example.com',
+        }),
+        signOut: async () => ({ state: 'signed_out' as const }),
+      } satisfies ConstructorParameters<typeof DesktopController>[0]['identity'];
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (input: URL | RequestInfo) => {
+          if (String(input).endsWith('/v1/session'))
+            return Response.json({
+              admin: false,
+              features: {
+                researchUploads: false,
+                researchArchive: false,
+                connectors: true,
+                schedules: true,
+              },
+            });
+          throw new Error(`Unexpected cloud request: ${String(input)}`);
+        }),
+      );
+      const { controller, repository } = await createHarness({
+        fakeServices: false,
+        installCodex,
+        restartApp,
+        openExternal,
+        cloud: new CloudClient('https://api.example.test', {
+          read: async () => 'test-id-token',
+        }),
+        identity,
+        providerProbe: async (id) =>
+          (await deterministicProviderProbe(id)).map((provider) =>
+            provider.id === 'codex' ? { ...provider, status: harnessStatus } : provider,
+          ),
+      });
+      try {
+        await controller.invoke('providers.probe', { providerId: 'codex' });
+        expect(controller.snapshot().providers.find(({ id }) => id === 'meta')?.status).toBe(
+          harnessStatus,
+        );
+        const pending = controller.invoke('providers.login', { providerId: 'meta' });
+        await vi.waitFor(() => expect(installCodex).toHaveBeenCalledOnce());
+        const installing = {
+          phase: 'installing',
+          message:
+            harnessStatus === 'incompatible'
+              ? 'Updating Sia’s AI engine…'
+              : 'Installing Sia’s AI engine…',
+        };
+        // The included row shows plain progress; Codex download details stay off it.
+        expect(controller.snapshot().providers.find(({ id }) => id === 'meta')?.setup).toEqual(
+          installing,
+        );
+        expect(controller.snapshot().providers.find(({ id }) => id === 'codex')?.setup).toEqual(
+          installing,
+        );
+        await expect(
+          controller.invoke('providers.login', { providerId: 'codex' }),
+        ).rejects.toThrow('in progress');
+        finish();
+        await pending;
+        expect(restartApp).toHaveBeenCalledOnce();
+        expect(openExternal).not.toHaveBeenCalled();
+        expect(repository.get('setup', 'codex-login')).toBeUndefined();
+        expect(controller.snapshot().providers.find(({ id }) => id === 'meta')?.setup).toEqual({
+          phase: 'restarting',
+          message: 'Restarting Sia to finish setup.',
+        });
+      } finally {
+        await controller.shutdown();
+        vi.unstubAllGlobals();
+      }
+    },
+  );
+
+  it('keeps the ChatGPT sign-in continuation for Codex setup only', async () => {
+    const restartApp = vi.fn();
+    const { controller, repository } = await createHarness({
+      fakeServices: false,
+      installCodex: vi.fn(async () => undefined),
+      restartApp,
+      providerProbe: async (id) =>
+        (await deterministicProviderProbe(id)).map((provider) =>
+          provider.id === 'codex'
+            ? { ...provider, status: 'needs_install' as const }
+            : provider,
+        ),
+    });
+    try {
+      await controller.invoke('providers.login', { providerId: 'codex' });
+      expect(restartApp).toHaveBeenCalledOnce();
+      expect(repository.get('setup', 'codex-login')).toMatchObject({
+        expiresAt: expect.any(Number),
+      });
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('opens and completes the managed Codex ChatGPT login before marking it connected', async () => {
     let signedIn = false;
     const providerProbe = vi.fn(async (providerId?: Parameters<typeof probeProviders>[0]) =>

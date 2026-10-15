@@ -312,44 +312,49 @@ export class ProviderAccess {
       if (provider.status === 'needs_login') {
         throw new Error('Sign in to Sia to use included models.');
       }
-      throw new Error('Included models are already part of your Sia account.');
+      const harness = this.views.find(({ id }) => id === 'codex')?.status;
+      if (!needsManagedInstall(provider.status))
+        throw new Error('Included models are already part of your Sia account.');
+      if (!harness || !needsManagedInstall(harness))
+        throw new Error('Sia’s AI engine is unavailable in this build. Check again later.');
+      // Included models run through the Codex App Server harness, so finishing their setup
+      // installs it. No ChatGPT account is involved, so no sign-in continues after restart.
+      this.codexSetupPending = true;
+      try {
+        await this.installManagedCodexAndRestart({
+          installing:
+            harness === 'incompatible'
+              ? 'Updating Sia’s AI engine…'
+              : 'Installing Sia’s AI engine…',
+          restarting: 'Restarting Sia to finish setup.',
+          forwardProgress: false,
+          continueChatGptSignIn: false,
+        });
+        return { opened: true, snapshot: this.ctx.resultSnapshot() };
+      } catch (error) {
+        this.setCodexSetup('error', 'Setup did not finish. Choose Try again to start over.');
+        throw error;
+      } finally {
+        if (this.codexSetup?.phase !== 'restarting') this.codexSetupPending = false;
+        this.ctx.emit();
+      }
     }
-    const installation =
-      provider.status === 'needs_install' || provider.status === 'incompatible';
+    const installation = needsManagedInstall(provider.status);
     if (providerId === 'codex') {
       if (provider.status === 'ready')
         return { opened: false, snapshot: this.ctx.resultSnapshot() };
       this.codexSetupPending = true;
       try {
         if (installation) {
-          if (
-            !this.ctx.deps.installCodex ||
-            !this.ctx.deps.restartApp ||
-            this.ctx.deps.fakeServices
-          )
-            throw new Error('Automatic Codex setup is unavailable in this build.');
-          this.requireSafeCodexRestart();
-          this.setCodexSetup(
-            'installing',
-            provider.status === 'incompatible'
-              ? 'Updating Codex for Sia…'
-              : 'Downloading and installing Codex…',
-          );
-          await this.ctx.deps.installCodex((message) =>
-            this.setCodexSetup('installing', message),
-          );
-          this.requireSafeCodexRestart();
-          // Only this explicit setup action can authorize sign-in after restart.
-          // No credential, login URL or token is persisted in the continuation.
-          this.ctx.deps.repository.put('setup', 'codex-login', {
-            expiresAt: Date.now() + 15 * 60_000,
+          await this.installManagedCodexAndRestart({
+            installing:
+              provider.status === 'incompatible'
+                ? 'Updating Codex for Sia…'
+                : 'Downloading and installing Codex…',
+            restarting: 'Restarting Sia. ChatGPT sign-in will continue automatically.',
+            forwardProgress: true,
+            continueChatGptSignIn: true,
           });
-          this.ctx.commit();
-          this.setCodexSetup(
-            'restarting',
-            'Restarting Sia. ChatGPT sign-in will continue automatically.',
-          );
-          this.ctx.deps.restartApp();
           return { opened: true, snapshot: this.ctx.resultSnapshot() };
         }
         if (!this.ctx.runtime)
@@ -420,6 +425,44 @@ export class ProviderAccess {
   cancelProviderLogin(): DesktopSnapshot {
     this.codexLoginAbort?.abort(new Error('ChatGPT sign-in was cancelled.'));
     return this.ctx.resultSnapshot();
+  }
+
+  /**
+   * Installs (or updates) Sia's verified managed Codex runtime, then restarts Sia so the new
+   * harness is picked up. Only the ChatGPT setup action asks for sign-in to continue after the
+   * restart; no credential, login URL or token is persisted in that continuation.
+   */
+  private async installManagedCodexAndRestart(options: {
+    installing: string;
+    restarting: string;
+    forwardProgress: boolean;
+    continueChatGptSignIn: boolean;
+  }): Promise<void> {
+    if (!this.ctx.deps.installCodex || !this.ctx.deps.restartApp || this.ctx.deps.fakeServices)
+      throw new Error('Automatic Codex setup is unavailable in this build.');
+    this.requireSafeCodexRestart();
+    this.setCodexSetup('installing', options.installing);
+    await this.ctx.deps.installCodex((message) => {
+      if (options.forwardProgress) this.setCodexSetup('installing', message);
+    });
+    this.requireSafeCodexRestart();
+    if (options.continueChatGptSignIn) {
+      this.ctx.deps.repository.put('setup', 'codex-login', {
+        expiresAt: Date.now() + 15 * 60_000,
+      });
+      this.ctx.commit();
+    }
+    this.setCodexSetup('restarting', options.restarting);
+    this.ctx.deps.restartApp();
+  }
+
+  /** Install progress shows on every provider that is waiting for the managed Codex runtime. */
+  setupFor(provider: ProviderView): ProviderView['setup'] {
+    if (!this.codexSetup) return undefined;
+    if (provider.id === 'codex') return this.codexSetup;
+    return provider.id === 'meta' && needsManagedInstall(provider.status)
+      ? this.codexSetup
+      : undefined;
   }
 
   private setCodexSetup(
@@ -686,4 +729,8 @@ export class ProviderAccess {
       left.provider.localeCompare(right.provider),
     );
   }
+}
+
+function needsManagedInstall(status: ProviderView['status']): boolean {
+  return status === 'needs_install' || status === 'incompatible';
 }

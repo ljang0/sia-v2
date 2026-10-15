@@ -87,6 +87,8 @@ On a slow connection, downloaded megabytes must advance beyond two minutes witho
 connection must offer an actionable retry and preserve the previous runtime.
 While Sia shows **Waiting for sign-in…**, press **Cancel** once (or leave the browser tab closed) and
 verify **Try again** starts a fresh sign-in in Sia; ordinary launches must not reopen it.
+With the managed version missing and no ChatGPT account, Included AI's **Finish setup** must install
+it and restart Sia without opening ChatGPT sign-in.
 **Allow all** must show individual statuses, skip granted access, and refresh after returning
 from System Settings without a restart. The tester completes any macOS approval dialogs.
 
