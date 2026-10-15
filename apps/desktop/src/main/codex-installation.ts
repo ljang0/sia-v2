@@ -31,8 +31,10 @@ export async function discoverCodexInstallation(
           '/Applications',
           ...(environment.HOME ? [join(environment.HOME, 'Applications')] : []),
         ].flatMap((directory) =>
-          ['ChatGPT.app', 'Codex.app'].map((name) =>
-            join(directory, name, 'Contents/Resources/codex'),
+          ['ChatGPT.app', 'Codex.app'].flatMap((name) =>
+            ['codex', 'codex-cli/CodexCLI.app/Contents/MacOS/codex'].map((binary) =>
+              join(directory, name, 'Contents/Resources', binary),
+            ),
           ),
         )
       : []);
