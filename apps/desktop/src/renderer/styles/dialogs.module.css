@@ -168,6 +168,18 @@
   margin-top: 8px;
 }
 
+/* A dialog taller than the window scrolls its body; the actions stay pinned to its bottom edge.
+   The footer reaches into the dialog's 28px bottom padding and paints over content scrolling
+   beneath it. Sticky insets are measured inside that padding, hence the negative offset. */
+.alertDialogContent > .dialogActions {
+  position: sticky;
+  z-index: 1;
+  bottom: -28px;
+  margin-bottom: -28px;
+  padding-bottom: 28px;
+  background: var(--bg-raised);
+}
+
 .localField {
   display: flex;
   min-width: 0;
