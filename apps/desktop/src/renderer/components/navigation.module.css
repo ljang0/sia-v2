@@ -293,12 +293,11 @@ aside.navigation {
   transition: opacity var(--motion-fast) var(--ease-standard);
 }
 .group[data-selected='true'] .groupActions {
-  background:
-    linear-gradient(
-      to right,
-      transparent,
-      color-mix(in srgb, var(--agent-color) 16%, var(--shell-hover)) 20px
-    );
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--agent-color) 16%, var(--shell-hover)) 20px
+  );
 }
 .groupHeader:hover .groupActions,
 .groupHeader:focus-within .groupActions,
