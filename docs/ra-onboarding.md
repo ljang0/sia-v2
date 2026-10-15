@@ -553,7 +553,7 @@ are skipped. No Chrome window attachment or individual service connection is req
 setup's end, and finish website sign-ins yourself. Other apps may require their own Automation grant
 when first used; macOS cannot grant permission to every possible future app in advance.
 
-Mac tasks use native Codex execution outside the workspace sandbox. **Bypass action approvals**
+Mac tasks use native Codex execution outside the workspace sandbox. **Act without asking**
 runs commands without per-action prompts, including sends, uploads, file changes and native scripts.
 Turn it off to use Codex's command confirmations; each card offers **Allow**, **Allow for this
 task** (the same command or files until the task ends), and **Don't allow**. The change applies to the next task; cancel an

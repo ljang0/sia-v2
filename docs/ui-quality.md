@@ -255,11 +255,11 @@ profiles; no provider turn or personal account is involved. Phone layouts have a
 
 ## New-user setup
 
-| Before                                                      | After                                                                                          | Why                                                  |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| Install/update then a separate sign-in action after restart | Set up Codex resumes browser sign-in once after restart, with visible stage and retry feedback | No terminal or second setup action                   |
-| Disabled Set up Sia button while no model is ready          | Resolve AI access first, then show Set up Sia                                                  | One actionable next step                             |
-| Core permission statuses hidden with optional apps          | Core checklist always visible; everyday apps expandable                                        | See missing access and recovery guidance immediately |
+| Before                                                      | After                                                                                             | Why                                                  |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Install/update then a separate sign-in action after restart | Connect ChatGPT resumes browser sign-in once after restart, with visible stage and retry feedback | No terminal or second setup action                   |
+| Disabled Set up Sia button while no model is ready          | Resolve AI access first, then show Set up Sia                                                     | One actionable next step                             |
+| Core permission statuses hidden with optional apps          | Core checklist always visible; everyday apps expandable                                           | See missing access and recovery guidance immediately |
 
 One permission action requests only missing access. macOS owns approval dialogs; returning to Sia
 checks status without repeating prompts. Interrupted or denied access does not erase allowed grants.

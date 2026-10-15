@@ -31,7 +31,7 @@ export function modelChoices(
         provider.id === 'meta'
           ? `${model.label} · Included`
           : provider.id === 'codex'
-            ? `${model.label} · Codex plan`
+            ? `${model.label} · ChatGPT plan`
             : provider.id === 'byok'
               ? `${model.label} · Your API key`
               : provider.id === 'lab'

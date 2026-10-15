@@ -81,7 +81,7 @@ Complete physical voice, lock/sleep, and clean-user checks below before public d
 ## New-user setup and Keychain continuity
 
 On a clean macOS test account, use the exact signed release artifact and an unlocked login
-Keychain. **Set up Codex** must install or update the managed version, resume official browser
+Keychain. **Connect ChatGPT** must install or update the managed version, resume official browser
 sign-in after any restart, and show **Connected** without terminal commands or a manual download.
 On a slow connection, downloaded megabytes must advance beyond two minutes without aborting; a stalled
 connection must offer an actionable retry and preserve the previous runtime.
@@ -257,7 +257,7 @@ The source gate is `pnpm check`; the desktop GUI suite is separate and must not 
 - [ ] If Included Meta is shown, run one short read-only prompt and one tool-capability smoke. If it
       is unavailable, confirm the UI explains the state and Codex remains usable.
 - [ ] Open **Settings → Computer**. Grant only the requested macOS permission, turn on confirmations
-      (turn off **Bypass action approvals**), and confirm host-side changes ask before running.
+      (turn off **Act without asking**), and confirm host-side changes ask before running.
       Secure fields, authentication windows, password managers, Keychain, terminals, and Sia itself
       must remain unavailable as generic computer targets.
 - [ ] Create one schedule of each kind. Confirm a one-time schedule stops after one run and a
