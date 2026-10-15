@@ -47,10 +47,8 @@
 
 .releaseSignal small {
   color: var(--text-success);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
 }
 
 .releaseSignal[data-ready='false'] small {
@@ -93,10 +91,8 @@
 
 .releaseChecklist > header span {
   color: var(--text-tertiary);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
 }
 
 .releaseChecklist > header strong {

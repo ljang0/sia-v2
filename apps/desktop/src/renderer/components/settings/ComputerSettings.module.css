@@ -1,12 +1,12 @@
 .accessRow p {
   margin: 4px 0 0;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   line-height: 1.5;
 }
 
 .accessRow strong {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
 
@@ -15,8 +15,8 @@
   min-height: 82px;
   grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
-  padding: 18px 0;
+  gap: 16px;
+  padding: 22px 0;
   border-bottom: 1px solid var(--border-subtle);
   transition: background-color var(--motion-fast) var(--ease-standard);
 }

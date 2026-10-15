@@ -193,7 +193,7 @@ export function ReleaseReviewSettings({
                 onChange={() => toggle(item.id)}
               />
               <span className={styles.releaseCheckMark} aria-hidden="true">
-                <Check size={13} weight="bold" />
+                <Check size={16} weight="bold" />
               </span>
               <span>
                 <strong>{item.title}</strong>
@@ -235,10 +235,10 @@ function ReleaseSignal({
       {action ? (
         <button type="button" className={buttons.textButton} onClick={action.onClick}>
           {action.label}
-          <ArrowRight size={13} aria-hidden="true" />
+          <ArrowRight size={16} aria-hidden="true" />
         </button>
       ) : (
-        <Database size={15} aria-hidden="true" />
+        <Database size={16} aria-hidden="true" />
       )}
     </article>
   );

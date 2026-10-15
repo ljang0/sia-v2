@@ -197,7 +197,7 @@ export function AppsSettings({
           <p>
             {allConnected
               ? 'Both are connected. Choose which Google services your agents can use below.'
-              : 'Connect only what you need. Your workspace administrator may need to approve either connection.'}
+              : 'Connect only what you need. If you use these at work, your company may need to approve them.'}
           </p>
         </div>
         {allConnected ? null : (
@@ -238,7 +238,7 @@ export function AppsSettings({
                   <strong>Google Workspace</strong>
                   <span>{googleError ? googleError.description : GOOGLE_SERVICES_SUMMARY}</span>
                   <span className={styles.connectionGroupStatus}>
-                    {googleConnected ? <CheckCircle size={13} aria-hidden="true" /> : null}
+                    {googleConnected ? <CheckCircle size={16} aria-hidden="true" /> : null}
                     {googleConnected
                       ? googleUpgrading
                         ? 'Read access stays on. Finish editor approval in your browser'
@@ -335,7 +335,7 @@ export function AppsSettings({
                   <strong>Slack</strong>
                   <span>Messages and channels in the workspace you approved</span>
                   <span className={styles.connectionGroupStatus}>
-                    {slackConnected ? <CheckCircle size={13} aria-hidden="true" /> : null}
+                    {slackConnected ? <CheckCircle size={16} aria-hidden="true" /> : null}
                     {slackConnected ? 'Connected' : 'One secure Slack approval'}
                   </span>
                 </div>
@@ -768,7 +768,7 @@ function MacConnectedApps({
                 <strong>{name}</strong>
                 <span>{app.status === 'error' ? app.description : detail}</span>
                 <span className={styles.connectionGroupStatus}>
-                  {connected ? <CheckCircle size={13} aria-hidden="true" /> : null}
+                  {connected ? <CheckCircle size={16} aria-hidden="true" /> : null}
                   {connected
                     ? (app.account ?? 'Connected')
                     : connecting

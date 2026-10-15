@@ -40,7 +40,7 @@ describe('access dialog', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Choose a Chrome window' })).toBeTruthy();
-    expect(screen.getByText(/others will not be granted/i)).toBeTruthy();
+    expect(screen.getByText(/can’t see the others/i)).toBeTruthy();
     expect(screen.queryByText(/close extra ordinary Chrome windows/i)).toBeNull();
 
     fireEvent.click(
@@ -88,7 +88,7 @@ describe('access dialog', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Access' });
     expect(dialog.getAttribute('aria-modal')).toBe('true');
     await waitFor(() => expect(dialog.contains(document.activeElement)).toBe(true));
-    expect(screen.getByRole('heading', { name: 'Granted sites' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Sites Sia can use' })).toBeTruthy();
     expect(screen.getByText('drive.google.com')).toBeTruthy();
     expect(screen.queryByText('mail.google.com')).toBeNull();
     expect(
@@ -151,7 +151,7 @@ describe('access dialog', () => {
     );
     fireEvent.click(screen.getByRole('tab', { name: 'Computer' }));
     expect(screen.getByTestId('computer-approval-mode').textContent).toContain(
-      'Runs without asking (full bypass)',
+      'Acts without asking',
     );
     expect(
       screen.getByText(/Commands your agent runs directly on this Mac aren’t covered/),

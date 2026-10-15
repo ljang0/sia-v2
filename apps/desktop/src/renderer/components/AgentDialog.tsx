@@ -128,7 +128,7 @@ export function AgentDialog({
       (choice) => choice.provider === draft.provider && choice.model === draft.model,
     );
     if (!selected?.ready) {
-      setError('Choose an available model before saving.');
+      setError('Choose an available AI before saving.');
       return;
     }
 
@@ -220,8 +220,8 @@ export function AgentDialog({
               <div className={styles.modelSetupNotice} role="status">
                 <span>
                   {readyChoices.length === 0
-                    ? 'No usable model is connected.'
-                    : 'This agent’s model is unavailable. Choose another under Details.'}
+                    ? 'No AI is connected yet.'
+                    : 'This agent’s AI isn’t available. Choose another under Details.'}
                 </span>
                 {onOpenModelSettings ? (
                   <button
@@ -229,7 +229,7 @@ export function AgentDialog({
                     className={buttons.textButton}
                     onClick={onOpenModelSettings}
                   >
-                    Open model settings
+                    Open AI settings
                   </button>
                 ) : null}
               </div>
@@ -240,7 +240,7 @@ export function AgentDialog({
                 <span>Details</span>
                 <small>
                   {/* Engine and folder names are details for people who open this. */}
-                  {draft.workspace ? workspaceName(draft.workspace) : 'Model and folder'}
+                  {draft.workspace ? workspaceName(draft.workspace) : 'AI and folder'}
                 </small>
               </summary>
               <div className={styles.agentAdvancedBody}>
@@ -267,7 +267,7 @@ export function AgentDialog({
                     }}
                   >
                     {choices.length === 0 ? (
-                      <option value={selectionValue}>No model ready</option>
+                      <option value={selectionValue}>No AI ready</option>
                     ) : null}
                     {choices.map((choice) => (
                       <option
@@ -303,7 +303,7 @@ export function AgentDialog({
                           setError(
                             cause instanceof Error
                               ? cause.message
-                              : 'The workspace picker could not be opened.',
+                              : 'The folder picker could not be opened.',
                           );
                         }
                       }}

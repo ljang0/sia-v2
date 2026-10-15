@@ -35,7 +35,7 @@ export function TrustedPeopleSettings({
               disabled={pending}
               onClick={() => void run({ operation: 'removePerson', handle: person.handle })}
             >
-              <X size={13} />
+              <X size={16} />
             </button>
           </li>
         ))}
