@@ -79,8 +79,8 @@
   min-width: 0;
 }
 .phone-sheet header h2 {
-  font: 500 29px/1.1 var(--font-brand);
-  letter-spacing: -0.045em;
+  font: 650 29px/1.1 var(--font-brand);
+  letter-spacing: -0.03em;
   margin: 0 0 10px;
   overflow-wrap: anywhere;
 }
@@ -108,8 +108,8 @@
 }
 @media (hover: hover) {
   .sheet-actions button:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--aurora-emerald) 50%, var(--border-subtle));
-    background: color-mix(in srgb, var(--aurora-emerald) 5%, var(--bg-raised));
+    border-color: color-mix(in srgb, var(--bg-accent) 40%, var(--border-subtle));
+    background: color-mix(in srgb, var(--bg-accent) 6%, var(--bg-raised));
   }
 }
 .sheet-actions button > svg:last-child {
@@ -153,11 +153,11 @@
 .device-icon {
   padding: 10px;
   border-radius: 20px;
-  background: var(--shell-hover);
-  color: #b9d8c5;
+  background: var(--bg-raised);
+  color: var(--text-link);
 }
 .device-card strong {
-  font: 500 21px var(--font-brand);
+  font: 600 21px var(--font-brand);
 }
 .device-status {
   display: flex;
@@ -167,7 +167,7 @@
   color: var(--shell-dim);
 }
 .device-status.online i {
-  background: #a6d3b7;
+  background: var(--bg-accent);
 }
 .device-status:not(.online) i {
   animation: breathe var(--phone-breath) ease-in-out infinite;

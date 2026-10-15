@@ -99,8 +99,8 @@
   text-align: center;
 }
 .memory-empty h2 {
-  font: 500 27px var(--font-brand);
-  letter-spacing: -0.035em;
+  font: 650 27px var(--font-brand);
+  letter-spacing: -0.025em;
 }
 .memory-empty p {
   color: var(--text-secondary);

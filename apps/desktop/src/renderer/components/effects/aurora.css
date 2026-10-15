@@ -1,11 +1,12 @@
 :root {
-  --aurora-emerald: #41c68e;
-  --aurora-cyan: #59b8d1;
-  --aurora-violet: #aaa0dd;
-  --aurora-strength: 0.44;
-  --aurora-ink-start: #265a49;
-  --aurora-ink-middle: #2e627e;
-  --aurora-ink-end: #6d4f88;
+  /* One cool family around the emerald accent: emerald, teal, and a soft sky blue. */
+  --aurora-emerald: #34d399;
+  --aurora-cyan: #5cc8d6;
+  --aurora-violet: #9db8f2;
+  --aurora-strength: 0.32;
+  --aurora-ink-start: #087a55;
+  --aurora-ink-middle: #0d7d78;
+  --aurora-ink-end: #2563a8;
 }
 .sia-aurora {
   pointer-events: none;
@@ -66,13 +67,13 @@
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --aurora-emerald: #40e7a0;
-    --aurora-cyan: #38b6cf;
-    --aurora-violet: #9680f0;
-    --aurora-strength: 0.34;
-    --aurora-ink-start: #b8ffd2;
-    --aurora-ink-middle: #a4e3f1;
-    --aurora-ink-end: #d4bffd;
+    --aurora-emerald: #34d399;
+    --aurora-cyan: #3fb8c9;
+    --aurora-violet: #7c9cf0;
+    --aurora-strength: 0.26;
+    --aurora-ink-start: #8af0c4;
+    --aurora-ink-middle: #8ee3ec;
+    --aurora-ink-end: #b4c8fb;
   }
 }
 

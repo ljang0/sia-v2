@@ -26,44 +26,21 @@
   opacity: 0.6;
 }
 .phone-aurora .dither-aurora-field {
-  opacity: 0.47;
+  opacity: 0.26;
 }
 @media (prefers-color-scheme: dark) {
   .phone-aurora .dither-aurora-field {
-    opacity: 0.55;
+    opacity: 0.3;
   }
 }
 .phone-shell[data-scene='workspace'] .phone-aurora {
-  opacity: 0.72;
-}
-.remote-composer {
-  border-color: transparent;
-  background:
-    linear-gradient(
-        115deg,
-        color-mix(in srgb, var(--aurora-emerald) 7%, var(--bg-raised)),
-        var(--bg-raised) 30%,
-        color-mix(in srgb, var(--aurora-cyan) 7%, var(--bg-raised)) 60%,
-        color-mix(in srgb, var(--aurora-violet) 9%, var(--bg-raised))
-      )
-      padding-box,
-    linear-gradient(
-        115deg,
-        color-mix(in srgb, var(--aurora-emerald) 65%, var(--border-subtle)),
-        color-mix(in srgb, var(--aurora-cyan) 55%, var(--border-subtle)) 32%,
-        color-mix(in srgb, var(--aurora-violet) 60%, var(--border-subtle)) 64%,
-        color-mix(in srgb, var(--aurora-emerald) 65%, var(--border-subtle))
-      )
-      border-box;
-  background-size: 260% 100%;
-  animation: gradient-drift 22s ease-in-out infinite alternate;
+  opacity: 0.45;
 }
 .remote-composer:focus-within,
 .remote-composer.listening {
-  border-color: transparent;
   box-shadow:
     0 0 0 3px var(--focus-halo),
-    0 4px 20px color-mix(in srgb, var(--aurora-emerald) 10%, transparent);
+    var(--shadow-composer);
 }
 /* The selected tab's pill grows out from the icon, the way an iOS segmented control lands. */
 .phone-nav [aria-current] .nav-icon::before {
@@ -76,8 +53,8 @@
   .idea-card:hover,
   .task-card:hover {
     transform: translateY(calc(var(--motion-nudge) * -1));
-    border-color: color-mix(in srgb, var(--aurora-emerald) 60%, var(--border-subtle));
-    box-shadow: 0 6px 18px rgb(23 58 52 / 7%);
+    border-color: color-mix(in srgb, var(--bg-accent) 35%, var(--border-subtle));
+    box-shadow: var(--shadow-float);
   }
 }
 @keyframes nav-arrive {
@@ -96,7 +73,6 @@
 }
 /* Reuse the wave field's visibility/reduced-motion lifecycle for CSS decoration. */
 .phone-shell:has(.phone-aurora[data-paused='true']) .hero-copy h1 span,
-.phone-shell:has(.phone-aurora[data-paused='true']) .remote-composer,
 .phone-shell:has(.phone-aurora[data-paused='true']) .hero-presence {
   animation-play-state: paused;
 }

@@ -406,7 +406,7 @@ test('keeps the composer usable on compact phones, landscape and dark appearance
   const surface = await page
     .locator('.phone-shell')
     .evaluate((node) => getComputedStyle(node).backgroundColor);
-  expect(surface).toBe('rgb(25, 30, 27)');
+  expect(surface).toBe('rgb(19, 20, 22)');
 });
 
 test('suggestions stay editable and drafts survive navigation', async ({ page, remote }) => {
@@ -828,7 +828,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
         .getByRole('button', { name: view, exact: true })
         .click();
       await expect(aurora).toBeVisible();
-      await expect(aurora).toHaveCSS('opacity', view === 'Chat' ? '1' : '0.72');
+      await expect(aurora).toHaveCSS('opacity', view === 'Chat' ? '1' : '0.45');
       const clip = { x: 0, y: 80, width: 390, height: 240 };
       const painted = await page.screenshot({ clip, animations: 'disabled' });
       await aurora.evaluate((element) => {
@@ -1007,7 +1007,7 @@ test('typing eases the welcome layout while preserving the Dither aurora and com
   await expect(page.getByRole('heading', { name: 'Your Mac, within reach.' })).toBeInViewport({
     ratio: 1,
   });
-  await expect(page.locator('.phone-aurora .dither-aurora-field')).toHaveCSS('opacity', '0.47');
+  await expect(page.locator('.phone-aurora .dither-aurora-field')).toHaveCSS('opacity', '0.26');
   await expect(page.locator('.phone-aurora')).toHaveAttribute('data-paused', 'false');
   await expect(page.locator('.welcome-suggestions')).toHaveAttribute('inert', '');
   await expect(page.getByRole('button', { name: /Plan my week/ })).toHaveCount(0);
@@ -1030,12 +1030,12 @@ test('typing eases the welcome layout while preserving the Dither aurora and com
   expect(remote.sends).toHaveLength(0);
 });
 
-test('headline and composer colors drift slowly, pause offscreen, and respect reduced motion', async ({
+test('the headline color drifts slowly, pause offscreen, and respect reduced motion', async ({
   page,
   remote,
 }) => {
   await page.goto(remote.url);
-  const surfaces = page.locator('.hero-copy h1 span, .remote-composer');
+  const surfaces = page.locator('.hero-copy h1 span');
   const colors = () =>
     surfaces.evaluateAll((nodes) =>
       nodes.map((node) => getComputedStyle(node).backgroundPosition),

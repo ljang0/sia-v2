@@ -14,8 +14,8 @@
   animation-delay: calc(var(--motion-stagger) * 2);
 }
 .page-heading h1 {
-  font: 500 clamp(31px, 8vw, 40px)/1.1 var(--font-brand);
-  letter-spacing: -0.055em;
+  font: 650 clamp(31px, 8vw, 40px)/1.1 var(--font-brand);
+  letter-spacing: -0.03em;
   margin: 10px 0 10px;
 }
 .page-heading p {
@@ -101,7 +101,7 @@
   color: var(--text-secondary);
 }
 .task-card h2 {
-  font: 520 20px/1.25 var(--font-brand);
+  font: 600 20px/1.25 var(--font-brand);
   letter-spacing: -0.03em;
   margin: 14px 0 8px;
   display: -webkit-box;
@@ -159,8 +159,8 @@
   }
 }
 .activity-empty h2 {
-  font: 500 27px/1.12 var(--font-brand);
-  letter-spacing: -0.04em;
+  font: 650 27px/1.12 var(--font-brand);
+  letter-spacing: -0.025em;
   margin: 24px 0 12px;
 }
 .activity-empty p {

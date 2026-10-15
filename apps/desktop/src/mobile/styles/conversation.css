@@ -15,7 +15,7 @@
 }
 .conversation-heading strong {
   display: block;
-  font: 550 calc(18px * var(--text-scale, 1)) var(--font-brand);
+  font: 600 calc(18px * var(--text-scale, 1)) var(--font-brand);
   overflow-wrap: anywhere;
 }
 .conversation-heading small {
@@ -85,7 +85,7 @@
   height: 23px;
 }
 .assistant-heading strong {
-  font: 560 17px var(--font-brand);
+  font: 600 17px var(--font-brand);
   overflow-wrap: anywhere;
 }
 .assistant-heading .turn-status {
