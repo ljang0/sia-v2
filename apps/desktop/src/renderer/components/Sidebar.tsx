@@ -15,7 +15,7 @@ import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
 import styles from './Sidebar.module.css';
 import { focusComposer } from '../composerFocus';
-import { sidebarAgentOrder, sidebarThreadOrder } from '../shortcuts';
+import { listedThreads, sidebarAgentOrder } from '../shortcuts';
 import { AgentForm } from './AgentForm';
 import navigation from './navigation.module.css';
 import { TaskPreviewButton } from './TaskPreviewButton';
@@ -170,7 +170,7 @@ export function Sidebar({
     return sidebarAgentOrder(
       agents
         .map((agent) => {
-          const threads = sidebarThreadOrder(agent.threads).map((thread) =>
+          const threads = listedThreads(agent.threads, selectedThreadId).map((thread) =>
             thread.title === threadDisplayTitle(thread.title)
               ? thread
               : { ...thread, title: threadDisplayTitle(thread.title) },
@@ -192,7 +192,7 @@ export function Sidebar({
             agent.threads.length > 0,
         ),
     );
-  }, [agents, collapsed, query]);
+  }, [agents, collapsed, query, selectedThreadId]);
 
   if (collapsed) {
     return (

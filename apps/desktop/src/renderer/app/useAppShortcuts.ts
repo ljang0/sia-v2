@@ -64,7 +64,11 @@ export function useAppShortcuts({
       // ⌘1–9 open the conversations listed in the sidebar, in order.
       const digit = /^Digit([1-9])$/.exec(event.code)?.[1] ?? /^[1-9]$/.exec(key)?.[0];
       if (digit && !event.shiftKey && app.snapshot) {
-        const threadId = conversationForShortcut(app.snapshot.agents, Number(digit));
+        const threadId = conversationForShortcut(
+          app.snapshot.agents,
+          Number(digit),
+          app.snapshot.selectedThreadId,
+        );
         if (!threadId) return;
         event.preventDefault();
         setQuickSwitcherOpen(false);

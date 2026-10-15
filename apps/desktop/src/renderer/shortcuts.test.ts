@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { demoSnapshot } from './demo/snapshot';
-import { conversationForShortcut, sidebarAgentOrder, sidebarThreadOrder } from './shortcuts';
+import {
+  conversationForShortcut,
+  listedThreads,
+  sidebarAgentOrder,
+  sidebarThreadOrder,
+} from './shortcuts';
+import { UNTITLED_THREAD_TITLE } from '../shared/plain-text';
 
 describe('sidebar order', () => {
   it('lists pinned conversations first and keeps each part in recency order', () => {
@@ -33,5 +39,34 @@ describe('sidebar order', () => {
     later.pinned = true;
     expect(conversationForShortcut(agents, 1)).toBe(later.id);
     expect(conversationForShortcut(agents, 2)).toBe(first.threads[0]!.id);
+  });
+
+  it('lists an untouched conversation only while it is open', () => {
+    const thread = (id: string, extra: object = {}) => ({
+      id,
+      title: UNTITLED_THREAD_TITLE,
+      status: 'idle' as const,
+      ...extra,
+    });
+    const threads = [
+      thread('empty'),
+      thread('drafted', { draft: 'Remind me to' }),
+      thread('sent', { preview: { label: 'Request', text: 'Plan my week' } }),
+      thread('named', { title: 'Trip notes' }),
+      thread('working', { status: 'running' as const }),
+    ];
+    expect(listedThreads(threads).map(({ id }) => id)).toEqual([
+      'drafted',
+      'sent',
+      'named',
+      'working',
+    ]);
+    expect(listedThreads(threads, 'empty').map(({ id }) => id)).toContain('empty');
+
+    const agents = structuredClone(demoSnapshot.agents);
+    const first = sidebarAgentOrder(agents)[0]!;
+    first.threads.unshift({ ...thread('left-behind'), agentId: first.id, updatedAt: '' });
+    expect(conversationForShortcut(agents, 1)).not.toBe('left-behind');
+    expect(conversationForShortcut(agents, 1, 'left-behind')).toBe('left-behind');
   });
 });

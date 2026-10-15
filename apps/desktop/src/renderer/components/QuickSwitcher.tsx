@@ -14,7 +14,7 @@ import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
 import primitives from '../styles/primitives.module.css';
 import { AgentForm } from './AgentForm';
-import { sidebarAgentOrder, sidebarThreadOrder } from '../shortcuts';
+import { listedThreads, sidebarAgentOrder } from '../shortcuts';
 
 export interface QuickSwitcherAction {
   id: string;
@@ -133,7 +133,7 @@ export function QuickSwitcher({
     }));
     // Sidebar order, so equally good matches list as the sidebar does (pinned first).
     const threadEntries: ThreadSwitcherEntry[] = sidebarAgentOrder(agents).flatMap((agent) =>
-      sidebarThreadOrder(agent.threads).map((thread) => ({
+      listedThreads(agent.threads, selectedThreadId).map((thread) => ({
         kind: 'thread' as const,
         id: `thread-${thread.id}`,
         label: thread.title,

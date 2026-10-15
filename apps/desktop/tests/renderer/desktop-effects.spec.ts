@@ -583,3 +583,27 @@ test('sidebar and header controls meet the comfortable target size', async ({ pa
     ).toBeGreaterThanOrEqual(36);
   }
 });
+
+test('leaving an unused new conversation does not leave an empty row behind', async ({
+  page,
+}) => {
+  await page.goto('/#demo');
+  const nav = page.getByRole('complementary', { name: 'Agent navigation' });
+  const create = nav.locator('[aria-keyshortcuts="Meta+N"]');
+  // Rows for untitled conversations share the ⌘N button's name; count everything else.
+  const emptyRows = nav
+    .getByRole('button', { name: 'New conversation', exact: true })
+    .and(nav.locator(':not([aria-keyshortcuts])'));
+  await expect(
+    nav.getByRole('button', { name: 'Lisbon trip notes', exact: true }),
+  ).toBeVisible();
+  await expect(emptyRows).toHaveCount(0);
+  await create.click();
+  // The open conversation stays listed so people can see where they are.
+  await expect(emptyRows).toHaveCount(1);
+  await nav.getByRole('button', { name: 'Lisbon trip notes', exact: true }).click();
+  await expect(emptyRows).toHaveCount(0);
+  await create.click();
+  await nav.getByRole('button', { name: 'Triage today’s inbox', exact: true }).click();
+  await expect(emptyRows).toHaveCount(0);
+});
