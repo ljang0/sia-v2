@@ -278,18 +278,32 @@ aside.navigation {
   transform: rotate(90deg);
 }
 .groupActions {
+  /* The actions float over the end of the header, so the agent's name can use the dock's full
+     width until someone points at or focuses the header. */
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
   display: flex;
-  flex: none;
-  /* Hidden actions take no room, so the agent's name can use the dock's full width. The buttons
-     stay focusable; focusing one opens the space. */
-  max-width: 0;
-  overflow: hidden;
+  align-items: center;
+  padding: 0 4px 0 20px;
+  border-radius: 0 10px 10px 0;
+  background: linear-gradient(to right, transparent, var(--shell-hover) 20px);
+  opacity: 0;
+  transition: opacity var(--motion-fast) var(--ease-standard);
+}
+.group[data-selected='true'] .groupActions {
+  background:
+    linear-gradient(
+      to right,
+      transparent,
+      color-mix(in srgb, var(--agent-color) 16%, var(--shell-hover)) 20px
+    );
 }
 .groupHeader:hover .groupActions,
 .groupHeader:focus-within .groupActions,
 .groupActions:has([data-state='open']) {
-  max-width: none;
-  padding-right: 4px;
+  opacity: 1;
 }
 .groupActions > button {
   width: 30px;
@@ -466,7 +480,8 @@ aside.navigation {
   color: var(--signal-working);
 }
 .navigation .task > button:first-child {
-  min-height: 52px;
+  /* Tall enough for a title and a status line at any text size, so every row matches. */
+  min-height: calc(var(--text-md) + var(--text-xs) + 30px);
   padding: 8px 4px 8px 12px;
   border-radius: inherit;
 }
@@ -669,7 +684,9 @@ aside.rail {
 }
 @media (hover: none), (pointer: coarse) {
   .groupActions {
-    max-width: none;
+    position: static;
+    background: none;
+    opacity: 1;
   }
   .groupActions > button,
   .navigation .task > button:last-child {

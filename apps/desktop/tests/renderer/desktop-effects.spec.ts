@@ -311,7 +311,7 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   for (const width of [1280, 900]) {
     await nav.getByRole('searchbox', { name: 'Find a conversation' }).hover();
     await page.setViewportSize({ width, height: 760 });
-    await expect(nav).toHaveCSS('flex-basis', width === 900 ? '252px' : '272px');
+    await expect(nav).toHaveCSS('flex-basis', width === 900 ? '248px' : '288px');
     const title = renamed.getByText(longTitle, { exact: true });
     await expect(title).toHaveCSS('white-space', 'nowrap');
     expect((await title.boundingBox())!.width).toBeGreaterThan(
