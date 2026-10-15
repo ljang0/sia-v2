@@ -18,8 +18,3 @@ When a pinned native dependency changes, refresh its repository-specific text
 and provenance in the same change. The build script appends the canonical SPDX
 body whenever an installed npm package declares one of these licenses but omits
 a root license file.
-
-- `bricolage-grotesque-OFL.txt` is the unmodified SIL Open Font License 1.1 text shipped with the
-  Bricolage Grotesque typeface (The Bricolage Grotesque Project Authors, Atelier Triay), retrieved
-  from <https://github.com/google/fonts/blob/main/ofl/bricolagegrotesque/OFL.txt>. The renderer
-  bundles the variable latin-subset WOFF2 file under `src/renderer/fonts/`.

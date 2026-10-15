@@ -1,18 +1,12 @@
 /*
- * Sia's visual system: a deep evergreen dock opens into calm, mineral rooms. Each agent keeps one
- * abstract living form and one identity hue across navigation, conversation, and presence.
- * Bricolage Grotesque (SIL OFL 1.1, bundled variable latin subset) gives names and headings a
- * recognizable voice; native system typography carries controls and dense work surfaces.
+ * Sia's visual system: quiet neutral surfaces, one confident emerald accent, native type.
+ * Light mode is near-white with a soft grey sidebar; dark mode is graphite. Neither carries a
+ * colour cast. The emerald comes from the Sia mark and is reserved for primary actions, focus,
+ * selection, and live status. Semantic colours (success, warning, danger) stay separate from it.
+ * Type is the macOS system face throughout: SF Pro Display with slight negative tracking for names
+ * and headings, SF Pro Text for controls and reading. Surfaces use one-pixel hairlines, layered
+ * soft shadows, 8 / 12 / 16px radii (controls / cards / dialogs), and a 4px spacing rhythm.
  */
-@font-face {
-  font-family: 'Bricolage Grotesque';
-  font-style: normal;
-  font-weight: 200 800;
-  font-stretch: 75% 100%;
-  font-display: swap;
-  src: url('./fonts/BricolageGrotesque-latin.woff2') format('woff2');
-}
-
 :root {
   color-scheme: light dark;
   font-family:
@@ -25,10 +19,8 @@
   text-rendering: optimizeLegibility;
 
   --font-sans: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-brand:
-    'Bricolage Grotesque', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-display:
-    'Bricolage Grotesque', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-brand: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
 
   /* Type scale, sized for everyday readers rather than dense tools: ordinary interface text is
@@ -49,92 +41,96 @@
   --display-md: calc(25px * var(--text-scale));
   --display-lg: calc(32px * var(--text-scale));
   --display-xl: calc(40px * var(--text-scale));
-  --weight-regular: 450;
-  --weight-medium: 560;
-  --weight-semibold: 620;
+  --weight-regular: 400;
+  --weight-medium: 510;
+  --weight-semibold: 600;
   --weight-display: 650;
-  --tracking-display: -0.025em;
-  --display-settings: 'opsz' 40;
+  --tracking-display: -0.022em;
+  --display-settings: normal;
 
-  /* Room surfaces (light): clean mineral neutrals, without a paper-yellow cast. */
-  --bg-app: #e1e6e1;
-  --bg-sidebar: #173a34;
-  --bg-canvas: #f4f6f2;
-  --bg-subtle: #e9ede8;
-  --bg-raised: #fbfcf9;
-  --bg-hover: #e4e9e4;
-  --bg-selected: #dce7df;
-  --bg-field: #edf0ec;
-  --bg-control: color-mix(in srgb, var(--bg-field) 68%, var(--bg-raised));
+  /* Surfaces (light): true neutrals, near-white canvas, a soft grey sidebar. */
+  --bg-app: #f1f1f3;
+  --bg-sidebar: #f4f4f5;
+  --bg-canvas: #fcfcfd;
+  --bg-subtle: #f5f5f7;
+  --bg-raised: #ffffff;
+  --bg-hover: #f0f0f2;
+  --bg-selected: #e9e9ec;
+  --bg-field: #f5f5f7;
+  --bg-control: #ffffff;
 
-  /* The person's controls: ink. */
-  --bg-accent: #33453e;
-  --bg-accent-hover: #40534b;
-  --bg-danger: #b3402a;
-  --bg-danger-hover: #99351f;
+  /* The brand accent: emerald from the Sia mark. Primary actions, focus, selection, live status. */
+  --bg-accent: #07855b;
+  --bg-accent-hover: #066f4c;
+  --bg-danger: #d1291f;
+  --bg-danger-hover: #b5221a;
 
-  --text-primary: #1c2924;
-  --text-secondary: #4f5d56;
-  --text-tertiary: #56625c;
-  --text-on-accent: #f3f5f4;
-  --text-on-danger: #fff5f2;
-  --text-link: #3c6758;
-  --text-danger: #9c3320;
-  --text-warning: #735565;
-  --text-success: #3c6758;
+  --text-primary: #18181b;
+  --text-secondary: #4b4b53;
+  --text-tertiary: #5f5f68;
+  --text-on-accent: #ffffff;
+  --text-on-danger: #ffffff;
+  --text-link: #067a53;
+  --text-danger: #c0281f;
+  --text-warning: #965800;
+  --text-success: #067a53;
 
-  --border-subtle: #d3dad4;
-  --border-strong: #6d756f;
-  --border-accent: #33453e;
-  --border-danger: #e0a698;
-  --border-control: color-mix(in srgb, var(--border-strong) 36%, var(--border-subtle));
-  --focus-ring: #477364;
-  --focus-halo: color-mix(in srgb, var(--focus-ring) 9%, transparent);
+  --border-subtle: #e6e6e9;
+  --border-strong: #80808a;
+  --border-accent: #07855b;
+  --border-danger: #f1b5b0;
+  --border-control: #dcdce0;
+  --focus-ring: #0b8a5f;
+  --focus-halo: color-mix(in srgb, var(--focus-ring) 18%, transparent);
 
-  --surface-warning: #f0e9ed;
-  --surface-danger: #f7e9e5;
-  --surface-success: #e5efea;
-  --surface-info: #e8eeeb;
-  --overlay: rgb(26 31 28 / 22%);
+  --surface-warning: #fff6e5;
+  --surface-danger: #fdecec;
+  --surface-success: #e8f6ef;
+  --surface-info: #f1f1f4;
+  --overlay: rgb(15 15 18 / 28%);
 
-  /* The shell is a quiet extension of the workspace, not a competing dark panel. */
-  --shell-bg: #173a34;
-  --shell-bg-deep: #0f2d28;
-  --shell-text: #f2f6f2;
-  --shell-dim: #c6d0c9;
-  --shell-muted: #aebdb4;
-  --shell-hover: #21473f;
-  --shell-selected: #2a5148;
-  --shell-line: #3b5d55;
+  /* The sidebar is a quiet, light panel beside the canvas, like a macOS source list. */
+  --shell-bg: #f4f4f5;
+  --shell-bg-deep: #ededef;
+  --shell-text: #18181b;
+  --shell-dim: #3f3f46;
+  --shell-muted: #5f5f68;
+  --shell-hover: #e9e9ec;
+  --shell-selected: #e2e2e6;
+  --shell-line: #e2e2e6;
 
   /* Agent hues. Identity 0-3 map to these; --agent-color is the room's current hue. */
-  --hue-0: #638496;
-  --hue-1: #cf715d;
-  --hue-2: #6697ad;
-  --hue-3: #65a07d;
+  --hue-0: #5b7fa6;
+  --hue-1: #e0705a;
+  --hue-2: #3b9fd1;
+  --hue-3: #2fa572;
   --agent-color: var(--hue-0);
-  --agent-ink: #252927;
-  --agent-soft: color-mix(in srgb, var(--agent-color) 15%, transparent);
-  --agent-line: color-mix(in srgb, var(--agent-color) 48%, transparent);
+  --agent-ink: #18181b;
+  --agent-soft: color-mix(in srgb, var(--agent-color) 14%, transparent);
+  --agent-line: color-mix(in srgb, var(--agent-color) 44%, transparent);
 
-  --shadow-raised: 0 1px 2px rgb(26 31 28 / 4%), 0 4px 14px rgb(26 31 28 / 3%);
-  --shadow-dialog: 0 24px 64px rgb(22 26 24 / 18%), 0 2px 8px rgb(22 26 24 / 6%);
-  --shadow-menu: 0 14px 34px rgb(22 26 24 / 10%), 0 2px 6px rgb(22 26 24 / 5%);
-  --shadow-composer: 0 10px 30px rgb(22 26 24 / 6%), 0 1px 4px rgb(22 26 24 / 4%);
-  --shadow-control: 0 1px 2px rgb(22 26 24 / 4%);
-  --shadow-float: 0 18px 48px rgb(22 26 24 / 13%), 0 2px 7px rgb(22 26 24 / 5%);
+  --shadow-raised: 0 0 0 1px rgb(15 15 18 / 4%), 0 1px 2px rgb(15 15 18 / 5%);
+  --shadow-dialog:
+    0 0 0 1px rgb(15 15 18 / 6%), 0 24px 56px rgb(15 15 18 / 16%), 0 4px 12px rgb(15 15 18 / 6%);
+  --shadow-menu:
+    0 0 0 1px rgb(15 15 18 / 6%), 0 12px 28px rgb(15 15 18 / 12%), 0 2px 6px rgb(15 15 18 / 5%);
+  --shadow-composer:
+    0 0 0 1px rgb(15 15 18 / 3%), 0 8px 24px rgb(15 15 18 / 6%), 0 1px 3px rgb(15 15 18 / 5%);
+  --shadow-control: 0 1px 1px rgb(15 15 18 / 4%), 0 1px 2px rgb(15 15 18 / 4%);
+  --shadow-float:
+    0 0 0 1px rgb(15 15 18 / 5%), 0 16px 40px rgb(15 15 18 / 12%), 0 2px 6px rgb(15 15 18 / 5%);
 
   --radius-tight: 6px;
-  --radius-control: 10px;
-  --radius-surface: 14px;
-  --radius-dialog: 20px;
+  --radius-control: 8px;
+  --radius-surface: 12px;
+  --radius-dialog: 16px;
   --radius-room: 0;
   --radius-round: 999px;
-  --ink-line: 1.5px;
+  --ink-line: 1px;
 
-  --motion-fast: 140ms;
-  --motion-standard: 190ms;
-  --motion-surface: 240ms;
+  --motion-fast: 150ms;
+  --motion-standard: 180ms;
+  --motion-surface: 220ms;
   /* One turn of every busy spinner; reduced motion stops spinners instead of shortening this. */
   --motion-spin: 1s;
   --ease-standard: cubic-bezier(0.2, 0.72, 0.2, 1);
@@ -185,56 +181,65 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg-app: #171a18;
-    --bg-sidebar: #102f2a;
-    --bg-canvas: #191e1b;
-    --bg-subtle: #232923;
-    --bg-raised: #282e29;
-    --bg-hover: #30372f;
-    --bg-selected: #344039;
-    --bg-field: #212722;
-    --bg-accent: #dce4df;
-    --bg-accent-hover: #ffffff;
-    --bg-danger: #d9654e;
-    --bg-danger-hover: #e67760;
+    /* Graphite: a near-black canvas with raised layers stepping up in lightness, no tint. */
+    --bg-app: #0b0c0e;
+    --bg-sidebar: #0e0f11;
+    --bg-canvas: #131416;
+    --bg-subtle: #18191c;
+    --bg-raised: #1a1b1e;
+    --bg-hover: #222327;
+    --bg-selected: #2a2b30;
+    --bg-field: #18191c;
+    --bg-control: #1e1f23;
+    --bg-accent: #34d399;
+    --bg-accent-hover: #5ee0ad;
+    --bg-danger: #f0605a;
+    --bg-danger-hover: #f47a74;
 
-    --text-primary: #e7ebe8;
-    --text-secondary: #bcc3be;
-    --text-tertiary: #aeb5b0;
-    --text-on-accent: #14211c;
-    --text-on-danger: #1f120e;
-    --text-link: #8fd9a9;
-    --text-danger: #ff9f8c;
-    --text-warning: #e1afc7;
-    --text-success: #8fd9a9;
+    --text-primary: #ededef;
+    --text-secondary: #b4b4bc;
+    --text-tertiary: #9a9aa3;
+    --text-on-accent: #04170f;
+    --text-on-danger: #130606;
+    --text-link: #4ade9b;
+    --text-danger: #ff7a6e;
+    --text-warning: #f5b54a;
+    --text-success: #4ade9b;
 
-    --border-subtle: #373c39;
-    --border-strong: #8b938e;
-    --border-accent: #dce4df;
-    --border-danger: #7a4437;
-    --focus-ring: #8fd9a9;
+    --border-subtle: #26272b;
+    --border-strong: #6e6e77;
+    --border-accent: #34d399;
+    --border-danger: #6b2a26;
+    --border-control: #2e2f34;
+    --focus-ring: #34d399;
 
-    --surface-warning: #352a31;
-    --surface-danger: #382724;
-    --surface-success: #26352e;
-    --surface-info: #28322e;
-    --overlay: rgb(5 7 6 / 48%);
+    --surface-warning: #2b2213;
+    --surface-danger: #2e1716;
+    --surface-success: #11261d;
+    --surface-info: #1d1e22;
+    --overlay: rgb(0 0 0 / 56%);
 
-    --shell-bg: #102f2a;
-    --shell-bg-deep: #09231f;
-    --shell-text: #f1f5f1;
-    --shell-dim: #c1cec6;
-    --shell-muted: #9fb1a7;
-    --shell-hover: #1a3d36;
-    --shell-selected: #24483f;
-    --shell-line: #355a51;
+    --shell-bg: #0e0f11;
+    --shell-bg-deep: #0a0b0d;
+    --shell-text: #ededef;
+    --shell-dim: #c4c4cc;
+    --shell-muted: #9a9aa3;
+    --shell-hover: #1a1b1e;
+    --shell-selected: #222327;
+    --shell-line: #222327;
 
-    --shadow-raised: 0 1px 2px rgb(0 0 0 / 30%), 0 4px 14px rgb(0 0 0 / 22%);
-    --shadow-dialog: 0 28px 80px rgb(0 0 0 / 50%), 0 3px 12px rgb(0 0 0 / 24%);
-    --shadow-menu: 0 14px 36px rgb(0 0 0 / 36%), 0 2px 7px rgb(0 0 0 / 22%);
-    --shadow-composer: 0 18px 48px rgb(0 0 0 / 26%), 0 2px 8px rgb(0 0 0 / 18%);
-    --shadow-control: 0 1px 2px rgb(0 0 0 / 24%);
-    --shadow-float: 0 20px 56px rgb(0 0 0 / 42%), 0 2px 8px rgb(0 0 0 / 22%);
+    --agent-ink: #ededef;
+
+    --shadow-raised: 0 0 0 1px rgb(255 255 255 / 4%), 0 1px 2px rgb(0 0 0 / 40%);
+    --shadow-dialog:
+      0 0 0 1px rgb(255 255 255 / 7%), 0 28px 72px rgb(0 0 0 / 60%), 0 4px 14px rgb(0 0 0 / 30%);
+    --shadow-menu:
+      0 0 0 1px rgb(255 255 255 / 7%), 0 14px 36px rgb(0 0 0 / 50%), 0 2px 7px rgb(0 0 0 / 28%);
+    --shadow-composer:
+      0 0 0 1px rgb(255 255 255 / 3%), 0 14px 40px rgb(0 0 0 / 36%), 0 2px 6px rgb(0 0 0 / 24%);
+    --shadow-control: 0 1px 2px rgb(0 0 0 / 32%);
+    --shadow-float:
+      0 0 0 1px rgb(255 255 255 / 6%), 0 20px 52px rgb(0 0 0 / 52%), 0 2px 8px rgb(0 0 0 / 28%);
   }
 }
 
@@ -300,7 +305,7 @@ select,
 }
 
 ::selection {
-  background: var(--bg-selected);
+  background: color-mix(in srgb, var(--bg-accent) 24%, transparent);
 }
 
 ::-webkit-scrollbar {

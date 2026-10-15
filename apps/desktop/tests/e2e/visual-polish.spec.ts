@@ -62,7 +62,6 @@ test('core surfaces retain the visual-system and motion contract', async () => {
         .map((element) => element.getAttribute('aria-label') ?? element.className)
         .filter((value) => typeof value === 'string');
       return {
-        displayFontLoaded: document.fonts.check("700 28px 'Bricolage Grotesque'"),
         colors: {
           canvas: root.getPropertyValue('--bg-canvas').trim(),
           shell: root.getPropertyValue('--shell-bg').trim(),
@@ -76,11 +75,10 @@ test('core surfaces retain the visual-system and motion contract', async () => {
       };
     });
 
-    expect(visualSystem.displayFontLoaded).toBe(true);
     expect(visualSystem.colors).toEqual({
-      canvas: '#f4f6f2',
-      shell: '#173a34',
-      accent: '#33453e',
+      canvas: '#fcfcfd',
+      shell: '#f4f4f5',
+      accent: '#07855b',
     });
     expect(visualSystem.transitionedControls).toBeGreaterThan(
       visualSystem.visibleControls * 0.7,

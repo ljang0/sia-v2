@@ -64,7 +64,7 @@ describe('renderer accessibility CSS policy', () => {
 
   it('gives the startup curtain a light variant that matches the first window paint', () => {
     expect(startup).toMatch(
-      /prefers-color-scheme: light\)[\s\S]*\.startup \{\s*background: #f4f6f2;/,
+      /prefers-color-scheme: light\)[\s\S]*\.startup \{\s*background: #fcfcfd;/,
     );
   });
 
@@ -148,12 +148,11 @@ describe('renderer accessibility CSS policy', () => {
     }
   });
 
-  it('uses the brand face for identity and keeps it off controls and body copy', () => {
-    expect(tokens).toMatch(/--font-brand:\s*'Bricolage Grotesque',\s*'SF Pro Display'/);
-    expect(tokens).toMatch(/--font-display:\s*'Bricolage Grotesque',\s*'SF Pro Display'/);
-    expect(tokens).toMatch(
-      /@font-face\s*{[^}]*font-family:\s*'Bricolage Grotesque'[^}]*format\('woff2'\)/,
-    );
+  it('uses the system display face for identity and keeps it off controls and body copy', () => {
+    // Native SF Pro throughout: Display for names and headings, Text for controls and reading.
+    expect(tokens).toMatch(/--font-brand:\s*'SF Pro Display'/);
+    expect(tokens).toMatch(/--font-display:\s*'SF Pro Display'/);
+    expect(tokens).not.toContain('@font-face');
 
     // Controls, form fields, and body copy never borrow the display face.
     const controlRules = [
@@ -170,7 +169,7 @@ describe('renderer accessibility CSS policy', () => {
       expect(block).not.toContain('var(--font-display)');
     }
 
-    // Agent names and headings share the expressive display face with the wordmark.
+    // Agent names and headings share the display face with the wordmark.
     const rules = [...styles.matchAll(/([^{}]+){([^}]*)}/g)].map((match) => ({
       selectors: match[1]!.split(',').map((part) => part.trim()),
       body: match[2]!,
