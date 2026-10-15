@@ -105,8 +105,8 @@
 }
 
 .agentEditButton {
-  width: 32px;
-  height: 32px;
+  width: var(--target-min);
+  height: var(--target-min);
 }
 
 .agentEditButton:hover {
@@ -405,8 +405,8 @@ button.agentAvatar {
 
 .threadMenuButton {
   display: inline-flex;
-  width: 32px;
-  height: 32px;
+  width: var(--target-min);
+  height: var(--target-min);
   flex: none;
   align-items: center;
   justify-content: center;
@@ -478,7 +478,7 @@ button.agentAvatar {
 }
 
 .threadRenameSave {
-  height: 32px;
+  height: var(--target-min);
   padding: 0 10px;
   border: 0;
   border-radius: var(--radius-tight);

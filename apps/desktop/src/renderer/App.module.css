@@ -54,7 +54,7 @@
 
 .inspectorButton {
   display: inline-flex;
-  height: 32px;
+  height: var(--target-min);
   align-items: center;
   gap: 6px;
   border-radius: var(--radius-tight);

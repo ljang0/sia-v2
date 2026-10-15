@@ -68,7 +68,7 @@ aside.navigation {
   align-items: center;
   gap: 10px;
   min-height: var(--target-min);
-  padding: 8px 14px;
+  padding: 0 14px;
   border: 1px solid transparent;
   border-radius: 8px;
   color: var(--shell-muted);
@@ -88,6 +88,7 @@ aside.navigation {
 .search input {
   min-width: 0;
   width: 100%;
+  min-height: var(--target-min);
   padding: 0;
   border: 0;
   background: transparent;
@@ -305,8 +306,8 @@ aside.navigation {
   opacity: 1;
 }
 .groupActions > button {
-  width: 30px;
-  height: 32px;
+  width: var(--target-min);
+  height: var(--target-min);
   opacity: 0;
   color: var(--shell-muted);
   transform: translateX(calc(var(--motion-nudge) * -1));

@@ -41,8 +41,8 @@
 
 .iconButton,
 .iconButtonSmall {
-  width: 32px;
-  height: 32px;
+  width: var(--target-min);
+  height: var(--target-min);
 }
 
 .iconButton:hover,

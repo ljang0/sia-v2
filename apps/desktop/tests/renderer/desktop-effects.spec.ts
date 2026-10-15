@@ -555,3 +555,31 @@ for (const viewport of [
     }
   });
 }
+
+test('sidebar and header controls meet the comfortable target size', async ({ page }) => {
+  await page.goto('/#demo');
+  const nav = page.getByRole('complementary', { name: 'Agent navigation' });
+  await expect(nav).toBeVisible();
+  // Layout size, not the painted box: hover-revealed actions rest slightly scaled down.
+  const size = (locator: ReturnType<Page['locator']>) =>
+    locator.evaluate((node: HTMLElement) => ({
+      width: node.offsetWidth,
+      height: node.offsetHeight,
+    }));
+  const targets = [
+    nav.getByRole('button', { name: 'Collapse sidebar' }),
+    nav.getByRole('button', { name: 'Create agent' }),
+    nav.getByRole('button', { name: 'Start a conversation with Research partner' }),
+    nav.getByRole('button', { name: 'Agent actions for Research partner' }),
+    nav.getByRole('button', { name: 'Conversation actions for Weekly research update' }),
+    nav.getByRole('searchbox', { name: 'Find a conversation' }),
+    page.getByRole('button', { name: 'Access', exact: true }),
+  ];
+  for (const target of targets) {
+    const { width, height } = await size(target);
+    expect(
+      Math.min(width, height),
+      await target.evaluate((node) => node.outerHTML.slice(0, 80)),
+    ).toBeGreaterThanOrEqual(36);
+  }
+});
