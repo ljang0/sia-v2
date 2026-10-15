@@ -22,6 +22,10 @@ import {
 import { remoteState, remoteVault } from './phone-remote-state.js';
 import { nativeRemoteSkills } from './phone-remote-files.js';
 
+/** Shown on the phone when its pairing is gone; worded for the person holding the phone. */
+const PHONE_UNLINKED =
+  'This phone isn’t linked to Sia anymore. On your Mac, open Sia and scan the new QR code with your phone camera.';
+
 const commandSchema = z
   .object({
     id: z.string().uuid(),
@@ -316,7 +320,7 @@ export class PhoneRemote {
     );
     const unavailable = () => {
       this.#json(response, 404, {
-        error: 'Remote unavailable. Scan the current QR code in Sia on your Mac.',
+        error: PHONE_UNLINKED,
       });
     };
     const address = request.socket.remoteAddress ?? '';
@@ -584,7 +588,7 @@ export class PhoneRemote {
           })
         ).threadId);
       if (!this.#available() || generation !== this.#generation)
-        throw new RemoteError('The remote link changed. Scan the current QR code.');
+        throw new RemoteError(PHONE_UNLINKED);
       const result = await this.#deps.controller.invoke('threads.send', {
         threadId,
         text,

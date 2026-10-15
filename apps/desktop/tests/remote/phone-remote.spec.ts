@@ -640,7 +640,10 @@ test('revoking access also removes cached memories from the phone', async ({
   await page.route('**/state', (route) =>
     route.fulfill({
       status: 404,
-      json: { error: 'Remote unavailable. Scan the current QR code in Sia on your Mac.' },
+      json: {
+        error:
+          'This phone isn’t linked to Sia anymore. On your Mac, open Sia and scan the new QR code with your phone camera.',
+      },
     }),
   );
   await expect(page.getByText('Reconnect to your Mac to see your memories.')).toBeVisible();
