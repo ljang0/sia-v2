@@ -5,6 +5,7 @@ import type { DesktopController } from '../controller/desktop-controller.js';
 import type { RecordRepository } from '../storage/persistence.js';
 import type { ScottyCommand, ScottySettings } from '../../shared/scotty.js';
 import { scottyCommand, ScottyTasks } from './scotty-state.js';
+import { TEXT_SCALE, type TextSize } from '../../shared/display.js';
 
 const savedSettings = z.object({
   enabled: z.boolean(),
@@ -26,9 +27,11 @@ export function clampScotty(bounds: Rect, area: Rect): Rect {
     ),
   };
 }
-export function scottyPanelBounds(pet: Rect, area: Rect): Rect {
-  const width = Math.min(376, area.width);
-  const height = Math.min(548, area.height);
+/** Larger text sizes get a proportionally larger tray, as the ⌘E launcher does. */
+export function scottyPanelBounds(pet: Rect, area: Rect, textSize: TextSize = 'default'): Rect {
+  const scale = TEXT_SCALE[textSize];
+  const width = Math.min(Math.round(376 * scale), area.width);
+  const height = Math.min(Math.round(548 * scale), area.height);
   const above = pet.y - height - 8;
   const below = pet.y + pet.height + 8;
   const x = pet.x + pet.width - width;
@@ -76,7 +79,11 @@ export function createScottyCompanion(
   const placePanel = () => {
     if (!pet || pet.isDestroyed() || !panel || panel.isDestroyed()) return;
     panel.setBounds(
-      scottyPanelBounds(pet.getBounds(), screen.getDisplayMatching(pet.getBounds()).workArea),
+      scottyPanelBounds(
+        pet.getBounds(),
+        screen.getDisplayMatching(pet.getBounds()).workArea,
+        controller.taskSnapshot().preferences?.textSize,
+      ),
     );
   };
   const placePet = (position?: { x: number; y: number }) => {

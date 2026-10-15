@@ -42,7 +42,7 @@ lint, quality, type, unit, deterministic desktop E2E, renderer, and Chromium/Web
   action, or Settings → Computer). Onboarding's initial selection is Use my Mac with bypass. Use my
   Mac works in the background by default (window control through the bundled Cua driver); On my
   screen is the explicit alternative. Use confirmations for supervised pilot testing. Approval
-  cards offer Approve, Allow for this task (equivalent requests until that task ends), and Don't
+  cards offer Allow, Allow for this task (equivalent requests until that task ends), and Don't
   allow. Phone-remote turns always require confirmation, one request at a time. When text approvals are
   enabled, YES/NO binds only to the exact pending request shown to that trusted sender. Hard safety blocks apply in every mode: Sia-hosted tools block secure fields,
   authentication surfaces, Keychain, and password managers. Native shell execution follows the

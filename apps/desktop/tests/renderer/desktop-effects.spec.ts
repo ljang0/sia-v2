@@ -408,10 +408,10 @@ test('text size scales Sia and keeps primary actions on screen at 960x640', asyn
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await openAppearance(page);
   const body = page.locator('body');
-  await expect(body).toHaveCSS('font-size', '14px');
+  await expect(body).toHaveCSS('font-size', '15.5px');
   await page.getByRole('radio', { name: 'Larger', exact: true }).check();
   await expect(page.locator('html')).toHaveAttribute('data-text-size', 'larger');
-  await expect(body).toHaveCSS('font-size', '17.08px');
+  await expect(body).toHaveCSS('font-size', '18.91px');
   await page.getByRole('button', { name: 'Close settings', exact: true }).click();
   await page.getByRole('button', { name: 'New conversation', exact: true }).click();
   const send = page.getByRole('button', { name: 'Send message' });
@@ -419,7 +419,7 @@ test('text size scales Sia and keeps primary actions on screen at 960x640', asyn
   await page.keyboard.press('ControlOrMeta+,');
   await openAppearance(page);
   await page.getByRole('radio', { name: 'Default', exact: true }).check();
-  await expect(body).toHaveCSS('font-size', '14px');
+  await expect(body).toHaveCSS('font-size', '15.5px');
 });
 
 test('appearance stops and restores decorative graphics across settings and conversation', async ({
