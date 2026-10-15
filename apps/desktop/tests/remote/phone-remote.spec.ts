@@ -1091,48 +1091,14 @@ test('pinch zoom is not treated as the phone keyboard opening', async ({ page, r
   await expect(page.getByRole('navigation')).toBeVisible();
 });
 
-test('liquid metal buttons animate, pause, keep disabled actions inert, and submit once', async ({
+test('primary buttons keep disabled actions inert and submit once', async ({
   page,
   remote,
 }) => {
-  await page.addInitScript(() => {
-    const draw = WebGL2RenderingContext.prototype.drawArrays;
-    (window as unknown as AuroraProbe).auroraProbe = { frames: 0, pixels: 0 };
-    WebGL2RenderingContext.prototype.drawArrays = function (mode, first, count) {
-      draw.call(this, mode, first, count);
-      (window as unknown as AuroraProbe).auroraProbe.frames++;
-    };
-  });
-  const frames = () =>
-    page.evaluate(() => (window as unknown as AuroraProbe).auroraProbe.frames);
   await page.goto(remote.url);
   const send = page.getByRole('button', { name: 'Send message' });
   await expect(send).toBeDisabled();
   await expect(send.locator('canvas')).toHaveCount(0);
-  const metal = page
-    .getByRole('button', { name: 'Connection details' })
-    .locator('.metal-surface');
-  await expect(metal).toHaveAttribute('data-metal', 'ready');
-  const first = await frames();
-  await expect.poll(frames).toBeGreaterThan(first);
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
-    document.dispatchEvent(new Event('visibilitychange'));
-  });
-  await page.waitForTimeout(100);
-  const hidden = await frames();
-  await page.waitForTimeout(200);
-  expect(await frames()).toBe(hidden);
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
-    document.dispatchEvent(new Event('visibilitychange'));
-  });
-  await expect.poll(frames).toBeGreaterThan(hidden);
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.waitForTimeout(100);
-  const still = await frames();
-  await page.waitForTimeout(200);
-  expect(await frames()).toBe(still);
   await page.getByRole('textbox').fill('A quick answer');
   await send.press('Enter');
   await expect(page.getByText('Finished', { exact: true })).toBeVisible();
@@ -1140,7 +1106,7 @@ test('liquid metal buttons animate, pause, keep disabled actions inert, and subm
   await expect(send).toBeDisabled();
 });
 
-test('metal fallback stays usable without WebGL2', async ({ page, remote }) => {
+test('the phone stays usable without WebGL2', async ({ page, remote }) => {
   await page.addInitScript(() => {
     const getContext = HTMLCanvasElement.prototype.getContext;
     Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
@@ -1150,9 +1116,7 @@ test('metal fallback stays usable without WebGL2', async ({ page, remote }) => {
     });
   });
   await page.goto(remote.url);
-  await expect(
-    page.getByRole('button', { name: 'Connection details' }).locator('.metal-surface'),
-  ).toHaveAttribute('data-metal', 'fallback');
+  await expect(page.getByRole('button', { name: 'Connection details' })).toBeVisible();
   await page.getByRole('textbox').fill('A quick answer');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Finished', { exact: true })).toBeVisible();

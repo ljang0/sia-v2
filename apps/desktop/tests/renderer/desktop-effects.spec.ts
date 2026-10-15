@@ -151,7 +151,6 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(page.locator('.dither-aurora-field canvas')).toBeVisible();
     await field.fill('Find my assignments for this week');
     await expect(send).toBeEnabled();
-    await expect(send.locator('.metal-surface')).toHaveAttribute('data-metal', 'ready');
     const end = await send.boundingBox();
     expect(end!.y + end!.height).toBeLessThan(900);
     await page.screenshot({ path: info.outputPath(`desktop-${colorScheme}.png`) });
@@ -226,7 +225,7 @@ test('launcher retains native form submission, dismiss, and agent selection', as
   await page.getByRole('combobox', { name: 'Agent' }).selectOption('personal');
   await field.fill('Organize my downloads');
   const send = page.getByRole('button', { name: 'Send request' });
-  await expect(send.locator('.metal-surface')).toHaveAttribute('data-metal', 'ready');
+  await expect(send).toBeEnabled();
   expect(await page.locator('main').evaluate((el) => el.scrollHeight)).toBeLessThanOrEqual(208);
   await page.screenshot({ path: info.outputPath('launcher.png') });
   await send.click();
@@ -443,15 +442,12 @@ test('appearance stops and restores decorative graphics across settings and conv
     'none',
   );
   await page.getByRole('textbox', { name: 'Message', exact: true }).fill('Keep this draft');
-  const surface = page.getByRole('button', { name: 'Send message' }).locator('.metal-surface');
-  await expect(surface.locator('canvas')).toHaveCount(0);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await openAppearance(page);
   await expect(calm).toBeChecked();
   await expressive.check();
   await page.getByRole('button', { name: 'Close settings', exact: true }).click();
   await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'dither');
-  await expect(surface).toHaveAttribute('data-metal', 'ready');
   await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue(
     'Keep this draft',
   );

@@ -6,7 +6,7 @@ import styles from '../Conversation.module.css';
 import { AgentForm } from '../AgentForm';
 import { WelcomeRecents } from '../WelcomeRecents';
 import { DitherAurora as Aurora } from '../effects/DitherAurora';
-import { LiquidMetalButton } from '../effects/liquid-metal-button';
+import { ActionButton } from '../ActionButton';
 
 interface ConversationWelcomeProps {
   agentName?: string | undefined;
@@ -47,13 +47,13 @@ export function ConversationWelcome({
             : 'Give it a name and say what it should help with. Sia sets up the rest.'}
         </p>
         {onCreateThread ? (
-          <LiquidMetalButton tone="sage" onClick={onCreateThread}>
+          <ActionButton tone="accent" onClick={onCreateThread}>
             New conversation
-          </LiquidMetalButton>
+          </ActionButton>
         ) : onCreateAgent ? (
-          <LiquidMetalButton tone="sage" onClick={onCreateAgent}>
+          <ActionButton tone="accent" onClick={onCreateAgent}>
             Create your first agent
-          </LiquidMetalButton>
+          </ActionButton>
         ) : null}
         {onOpenApps ? (
           <button

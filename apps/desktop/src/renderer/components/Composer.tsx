@@ -22,7 +22,7 @@ import primitives from '../styles/primitives.module.css';
 import styles from './Composer.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
 import { VoiceWave } from './VoiceWave';
-import { LiquidMetalButton } from './effects/liquid-metal-button';
+import { ActionButton } from './ActionButton';
 import { useVoiceCapture } from './composer/useVoiceCapture';
 
 interface ComposerAttachment {
@@ -482,7 +482,7 @@ export function Composer({
             </span>
           </div>
           {stoppable ? (
-            <LiquidMetalButton
+            <ActionButton
               type="button"
               size="compact"
               className={styles.composerAction}
@@ -494,13 +494,13 @@ export function Composer({
             >
               <Stop weight="fill" size={16} aria-hidden="true" />
               {stopping ? 'Stopping…' : 'Stop'}
-            </LiquidMetalButton>
+            </ActionButton>
           ) : null}
-          <LiquidMetalButton
+          <ActionButton
             type="button"
             size="compact"
             viewMode="icon"
-            tone="sage"
+            tone="accent"
             onClick={() => void submit()}
             disabled={disabled || (!value.trim() && attachments.length === 0) || sending}
             aria-label={running ? 'Queue follow-up message' : 'Send message'}
@@ -508,7 +508,7 @@ export function Composer({
             data-testid="composer-send"
           >
             <ArrowUp weight="bold" size={16} aria-hidden="true" />
-          </LiquidMetalButton>
+          </ActionButton>
         </div>
       </div>
       {voiceError ? (

@@ -15,7 +15,7 @@ import {
 } from '@phosphor-icons/react';
 import type { RemoteTurn } from '../shared/phone-remote';
 import { SiaLogo } from '../renderer/components/SiaLogo';
-import { LiquidMetalButton } from '../renderer/components/effects/liquid-metal-button';
+import { ActionButton } from '../renderer/components/ActionButton';
 import { timeGreeting } from '../renderer/welcome';
 import { plainText } from '../shared/plain-text';
 
@@ -299,10 +299,10 @@ export function Activity({
                 ? 'Files Sia creates in this chat will be easy to find here.'
                 : 'Ask Sia to take something off your list. You can follow its progress here.'}
             </p>
-            <LiquidMetalButton className="text-action" tone="sage" onClick={onStart}>
+            <ActionButton className="text-action" tone="accent" onClick={onStart}>
               Ask Sia
               <ArrowRight size={17} />
-            </LiquidMetalButton>
+            </ActionButton>
           </div>
         )}
       </div>

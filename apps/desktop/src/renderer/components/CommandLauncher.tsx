@@ -4,7 +4,7 @@ import type { LauncherState } from '../../shared/launcher';
 import styles from './CommandLauncher.module.css';
 import { AppearanceContext } from './effects/appearance';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
-import { LiquidMetalButton } from './effects/liquid-metal-button';
+import { ActionButton } from './ActionButton';
 import { useTextSize } from '../textSize';
 import { errorMessage } from '../plainErrors';
 import { dismissMotion, summon } from './floatingMotion';
@@ -257,17 +257,17 @@ export function CommandLauncher() {
             <span className={styles.keyboardHint}>
               {working ? 'You can keep working elsewhere' : 'Press Return to send'}
             </span>
-            <LiquidMetalButton
+            <ActionButton
               type="submit"
               viewMode="icon"
               size="compact"
-              tone="sage"
+              tone="accent"
               aria-label={busy ? 'Sending request' : 'Send request'}
               title="Send request"
               disabled={busy || working || !text.trim()}
             >
               <ArrowUp size={17} weight="bold" aria-hidden="true" />
-            </LiquidMetalButton>
+            </ActionButton>
           </footer>
         </form>
       ) : (

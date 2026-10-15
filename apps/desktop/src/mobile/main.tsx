@@ -27,7 +27,7 @@ import { remoteRequest, RemoteRequestError, remoteTransport, requestId } from '.
 import { MemoryGraph } from './memory-graph';
 import { DitherAurora as Aurora } from '../renderer/components/effects/DitherAurora';
 import { usePhoneViewport } from './use-phone-viewport';
-import { LiquidMetalButton } from '../renderer/components/effects/liquid-metal-button';
+import { ActionButton } from '../renderer/components/ActionButton';
 import { Sheet, Welcome, Activity, statusLabels } from './remote-ui';
 import { Turn } from './turn';
 import { useViewTransition } from '../renderer/components/effects/use-view-transition';
@@ -340,7 +340,8 @@ function App() {
         <div className="phone-brand" aria-label="Sia">
           <SiaLogo />
         </div>
-        <LiquidMetalButton
+        <button
+          type="button"
           className={`connection-pill ${online ? 'online' : ''}`}
           onClick={() => openSheet('connection')}
           aria-label="Connection details"
@@ -355,7 +356,7 @@ function App() {
           </span>
           {online ? 'Mac connected' : 'Reconnecting'}
           <Desktop size={16} />
-        </LiquidMetalButton>
+        </button>
         <button
           className="icon header-more"
           aria-label="More options"
@@ -568,7 +569,7 @@ function App() {
                       </>
                     )}
                   </span>
-                  <LiquidMetalButton
+                  <ActionButton
                     type="button"
                     viewMode="icon"
                     tone={listening ? 'danger' : 'neutral'}
@@ -578,9 +579,9 @@ function App() {
                     onClick={microphone}
                   >
                     <Microphone size={20} />
-                  </LiquidMetalButton>
+                  </ActionButton>
                   {busy && (!text.trim() || latest?.status === 'working') ? (
-                    <LiquidMetalButton
+                    <ActionButton
                       type="button"
                       className="send stop"
                       viewMode="icon"
@@ -590,12 +591,12 @@ function App() {
                       onClick={() => void action('cancel')}
                     >
                       <Stop size={16} weight="fill" />
-                    </LiquidMetalButton>
+                    </ActionButton>
                   ) : (
-                    <LiquidMetalButton
+                    <ActionButton
                       type="submit"
                       viewMode="icon"
-                      tone="sage"
+                      tone="accent"
                       className="send"
                       disabled={!text.trim() || pending || !online}
                       aria-label="Send message"
@@ -605,7 +606,7 @@ function App() {
                       ) : (
                         <ArrowUp size={21} weight="bold" />
                       )}
-                    </LiquidMetalButton>
+                    </ActionButton>
                   )}
                 </div>
               </form>

@@ -18,9 +18,8 @@ const styles = moduleFiles.map(read).join('\n');
 const companion = read('companion.module.css');
 const tokens = read('tokens.css');
 const aurora = read('components/effects/aurora.css');
-const metal = read('components/effects/liquid-metal-button.css');
 const startup = read('components/startup.module.css');
-const css = `${tokens}\n${styles}\n${companion}\n${aurora}\n${metal}`;
+const css = `${tokens}\n${styles}\n${companion}\n${aurora}`;
 // The first rule matching `pattern` in any style module, wherever the rule lives.
 const find = (pattern: RegExp) =>
   moduleFiles.map((file) => read(file).match(pattern)?.[0]).find(Boolean);

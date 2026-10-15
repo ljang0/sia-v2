@@ -208,13 +208,3 @@ html[data-phone-keyboard='open'] .hero-copy h1 {
   font-size: 32px;
   margin: 4px 0 0;
 }
-
-.liquid-metal-button.connection-pill {
-  padding-inline: 12px;
-  min-height: 44px;
-}
-@media (max-width: 350px) {
-  .liquid-metal-button.connection-pill {
-    padding-inline: 9px;
-  }
-}
