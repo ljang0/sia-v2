@@ -530,8 +530,8 @@ describe('app privacy routing', () => {
     render(<App api={createDemoRendererApi(snapshot)} />);
 
     expect(screen.queryByRole('status', { name: 'Cloud offline' })).toBeNull();
-    expect(await screen.findByText('Sia cloud is offline.')).toBeTruthy();
-    expect(screen.getByText(/Local work is still available/)).toBeTruthy();
+    expect(await screen.findByText('Sia’s online service isn’t responding.')).toBeTruthy();
+    expect(screen.getByText(/keep working on this Mac/)).toBeTruthy();
   });
 
   it('shows a fatal bridge event before bootstrap completes and recovers on retry', async () => {

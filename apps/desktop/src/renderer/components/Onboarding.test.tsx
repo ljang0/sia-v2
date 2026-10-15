@@ -271,7 +271,7 @@ it.each([true, false])(
         expect(api.requestAutomationPermission).toHaveBeenCalledExactlyOnceWith('safari'),
       );
     else {
-      expect(screen.getByRole('button', { name: 'Grant all' })).toBeTruthy();
+      expect(screen.getByRole('button', { name: 'Allow all' })).toBeTruthy();
       expect(api.requestAutomationPermission).not.toHaveBeenCalled();
     }
     expect(api.requestComputerPermissions).not.toHaveBeenCalled();
@@ -315,7 +315,7 @@ it('blocks setup when no admitted model is ready', () => {
     </Onboarding>,
   );
   expect(screen.queryByRole('button', { name: 'Set up Sia' })).toBeNull();
-  expect(screen.getByText(/Connect AI access above/)).toBeTruthy();
+  expect(screen.getByText(/Connect an AI service above/)).toBeTruthy();
   expect(screen.getAllByRole('button', { name: 'Try again' }).length).toBeGreaterThan(0);
   expect(api.createAgent).not.toHaveBeenCalled();
 });
@@ -349,7 +349,7 @@ it('offers one Relaunch button only when a grant waits for it, saving the step f
       <div />
     </Onboarding>,
   );
-  expect(screen.queryByRole('button', { name: /Relaunch|Restart/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Reopen|Relaunch|Restart/ })).toBeNull();
   expect(screen.queryByText('Permission not updating?')).toBeNull();
   snapshot.computer.screenRecording = 'not-requested';
   snapshot.computer.relaunchFor = ['screenRecording'];
@@ -359,8 +359,8 @@ it('offers one Relaunch button only when a grant waits for it, saving the step f
     </Onboarding>,
   );
   expect(screen.getByRole('alert').textContent).toContain('See your screen is turned on');
-  expect(screen.getAllByRole('button', { name: /Relaunch/ })).toHaveLength(1);
-  fireEvent.click(screen.getByRole('button', { name: 'Relaunch Sia' }));
+  expect(screen.getAllByRole('button', { name: /Reopen/ })).toHaveLength(1);
+  fireEvent.click(screen.getByRole('button', { name: 'Reopen Sia' }));
   await waitFor(() => expect(api.restartForOnboarding).toHaveBeenCalledTimes(1));
   expect(api.setOnboarding).toHaveBeenCalledWith(
     'verify',
@@ -394,8 +394,8 @@ it('keeps pending account approvals visible and blocks leaving until cancellatio
   );
   for (const name of ['Start using Sia', 'Exit setup'])
     expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
-  expect(screen.getByText('Awaiting approval')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Cancel connection setup' }));
+  expect(screen.getByText('Waiting for you')).toBeTruthy();
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel sign-in' }));
   await waitFor(() =>
     expect(api.disconnectApp).toHaveBeenCalledWith('gmail', 'pending-google'),
   );
@@ -433,7 +433,7 @@ it('keeps the connections section open when an account approval finishes', () =>
     </Onboarding>,
   );
   expect(section().open).toBe(true);
-  expect(screen.getByRole('alert').textContent).toContain('needs attention');
+  expect(screen.getByRole('alert').textContent).toContain('needs to be reconnected');
 });
 
 it('replays setup with the existing agent without creating another', async () => {
@@ -503,7 +503,7 @@ it('finishes a verified pass without restarting Sia', async () => {
     </StrictMode>
   );
   const view = render(content());
-  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
   await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
   expect(api.restartForOnboarding).not.toHaveBeenCalled();
   expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');

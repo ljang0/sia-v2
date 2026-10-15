@@ -261,7 +261,7 @@ describe('cloud account settings', () => {
     expect(screen.getByText(/Google starts read-only/i)).toBeTruthy();
     expect(
       screen.getByRole('checkbox', { name: /Google Workspace/ }).closest('label')?.textContent,
-    ).toContain('Read access.');
+    ).toContain('Read only.');
     fireEvent.click(screen.getByRole('checkbox', { name: /Slack/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Connect selected apps' }));
     await waitFor(() => expect(onConnectSelected).toHaveBeenCalledWith(['google']));
@@ -854,7 +854,7 @@ it('sets up computer, voice and missing app access through one settings action',
     redraw();
   });
   expect(macSetupApi.requestComputerPermissions).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
   await waitFor(() => expect(macSetupApi.configureVoice).toHaveBeenCalledOnce());
   await waitFor(() => expect(macSetupApi.configurePushToTalk).toHaveBeenCalledOnce());
   await waitFor(() => expect(screen.getByText('Mac access is ready.')).toBeTruthy());

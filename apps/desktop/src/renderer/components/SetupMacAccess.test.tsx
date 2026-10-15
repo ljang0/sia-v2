@@ -63,7 +63,7 @@ function setup(autoStart = false, onRestart?: (skipped: string[]) => Promise<voi
 it('one start waits for verified access, advances without more clicks, and never overlaps prompts', async () => {
   const { snapshot, api, complete, rerender } = setup();
   expect(api.requestComputerPermissions).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
   await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
   fireEvent.focus(window);
   rerender();
@@ -101,7 +101,7 @@ it('keeps a declined app as the current step until the person turns it on', asyn
   snapshot.computer.screenRecording = 'allowed';
   snapshot.computer.automation!.safari = 'denied';
   rerender();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
   await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledTimes(1));
   await waitFor(() =>
     expect(
@@ -109,7 +109,9 @@ it('keeps a declined app as the current step until the person turns it on', asyn
         .disabled,
     ).toBe(false),
   );
-  expect(screen.getByText('In Automation, expand Sia and turn on Safari.')).toBeTruthy();
+  expect(
+    screen.getByText('In System Settings, open Automation, find Sia, and turn on Safari.'),
+  ).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Skip' })).toBeNull();
   expect(complete).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Open System Settings' }));
@@ -123,7 +125,7 @@ it('stops the pass while a native request is pending and does not continue after
   const { snapshot, api, complete, pause, rerender } = setup();
   const request = Promise.withResolvers<void>();
   api.requestComputerPermissions.mockImplementation(() => request.promise);
-  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
   await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
   fireEvent.click(screen.getByRole('button', { name: 'Finish later' }));
   expect(pause).toHaveBeenCalledOnce();
@@ -137,7 +139,7 @@ it('stops the pass while a native request is pending and does not continue after
   expect(api.requestAutomationPermission).not.toHaveBeenCalled();
   expect(complete).not.toHaveBeenCalled();
   expect(
-    (screen.getByRole('button', { name: 'Grant all' }) as HTMLButtonElement).disabled,
+    (screen.getByRole('button', { name: 'Allow all' }) as HTMLButtonElement).disabled,
   ).toBe(false);
 });
 
@@ -151,7 +153,7 @@ it('does not enable Fn after the person pauses a pending voice setup', async () 
   const voice = Promise.withResolvers<void>();
   api.configureVoice.mockImplementation(() => voice.promise);
   rerender();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
   await waitFor(() => expect(api.configureVoice).toHaveBeenCalledOnce());
   fireEvent.click(screen.getByRole('button', { name: 'Finish later' }));
   await act(async () => {
@@ -186,7 +188,7 @@ it('explains unavailable dictation without attempting to configure it', async ()
   snapshot.voice.dictationDetail = 'Dictation is unavailable for this language.';
   rerender();
   expect(screen.getByText('Dictation is unavailable for this language.')).toBeTruthy();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
   await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledOnce());
   expect(api.configureVoice).not.toHaveBeenCalled();
 });
@@ -203,12 +205,12 @@ it('checks a closed app during guided setup without calling it a missing grant',
   expect(screen.queryByText('Mac access is ready.')).toBeNull();
   expect(api.requestAutomationPermission).not.toHaveBeenCalled();
 
-  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
   await waitFor(() =>
     expect(api.requestAutomationPermission).toHaveBeenCalledExactlyOnceWith('safari'),
   );
   expect(complete).not.toHaveBeenCalled();
-  expect(screen.getByText(/Open Safari so macOS can check its existing access/)).toBeTruthy();
+  expect(screen.getByText(/Open Safari so macOS can check it/)).toBeTruthy();
   snapshot.computer.automation!.safari = 'ready';
   rerender();
   await waitFor(() => expect(complete).toHaveBeenCalledOnce());
@@ -295,7 +297,7 @@ it('lets only voice be skipped; every other permission is required', async () =>
   const { snapshot, api, complete, rerender } = setup();
   snapshot.computer.screenRecording = 'allowed';
   rerender();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
   await waitFor(() =>
     expect(api.requestComputerPermissions).toHaveBeenCalledExactlyOnceWith('accessibility'),
   );
@@ -321,10 +323,10 @@ it('treats a grant waiting for a relaunch as done-but-reopen, and relaunches onc
   rerender();
   expect(screen.getByText('Reopen Sia')).toBeTruthy();
   expect(screen.queryByRole('button', { name: 'Allow: See your screen' })).toBeNull();
-  expect(screen.queryByRole('button', { name: 'Grant all' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Allow all' })).toBeNull();
   expect(screen.getByRole('alert').textContent).toContain('See your screen is turned on');
   expect(complete).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Relaunch Sia' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Reopen Sia' }));
   await waitFor(() => expect(onRestart).toHaveBeenCalledExactlyOnceWith([]));
   expect(api.requestComputerPermissions).not.toHaveBeenCalled();
 });
@@ -337,17 +339,17 @@ it('asks for a relaunch when macOS lists both grants but Sia could not read the 
   snapshot.computer.verified = 'failed';
   snapshot.computer.automation!.safari = 'ready';
   rerender();
-  expect(screen.getByText('Reopen Sia')).toBeTruthy();
-  expect(screen.getByRole('button', { name: 'Relaunch Sia' })).toBeTruthy();
+  expect(screen.getByText('Reopen to finish')).toBeTruthy();
+  expect(screen.getByRole('button', { name: 'Reopen Sia' })).toBeTruthy();
 });
 
 it('offers a relaunch fallback when a needed grant still reads as off after asking', async () => {
   const onRestart = vi.fn(async (_skipped: string[]) => {});
   const { snapshot } = setup(false, onRestart);
   snapshot.computer.accessibility = 'allowed';
-  expect(screen.queryByRole('button', { name: /Relaunch Sia/ })).toBeNull();
+  expect(screen.queryByRole('button', { name: /Reopen Sia/ })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Allow: See your screen' }));
-  const fallback = await screen.findByRole('button', { name: 'Turned it on? Relaunch Sia' });
+  const fallback = await screen.findByRole('button', { name: 'Turned it on? Reopen Sia' });
   fireEvent.click(fallback);
   await waitFor(() => expect(onRestart).toHaveBeenCalledOnce());
 });
@@ -372,20 +374,20 @@ it('finishes the guided app prompts before one relaunch and includes Full Disk A
   snapshot.computer.relaunchFor = ['screenRecording'];
   snapshot.computer.messagesAccess = 'needs_full_disk_access';
   rerender();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
   await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledWith('safari'));
-  expect(screen.queryByRole('button', { name: 'Relaunch Sia' })).toBeNull();
+  expect(screen.queryByRole('button', { name: 'Reopen Sia' })).toBeNull();
   snapshot.computer.automation!.safari = 'ready';
   rerender();
   await waitFor(() => expect(api.setupMessages).toHaveBeenCalledOnce());
   expect(complete).not.toHaveBeenCalled();
   await waitFor(() =>
     expect(
-      (screen.getByRole('button', { name: 'Turned it on? Relaunch Sia' }) as HTMLButtonElement)
+      (screen.getByRole('button', { name: 'Turned it on? Reopen Sia' }) as HTMLButtonElement)
         .disabled,
     ).toBe(false),
   );
-  fireEvent.click(screen.getByRole('button', { name: 'Turned it on? Relaunch Sia' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Turned it on? Reopen Sia' }));
   expect(restart).toHaveBeenCalledExactlyOnceWith([]);
 });
 

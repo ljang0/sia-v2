@@ -30,7 +30,7 @@ export function ConnectionChecklist({
     snapshot.cloudAuth.features?.connectors !== false;
   const unavailable =
     snapshot.cloudAuth.state === 'unconfigured'
-      ? 'Unavailable in this build'
+      ? 'Not available in this version'
       : snapshot.cloudAuth.state !== 'signed-in'
         ? 'Sign in to connect'
         : 'Not enabled for this account';
@@ -39,8 +39,8 @@ export function ConnectionChecklist({
       id: 'google' as const,
       name: 'Google Workspace',
       detail: GOOGLE_CALENDAR_AND_TASKS_ENABLED
-        ? 'Gmail, Calendar, Drive, Docs, Sheets, Slides, and Tasks. Read access.'
-        : 'Gmail, Drive, Docs, Sheets, and Slides. Read access.',
+        ? 'Gmail, Calendar, Drive, Docs, Sheets, Slides, and Tasks. Read only.'
+        : 'Gmail, Drive, Docs, Sheets, and Slides. Read only.',
       apps: snapshot.apps.filter((app) => isGoogleConnection(app.id)),
     },
     {
@@ -82,7 +82,7 @@ export function ConnectionChecklist({
               {ready
                 ? 'Connected'
                 : approving
-                  ? 'Awaiting approval'
+                  ? 'Waiting for you'
                   : needsRepair
                     ? 'Needs attention'
                     : cloudReady
@@ -96,34 +96,33 @@ export function ConnectionChecklist({
           disabled={!cloudReady || !missing.length}
           onClick={() => void connect(missing)}
         >
-          {connecting ? 'Finish account approval…' : 'Connect selected apps'}
+          {connecting ? 'Finish signing in…' : 'Connect selected apps'}
         </button>
       </fieldset>
       {connecting ? (
         <div className={styles.pending}>
           <p className={styles.note} role="status">
-            Finish sign-in in the browser. Sia connects your selected accounts in order. If you
-            closed the approval page, cancel and try again.
+            Finish signing in in your web browser. Sia connects your accounts one at a time. If
+            you closed the sign-in page, cancel and try again.
           </p>
           <button
             className={buttons.secondaryButton}
             disabled={pending}
             onClick={() => void cancel(connecting.id, connecting.connectionId)}
           >
-            Cancel connection setup
+            Cancel sign-in
           </button>
         </div>
       ) : null}
       {!cloudReady ? (
         <p className={styles.note} role="status">
-          {unavailable}. You can use signed-in websites with Use my Mac.
+          {unavailable}. With Use my Mac, Sia can still use websites you’re signed in to.
         </p>
       ) : null}
       {snapshot.apps.some((app) => app.status === 'error') ? (
         <div>
           <p className={styles.error} role="alert">
-            An account connection needs attention. Reconnect it here; your other connected
-            accounts are kept.
+            An account needs to be reconnected. Your other accounts stay connected.
           </p>
           {choices
             .filter((choice) => choice.needsRepair)

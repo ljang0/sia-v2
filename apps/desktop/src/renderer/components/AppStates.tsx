@@ -44,7 +44,7 @@ function ActionIssueNotice({ app }: { app: AppController }) {
     ].join('\n');
     return (
       <div className={styles.actionError} role="alert" data-testid="diagnostic-tray">
-        <WarningCircle size={16} aria-hidden="true" />
+        <WarningCircle size={18} aria-hidden="true" />
         <span className={styles.actionErrorCopy}>
           <span>{actionIssueText(app.actionIssue.message)}</span>
           <small>
@@ -63,9 +63,9 @@ function ActionIssueNotice({ app }: { app: AppController }) {
             }}
           >
             {copied ? (
-              <Check size={13} aria-hidden="true" />
+              <Check size={16} aria-hidden="true" />
             ) : (
-              <Copy size={13} aria-hidden="true" />
+              <Copy size={16} aria-hidden="true" />
             )}
             {copied ? 'Copied' : 'Copy details'}
           </button>
@@ -116,7 +116,7 @@ function ArchiveUndoNotice({ onUndo, onDismiss }: { onUndo(): void; onDismiss():
         onDismiss();
       }}
     >
-      <Archive size={16} aria-hidden="true" />
+      <Archive size={18} aria-hidden="true" />
       <span>Conversation archived</span>
       <span className={styles.actionErrorActions}>
         <button type="button" onClick={onUndo}>
@@ -134,7 +134,7 @@ function AmbientNotice({ app, deviceOffline }: { app: AppController; deviceOffli
   if (app.snapshot?.startupNotice && !app.startupNoticeDismissed) {
     return (
       <div className={styles.actionError} role="status">
-        <WarningCircle size={16} aria-hidden="true" />
+        <WarningCircle size={18} aria-hidden="true" />
         <span>
           <strong>{app.snapshot.startupNotice.title}.</strong>{' '}
           {app.snapshot.startupNotice.detail}
@@ -153,10 +153,10 @@ function AmbientNotice({ app, deviceOffline }: { app: AppController; deviceOffli
   ) {
     return (
       <div className={styles.offlineBanner} role="status">
-        <CloudSlash size={16} aria-hidden="true" />
+        <CloudSlash size={18} aria-hidden="true" />
         <span>
-          <strong>Sia cloud is offline.</strong> Local work is still available; sync and
-          connected apps will resume when the connection returns.
+          <strong>Sia’s online service isn’t responding.</strong> You can keep working on this
+          Mac. Syncing and connected apps resume once it’s back.
         </span>
       </div>
     );
