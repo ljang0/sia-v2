@@ -162,7 +162,7 @@ test('theme and text size apply to the window at once and at the next launch', a
       await electronApp.evaluate(({ BrowserWindow }) =>
         BrowserWindow.getAllWindows()[0]!.getBackgroundColor(),
       ),
-    ).toBe('#0D1915');
+    ).toBe('#131416');
     await expect
       .poll(() => page.evaluate(() => matchMedia('(prefers-color-scheme: dark)').matches))
       .toBe(true);
@@ -190,7 +190,7 @@ test('theme and text size apply to the window at once and at the next launch', a
       await electronApp.evaluate(({ BrowserWindow }) =>
         BrowserWindow.getAllWindows()[0]!.getBackgroundColor(),
       ),
-    ).toBe('#0D1915');
+    ).toBe('#131416');
     page = await readyPage(electronApp);
     await expect(page.locator('html')).toHaveAttribute('data-text-size', 'large');
     await page.evaluate(() => window.sia.settings.setTheme('system'));

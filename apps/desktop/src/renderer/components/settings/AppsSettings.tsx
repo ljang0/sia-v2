@@ -830,7 +830,7 @@ function MacConnectedApps({
               ) : (
                 <button
                   type="button"
-                  className={buttons.primaryButton}
+                  className={buttons.secondaryButton}
                   disabled={Boolean(pending) || disabled || !available}
                   onClick={() =>
                     run(`connect-${id}`, () => onConnect(id), `${name} could not be connected.`)

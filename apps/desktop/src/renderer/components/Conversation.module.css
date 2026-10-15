@@ -869,7 +869,7 @@
   max-width: 12ch;
   margin-top: 14px;
   font-size: clamp(var(--display-lg), 4vw, 52px);
-  letter-spacing: -0.05em;
+  letter-spacing: -0.03em;
   line-height: 0.98;
 }
 

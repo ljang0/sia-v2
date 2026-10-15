@@ -157,7 +157,7 @@
 
 .settingsTopbar h1 {
   font-size: var(--display-md);
-  letter-spacing: -0.04em;
+  letter-spacing: -0.025em;
 }
 
 .settingsNav {

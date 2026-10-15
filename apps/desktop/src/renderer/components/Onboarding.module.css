@@ -265,7 +265,7 @@
   gap: 8px;
   color: var(--text-primary);
   font: calc(26px * var(--text-scale)) var(--font-display);
-  letter-spacing: -0.04em;
+  letter-spacing: -0.025em;
 }
 .brand > img {
   width: 1.4em;
@@ -564,7 +564,7 @@
   font-family: var(--font-display);
   font-size: clamp(30px, 3.4vw, 42px);
   line-height: 1.1;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.025em;
   text-wrap: balance;
   margin: 0 0 16px;
 }

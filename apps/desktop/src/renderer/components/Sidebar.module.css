@@ -565,7 +565,7 @@ button.agentAvatar {
 .wordmark {
   color: var(--shell-text);
   font-size: var(--display-md);
-  letter-spacing: -0.045em;
+  letter-spacing: -0.03em;
 }
 
 .sidebarScroll {

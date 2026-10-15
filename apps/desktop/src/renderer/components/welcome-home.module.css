@@ -67,7 +67,7 @@
   font-size: clamp(28px, 3.2vw, 40px);
   font-weight: var(--weight-display);
   font-variation-settings: 'opsz' 60;
-  letter-spacing: -0.045em;
+  letter-spacing: -0.03em;
   line-height: 1.08;
   text-wrap: balance;
 }
