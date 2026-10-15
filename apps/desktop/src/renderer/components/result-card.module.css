@@ -1,14 +1,10 @@
 .card {
   min-width: 0;
   padding: 22px;
-  border: 1px solid color-mix(in srgb, var(--text-success) 24%, var(--border-subtle));
-  border-radius: var(--radius-dialog);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--text-success) 6%, var(--bg-raised)),
-    var(--bg-raised) 65%
-  );
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--text-primary) 4%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-surface);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-raised);
   animation: resultArrive var(--motion-emphasis) var(--ease-out-soft) both;
 }
 .heading {
@@ -72,14 +68,10 @@
   position: absolute;
   z-index: -1;
   inset: -12px 0 -14px -18px;
-  border: 1px solid color-mix(in srgb, var(--text-success) 24%, var(--border-subtle));
-  border-radius: var(--radius-dialog);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--text-success) 6%, var(--bg-raised)),
-    var(--bg-raised) 65%
-  );
-  box-shadow: 0 8px 24px color-mix(in srgb, var(--text-primary) 4%, transparent);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-surface);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-raised);
   content: '';
   opacity: 0;
   pointer-events: none;

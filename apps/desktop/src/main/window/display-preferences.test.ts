@@ -41,7 +41,7 @@ describe('launch theme', () => {
   });
 
   it('paints the launcher in the chosen scheme before its page loads', () => {
-    expect(launcherBackgroundColor(false)).toBe('#f8f9f8');
-    expect(launcherBackgroundColor(true)).toBe('#202422');
+    expect(launcherBackgroundColor(false)).toBe('#ffffff');
+    expect(launcherBackgroundColor(true)).toBe('#1a1b1e');
   });
 });

@@ -2,10 +2,10 @@
   width: min(calc(100% - 46px), 700px);
   margin-left: 46px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--border-strong) 70%, var(--border-subtle));
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-surface);
   background: var(--bg-raised);
-  box-shadow: var(--shadow-raised);
+  box-shadow: var(--shadow-float);
   /* Resolving lets the card's edge and fill fade back into the conversation. */
   transition:
     background-color var(--motion-surface) var(--ease-standard),
@@ -114,7 +114,7 @@
   align-items: flex-start;
   gap: 14px;
   padding: 16px 20px;
-  border-top: 3px solid var(--agent-color);
+  border-bottom: 1px solid var(--border-subtle);
   background: var(--bg-subtle);
   color: var(--text-primary);
 }

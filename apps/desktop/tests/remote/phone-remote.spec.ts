@@ -741,8 +741,6 @@ test('a failure already explained in the reply is shown once and still needs att
   await expect(page.getByText(detail, { exact: true })).toHaveCount(1);
 });
 
-type AuroraProbe = Window & { auroraProbe: { frames: number; pixels: number } };
-
 test('phone Dither moves, pauses offscreen, and respects reduced motion', async ({
   page,
   remote,

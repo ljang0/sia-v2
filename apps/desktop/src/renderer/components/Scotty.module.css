@@ -65,7 +65,7 @@
   cursor: grabbing;
 }
 .dog:focus-visible {
-  outline: 2px solid #8bac99;
+  outline: 2px solid #34d399;
   border-radius: 28px;
 }
 .badge {
@@ -76,10 +76,10 @@
   max-width: 208px;
   padding: 6px 14px;
   border-radius: 20px;
-  border: 1px solid #d3e1d02b;
-  background: #173a34f2;
-  color: #f2f6f2;
-  box-shadow: 0 3px 14px #09221c25;
+  border: 1px solid #ffffff1f;
+  background: #18191cf2;
+  color: #ededef;
+  box-shadow: 0 3px 14px #00000040;
   font: 500 var(--text-sm) var(--font-sans);
   cursor: pointer;
   position: relative;
@@ -96,16 +96,16 @@
 }
 /* At a glance: the pill's edge carries the state colour as well as the dot. */
 .pet[data-status='working'] .badge {
-  border-color: #82b89c55;
+  border-color: #34d39955;
 }
 .pet[data-status='input'] .badge {
-  border-color: #daae6599;
+  border-color: #f5b54a99;
 }
 .pet[data-status='blocked'] .badge {
-  border-color: #d9907c99;
+  border-color: #ff7a6e99;
 }
 .pet[data-status='ready'] .badge {
-  border-color: #82b89c99;
+  border-color: #34d39999;
 }
 .badge:active {
   transform: translateY(calc(var(--motion-nudge) / 3));
@@ -127,20 +127,20 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #9dab9f;
+  background: #9a9aa3;
 }
 [data-status='working'] .dot {
-  background: #82b89c;
+  background: #34d399;
 }
 [data-status='input'] .dot {
-  background: #daae65;
+  background: #f5b54a;
 }
 [data-status='blocked'] .dot {
-  background: #d9907c;
+  background: #ff7a6e;
 }
 [data-status='ready'] .dot {
-  background: #82b89c;
-  box-shadow: 0 0 0 2px #82b89c33;
+  background: #34d399;
+  box-shadow: 0 0 0 2px #34d39933;
 }
 /* Working reads as alive, the same soft halo the main window's agent avatars use. Every other
    state plays one beat when it begins and then rests, so an idle Scotty costs no animation work. */
@@ -206,12 +206,12 @@
     inset: -1px;
     border-radius: inherit;
     box-shadow: 0 0 0 1px currentColor;
-    color: #daae65;
+    color: #f5b54a;
     pointer-events: none;
     animation: scotty-halo calc(var(--motion-emphasis) * 3) var(--ease-out-soft) 2 both;
   }
   [data-motion='true'][data-status='blocked'] .badge::after {
-    color: #d9907c;
+    color: #ff7a6e;
   }
   [data-motion='true'] .task:not([data-status='working']) .dot {
     animation: scotty-dot-in var(--motion-emphasis) var(--ease-spring) both;
@@ -252,7 +252,7 @@
 }
 @keyframes scotty-working {
   50% {
-    box-shadow: 0 0 0 4px #82b89c38;
+    box-shadow: 0 0 0 4px #34d39938;
     transform: scale(0.84);
   }
 }
@@ -330,7 +330,7 @@
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
   border-radius: 20px;
-  box-shadow: 0 4px 12px #12291b24;
+  box-shadow: 0 4px 12px #00000024;
   overflow: hidden;
   font: var(--text-md)/1.5 var(--font-sans);
 }
@@ -371,13 +371,13 @@
   transition: box-shadow var(--motion-standard) var(--ease-standard);
 }
 .avatar[data-status='input'] {
-  box-shadow: 0 0 0 2px #daae6566;
+  box-shadow: 0 0 0 2px #f5b54a66;
 }
 .avatar[data-status='blocked'] {
-  box-shadow: 0 0 0 2px #d9907c66;
+  box-shadow: 0 0 0 2px #ff7a6e66;
 }
 .avatar[data-status='ready'] {
-  box-shadow: 0 0 0 2px #82b89c66;
+  box-shadow: 0 0 0 2px #34d39966;
 }
 .header > div {
   flex: 1;

@@ -194,9 +194,9 @@ it('grows the panel for larger text and paints it in the current theme', async (
   electron.register.mock.calls[0]![1]();
   await vi.waitFor(() => expect(electron.windows[0]?.show).toHaveBeenCalledOnce());
   const window = electron.windows[0];
-  expect(window.options.backgroundColor).toBe('#f8f9f8');
+  expect(window.options.backgroundColor).toBe('#ffffff');
   // 208px at Default; Larger (1.22x) needs 254px to keep the prompt and buttons in view.
   expect(window.setSize).toHaveBeenCalledWith(560, 254);
-  expect(window.setBackgroundColor).toHaveBeenCalledWith('#f8f9f8');
+  expect(window.setBackgroundColor).toHaveBeenCalledWith('#ffffff');
   launcher.dispose();
 });

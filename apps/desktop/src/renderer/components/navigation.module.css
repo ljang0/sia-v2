@@ -1,9 +1,9 @@
 aside.navigation,
 aside.rail {
-  /* Status colors tuned for the dark shell in both themes. */
-  --signal-working: #7fd8a8;
-  --signal-needs-you: #f3c76e;
-  --signal-problem: #f59a8f;
+  /* Status colors are the semantic text colors, so labels keep AA contrast in both themes. */
+  --signal-working: var(--text-success);
+  --signal-needs-you: var(--text-warning);
+  --signal-problem: var(--text-danger);
   --signal-unread: var(--shell-text);
 }
 aside.navigation {
@@ -168,14 +168,14 @@ aside.navigation {
     background-color var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard);
 }
-/* The selected agent's header carries a wash of its hue, so switching agents reads as the
-   identity moving from one group to the next. */
+/* The selected agent's header carries a quiet neutral selection; its identity hue lives in the
+   avatar, so the sidebar stays calm. */
 .groupHeader::before {
   position: absolute;
   z-index: -1;
   inset: 0;
   border-radius: inherit;
-  background: color-mix(in srgb, var(--agent-color) 16%, transparent);
+  background: var(--shell-selected);
   content: '';
   opacity: 0;
   pointer-events: none;
@@ -241,7 +241,7 @@ aside.navigation {
   padding: 2px 7px;
   border-radius: 999px;
   background: var(--signal-needs-you);
-  color: #2b2208;
+  color: var(--bg-raised);
   font-size: var(--text-xs);
   font-weight: 650;
   line-height: 18px;
@@ -294,11 +294,7 @@ aside.navigation {
   transition: opacity var(--motion-fast) var(--ease-standard);
 }
 .group[data-selected='true'] .groupActions {
-  background: linear-gradient(
-    to right,
-    transparent,
-    color-mix(in srgb, var(--agent-color) 16%, var(--shell-hover)) 20px
-  );
+  background: linear-gradient(to right, transparent, var(--shell-selected) 20px);
 }
 .groupHeader:hover .groupActions,
 .groupHeader:focus-within .groupActions,

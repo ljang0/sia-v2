@@ -5,17 +5,17 @@
 .launcher {
   position: relative;
   isolation: isolate;
-  --panel: #f8f9f8;
-  --ink: #252c29;
-  --muted: #758079;
-  --line: #252c2912;
+  --panel: #ffffff;
+  --ink: #18181b;
+  --muted: #5f5f68;
+  --line: #18181b14;
+  --edge: #dcdce0;
   box-sizing: border-box;
   height: 100vh;
   padding: 16px 20px;
   background:
     linear-gradient(var(--panel), var(--panel)) padding-box,
-    linear-gradient(115deg, var(--aurora-emerald), var(--aurora-cyan), var(--aurora-violet))
-      border-box;
+    linear-gradient(var(--edge), var(--edge)) border-box;
   color: var(--ink);
   font:
     var(--text-md) -apple-system,
@@ -33,7 +33,7 @@
   inset: 0;
   overflow: hidden;
   contain: paint;
-  opacity: 0.32;
+  opacity: 0.18;
   mask-image: linear-gradient(#000, transparent 100%);
   transition: opacity var(--motion-emphasis) var(--ease-out-soft);
 }
@@ -61,7 +61,7 @@
 .mark {
   width: 12px;
   height: 12px;
-  border: 3px solid #547b65;
+  border: 3px solid var(--bg-accent);
   border-radius: 50%;
   box-sizing: border-box;
 }
@@ -100,7 +100,7 @@
 }
 .launcher button:focus-visible,
 .launcher select:focus-visible {
-  outline: 2px solid #769d86;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 .launcher form {
@@ -193,14 +193,14 @@ form[data-ready='true'] .keyboardHint {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #749581;
+  background: var(--bg-accent);
   flex: none;
 }
 .progress[data-status='waiting'] .statusDot {
-  background: #bb904a;
+  background: var(--text-warning);
 }
 .progress[data-status='error'] .statusDot {
-  background: #b55555;
+  background: var(--text-danger);
 }
 .response {
   flex: 0 1 auto;
@@ -242,7 +242,7 @@ form[data-ready='true'] .keyboardHint {
   padding: 12px 0 8px;
 }
 .error {
-  color: #a54444;
+  color: var(--text-danger);
   font-size: var(--text-sm);
   line-height: 1.45;
   margin: 10px 0 0;
@@ -262,16 +262,14 @@ form[data-ready='true'] .keyboardHint {
 }
 @media (prefers-color-scheme: dark) {
   .launcher {
-    --panel: #202422;
-    --ink: #e4e9e6;
-    --muted: #929d96;
-    --line: #ffffff12;
+    --panel: #1a1b1e;
+    --ink: #ededef;
+    --muted: #9a9aa3;
+    --line: #ffffff14;
+    --edge: #34363b;
   }
   .launcher select option {
     background: var(--panel);
-  }
-  .error {
-    color: #e7a0a0;
   }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -316,7 +314,7 @@ form[data-ready='true'] .keyboardHint {
 }
 @keyframes launcher-working {
   50% {
-    box-shadow: 0 0 0 4px #74958138;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--bg-accent) 22%, transparent);
     transform: scale(0.84);
   }
 }
@@ -336,16 +334,16 @@ form[data-ready='true'] .keyboardHint {
     transform: scale(0);
   }
   60% {
-    box-shadow: 0 0 0 5px #74958133;
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--bg-accent) 20%, transparent);
   }
 }
 @keyframes launcher-settle {
   from {
     opacity: 0;
-    box-shadow: 0 0 0 6px #bb904a00;
+    box-shadow: 0 0 0 6px transparent;
   }
   50% {
-    box-shadow: 0 0 0 4px #bb904a40;
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--text-warning) 25%, transparent);
   }
 }
 @media (prefers-reduced-motion: reduce) {

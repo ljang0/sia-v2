@@ -160,12 +160,13 @@
   width: 82%;
   height: 82%;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--agent-color) 68%, var(--agent-ink));
-  border-radius: 42% 58% 54% 46% / 52% 42% 58% 48%;
-  background: color-mix(in srgb, var(--agent-color) 86%, var(--bg-raised));
+  border: 1px solid color-mix(in srgb, var(--agent-color) 82%, black);
+  border-radius: 46% 54% 52% 48% / 50% 46% 54% 50%;
+  background: var(--agent-color);
   box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 28%),
-    0 5px 12px color-mix(in srgb, var(--agent-color) 22%, transparent);
+    inset 0 1px 0 rgb(255 255 255 / 30%),
+    inset 0 -2px 4px rgb(0 0 0 / 12%),
+    0 2px 6px color-mix(in srgb, var(--agent-color) 28%, transparent);
   transform: rotate(-5deg);
   transition:
     border-radius var(--motion-surface) var(--ease-standard),
@@ -173,24 +174,24 @@
 }
 
 .agentForm[data-identity='1'] .agentFormBody {
-  border-radius: 35% 65% 38% 62% / 60% 40% 60% 40%;
+  border-radius: 44% 56% 46% 54% / 54% 46% 54% 46%;
   transform: rotate(7deg);
 }
 
 .agentForm[data-identity='2'] .agentFormBody {
-  border-radius: 58% 42% 68% 32% / 38% 64% 36% 62%;
+  border-radius: 54% 46% 58% 42% / 46% 56% 44% 54%;
   transform: rotate(-11deg);
 }
 
 .agentForm[data-identity='3'] .agentFormBody {
-  border-radius: 68% 32% 45% 55% / 56% 62% 38% 44%;
+  border-radius: 56% 44% 48% 52% / 52% 54% 46% 48%;
   transform: rotate(4deg);
 }
 
 .agentFormOrbit {
   position: absolute;
   inset: 24% 12%;
-  border: 1px solid color-mix(in srgb, var(--agent-ink) 52%, transparent);
+  border: 1px solid rgb(255 255 255 / 55%);
   border-radius: 50%;
   transform: rotate(-24deg);
 }
@@ -202,8 +203,8 @@
   width: 19%;
   height: 19%;
   border-radius: 48% 52% 46% 54%;
-  background: var(--agent-ink);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-color) 30%, transparent);
+  background: #ffffff;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--agent-color) 40%, transparent);
 }
 
 .agentForm[data-state='working'] .agentFormBody {
@@ -537,6 +538,10 @@
   height: 32px;
   align-items: center;
   justify-content: center;
+  color: var(--text-secondary);
+}
+
+.quickSwitcherRow[aria-selected='true'] .quickSwitcherIcon {
   color: var(--text-link);
 }
 

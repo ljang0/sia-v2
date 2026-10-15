@@ -1,8 +1,10 @@
 # UI quality gate
 
-Sia's visual idea is simple and specific: **an agent is a living room for work.** A deep evergreen
-dock holds distinct agent identities; the selected agent opens a clean mineral workspace beside it. The
-product should feel expressive and companionable without becoming mascot-like. Safety, consent,
+Sia's visual idea is simple and specific: **an agent is a living room for work.** A quiet sidebar
+holds distinct agent identities; the selected agent opens a clean, neutral workspace beside it. The
+look is a polished native Mac app: neutral surfaces, one emerald accent from the Sia mark, SF Pro
+type, hairline edges, and soft layered shadows. The product should feel expressive and companionable
+without becoming mascot-like. Safety, consent,
 and legal surfaces remain sober. Sia is not an AI dashboard and not a chat template.
 
 ## Everyday use
@@ -31,8 +33,8 @@ Switching desktop views or phone tabs uses a short fade and vertical ease on the
 Navigation is immediate, drafts retain their normal persistence, and incoming task updates do not
 restart the transition. Reduce Motion and desktop Calm disable this movement.
 
-Desktop startup begins with a dark evergreen wordmark, then eases the background into a soft shape
-on the left beside “Loading Sia.” It follows the actual initial load: there is no minimum wait,
+Desktop startup begins with a large wordmark on the canvas color, then eases the background into a
+sidebar-colored shape on the left beside “Loading Sia.” It follows the actual initial load: there is no minimum wait,
 the ready workspace is immediately usable, and the decorative curtain clears in 240 ms or less.
 It never replays for ordinary navigation, the Fn flow, or the launcher. Reduce Motion uses a still
 loading state; Calm dismisses it immediately when the saved appearance becomes available. Startup
@@ -86,7 +88,7 @@ dismiss the preview. Work that finishes in the open conversation while Sia is on
 once; if Sia was hidden or minimized, it is read when the window shows again. The collapsed
 rail retains new conversation, search, agents, new agent, Activity, and Settings.
 
-Agent navigation uses flat groups and rotating disclosure chevrons in Sia’s evergreen palette.
+Agent navigation uses flat groups and rotating disclosure chevrons on the neutral sidebar.
 The sidebar is 272px wide (252px in compact windows), with full-width conversation rows and no
 nested card borders or repeated conversation icons. Only the current conversation has a persistent
 selection fill. Agent actions appear on hover or keyboard focus; touch pointers keep them visible.
@@ -107,26 +109,38 @@ restore the launcher; they do not discard the request or start another turn.
 
 ## The room rule
 
-- **The dock** (`--shell-*` tokens) is the evergreen agent navigation: agents, contextual threads,
-  Activity / Settings. It is the same family in light and dark appearance. The selected agent
-  remains on the shell with a quiet selected surface and a two-pixel identity marker; it never
-  cuts a light card shape into navigation.
-- **The room** (`.workspace`, `--bg-*` tokens) is the mineral-white, faint sage-neutral space of the agent whose thread is open
-  (or the selected agent when no thread is). It carries `data-identity` so `--agent-color`
-  resolves to that agent's muted hue (`--hue-0..3`: ochre, terracotta, slate blue, sage — chosen in the agent
+- **The sidebar** (`--shell-*` tokens) is the agent navigation: agents, contextual threads,
+  Activity / Settings. In light appearance it is a soft grey panel (`#f4f4f5`) beside a near-white
+  canvas, like a macOS source list; in dark appearance it is the deepest graphite layer. Selection
+  is a neutral fill; the identity hue appears only in the agent's avatar, never as a wash.
+- **The room** (`.workspace`, `--bg-*` tokens) is the neutral space of the agent whose thread is
+  open (or the selected agent when no thread is). It carries `data-identity` so `--agent-color`
+  resolves to that agent's hue (`--hue-0..3`: slate blue, coral, sky, green — chosen in the agent
   dialog's Color swatches; a new agent's default follows its name via `agentIdentity`). Each slot
-  now also selects an abstract living form. The persisted value remains `hue`; this is a visual
-  reinterpretation, not a data migration. The identity appears in the dock, room header,
-  conversation, presence, streaming caret, empty state, and approvals. Never use it to make the
-  person's consequential controls look pre-approved.
-- **The person's controls** are ink: `--bg-accent` compact buttons and deliberate outlines on
-  dialogs, secondary buttons, and approval cards. The composer uses a quieter one-pixel boundary
-  with a green focus ring. Links and success are the shell's green (`--text-link`).
-- **Type**: Bricolage Grotesque (`--font-display`, bundled OFL variable latin subset) for names,
-  headings, the wordmark, metrics, and dialog titles — with `font-variation-settings: 'opsz'` set
-  per size. The system sans (`--font-sans`) carries body copy, controls, labels and nav.
-  `src/renderer/uiPolicy.test.ts` checks the face is on names/headings and off controls/body copy,
-  that every hue slot is defined, and that the room maps every identity slot to a hue.
+  also selects an abstract living form. The persisted value remains `hue`. The identity appears in
+  the sidebar avatar, room header, conversation, presence, streaming caret, empty state, and
+  approvals. Never use it to make the person's consequential controls look pre-approved.
+- **Color**: surfaces carry no tint. Light: canvas `#fcfcfd`, raised `#ffffff`, sidebar `#f4f4f5`,
+  text `#18181b` / `#4b4b53` / `#5f5f68`. Dark: canvas `#131416`, raised `#1a1b1e`, sidebar
+  `#0e0f11`, text `#ededef` / `#b4b4bc` / `#9a9aa3`. The one brand accent is emerald (`#07855b`
+  light, `#34d399` dark) and is reserved for primary actions, focus, selection, links, and live
+  status. Success, warning, and danger have their own semantic tokens. Every text token keeps
+  4.5:1 on every surface it sits on; `uiPolicy.test.ts` checks this.
+- **Controls**: primary buttons are a solid accent fill with a hairline darker edge and a faint top
+  highlight; secondary buttons are a white (graphite in dark) control with a hairline border.
+  `ActionButton` is the shared native button for the composer, launcher, and phone; there is no
+  WebGL button effect. The composer is a raised surface with a hairline border and an accent focus
+  ring.
+- **Type**: the macOS system face throughout. `--font-display` / `--font-brand` are SF Pro Display
+  for names, headings, the wordmark, metrics, and dialog titles, with `--tracking-display`
+  (-0.022em); `--font-sans` (SF Pro Text) carries body copy, controls, labels, and navigation.
+  Nothing is bundled. `src/renderer/uiPolicy.test.ts` checks the display face is on names and
+  headings and off controls and body copy, that every hue slot is defined, and that the room maps
+  every identity slot to a hue.
+- **Icons**: Phosphor only, regular weight. `fill` is kept for media and status glyphs (stop, play,
+  record, status dots) and `bold` only for small checks, send arrows, and the more menu. Sizes
+  follow 14 / 16 / 18 / 20 / 22 / 24px. The Sia logo is one asset (`SiaLogo`), always shown as its
+  own near-black app-icon tile, never inside another tile.
 
 ## Comfortable reading
 
@@ -205,11 +219,11 @@ effect (what appeared, what moved, what finished, what needs attention).
 
 ## Locked dials
 
-Variance 5, motion 6, density 3. One deep-green dock, one mineral-neutral room surface system, four agent
-forms with one job, ink for controls, Phosphor icons, system sans for the interface, one bundled
-identity/display face, and a four-step radius rule: `--radius-tight` 6px for chips/menus, `--radius-control`
-10px for controls and rows, `--radius-surface` 14px for the few contained surfaces that need an
-edge, `--radius-dialog` 20px for floating dialogs, `--radius-round` only for true circles, and a
+Variance 5, motion 6, density 3. One quiet neutral sidebar, one neutral room surface system, four
+agent forms with one job, one emerald accent for controls and status, Phosphor icons, and the SF Pro
+system faces, with a four-step radius rule: `--radius-tight` 6px for chips/menus, `--radius-control`
+8px for controls and rows, `--radius-surface` 12px for cards and the few contained surfaces that
+need an edge, `--radius-dialog` 16px for floating dialogs and the composer, `--radius-round` only for true circles, and a
 square workspace edge (`--radius-room: 0`). Type uses the `--text-*` / `--display-*` scale and the
 `--weight-*` weights; do not introduce literal sizes, weights, or radii in the style modules.
 
