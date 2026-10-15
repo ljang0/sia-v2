@@ -504,6 +504,34 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #recoveryFailures = new Map<string, number>();
   readonly #macWindows = new MacWindowHistory();
 
+  #controlRecoveryKey(request: ValidatedActionInvocation): string {
+    const turn = [request.context.sessionId, request.context.threadId, request.context.turnId];
+    if (!this.#macBrowserAccess() || request.name !== 'computer_action')
+      return JSON.stringify(turn);
+    const args = request.arguments;
+    const snapshot = this.#windowSnapshots.get(String(args.snapshot_id));
+    const element = snapshot?.elements.get(String(args.element_ref));
+    // Scope recovery to the failing control/page/route. Another app or a
+    // distinct observed route must remain usable after a guarded refusal.
+    return createHash('sha256')
+      .update(
+        JSON.stringify([
+          ...turn,
+          args.app_id,
+          args.window_id,
+          snapshot?.browserUrl,
+          args.action,
+          args.element_ref
+            ? [element?.role, element?.label ?? args.element_ref]
+            : typeof args.x === 'number'
+              ? [args.x, args.y]
+              : (args.value ?? 'focused'),
+          args.delivery ?? 'background',
+        ]),
+      )
+      .digest('hex');
+  }
+
   async invoke(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
     // A late cancelled caller must not revoke a newer turn's active window refs.
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
@@ -519,10 +547,10 @@ export class DesktopActionBackend implements ActionBackend {
       this.#computerSession(request);
     const computerWrite =
       request.name === 'computer_action' || request.name === 'browser_action';
-    const key = `${request.context.threadId}:${request.context.turnId}`;
+    const key = this.#controlRecoveryKey(request);
     if (computerWrite && (this.#recoveryFailures.get(key) ?? 0) >= 2) {
       return refused(
-        'Two control attempts failed in this turn. Stop retrying, explain the blocker, and ask the user to repair access or the target before a new request.',
+        'Two attempts at this control failed. Stop repeating it. Observe fresh state and use another permitted target or distinct input route when available; otherwise explain this exact blocker. Never bypass protected surfaces or replay an uncertain write.',
       );
     }
     const rawResult = await this.#invoke(request);
@@ -944,6 +972,41 @@ export class DesktopActionBackend implements ActionBackend {
           Number(a.z_order ?? Infinity) - Number(b.z_order ?? Infinity),
       );
 
+    // Inspect only page identity, never page content, cookies or profile files.
+    // This lets the agent select an existing app/session before opening a site
+    // in a different default browser/profile. Full observations still revalidate.
+    const browserWindows = mac
+      ? windows.filter((window) => {
+          const binding = this.#computerWindows.get(String(window.window_id));
+          return binding && this.#isNativeBrowser(binding);
+        })
+      : [];
+    const inspected = browserWindows.slice(0, 8);
+    for (let offset = 0; offset < inspected.length; offset += 4) {
+      request.context.signal?.throwIfAborted();
+      await Promise.all(
+        inspected.slice(offset, offset + 4).map(async (window) => {
+          const binding = this.#computerWindows.get(String(window.window_id));
+          if (!binding) return;
+          let state: BrowserWindowState;
+          try {
+            state = await this.#nativeBrowserState(binding);
+          } catch {
+            state = { status: 'unavailable' };
+          }
+          Object.assign(window, { browser_state: state.status });
+          if (state.status === 'ready' && state.url !== 'about:blank') {
+            const page = new URL(state.url);
+            Object.assign(window, {
+              browser_origin: page.origin,
+              source_url: page.origin + page.pathname,
+            });
+          }
+        }),
+      );
+    }
+    request.context.signal?.throwIfAborted();
+
     return {
       outcome: 'verified',
       summary: `Found ${apps.length} running application${apps.length === 1 ? '' : 's'} and ${windows.length} window${windows.length === 1 ? '' : 's'}.`,
@@ -953,7 +1016,8 @@ export class DesktopActionBackend implements ActionBackend {
         ...(this.#macBrowserAccess()
           ? {
               browser_route:
-                'Use computer_snapshot and computer_action on an existing browser window. No Chrome attachment is needed. Prefer the active browser or the window matching this task. Sensitive or ambiguous windows require user input.',
+                'Existing Mac browser sessions are reused in place; no account connection or login copying is needed. Select the task window using its observed page identity and saved account hints, then verify the live account with computer_snapshot. Inspect visible tabs and account-switcher controls in that window before opening a site in another default profile. Page metadata does not prove sign-in. Protected or unavailable windows do not establish that other accounts are blocked.',
+              browser_metadata_partial: browserWindows.length > inspected.length,
             }
           : {}),
         installed_apps: ((await this.#installedApplications?.()) ?? [])
@@ -1251,6 +1315,40 @@ export class DesktopActionBackend implements ActionBackend {
       .filter(isDefined);
     const pixels =
       !includeImage || windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
+    if (
+      this.#macBrowserAccess() &&
+      !windowHasProtectedControls(raw) &&
+      !elements.length &&
+      !pixels &&
+      !readableContext?.text &&
+      !imageText
+    ) {
+      const previous = this.#latestWindowSnapshot.get(binding.id);
+      if (previous) this.#windowSnapshots.delete(previous);
+      this.#latestWindowSnapshot.delete(binding.id);
+      return {
+        outcome: 'refused',
+        summary:
+          'The window returned no readable text, controls or image. No input capability was created. This is an observation failure, not evidence that the account needs sign-in.',
+        data: {
+          app_id: binding.appId,
+          window_id: binding.id,
+          blocker_code: 'empty_observation',
+          observation_only: true,
+          pixel_actions_available: false,
+          next_step: includeImage
+            ? 'Try a fresh text-only snapshot of this exact window (include_image:false). Do not open duplicate windows or infer account state from an empty result.'
+            : 'Request include_image:true on this exact window for visual inspection. If no readable state is available, report this exact observation problem; do not guess account facts.',
+        },
+      };
+    }
+    const driverState = asRecord(raw);
+    const returnedCount = nonNegativeInteger(driverState?.returned_element_count);
+    const totalCount = nonNegativeInteger(driverState?.total_element_count);
+    const partial =
+      readableContext?.partial === true ||
+      driverState?.elements_complete === false ||
+      (returnedCount !== undefined && totalCount !== undefined && returnedCount < totalCount);
     const backgroundInput = windowBackgroundInput(raw, binding);
     const observationOnly =
       backgroundInput?.routes.every((route) => route.status === 'refused') ?? false;
@@ -1291,6 +1389,13 @@ export class DesktopActionBackend implements ActionBackend {
             ? new URL(browserUrl).origin + new URL(browserUrl).pathname
             : undefined,
         visible_text: readableContext?.text || undefined,
+        ...(partial
+          ? {
+              observation_partial: true,
+              coverage_note:
+                'Only part of this window was read. Continue with scrolling, pagination or the relevant view; absence here does not establish that an item/account is missing.',
+            }
+          : {}),
         image_text: imageText,
         ...(request.arguments.read_text === true
           ? {

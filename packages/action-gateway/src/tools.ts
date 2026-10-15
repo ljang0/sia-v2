@@ -635,7 +635,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_list: {
     name: 'computer_list',
     description:
-      'List permitted running applications, windows, and installed applications that can be launched without changing them. In Use my Mac mode, this includes supported browsers such as Safari and Chrome without attachment. Use computer_snapshot and computer_action with their window ids. Prefer the existing signed-in browser. In Connected apps mode use browser_* for attached Chrome.',
+      'List permitted running applications, windows, and installed applications without changing them. In Use my Mac mode, a bounded set of existing browser windows includes observed page origins/paths; browser_metadata_partial signals incomplete metadata. Reuse those existing app sessions without copying logins or attaching Chrome. Page metadata does not prove account identity or sign-in: verify the selected window with computer_snapshot, including visible tabs/account controls. In Connected apps mode use browser_* for attached Chrome.',
     inputSchema: object({}),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },

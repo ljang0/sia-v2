@@ -173,6 +173,37 @@ checks remained blocked by off-Space/unresolved windows. The full live GUI matri
 unverified; do not describe this as all-app parity or equal reliability across models.
 The source gate is `pnpm check`; the desktop GUI suite is separate and must not run at startup.
 
+The opt-in [background account/context check](../apps/desktop/tests/e2e/real-background-context.spec.ts)
+uses real Safari, real CUA and real model turns with two **fictional** accounts on a disposable
+local course portal. Prepare the signed development runtime and the desktop build, then run:
+
+```sh
+SIA_REAL_BACKGROUND_CONTEXT_E2E=1 pnpm --filter @sia/desktop exec playwright test e2e/real-background-context.spec.ts
+```
+
+It creates an ordinary disposable browser session before starting Sia, without giving the agent
+its cookie, a Chrome attachment or a fresh sign-in. Task-relevant saved notes identify the campus
+account among similarly titled windows. The first task verifies every current instructor, excluding
+TAs and archived names; the second runs in a new conversation after Sia restarts and verifies all
+weekly work, including submitted work and an item posted only in Modules. File readback and the
+fixture's request log independently check names, deadlines and source coverage. Local trajectory
+checks require background delivery for both research tasks, the fixture origin and no public search/native shell. Research
+sharing stays off. Before the third task, the test user explicitly allows brief foreground recovery:
+with multiple Safari windows, background PID keyboard input is refused, and browser accessibility
+setters may not update the actual field. This task creates one event in the intended account and checks the fixture's
+authoritative event set for exact title, date, time, duration and absence of duplicates. Set
+`SIA_REAL_BACKGROUND_SCENARIO=read` or `write` to run only that portion during diagnosis; the
+default runs all three. The runner uses Calm appearance in its disposable Sia profile so visual
+effects do not compete with the control test. Set `SIA_REAL_BACKGROUND_MODEL=gpt-6-astra` to require
+Astra from the live account catalog; an unavailable model fails before any task is sent.
+Run live control separately from broad GUI gates
+when measuring latency. The runner closes only its own test windows and profile; do not upload its raw
+inventory or screenshots, which can contain unrelated window titles. A failed task retains its
+private temporary profile for local diagnosis; remove it when the investigation is complete.
+This is evidence for these
+browser tasks, not a claim that every app accepts background input or that accounts were copied.
+The calendar write is a hybrid recovery check, not evidence of fully background text entry.
+
 ## Fifteen-minute pilot pass
 
 - [ ] Install the exact signed DMG on a fresh macOS profile. Gatekeeper accepts it and Sia shows

@@ -9,6 +9,7 @@ import type { AutomationApp, AutomationPermissions } from '../../src/shared/mac-
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 export interface IsolatedSiaOptions {
+  readonly executablePath?: string;
   readonly fakeServices?: boolean;
   readonly environment?: Readonly<Record<string, string>>;
   readonly attachmentNames?: readonly string[];
@@ -40,6 +41,7 @@ export async function launchIsolatedSia(
   ]);
 
   const application = await electron.launch({
+    ...(options.executablePath ? { executablePath: options.executablePath } : {}),
     args: [desktopRoot],
     env: {
       ...process.env,

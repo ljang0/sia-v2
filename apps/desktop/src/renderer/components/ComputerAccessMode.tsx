@@ -63,7 +63,7 @@ export function ComputerAccessMode({
                 />
                 <span>
                   <strong>Work in background</strong>
-                  <span>Keep working while Sia controls a supported window.</span>
+                  <span>Use supported windows and accounts already signed in on this Mac.</span>
                 </span>
               </label>
             </div>
@@ -91,7 +91,9 @@ export function ComputerAccessMode({
       <p className={styles.settingsNote}>
         {computer.accessMode === 'mac'
           ? computer.backgroundControl
-            ? 'Background control is experimental. Apps may still come forward; saved native scripts need On my screen. Changes apply to your next task.'
+            ? computer.backgroundFallback === 'foreground'
+              ? 'Sia can briefly bring apps forward to finish steps such as typing, then continue in the background. Changes apply to your next task.'
+              : 'Some text fields need the screen, especially with several browser windows open. Allow brief foreground control to let Sia finish those steps automatically. Changes apply to your next task.'
             : 'Sia can control apps and files. With bypass enabled, native commands have full Mac access. Changes apply to your next task.'
           : 'Connect a browser or service in Connections. Mac app control requires Use my Mac.'}
       </p>
