@@ -271,7 +271,7 @@ test('the paired phone approves the exact step its task is waiting on', async ({
   await page.getByRole('textbox').fill('Send the report, this needs approval');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Sia asks: Send the weekly report to Alex')).toBeVisible();
-  await page.getByRole('button', { name: 'Approve', exact: true }).click();
+  await page.getByRole('button', { name: 'Allow', exact: true }).click();
   await expect(page.getByText('Approved from the phone and done.')).toBeVisible();
   expect(relayed.resolved).toEqual([{ approvalId: expect.any(String), decision: 'approve' }]);
   expect(relayed.frames.join('\n')).not.toContain('weekly report');

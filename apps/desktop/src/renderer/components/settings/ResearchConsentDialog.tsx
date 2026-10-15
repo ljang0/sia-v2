@@ -75,7 +75,7 @@ export function ResearchConsentDialog({
 
           <div className={styles.consentSummary}>
             <div>
-              <CheckCircle size={17} aria-hidden="true" />
+              <CheckCircle size={18} aria-hidden="true" />
               <p>
                 <strong>If you join</strong>
                 Raw prompts, responses, surfaced reasoning, commands and output, tool
@@ -85,7 +85,7 @@ export function ResearchConsentDialog({
               </p>
             </div>
             <div>
-              <ShieldCheck size={17} aria-hidden="true" />
+              <ShieldCheck size={18} aria-hidden="true" />
               <p>
                 <strong>Outside the capture surface</strong>
                 Sia does not obtain provider credentials, Chrome cookies, Keychain contents, or

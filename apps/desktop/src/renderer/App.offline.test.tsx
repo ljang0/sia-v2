@@ -50,6 +50,7 @@ describe('offline sending', () => {
       ),
     );
     expect(screen.queryByTestId('offline-banner')).toBeNull();
+    expect(screen.getByTestId('online-banner').textContent).toContain('Back online');
   });
 
   it('lets the person remove a held message before it is sent', async () => {

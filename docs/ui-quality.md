@@ -124,9 +124,84 @@ restore the launcher; they do not discard the request or start another turn.
   `src/renderer/uiPolicy.test.ts` checks the face is on names/headings and off controls/body copy,
   that every hue slot is defined, and that the room maps every identity slot to a hue.
 
+## Comfortable reading
+
+On 2026-10-14 Lawrence reported that the layout and type felt too small, dense, and not
+user-friendly. Sia is for everyday consumers, so comfort wins over density:
+
+- Ordinary interface text is `--text-sm` (14px); body copy and replies are `--text-md` or larger.
+  Nothing a person needs to read is below `--text-2xs` (11.5px), and that size is only for
+  secondary metadata such as timestamps and shortcut hints.
+- No small letter-spaced all-caps labels. Section and status labels use sentence case at readable
+  sizes; hierarchy comes from size, weight, and spacing rather than tracking.
+- Interactive controls are at least `--target-min` (36px) tall; list and settings rows at least
+  `--row-min` (44px). Icons use `--icon-sm`/`--icon-md`/`--icon-lg` (16/18/22px).
+- Give content room: generous padding between groups, comfortable line height (≥1.45 for body
+  copy), and content columns that use the window rather than a narrow strip in a large empty pane.
+- Everything must still fit at the supported 960×640 window and at the Larger text size.
+- The same applies to the phone remote: thumb-sized targets (at least 44px), readable body text
+  (at least 16px, which also stops iOS zooming fields), and no dense metadata rows.
+- Wording is for people who have never used a developer tool: plain words on every main path,
+  short action-first labels, and technical detail (model IDs, API terms, harness names) behind a
+  Details or Advanced disclosure. Keep a precise macOS permission name only where people will see
+  it in System Settings, with a plain explanation beside it.
+
+## Motion language
+
+On 2026-10-14 Lawrence asked for a dedicated UI/UX and animation pass across every workflow because
+the product still felt stale. The motion dial moves from 3 to 6. Motion should make Sia feel alive and
+responsive, never slower: navigation and input stay immediate, and animation explains cause and
+effect (what appeared, what moved, what finished, what needs attention).
+
+- Arrivals use `--ease-spring` or `--ease-out-soft` over `--motion-standard`..`--motion-emphasis`, travel
+  at most `--motion-rise`, and may start from `--motion-pop-scale`. Exits use `--ease-exit` over
+  `--motion-exit` and are always quicker than the matching arrival.
+- Lists and groups that appear together stagger by `--motion-stagger`, capped at eight items.
+- Live state (working, waiting, approval needed, reply ready, voice) gets a distinct, recognisable
+  transition; streamed tokens still do not animate per token.
+- Hover and press feedback stays at `--motion-fast`; pressed controls may settle by `--motion-nudge`.
+- Animate only `transform`, `opacity`, `filter`, `clip-path`, and colour. Never animate layout
+  properties on large surfaces, and never block input on an animation.
+- Reduced Motion collapses durations, travel, scale, and stagger through the tokens. Calm keeps short
+  fades but removes travel, springs, and stagger. Safety, consent, and legal surfaces stay sober:
+  they may fade and settle, but do not bounce or celebrate.
+- Status signals have one gesture each, wherever they appear (dock, Scotty, launcher, phone): finished
+  or unread pops once, working breathes or sends a slow ring, waiting for the person pops then
+  breathes, and a problem only fades and settles. Status text is keyed by status so a change lands
+  visibly, while streamed progress inside one status does not replay it.
+- Completion moments (Reply ready, setup's "You're all set") play only on the live state change,
+  never when a finished thread or screen is reopened, and never loop. Setup permission rows settle
+  only when they turn ready while shown.
+- Permission and consent surfaces (approval cards, the Access panel, alert dialogs) arrive with
+  `--ease-out-soft`, never `--ease-spring`; an approval card may add one brief wash of the agent hue.
+  The phone remote never approves; its approval note stays a sober surface pointing to the Mac.
+- The room's hue (`--agent-color`) is a registered colour, so switching agents cross-fades the room
+  over `--motion-emphasis` instead of snapping.
+- Tab rails share one highlight that glides by animating `clip-path` only
+  (`settings/useNavIndicator.ts`); never animate a tab's width or position.
+- Press depth, press stretch, and check rotation derive from `--motion-pop-scale` and
+  `--motion-nudge`, so Calm and Reduced Motion keep the colour change and drop the movement.
+  Danger and disabled buttons never lift or bounce.
+- One-shot arrivals on hoverable controls use `animation-fill-mode: backwards`, and elements that
+  already run their own animation enter by transition plus `@starting-style`, so an entrance never
+  holds `transform` against hover or overrides an ambient loop.
+- Larger blocks that arrive together (welcome sections) may stagger by twice `--motion-stagger`.
+- Dismissal stays instant for dialogs, menus, and the quick switcher: hidden windows can pause
+  `animationend` indefinitely, and the renderer suite requires dismissed surfaces to close without
+  waiting. The Inspector and Scotty/launcher exits run on timers instead.
+- Windows that are shown and hidden rather than remounted (Scotty's tray, the ⌘E launcher) replay
+  their arrival on show with `floatingMotion.summon` and play `dismissMotion` before a self-initiated
+  hide; hiding because focus left stays instant. Always-on surfaces play one beat per state change
+  and then rest; only the working indicator loops. Every renderer window imports `tokens.css`
+  through `main.tsx`.
+- Live microphone state is a steady tint plus a radiating ring; the composer's wave follows the
+  voice level while listening and shows a travelling pulse while transcribing. Reduced Motion keeps
+  the ring as a static outline.
+- The startup curtain breathes after it settles and lifts away on ready within the 240 ms budget.
+
 ## Locked dials
 
-Variance 5, motion 3, density 4. One deep-green dock, one mineral-neutral room surface system, four agent
+Variance 5, motion 6, density 3. One deep-green dock, one mineral-neutral room surface system, four agent
 forms with one job, ink for controls, Phosphor icons, system sans for the interface, one bundled
 identity/display face, and a four-step radius rule: `--radius-tight` 6px for chips/menus, `--radius-control`
 10px for controls and rows, `--radius-surface` 14px for the few contained surfaces that need an
@@ -153,12 +228,12 @@ use whitespace and a hairline divider before adding another box.
 - Active agent, provider/model, workspace, local/cloud status, and research-capture state are always understandable — the room's hue and the topbar dot must agree with the sidebar.
 - Loading, empty, error, offline, queued, denied, cancelled, and recovery states exist.
 - Every consequential approval names the operation, target, data leaving the Mac, focus behavior, and reversibility, under the requesting agent's hue band.
-- Full keyboard operation, visible focus, correct labels, minimum 32px targets, and WCAG 2.2 AA contrast (`uiPolicy.test.ts` computes tertiary-text and strong-border contrast for both appearances).
+- Full keyboard operation, visible focus, correct labels, minimum 36px targets (`--target-min`), and WCAG 2.2 AA contrast (`uiPolicy.test.ts` computes tertiary-text and strong-border contrast for both appearances).
 - Light, dark, high-contrast, increased-text, and reduced-motion modes are verified.
 - Interactive rows and buttons give quiet hover feedback with `background-color`/`color`
   transitions at `--motion-fast`. Feedback is 140ms, standard motion 190ms, and surfaces 240ms.
-  Empty states and avatars do not rotate, bob, or breathe; motion is reserved for live presence,
-  progress, state transitions, and overlays. Streamed tokens do not animate.
+  Empty states and avatars do not idle-loop; motion is reserved for arrivals, live presence,
+  progress, state transitions, and overlays (see Motion language). Streamed tokens do not animate.
 - No generic AI gradients, glass, decorative status dots, card grids, nested cards, mascot faces,
   canvas, GenUI, or visualization affordance. A restrained monochrome grain and broad ambient
   color mixing are permitted when they make the room feel tactile without reducing contrast.
@@ -180,11 +255,11 @@ profiles; no provider turn or personal account is involved. Phone layouts have a
 
 ## New-user setup
 
-| Before                                                      | After                                                                                          | Why                                                  |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| Install/update then a separate sign-in action after restart | Set up Codex resumes browser sign-in once after restart, with visible stage and retry feedback | No terminal or second setup action                   |
-| Disabled Set up Sia button while no model is ready          | Resolve AI access first, then show Set up Sia                                                  | One actionable next step                             |
-| Core permission statuses hidden with optional apps          | Core checklist always visible; everyday apps expandable                                        | See missing access and recovery guidance immediately |
+| Before                                                      | After                                                                                             | Why                                                  |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Install/update then a separate sign-in action after restart | Connect ChatGPT resumes browser sign-in once after restart, with visible stage and retry feedback | No terminal or second setup action                   |
+| Disabled Set up Sia button while no model is ready          | Resolve AI access first, then show Set up Sia                                                     | One actionable next step                             |
+| Core permission statuses hidden with optional apps          | Core checklist always visible; everyday apps expandable                                           | See missing access and recovery guidance immediately |
 
 One permission action requests only missing access. macOS owns approval dialogs; returning to Sia
 checks status without repeating prompts. Interrupted or denied access does not erase allowed grants.

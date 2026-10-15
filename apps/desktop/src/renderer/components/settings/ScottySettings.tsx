@@ -57,7 +57,7 @@ export function ScottySettings({ api }: { api: ScottySettingsApi }) {
             />
           </div>
           <span className={pet.name}>
-            <PawPrint size={13} /> YOUR DESKTOP COMPANION
+            <PawPrint size={16} /> Your desktop companion
           </span>
           <h3>Keep Sia within reach</h3>
           <p>
@@ -114,7 +114,7 @@ export function ScottySettings({ api }: { api: ScottySettingsApi }) {
               disabled={busy || !state}
               onClick={() => void run({ operation: 'resetPosition' })}
             >
-              <ArrowCounterClockwise size={14} /> Reset position
+              <ArrowCounterClockwise size={16} /> Reset position
             </button>
           </div>
         </div>

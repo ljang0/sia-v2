@@ -302,7 +302,7 @@ test('lost acknowledgement is retryable without duplicating the command', async 
   });
   await page.getByRole('textbox').fill('A quick answer with a dropped connection');
   await page.getByRole('button', { name: 'Send message' }).click();
-  await expect(page.getByRole('alert')).toContainText('safely retry');
+  await expect(page.getByRole('alert')).toContainText('try again safely');
   await expect(page.getByRole('textbox')).toHaveValue(
     'A quick answer with a dropped connection',
   );
@@ -361,7 +361,9 @@ test('revoked pairing shows a useful reconnect message and removes old task cont
     await route.fulfill({ response });
   });
   await expect(
-    page.getByText('Remote unavailable. Scan the current QR code in Sia on your Mac.'),
+    page.getByText(
+      'This phone isn’t linked to Sia anymore. On your Mac, open Sia and scan the new QR code with your phone camera.',
+    ),
   ).toBeVisible();
   await page.getByRole('textbox').fill('Do not send');
   await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();
@@ -472,7 +474,7 @@ test('connection sheet traps focus, closes with Escape and restores focus', asyn
   await page.getByRole('button', { name: 'Connection details' }).click();
   const panel = page.getByRole('dialog', { name: 'Your Mac, connected.' });
   await expect(panel).toBeVisible();
-  await expect(panel.getByText('Confirm actions on your Mac')).toBeVisible();
+  await expect(panel.getByText('Your Mac asks first')).toBeVisible();
   await expect(panel.getByText('Keep Sia open and your Mac awake.')).toBeVisible();
   await panel.getByRole('button', { name: 'Close panel' }).press('Tab');
   await expect(panel.getByRole('button', { name: 'Close panel' })).toBeFocused();
@@ -559,6 +561,53 @@ test('reduced motion keeps the home screen still without disabling navigation', 
   await expect(page.getByRole('heading', { name: 'A little less to do.' })).toBeVisible();
 });
 
+test('arrivals stagger and spring, and reduced motion removes travel and stagger', async ({
+  page,
+  remote,
+}) => {
+  const read = (selector: string) =>
+    page.locator(selector).evaluate((node) => {
+      const style = getComputedStyle(node);
+      return {
+        name: style.animationName,
+        duration: parseFloat(style.animationDuration),
+        delay: parseFloat(style.animationDelay),
+      };
+    });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  const secondIdea = await read('.idea-card:nth-child(2)');
+  expect(secondIdea.name).toBe('arrive');
+  expect(secondIdea.delay).toBeGreaterThan(await read('.hero-art').then((art) => art.delay));
+  await page.getByRole('button', { name: 'More options' }).click();
+  await expect(page.getByRole('dialog', { name: 'Make yourself at home.' })).toBeVisible();
+  const sheet = await read('.phone-sheet');
+  expect(sheet.name).toBe('sheet-enter');
+  expect(sheet.duration).toBeGreaterThan(0.3);
+  expect((await read('.sheet-actions > button:nth-child(3)')).delay).toBeGreaterThan(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await page.getByRole('textbox').fill('A quick answer');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText('Finished', { exact: true })).toBeVisible();
+  // The finished state pops its check once; waiting and approval only settle.
+  expect((await read('.remote-turn .turn-status[data-status="done"] svg')).name).toBe('pop');
+  expect((await read('.remote-turn > .user-message')).name).toBe('rise-pop');
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByRole('button', { name: 'More options' }).click();
+  await expect(page.getByRole('dialog', { name: 'Make yourself at home.' })).toBeVisible();
+  expect((await read('.phone-sheet')).duration).toBeLessThanOrEqual(0.001);
+  expect((await read('.sheet-actions > button:nth-child(3)')).delay).toBe(0);
+  expect(
+    await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--motion-rise').trim(),
+    ),
+  ).toBe('0px');
+});
+
 test('starter cards remain fully reachable above the composer on shorter phones', async ({
   page,
   remote,
@@ -591,7 +640,10 @@ test('revoking access also removes cached memories from the phone', async ({
   await page.route('**/state', (route) =>
     route.fulfill({
       status: 404,
-      json: { error: 'Remote unavailable. Scan the current QR code in Sia on your Mac.' },
+      json: {
+        error:
+          'This phone isn’t linked to Sia anymore. On your Mac, open Sia and scan the new QR code with your phone camera.',
+      },
     }),
   );
   await expect(page.getByText('Reconnect to your Mac to see your memories.')).toBeVisible();

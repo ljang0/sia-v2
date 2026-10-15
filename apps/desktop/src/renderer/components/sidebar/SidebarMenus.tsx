@@ -61,12 +61,12 @@ export function ThreadMenu({
               onSelect={onSetPinned}
               data-testid="thread-pin"
             >
-              <PushPin size={14} aria-hidden="true" />
+              <PushPin size={16} aria-hidden="true" />
               {thread.pinned ? 'Unpin' : 'Pin'}
             </DropdownMenu.Item>
           ) : null}
           <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onRename}>
-            <PencilSimple size={14} aria-hidden="true" />
+            <PencilSimple size={16} aria-hidden="true" />
             Rename
           </DropdownMenu.Item>
           {onFork ? (
@@ -77,7 +77,7 @@ export function ThreadMenu({
               disabled={busy}
               title={busy ? 'Stop or finish the current task before duplicating.' : undefined}
             >
-              <Copy size={14} aria-hidden="true" />
+              <Copy size={16} aria-hidden="true" />
               Duplicate
             </DropdownMenu.Item>
           ) : null}
@@ -92,16 +92,16 @@ export function ThreadMenu({
                 thread.status === 'waiting'
               }
             >
-              <Archive size={14} aria-hidden="true" />
+              <Archive size={16} aria-hidden="true" />
               Archive
             </DropdownMenu.Item>
           ) : null}
           {onSetUnread ? (
             <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onSetUnread}>
               {thread.unread ? (
-                <BellSlash size={14} aria-hidden="true" />
+                <BellSlash size={16} aria-hidden="true" />
               ) : (
-                <Bell size={14} aria-hidden="true" />
+                <Bell size={16} aria-hidden="true" />
               )}
               Mark {thread.unread ? 'read' : 'unread'}
             </DropdownMenu.Item>
@@ -112,7 +112,7 @@ export function ThreadMenu({
             title={busy ? deleteBlockedReason(thread) : undefined}
             onSelect={() => onDelete(trigger.current)}
           >
-            <Trash size={14} aria-hidden="true" />
+            <Trash size={16} aria-hidden="true" />
             <span className={styles.threadMenuItemText}>
               Delete
               {busy ? <small>{deleteBlockedReason(thread)}</small> : null}
@@ -154,7 +154,7 @@ export function AgentMenu({
           className={styles.agentEditButton}
           aria-label={`Agent actions for ${agent.name}`}
         >
-          <DotsThree size={15} weight="bold" aria-hidden="true" />
+          <DotsThree size={16} weight="bold" aria-hidden="true" />
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
@@ -164,16 +164,16 @@ export function AgentMenu({
           align="end"
         >
           <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onOpen}>
-            <ChatCircle size={14} aria-hidden="true" />
+            <ChatCircle size={16} aria-hidden="true" />
             Open agent
           </DropdownMenu.Item>
           <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onEdit}>
-            <NotePencil size={14} aria-hidden="true" />
+            <NotePencil size={16} aria-hidden="true" />
             Edit agent
           </DropdownMenu.Item>
           {onSetPinned ? (
             <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onSetPinned}>
-              <PushPin size={14} aria-hidden="true" />
+              <PushPin size={16} aria-hidden="true" />
               {agent.pinned ? 'Unpin agent' : 'Pin agent'}
             </DropdownMenu.Item>
           ) : null}
@@ -183,16 +183,16 @@ export function AgentMenu({
               onSelect={onSetNotifications}
             >
               {agent.notificationsEnabled ? (
-                <BellSlash size={14} aria-hidden="true" />
+                <BellSlash size={16} aria-hidden="true" />
               ) : (
-                <Bell size={14} aria-hidden="true" />
+                <Bell size={16} aria-hidden="true" />
               )}
               {agent.notificationsEnabled ? 'Mute notifications' : 'Enable notifications'}
             </DropdownMenu.Item>
           ) : null}
           {onDuplicate ? (
             <DropdownMenu.Item className={primitives.threadMenuItem} onSelect={onDuplicate}>
-              <Copy size={14} aria-hidden="true" />
+              <Copy size={16} aria-hidden="true" />
               Duplicate agent
             </DropdownMenu.Item>
           ) : null}

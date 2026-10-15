@@ -77,7 +77,7 @@ export function ChangesReview({
         </div>
         <div className={styles.localHeaderActions}>
           <span className={styles.changeCount}>
-            <GitDiff size={15} aria-hidden="true" />
+            <GitDiff size={16} aria-hidden="true" />
             {files.length} {files.length === 1 ? 'file' : 'files'}
           </span>
           {onReview && files.length ? (
@@ -88,7 +88,7 @@ export function ChangesReview({
               disabled={reviewing}
               data-testid="code-review-start"
             >
-              <MagnifyingGlass size={14} aria-hidden="true" />
+              <MagnifyingGlass size={16} aria-hidden="true" />
               {reviewing ? 'Starting…' : 'Review'}
             </button>
           ) : null}
@@ -100,7 +100,7 @@ export function ChangesReview({
               disabled={Boolean(snapshotBusy)}
               data-testid="workspace-snapshot-create"
             >
-              <Camera size={14} aria-hidden="true" />
+              <Camera size={16} aria-hidden="true" />
               Snapshot
             </button>
           ) : null}
@@ -135,7 +135,7 @@ export function ChangesReview({
                     onClick={() => void onDeleteSnapshot?.(snapshot.id)}
                     data-testid="workspace-snapshot-delete"
                   >
-                    <Trash size={13} aria-hidden="true" />
+                    <Trash size={16} aria-hidden="true" />
                   </button>
                 </span>
               </div>
@@ -156,7 +156,7 @@ export function ChangesReview({
                 onClick={() => setSelectedPath(file.path)}
                 data-testid="git-change-row"
               >
-                <File size={15} aria-hidden="true" />
+                <File size={16} aria-hidden="true" />
                 <span title={file.path}>{file.path}</span>
                 <small data-status={file.status}>{statusLabel(file.status)}</small>
                 <span className={styles.changeStats}>
@@ -178,7 +178,7 @@ export function ChangesReview({
                     onClick={() => void onStage(selected.path)}
                     data-testid="git-stage"
                   >
-                    <Plus size={14} aria-hidden="true" />
+                    <Plus size={16} aria-hidden="true" />
                     Stage
                   </button>
                 ) : (
@@ -193,7 +193,7 @@ export function ChangesReview({
                   onClick={() => setRestorePath(selected.path)}
                   data-testid="git-restore"
                 >
-                  <ArrowCounterClockwise size={14} aria-hidden="true" />
+                  <ArrowCounterClockwise size={16} aria-hidden="true" />
                   Restore
                 </button>
               </div>

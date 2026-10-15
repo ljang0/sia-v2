@@ -399,6 +399,12 @@ export function Conversation({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot the rows present when the thread opened.
     [thread?.id],
   );
+  // Likewise for the banners: a failure or queue that appears while the thread is open settles in.
+  const openedState = useMemo(
+    () => ({ error: thread?.error, status: thread?.status }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot the state the thread opened with.
+    [thread?.id],
+  );
   if (loading) return <ConversationSkeleton />;
 
   if (!thread) {
@@ -569,8 +575,12 @@ export function Conversation({
       >
         <div className={styles.conversationColumn} ref={columnRef}>
           {queued ? (
-            <div className={styles.queueBanner} role="status">
-              <Clock size={17} aria-hidden="true" />
+            <div
+              className={styles.queueBanner}
+              role="status"
+              data-entering={openedState.status !== 'queued' ? 'true' : undefined}
+            >
+              <Clock size={18} aria-hidden="true" />
               <div>
                 <strong>Queued</strong>
                 <span>
@@ -632,6 +642,7 @@ export function Conversation({
             <div
               className={styles.errorBanner}
               role="alert"
+              data-entering={thread.error !== openedState.error ? 'true' : undefined}
               data-testid="interrupted-turn-banner"
             >
               <WarningCircle size={18} aria-hidden="true" />
@@ -649,7 +660,7 @@ export function Conversation({
                 onClick={() => void onRetry()}
                 data-testid="interrupted-turn-retry"
               >
-                <ArrowClockwise size={15} aria-hidden="true" />
+                <ArrowClockwise size={16} aria-hidden="true" />
                 Continue task
               </button>
             </div>
@@ -666,7 +677,7 @@ export function Conversation({
               onClick={jumpToLatest}
               data-attention={waitingOnPerson(thread) ? 'true' : undefined}
             >
-              <ArrowDown size={14} aria-hidden="true" />
+              <ArrowDown size={16} aria-hidden="true" />
               {waitingOnPerson(thread)?.label ?? 'Jump to latest'}
             </button>
           ) : null}
@@ -700,11 +711,12 @@ export function Conversation({
 
       {usageWarning ? (
         <p className={styles.usageWarning} role="status" data-testid="usage-warning">
-          <WarningCircle size={14} aria-hidden="true" />
+          <WarningCircle size={16} aria-hidden="true" />
           {usageWarning}
         </p>
       ) : null}
       <QueuedMessages
+        key={`queue:${thread.id}`}
         messages={thread.queuedMessages ?? []}
         agentName={agentName}
         onRemove={onRemoveQueued}

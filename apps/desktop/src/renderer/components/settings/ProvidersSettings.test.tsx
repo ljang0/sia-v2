@@ -13,8 +13,8 @@ describe('AI access settings', () => {
     renderSettings();
 
     expect(screen.getByRole('heading', { name: 'AI access' })).toBeTruthy();
-    expect(screen.getByText('Included model')).toBeTruthy();
-    expect(screen.getByText('Codex plan')).toBeTruthy();
+    expect(screen.getByText('Included AI')).toBeTruthy();
+    expect(screen.getByText('ChatGPT plan')).toBeTruthy();
     expect(screen.queryByText('Claude')).toBeNull();
     expect(screen.queryByText('Grok')).toBeNull();
     expect(screen.queryByText('Gemini')).toBeNull();
@@ -84,7 +84,7 @@ describe('AI access settings', () => {
       onOpenProviderSetup,
     });
 
-    fireEvent.click(screen.getByRole('button', { name: 'Set up Codex' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Connect ChatGPT' }));
     await waitFor(() => expect(onOpenProviderSetup).toHaveBeenCalledWith('codex'));
   });
 
@@ -104,7 +104,7 @@ describe('AI access settings', () => {
         ),
         onOpenProviderSetup,
       });
-      const name = 'Set up Codex';
+      const name = 'Connect ChatGPT';
       fireEvent.click(screen.getByRole('button', { name }));
       const busy = screen.getByRole('button', {
         name: status === 'needs-install' ? 'Installing…' : 'Updating…',
@@ -181,7 +181,7 @@ describe('AI access settings', () => {
         status: 'needs-install' as const,
       })),
     });
-    expect(screen.getAllByRole('button', { name: 'Set up Codex' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Connect ChatGPT' })).toHaveLength(1);
   });
 
   it('routes included-model access to Sia sign-in', () => {

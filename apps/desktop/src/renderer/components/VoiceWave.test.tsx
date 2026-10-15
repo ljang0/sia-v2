@@ -21,3 +21,17 @@ describe('VoiceWave', () => {
     expect(getByTestId('voice-wave').children).toHaveLength(5);
   });
 });
+
+describe('VoiceWave phases', () => {
+  afterEach(cleanup);
+
+  it('listens by default and marks processing and recognised phases', () => {
+    const { getByTestId, rerender } = render(<VoiceWave level={3} />);
+    const wave = getByTestId('voice-wave');
+    expect(wave.dataset.phase).toBe('listening');
+    rerender(<VoiceWave level={3} phase="processing" />);
+    expect(wave.dataset.phase).toBe('processing');
+    rerender(<VoiceWave phase="recognised" />);
+    expect(wave.dataset.phase).toBe('recognised');
+  });
+});

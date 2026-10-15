@@ -51,7 +51,7 @@ describe('focus after actions that remove the focused control', () => {
     await waitFor(() => expect(document.activeElement).toBe(card));
     expect(card.getAttribute('tabindex')).toBe('-1');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }));
     await waitFor(() => expect(document.activeElement).toBe(composer()));
   });
 
@@ -115,7 +115,7 @@ describe('focus after actions that remove the focused control', () => {
   it('returns to the composer after archiving from the thread menu', async () => {
     await renderApp();
     // Settle the open thread's approval so its composer accepts focus.
-    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Allow' }));
     await waitFor(() => expect(composer().hasAttribute('disabled')).toBe(false));
     fireEvent.pointerDown(
       screen.getByRole('button', { name: 'Conversation actions for Triage today’s inbox' }),

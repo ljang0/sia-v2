@@ -245,3 +245,13 @@ it('keeps Scotty and the tray within usable bounds after monitor removal or on n
     expect(panel.y + panel.height).toBeLessThanOrEqual(area.y + area.height);
   }
 });
+it('grows the tray with the text size and still keeps it on screen', () => {
+  const area = { x: 0, y: 24, width: 1440, height: 876 };
+  const pet = { x: 1180, y: 660, width: 224, height: 216 };
+  expect(scottyPanelBounds(pet, area)).toMatchObject({ width: 376, height: 548 });
+  const larger = scottyPanelBounds(pet, area, 'larger');
+  expect(larger).toMatchObject({ width: 459, height: 669 });
+  expect(larger.y + larger.height).toBeLessThanOrEqual(area.y + area.height);
+  const small = { x: 0, y: 0, width: 400, height: 500 };
+  expect(scottyPanelBounds(pet, small, 'larger')).toMatchObject({ width: 400, height: 500 });
+});

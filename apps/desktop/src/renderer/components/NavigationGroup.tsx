@@ -47,7 +47,7 @@ export function NavigationGroup({
               {attention}
             </span>
           ) : null}
-          <CaretRight className={styles.chevron} size={15} aria-hidden="true" />
+          <CaretRight className={styles.chevron} size={16} aria-hidden="true" />
         </button>
         <div className={styles.groupActions}>{actions}</div>
       </div>

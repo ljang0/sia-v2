@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ScottyApi, ScottyState, ScottyTask } from '../../shared/scotty';
-import { ScottyPanel } from './Scotty';
+import { ScottyPanel, ScottyPet } from './Scotty';
 import { ScottySprite } from './ScottySprite';
 afterEach(cleanup);
 function fixture() {
@@ -84,7 +84,7 @@ it('renders exact approval details and prevents a text answer from substituting 
   expect(screen.getByText('Event title and date')).toBeTruthy();
   // Only the approval buttons can move this task forward; there is no text box to type into.
   expect(screen.queryByRole('textbox')).toBeNull();
-  fireEvent.click(screen.getByRole('button', { name: 'Approve once' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow once' }));
   await waitFor(() =>
     expect(api.action).toHaveBeenCalledWith({
       kind: 'approve',
@@ -145,4 +145,71 @@ it('says whether a working Mac task is on the screen or quietly in the backgroun
   render(<ScottyPanel api={api} />);
   fireEvent.click(await screen.findByRole('button', { name: /Plan my week/ }));
   expect(screen.getByText('Using your screen · Press ⌃Esc to stop')).toBeTruthy();
+});
+
+function stubMotion() {
+  vi.stubGlobal(
+    'matchMedia',
+    vi.fn(() => ({ matches: false })),
+  );
+  let finish = () => undefined as void;
+  const finished = new Promise<void>((resolve) => (finish = resolve));
+  const animate = vi.fn(() => ({ finished, cancel: vi.fn() }) as unknown as Animation);
+  const original = HTMLElement.prototype.animate;
+  HTMLElement.prototype.animate = animate;
+  return {
+    animate,
+    finish: () => finish(),
+    restore() {
+      HTMLElement.prototype.animate = original;
+      vi.unstubAllGlobals();
+    },
+  };
+}
+
+it('closes the tray after a short exit and arrives again only when it returns', async () => {
+  const motion = stubMotion();
+  try {
+    const { api } = fixture();
+    render(<ScottyPanel api={api} />);
+    await screen.findByRole('button', { name: /Plan my week/ });
+    await waitFor(() => expect(motion.animate).toHaveBeenCalledOnce());
+    fireEvent.focus(window);
+    expect(motion.animate).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole('button', { name: 'Close task tray' }));
+    expect(motion.animate).toHaveBeenCalledTimes(2);
+    expect(api.expand).not.toHaveBeenCalled();
+    motion.finish();
+    await waitFor(() => expect(api.expand).toHaveBeenCalledExactlyOnceWith(false));
+    fireEvent.focus(window);
+    expect(motion.animate).toHaveBeenCalledTimes(3);
+  } finally {
+    motion.restore();
+  }
+});
+
+it('keeps the tray still when Scotty motion is off', async () => {
+  const motion = stubMotion();
+  try {
+    const { api, state } = fixture();
+    state.settings.motion = false;
+    render(<ScottyPanel api={api} />);
+    await screen.findByRole('button', { name: /Plan my week/ });
+    fireEvent.keyDown(screen.getByRole('main'), { key: 'Escape' });
+    await waitFor(() => expect(api.expand).toHaveBeenCalledExactlyOnceWith(false));
+    expect(motion.animate).not.toHaveBeenCalled();
+  } finally {
+    motion.restore();
+  }
+});
+
+it('shows Scotty’s state and count on the badge and follows each change of state', async () => {
+  const { api, state, publish } = fixture();
+  render(<ScottyPet api={api} />);
+  const badge = await screen.findByRole('button', { name: 'Open Scotty tasks' });
+  await waitFor(() => expect(badge.textContent).toBe('Needs you1'));
+  expect(screen.getByRole('main').dataset.status).toBe('input');
+  act(() => publish({ ...state, status: 'ready', attentionCount: 0, workingCount: 0 }));
+  expect(badge.textContent).toBe('Ready');
+  expect(screen.getByRole('main').dataset.status).toBe('ready');
 });

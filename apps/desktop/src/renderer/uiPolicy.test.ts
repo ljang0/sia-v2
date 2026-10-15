@@ -50,7 +50,7 @@ describe('text size', () => {
     }
     expect(bare).toEqual([]);
     expect(tokens).toMatch(/--text-scale: 1;/);
-    expect(tokens).toMatch(/--text-sm: calc\(12px \* var\(--text-scale\)\);/);
+    expect(tokens).toMatch(/--text-sm: calc\(14px \* var\(--text-scale\)\);/);
   });
 });
 

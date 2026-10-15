@@ -237,7 +237,7 @@ async function probeProvider(
           definition,
           'needs_login',
           version,
-          'Choose Set up Codex to sign in with ChatGPT in your browser. No terminal is needed.',
+          'Choose Connect ChatGPT to sign in with ChatGPT in your browser.',
         );
       }
       if (!chatGptSubscription) {

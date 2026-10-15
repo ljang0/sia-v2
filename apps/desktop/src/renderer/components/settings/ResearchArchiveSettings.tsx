@@ -210,7 +210,7 @@ export function ResearchArchiveSettings({
               (inviteLimit > 0 && invites.length >= inviteLimit)
             }
           >
-            <PaperPlaneTilt size={15} aria-hidden="true" />
+            <PaperPlaneTilt size={16} aria-hidden="true" />
             {inviting ? 'Sending…' : 'Send invitation'}
           </button>
         </form>
@@ -244,7 +244,7 @@ export function ResearchArchiveSettings({
           onClick={() => void refreshParticipants()}
           disabled={Boolean(loading)}
         >
-          <ArrowClockwise size={14} aria-hidden="true" />
+          <ArrowClockwise size={16} aria-hidden="true" />
           Refresh
         </button>
       </div>

@@ -15,7 +15,8 @@
   isolation: isolate;
 }
 .phone-header {
-  padding: calc(env(safe-area-inset-top) + 16px) 22px 12px;
+  padding: calc(env(safe-area-inset-top) + 16px) max(22px, env(safe-area-inset-right)) 12px
+    max(22px, env(safe-area-inset-left));
   display: flex;
   align-items: center;
   gap: 10px;
@@ -48,9 +49,10 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 44px;
-  padding: 0 12px;
-  font-size: 11px;
+  min-height: var(--phone-target);
+  padding: 0 14px;
+  font-size: var(--phone-text-meta);
+  white-space: nowrap;
   font-weight: 550;
   background: var(--bg-raised);
   border: 1px solid var(--border-subtle);
@@ -62,8 +64,8 @@
 }
 .connection-dot i,
 .device-status i {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--text-tertiary);
 }
@@ -72,9 +74,21 @@
   background: #548064;
   box-shadow: 0 0 0 3px rgb(101 160 125 / 12%);
 }
+/* Reconnecting breathes so the wait reads as live, not broken; connecting pops the light once. */
+.connection-dot i {
+  animation: breathe var(--phone-breath) ease-in-out infinite;
+}
+.online .connection-dot i {
+  animation: pop var(--motion-emphasis) var(--phone-spring) both;
+}
+.connection-pill {
+  transition:
+    color var(--motion-standard) var(--ease-standard),
+    border-color var(--motion-standard) var(--ease-standard);
+}
 .icon {
-  width: 44px;
-  height: 44px;
+  width: var(--phone-target);
+  height: var(--phone-target);
   flex: none;
   border: 0;
   background: transparent;
@@ -85,7 +99,12 @@
   color: var(--text-secondary);
   padding: 0;
 }
-.icon:hover {
+@media (hover: hover) {
+  .icon:hover {
+    background: var(--bg-hover);
+  }
+}
+.icon:active:not(:disabled) {
   background: var(--bg-hover);
 }
 .header-more {

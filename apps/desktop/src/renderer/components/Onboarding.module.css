@@ -1,3 +1,11 @@
+/* Ticks grow from small and turn slightly as they land. Both derive from the shared pop scale,
+   so Reduced Motion and Calm (pop scale 1) settle them in place without travel. */
+.setup,
+.accessSection,
+.doneToast {
+  --tick-from: calc(1 - (1 - var(--motion-pop-scale)) * 15);
+  --tick-turn: calc((1 - var(--motion-pop-scale)) * -300deg);
+}
 .setup {
   flex: 1;
   min-width: 0;
@@ -6,7 +14,7 @@
   background: var(--bg-canvas);
 }
 .stage {
-  max-width: 520px;
+  max-width: 660px;
   margin: clamp(12px, 4vh, 44px) auto;
 }
 .field {
@@ -34,28 +42,91 @@
   line-height: 1.6;
 }
 .permission {
+  position: relative;
   display: flex;
   gap: 16px;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 0;
+  min-height: var(--row-min);
+  padding: 20px 0;
   border-top: 1px solid var(--border-subtle);
 }
+/* The row the guided pass is on carries a quiet rail, so the list and the guide stay linked. */
+.permission::before {
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: -14px;
+  width: 3px;
+  border-radius: var(--radius-round);
+  background: var(--focus-ring);
+  content: '';
+  opacity: 0;
+  transform: scaleY(0.4);
+  transition:
+    opacity var(--motion-exit) var(--ease-exit),
+    transform var(--motion-exit) var(--ease-exit);
+}
+.permission[data-current]::before {
+  opacity: 1;
+  transform: scaleY(1);
+  transition:
+    opacity var(--motion-standard) var(--ease-out-soft),
+    transform var(--motion-emphasis) var(--ease-spring);
+}
+/* A row that just turned on settles: a brief wash across the row and the chip lands. */
+.permission::after {
+  position: absolute;
+  inset: 1px -10px 0;
+  border-radius: var(--radius-control);
+  background: var(--surface-success);
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  z-index: -1;
+}
+.permission[data-settled]::after {
+  animation: rowWash calc(var(--motion-emphasis) * 3) var(--ease-out-soft) both;
+}
+.permission[data-settled] .ready {
+  animation: chipSettle var(--motion-emphasis) var(--ease-spring) both;
+}
+.permission[data-settled] .ready svg {
+  animation: tickIn var(--motion-emphasis) var(--ease-spring) var(--motion-stagger) both;
+}
+@keyframes rowWash {
+  from {
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.85;
+  }
+}
+@keyframes chipSettle {
+  from {
+    opacity: 0;
+    transform: scale(var(--motion-pop-scale)) translateY(var(--motion-nudge));
+  }
+}
+.permission[data-current] .status {
+  background: var(--surface-info);
+  color: var(--text-primary);
+}
 .permission strong {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
 }
 .permission p {
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   line-height: 1.5;
   color: var(--text-secondary);
-  margin: 5px 0 0;
+  margin: 6px 0 0;
 }
 .permission button {
   flex-shrink: 0;
 }
 .ready,
 .status {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
 .ready {
@@ -70,15 +141,17 @@
   margin-top: 28px;
 }
 .actions > button:first-child {
-  min-height: 43px;
-  padding: 10px 18px;
+  min-height: 44px;
+  padding: 10px 20px;
+  font-size: var(--text-base);
 }
 .link {
+  min-height: var(--target-min);
   background: none;
   border: 0;
   padding: 7px 0;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   cursor: pointer;
   text-align: left;
   text-decoration: underline;
@@ -95,8 +168,8 @@
   gap: 15px;
   justify-content: space-between;
   align-items: center;
-  font-size: var(--text-xs);
-  color: var(--text-tertiary);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
 }
 .error {
   color: var(--text-danger);
@@ -115,8 +188,9 @@
 .siteButtons {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin: 16px 0;
+  align-items: center;
+  gap: 10px 12px;
+  margin: 20px 0 0;
 }
 .setupChoices {
   border: 0;
@@ -171,9 +245,11 @@
   color: var(--text-secondary);
 }
 .accessList {
+  position: relative;
+  z-index: 0;
   list-style: none;
   padding: 0;
-  margin: 0 0 18px;
+  margin: 0 0 20px;
 }
 .topline {
   display: flex;
@@ -194,17 +270,17 @@
 .progress {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
-  font-size: var(--text-sm);
-  color: var(--text-tertiary);
+  font-size: var(--text-md);
+  color: var(--text-secondary);
 }
 .progress li {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 .progress li + li::before {
   content: '';
@@ -212,19 +288,27 @@
   height: 1px;
   margin-right: 2px;
   background: var(--border-control);
+  transform-origin: left center;
 }
+/* The connector draws toward the step that just opened, so progress reads as forward motion. */
 .progress li[data-state='done']::before,
 .progress li[data-state='current']::before {
   background: var(--focus-ring);
+  animation: connectorDraw var(--motion-emphasis) var(--ease-out-soft) both;
+}
+@keyframes connectorDraw {
+  from {
+    transform: scaleX(var(--tick-from));
+  }
 }
 .progressMark {
   display: grid;
   place-items: center;
-  width: 20px;
-  height: 20px;
+  width: calc(24px * var(--text-scale));
+  height: calc(24px * var(--text-scale));
   border: 1px solid var(--border-control);
   border-radius: var(--radius-round);
-  font-size: calc(10.5px * var(--text-scale));
+  font-size: var(--text-2xs);
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   transition:
@@ -240,22 +324,70 @@
   border-color: var(--bg-accent);
   background: var(--bg-accent);
   color: var(--text-on-accent);
+  box-shadow: 0 0 0 3px var(--surface-success);
+  animation: markArrive var(--motion-emphasis) var(--ease-spring) both;
 }
 .progress li[data-state='done'] .progressMark {
   border-color: var(--focus-ring);
   background: var(--surface-success);
   color: var(--text-success);
+  animation: markDone var(--motion-emphasis) var(--ease-spring) both;
 }
-.stageBody {
-  animation: stageIn var(--motion-surface) var(--ease-out-soft) both;
+.progress li[data-state='done'] .progressMark svg {
+  animation: tickIn var(--motion-emphasis) var(--ease-spring) both;
+}
+@keyframes markArrive {
+  from {
+    transform: scale(var(--motion-pop-scale));
+  }
+}
+@keyframes markDone {
+  from {
+    transform: scale(var(--motion-pop-scale));
+  }
+}
+@keyframes tickIn {
+  from {
+    opacity: 0;
+    transform: scale(var(--tick-from)) rotate(var(--tick-turn));
+  }
+}
+/* Each step arrives as a short cascade: mark, heading, intro, then the content beneath. */
+.stageBody > *,
+.included li {
+  animation: stageIn var(--motion-emphasis) var(--ease-spring) both;
+}
+.stageBody > :nth-child(2),
+.included li:nth-child(1) {
+  animation-delay: var(--motion-stagger);
+}
+.stageBody > :nth-child(3),
+.included li:nth-child(2) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+.stageBody > :nth-child(4),
+.included li:nth-child(3) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+.stageBody > :nth-child(5) {
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+.stageBody > :nth-child(n + 6) {
+  animation-delay: calc(var(--motion-stagger) * 5);
+}
+.included li:nth-child(n + 4) {
+  animation-delay: calc(var(--motion-stagger) * 4);
 }
 @keyframes stageIn {
   from {
     opacity: 0;
-    transform: translateY(6px);
+    transform: translateY(var(--motion-rise));
   }
 }
+/* The finish line: the mark lands, its check turns into place, and two soft rings spread out
+   once. Nothing loops, and the workspace stays one click away. */
 .doneMark {
+  position: relative;
   display: inline-grid;
   place-items: center;
   width: 52px;
@@ -264,12 +396,54 @@
   border-radius: var(--radius-round);
   background: var(--surface-success);
   color: var(--text-success);
-  animation: donePop 420ms var(--ease-out-soft) both;
+  animation: donePop var(--motion-emphasis) var(--ease-spring) both;
+}
+.doneMark svg {
+  animation: tickIn var(--motion-emphasis) var(--ease-spring) var(--motion-fast) both;
+}
+.doneMark::before,
+.doneMark::after {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--focus-ring);
+  border-radius: inherit;
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  animation: doneRing calc(var(--motion-emphasis) * 3) var(--ease-out-soft)
+    var(--motion-standard);
+}
+.doneMark::after {
+  animation-delay: calc(var(--motion-standard) + var(--motion-emphasis) / 2);
 }
 @keyframes donePop {
   from {
     opacity: 0;
-    transform: scale(0.7);
+    transform: scale(var(--tick-from));
+  }
+}
+@keyframes doneRing {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(calc(2 - var(--tick-from) / 2));
+  }
+}
+/* The heading and intro re-settle when the step flips to ready without remounting the form. */
+.stage h1[data-done='true'],
+.intro[data-done='true'] {
+  animation: doneSettle var(--motion-emphasis) var(--ease-spring) var(--motion-stagger) both;
+}
+.intro[data-done='true'] {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+@keyframes doneSettle {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise));
   }
 }
 .modeSummary {
@@ -277,7 +451,7 @@
   align-items: flex-start;
   gap: 12px;
   margin: 8px 0 0;
-  padding: 14px 16px;
+  padding: 16px 18px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-surface);
   background: var(--bg-raised);
@@ -289,15 +463,15 @@
 }
 .modeSummary strong {
   display: block;
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: 600;
   line-height: 20px;
 }
 .modeSummary p span {
   display: block;
-  margin-top: 3px;
+  margin-top: 4px;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   line-height: 1.55;
 }
 .modeSummary .link {
@@ -310,8 +484,8 @@
   display: grid;
   flex: none;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: var(--radius-control);
   background: var(--surface-info);
   color: var(--text-success);
@@ -324,36 +498,61 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  max-width: min(420px, calc(100vw - 40px));
-  padding: 10px 14px;
+  max-width: min(460px, calc(100vw - 40px));
+  padding: 12px 16px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-surface);
   background: var(--bg-raised);
   box-shadow: var(--shadow-float);
   color: var(--text-primary);
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   line-height: 1.45;
-  animation: toastIn var(--motion-surface) var(--ease-out-soft) both;
+  animation: toastIn var(--motion-emphasis) var(--ease-spring) both;
 }
 .doneToast svg {
   flex: none;
   color: var(--text-success);
+  animation: tickIn var(--motion-emphasis) var(--ease-spring) var(--motion-standard) both;
+}
+.doneToast[data-leaving] {
+  animation: toastOut var(--motion-exit) var(--ease-exit) both;
 }
 @keyframes toastIn {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(calc(var(--motion-rise) * -1)) scale(var(--motion-pop-scale));
+  }
+}
+@keyframes toastOut {
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-nudge) * -1));
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .stageBody,
+  .stageBody > *,
+  .included li,
   .doneMark,
-  .doneToast {
+  .doneMark svg,
+  .doneMark::before,
+  .doneMark::after,
+  .stage h1[data-done='true'],
+  .intro[data-done='true'],
+  .progress li::before,
+  .progressMark,
+  .progressMark svg,
+  .doneToast,
+  .doneToast svg {
     animation: none;
   }
   .progressMark {
     transition: none;
   }
+}
+/* Calm keeps the fades but drops the rings, the cascade, and the spring. */
+:global([data-appearance='calm']) .doneMark::before,
+:global([data-appearance='calm']) .doneMark::after {
+  animation: none;
 }
 .stage h1 {
   color: var(--text-primary);
@@ -387,7 +586,7 @@
 }
 .included li > span:last-child {
   display: grid;
-  gap: 2px;
+  gap: 4px;
   padding-top: 1px;
 }
 .included strong {
@@ -396,7 +595,7 @@
 }
 .included li > span:last-child > span {
   color: var(--text-secondary);
-  font-size: calc(12.5px * var(--text-scale));
+  font-size: var(--text-md);
   line-height: 1.5;
 }
 /* Short windows keep the Set up button in view: drop the item details. */
@@ -434,31 +633,43 @@
   margin-top: 16px;
 }
 .details summary {
+  display: flex;
+  align-items: center;
+  min-height: var(--target-min);
   cursor: pointer;
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: 550;
 }
 .details summary > span {
-  color: var(--text-tertiary);
-  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
   margin-left: 8px;
   font-weight: 400;
 }
 .details[open] summary {
   margin-bottom: 18px;
 }
+/* Opening a section brings its content in gently instead of popping it into place. */
+.details[open] > :not(summary) {
+  animation: stageIn var(--motion-emphasis) var(--ease-out-soft) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .details[open] > :not(summary) {
+    animation: none;
+  }
+}
 .accessSummary {
   display: grid;
-  gap: 6px;
-  margin: 24px 0 12px;
+  gap: 8px;
+  margin: 28px 0 16px;
 }
 .accessSummary strong {
-  font-size: var(--text-lg);
+  font-size: var(--text-xl);
 }
 .accessSummary span {
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   color: var(--text-secondary);
-  line-height: 1.5;
+  line-height: 1.55;
 }
 @media (max-width: 600px) {
   .permission {
@@ -470,33 +681,37 @@
 }
 
 .permissionGuide {
-  margin: 18px 0;
-  padding: 22px;
+  margin: 20px 0;
+  padding: 24px 26px;
   border: 1px solid var(--border-subtle);
   border-radius: 16px;
   background: var(--bg-control);
 }
 
 .permissionGuide h3 {
-  margin: 8px 0;
+  margin: 8px 0 10px;
+  font-size: var(--text-xl);
 }
 
 .permissionGuide p {
+  font-size: var(--text-base);
   line-height: 1.6;
 }
 
+.permissionGuide p.note {
+  font-size: var(--text-md);
+}
+
 .eyebrow {
-  color: var(--text-tertiary);
-  font-size: var(--text-xs);
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--text-secondary);
+  font-size: var(--text-md);
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 .meter {
   display: block;
-  height: 6px;
-  margin-top: 8px;
+  height: 8px;
+  margin-top: 10px;
   overflow: hidden;
   border-radius: var(--radius-round);
   background: var(--bg-subtle);
@@ -506,42 +721,84 @@
   height: 100%;
   border-radius: inherit;
   background: var(--focus-ring);
-  transition: width 420ms var(--ease-out-soft);
+  transform-origin: left center;
+  transition:
+    transform var(--motion-emphasis) var(--ease-spring),
+    background-color var(--motion-surface) var(--ease-standard);
+}
+.meter[data-full] > span {
+  background: var(--text-success);
 }
 .permission .ready,
 .permission .status {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 3px 9px;
+  gap: 6px;
+  padding: 5px 12px;
   border-radius: var(--radius-round);
   background: var(--bg-subtle);
 }
 .permission .ready {
   background: var(--surface-success);
 }
+/* The count ticks up in place each time a permission turns on. */
+.accessSummary strong {
+  animation: countTick var(--motion-standard) var(--ease-out-soft) both;
+}
+.accessSummary strong[data-ready] {
+  color: var(--text-success);
+}
+@keyframes countTick {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-nudge));
+  }
+}
+.permissionGuide {
+  animation: guideIn var(--motion-emphasis) var(--ease-out-soft) both;
+}
+@keyframes guideIn {
+  from {
+    opacity: 0;
+    transform: translateX(var(--motion-rise));
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .meter > span {
+  .meter > span,
+  .permission::before {
     transition: none;
   }
+  .permission[data-settled]::after,
+  .permission[data-settled] .ready,
+  .permission[data-settled] .ready svg,
+  .accessSummary strong,
+  .permissionGuide {
+    animation: none;
+  }
+}
+:global([data-appearance='calm']) .permission[data-settled]::after {
+  animation: none;
 }
 .permissionEnd {
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 .permissionEnd button {
-  min-height: 30px;
-  padding: 5px 12px;
+  min-height: var(--target-min);
+  padding: 7px 16px;
+  font-size: var(--text-md);
 }
 .groupLabel {
-  margin: 8px 0 0;
-  color: var(--text-tertiary);
-  font-size: calc(11px * var(--text-scale));
-  font-weight: 650;
-  letter-spacing: 0.04em;
+  margin: 28px 0 4px;
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  font-weight: 600;
 }
 .grantAll {
-  margin: 4px 0 16px;
+  min-height: 44px;
+  margin: 8px 0 20px;
+  padding: 10px 22px;
+  font-size: var(--text-base);
 }

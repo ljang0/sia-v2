@@ -1,11 +1,15 @@
 .approvalCard {
-  width: min(calc(100% - 42px), 620px);
-  margin-left: 42px;
+  width: min(calc(100% - 46px), 700px);
+  margin-left: 46px;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--border-strong) 70%, var(--border-subtle));
   border-radius: var(--radius-surface);
   background: var(--bg-raised);
   box-shadow: var(--shadow-raised);
+  /* Resolving lets the card's edge and fill fade back into the conversation. */
+  transition:
+    background-color var(--motion-surface) var(--ease-standard),
+    border-color var(--motion-surface) var(--ease-standard);
 }
 
 .approvalResolved {
@@ -17,12 +21,14 @@
 .resolvedSummary {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 9px 4px;
+  min-height: var(--row-min);
+  gap: 10px;
+  padding: 8px 6px;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   cursor: pointer;
   list-style: none;
+  transition: color var(--motion-fast) var(--ease-standard);
 }
 
 .resolvedSummary::-webkit-details-marker {
@@ -42,6 +48,11 @@
 
 .resolvedCaret {
   flex: none;
+  transition: transform var(--motion-standard) var(--ease-standard);
+}
+
+.resolvedSummary:hover {
+  color: var(--text-primary);
 }
 
 .resolvedDetails[open] > .resolvedSummary .resolvedCaret {
@@ -72,21 +83,21 @@
 }
 
 .approvalCommand {
-  padding: 6px 0 10px;
+  padding: 8px 0 12px;
 }
 
 .approvalCommand > span {
   display: block;
-  margin-bottom: 6px;
-  color: var(--text-tertiary);
-  font-size: var(--text-sm);
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+  font-size: var(--text-md);
 }
 
 .approvalCommand pre {
   max-height: 180px;
   margin: 0;
   overflow: auto;
-  padding: 9px 11px;
+  padding: 12px 14px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-control);
   background: var(--bg-subtle);
@@ -101,8 +112,8 @@
 .approvalHeader {
   display: flex;
   align-items: flex-start;
-  gap: 12px;
-  padding: 12px 16px 12px;
+  gap: 14px;
+  padding: 16px 20px;
   border-top: 3px solid var(--agent-color);
   background: var(--bg-subtle);
   color: var(--text-primary);
@@ -123,15 +134,16 @@
 }
 
 .approvalHeader p {
-  margin-top: 1px;
+  margin-top: 3px;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
+  line-height: 1.45;
 }
 
 .approvalIcon {
   display: inline-flex;
-  width: 28px;
-  height: 28px;
+  width: var(--target-min);
+  height: var(--target-min);
   flex: none;
   align-items: center;
   justify-content: center;
@@ -147,28 +159,24 @@
 .approvalStatus {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 6px;
   margin-left: auto;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
-  text-transform: capitalize;
-}
-
-.approvalStatusPlain {
-  text-transform: none;
+  font-size: var(--text-md);
 }
 
 .approvalDetails {
-  padding: 13px 14px;
+  padding: 16px 20px;
 }
 
 .detailPair {
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
-  gap: 10px;
-  padding: 6px 0;
+  grid-template-columns: minmax(96px, max-content) minmax(0, 1fr);
+  gap: 16px;
+  padding: 10px 0;
   border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 70%, transparent);
-  font-size: var(--text-md);
+  font-size: var(--text-base);
+  line-height: 1.5;
 }
 
 .detailPair:last-of-type {
@@ -176,9 +184,9 @@
 }
 
 .detailPair span {
-  color: var(--text-tertiary);
-  font-size: var(--text-sm);
-  line-height: 1.7;
+  color: var(--text-secondary);
+  font-size: var(--text-md);
+  line-height: 1.6;
 }
 
 .detailPair strong {
@@ -187,49 +195,50 @@
 }
 
 .approvalReason {
-  margin: 11px 0;
+  margin: 14px 0;
   color: var(--text-secondary);
-  font-size: var(--text-md);
-  line-height: 1.5;
+  font-size: var(--text-base);
+  line-height: 1.55;
 }
 
 .restoreNote,
 .expiryNote {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 8px;
   color: var(--text-success);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
+  line-height: 1.45;
 }
 
 .connectorMeta {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-bottom: 9px;
+  gap: 8px;
+  margin-bottom: 12px;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
 }
 
 .connectorPreview {
   max-height: 220px;
-  margin: 0 0 9px;
+  margin: 0 0 12px;
   overflow: auto;
-  padding: 11px;
+  padding: 12px 14px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-control);
   background: var(--bg-subtle);
   color: var(--text-primary);
   font-family: var(--font-sans);
-  font-size: var(--text-md);
-  line-height: 1.5;
+  font-size: var(--text-base);
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
 .dataLeavingLabel {
-  margin: 11px 0 6px;
-  color: var(--text-tertiary);
-  font-size: var(--text-sm);
+  margin: 14px 0 8px;
+  color: var(--text-secondary);
+  font-size: var(--text-md);
   font-weight: var(--weight-semibold);
 }
 
@@ -241,6 +250,13 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 4px 14px 14px;
+  gap: 10px;
+  padding: 4px 20px 18px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .approvalCard,
+  .resolvedCaret {
+    transition: none;
+  }
 }

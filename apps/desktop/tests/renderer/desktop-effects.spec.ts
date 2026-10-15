@@ -232,6 +232,16 @@ test('launcher retains native form submission, dismiss, and agent selection', as
   await send.click();
   await expect(field).toHaveValue('');
   await field.press('Escape');
+  // Escape plays the short exit first, then hides the window.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { launcherProbe: { dismissals: number } }).launcherProbe
+            .dismissals,
+      ),
+    )
+    .toBe(1);
   const probe = await page.evaluate(
     () =>
       (
@@ -301,7 +311,7 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   for (const width of [1280, 900]) {
     await nav.getByRole('searchbox', { name: 'Find a conversation' }).hover();
     await page.setViewportSize({ width, height: 760 });
-    await expect(nav).toHaveCSS('flex-basis', width === 900 ? '252px' : '272px');
+    await expect(nav).toHaveCSS('flex-basis', width === 900 ? '248px' : '288px');
     const title = renamed.getByText(longTitle, { exact: true });
     await expect(title).toHaveCSS('white-space', 'nowrap');
     expect((await title.boundingBox())!.width).toBeGreaterThan(
@@ -398,10 +408,10 @@ test('text size scales Sia and keeps primary actions on screen at 960x640', asyn
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await openAppearance(page);
   const body = page.locator('body');
-  await expect(body).toHaveCSS('font-size', '14px');
+  await expect(body).toHaveCSS('font-size', '15.5px');
   await page.getByRole('radio', { name: 'Larger', exact: true }).check();
   await expect(page.locator('html')).toHaveAttribute('data-text-size', 'larger');
-  await expect(body).toHaveCSS('font-size', '17.08px');
+  await expect(body).toHaveCSS('font-size', '18.91px');
   await page.getByRole('button', { name: 'Close settings', exact: true }).click();
   await page.getByRole('button', { name: 'New conversation', exact: true }).click();
   const send = page.getByRole('button', { name: 'Send message' });
@@ -409,7 +419,7 @@ test('text size scales Sia and keeps primary actions on screen at 960x640', asyn
   await page.keyboard.press('ControlOrMeta+,');
   await openAppearance(page);
   await page.getByRole('radio', { name: 'Default', exact: true }).check();
-  await expect(body).toHaveCSS('font-size', '14px');
+  await expect(body).toHaveCSS('font-size', '15.5px');
 });
 
 test('appearance stops and restores decorative graphics across settings and conversation', async ({

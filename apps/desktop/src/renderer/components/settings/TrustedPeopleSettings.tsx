@@ -21,8 +21,8 @@ export function TrustedPeopleSettings({
       <span className={phone.eyebrow}>TRUSTED PEOPLE</span>
       <p className={phone.note}>
         Your Sia can exchange messages with the Sia of people you add, for example to find a
-        time to meet. They need to add you too. Their messages never run with full bypass, and
-        you approve every reply your Sia sends them.
+        time to meet. They need to add you too. Their messages always ask you first, and you
+        approve every reply your Sia sends them.
       </p>
       <ul aria-label="Trusted people list" className={phone.numbers}>
         {state.people.map((person) => (
@@ -35,7 +35,7 @@ export function TrustedPeopleSettings({
               disabled={pending}
               onClick={() => void run({ operation: 'removePerson', handle: person.handle })}
             >
-              <X size={13} />
+              <X size={16} />
             </button>
           </li>
         ))}

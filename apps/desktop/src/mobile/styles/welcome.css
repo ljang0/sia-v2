@@ -1,10 +1,52 @@
 /* The welcome scene: greeting, idea cards, and recent prompts. */
 
+/* Entrance choreography: the mark, then the words, then the places to start, one beat apart.
+   Each piece only fades and rises, so the layout (and the keyboard easing) never waits on it. */
+.hero-art,
+.hero-copy > *,
+.ideas-heading,
+.idea-card,
+.recent-prompts {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * 2 * min(var(--i, 0), 8));
+}
+.hero-art {
+  animation-name: rise-pop;
+}
+.hero-copy > .eyebrow {
+  --i: 1;
+}
+.hero-copy > h1 {
+  --i: 2;
+}
+.hero-copy > p {
+  --i: 3;
+}
+.ideas-heading {
+  --i: 4;
+}
+.idea-card:nth-child(1) {
+  --i: 5;
+}
+.idea-card:nth-child(2) {
+  --i: 6;
+}
+.idea-card:nth-child(3) {
+  --i: 7;
+}
+.idea-card:nth-child(n + 4),
+.recent-prompts {
+  --i: 8;
+}
+/* Cards revealed by "More ideas" arrive right away; the opening beat is over. */
+.idea-grid:has(.idea-card:nth-child(3)) .idea-card:nth-child(n + 3) {
+  animation-delay: calc(var(--motion-stagger) * (var(--i) - 6));
+}
+
 .remote-empty {
   max-width: 480px;
   margin: auto;
   padding: 0 24px 24px;
-  animation: arrive 0.4s var(--phone-ease) both;
   transition: padding var(--typing-duration) var(--phone-ease);
 }
 .hero-art {
@@ -34,17 +76,16 @@
 }
 .hero-copy > .eyebrow {
   display: block;
-  height: 12px;
+  height: 20px;
   overflow: hidden;
   transition:
     height var(--typing-duration) var(--phone-ease),
-    opacity 220ms ease;
+    opacity var(--motion-standard) var(--ease-standard);
 }
 .eyebrow {
-  font-size: 9px;
-  letter-spacing: 0.15em;
-  font-weight: 600;
-  color: var(--text-tertiary);
+  font-size: var(--phone-text-label);
+  font-weight: 550;
+  color: var(--text-secondary);
 }
 .hero-copy h1 {
   font-family: var(--font-brand);
@@ -74,21 +115,21 @@
 }
 .hero-copy p {
   color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: var(--phone-text-body);
+  line-height: 1.5;
   margin: 0;
-  max-height: 50px;
+  max-height: 52px;
   overflow: hidden;
   transition:
     max-height var(--typing-duration) var(--phone-ease),
-    opacity 220ms ease;
+    opacity var(--motion-standard) var(--ease-standard);
 }
 .welcome-suggestions {
   height: var(--suggestions-height, auto);
   overflow: hidden;
   transition:
     height var(--typing-duration) var(--phone-ease),
-    opacity 220ms ease,
+    opacity var(--motion-standard) var(--ease-standard),
     visibility 0s;
 }
 .welcome-suggestions-content {
@@ -102,21 +143,20 @@
   gap: 8px;
 }
 .ideas-heading > span {
-  font-size: 9px;
-  color: var(--text-tertiary);
-  letter-spacing: 0.12em;
+  font-size: var(--phone-text-label);
+  color: var(--text-primary);
   font-weight: 600;
 }
 .ideas-heading button {
-  min-height: 44px;
+  min-height: var(--phone-target);
   padding: 0;
   border: 0;
   background: none;
   color: var(--text-secondary);
   display: flex;
   align-items: center;
-  gap: 5px;
-  font-size: 11px;
+  gap: 6px;
+  font-size: var(--phone-text-label);
 }
 .idea-grid {
   display: grid;
@@ -131,12 +171,11 @@
   border: 1px solid color-mix(in srgb, var(--border-subtle) 60%, transparent);
   background: var(--bg-raised);
   border-radius: 19px;
-  padding: 15px 13px 14px;
+  padding: 16px 14px;
   text-align: left;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  animation: arrive 280ms var(--phone-ease) backwards;
 }
 .idea-card[data-tone='sage'] {
   background: linear-gradient(
@@ -164,30 +203,31 @@
   color: var(--text-tertiary);
 }
 .idea-card strong {
-  font: 540 16px/1.15 var(--font-brand);
-  letter-spacing: -0.035em;
+  font: 540 calc(17px * var(--text-scale, 1)) / 1.2 var(--font-brand);
+  letter-spacing: -0.02em;
   margin-bottom: 6px;
-  max-width: 145px;
+  padding-right: 18px;
 }
 .idea-card > span:last-child {
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: var(--phone-text-label);
+  line-height: 1.4;
 }
 .recent-prompts {
   margin-top: 24px;
 }
 .recent-prompts button {
   width: 100%;
-  min-height: 48px;
+  min-height: var(--phone-row);
   display: flex;
-  gap: 9px;
+  gap: 10px;
   align-items: center;
   border: 0;
   border-bottom: 1px solid var(--border-subtle);
   background: transparent;
   text-align: left;
-  font-size: 12px;
-  color: var(--text-secondary);
+  font-size: var(--phone-text-body);
+  color: var(--text-primary);
 }
 .recent-prompts button span {
   flex: 1;

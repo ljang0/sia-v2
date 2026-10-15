@@ -81,7 +81,7 @@ describe('work groups', () => {
       />,
     );
     expect(screen.getByText('ls a')).toBeTruthy();
-    expect(screen.getByText('Running a command')).toBeTruthy();
+    expect(screen.getByText('Running a step on your Mac')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Worked for/ })).toBeNull();
   });
 
@@ -240,7 +240,7 @@ describe('image steps', () => {
     expect(screen.getByRole('button').textContent).toContain('Looked at the screen');
     fireEvent.click(screen.getByRole('button'));
     expect(container.textContent).not.toContain('/private/var');
-    expect(container.textContent).not.toContain('Ran a command');
+    expect(container.textContent).not.toContain('Ran a step on your Mac');
   });
 
   it('shows only the file name of a viewed image', () => {

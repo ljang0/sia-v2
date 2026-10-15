@@ -448,7 +448,7 @@ export class ProviderAccess {
     if (status !== 'needs_login') {
       this.setCodexSetup(
         'error',
-        'Codex could not finish updating. Choose Set up Codex to try again.',
+        'The ChatGPT helper could not finish updating. Choose Connect ChatGPT to try again.',
       );
       return;
     }

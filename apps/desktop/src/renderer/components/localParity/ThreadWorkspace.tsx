@@ -138,7 +138,7 @@ export function ThreadWorkspaceTools({
         <DropdownMenu.Root>
           <DropdownMenu.Trigger asChild>
             <button ref={toolsTrigger} type="button">
-              Tools <CaretDown size={12} aria-hidden="true" />
+              Tools <CaretDown size={14} aria-hidden="true" />
             </button>
           </DropdownMenu.Trigger>
           <DropdownMenu.Portal>
@@ -157,14 +157,14 @@ export function ThreadWorkspaceTools({
                 className={primitives.threadMenuItem}
                 onSelect={() => setTool('goal')}
               >
-                <Flag size={14} aria-hidden="true" /> Goal
+                <Flag size={16} aria-hidden="true" /> Goal
               </DropdownMenu.Item>
               <DropdownMenu.Item
                 className={primitives.threadMenuItem}
                 onSelect={() => void openChanges()}
                 data-testid="changes-panel-toggle"
               >
-                <GitDiff size={14} aria-hidden="true" /> Changes
+                <GitDiff size={16} aria-hidden="true" /> Changes
               </DropdownMenu.Item>
               {developerTools ? (
                 <DropdownMenu.Item
@@ -172,7 +172,7 @@ export function ThreadWorkspaceTools({
                   onSelect={() => setTool('terminal')}
                   data-testid="terminal-open"
                 >
-                  <Code size={14} aria-hidden="true" /> Command
+                  <Code size={16} aria-hidden="true" /> Command
                 </DropdownMenu.Item>
               ) : null}
               {schedulesAvailable ? (
@@ -180,7 +180,7 @@ export function ThreadWorkspaceTools({
                   className={primitives.threadMenuItem}
                   onSelect={() => setTool('schedules')}
                 >
-                  <CalendarDots size={14} aria-hidden="true" /> Schedules
+                  <CalendarDots size={16} aria-hidden="true" /> Schedules
                 </DropdownMenu.Item>
               ) : null}
               {thread.worktree?.kind === 'linked' ? (
@@ -189,7 +189,7 @@ export function ThreadWorkspaceTools({
                   onSelect={() => void run(() => api.handoffThread(thread.id, 'primary'))}
                   data-testid="worktree-handoff-primary"
                 >
-                  <ArrowLeft size={14} aria-hidden="true" /> Continue in primary workspace
+                  <ArrowLeft size={16} aria-hidden="true" /> Continue in primary workspace
                 </DropdownMenu.Item>
               ) : null}
             </DropdownMenu.Content>
@@ -216,7 +216,7 @@ export function ThreadWorkspaceTools({
             aria-label="Close thread tool"
             title="Close"
           >
-            <X size={15} aria-hidden="true" />
+            <X size={16} aria-hidden="true" />
           </button>
           {tool === 'goal' ? (
             <GoalControls

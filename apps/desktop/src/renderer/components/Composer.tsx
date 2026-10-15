@@ -282,6 +282,35 @@ export function Composer({
     }
   };
 
+  const contextLabel = voiceConversation
+    ? voiceError
+      ? 'Voice stopped'
+      : voicePhase === 'starting'
+        ? 'Voice · starting microphone…'
+        : voicePhase === 'transcribing'
+          ? 'Voice · transcribing…'
+          : running || !voiceCanListen
+            ? 'Voice · waiting…'
+            : voicePhase === 'recording'
+              ? 'Voice · listening…'
+              : 'Voice · ready'
+    : voicePhase === 'starting'
+      ? 'Starting microphone…'
+      : voicePhase === 'recording'
+        ? 'Listening · click stop to finish'
+        : voicePhase === 'transcribing'
+          ? 'Transcribing…'
+          : presence === 'working'
+            ? `${queued ? 'Queued' : 'Working'} · ${executionLabel ?? 'On this Mac'}`
+            : presence === 'waiting'
+              ? 'Waiting for you'
+              : presence === 'complete'
+                ? 'Done'
+                : presence === 'error'
+                  ? 'Needs attention'
+                  : presence === 'speaking'
+                    ? 'Speaking…'
+                    : (executionLabel ?? 'On this Mac');
   return (
     <div className={styles.composerArea} data-companion-composer>
       <div
@@ -296,9 +325,9 @@ export function Composer({
             {attachments.map((attachment) => (
               <span className={styles.attachmentChip} key={attachment.id}>
                 {attachment.kind === 'image' ? (
-                  <Image size={14} aria-hidden="true" />
+                  <Image size={16} aria-hidden="true" />
                 ) : (
-                  <File size={14} aria-hidden="true" />
+                  <File size={16} aria-hidden="true" />
                 )}
                 <button
                   type="button"
@@ -319,7 +348,7 @@ export function Composer({
                     aria-label={`Remove ${attachment.name}`}
                     disabled={disabled || sending}
                   >
-                    <X size={12} aria-hidden="true" />
+                    <X size={14} aria-hidden="true" />
                   </button>
                 ) : null}
               </span>
@@ -351,10 +380,10 @@ export function Composer({
                 title={
                   acceptingAttachments
                     ? 'Add files or images'
-                    : 'Attachments are unavailable for this model'
+                    : "This assistant can't open files or images"
                 }
               >
-                <Paperclip size={15} aria-hidden="true" />
+                <Paperclip size={16} aria-hidden="true" />
               </button>
             ) : null}
             {voiceEnabled && onTranscribe ? (
@@ -399,11 +428,11 @@ export function Composer({
                   data-testid="composer-voice-input"
                 >
                   {voicePhase === 'transcribing' && !voiceConversation ? (
-                    <SpinnerGap className={primitives.spin} size={15} aria-hidden="true" />
+                    <SpinnerGap className={primitives.spin} size={16} aria-hidden="true" />
                   ) : voicePhase === 'recording' ? (
-                    <Stop size={15} weight="fill" aria-hidden="true" />
+                    <Stop size={16} weight="fill" aria-hidden="true" />
                   ) : (
-                    <Microphone size={15} weight="fill" aria-hidden="true" />
+                    <Microphone size={16} weight="fill" aria-hidden="true" />
                   )}
                 </button>
                 {onVoiceConversationChange ? (
@@ -425,7 +454,7 @@ export function Composer({
                     title={voiceConversation ? 'End voice conversation' : 'Voice conversation'}
                     data-testid="composer-voice-conversation"
                   >
-                    <Waveform size={15} weight="bold" aria-hidden="true" />
+                    <Waveform size={16} weight="bold" aria-hidden="true" />
                   </button>
                 ) : null}
               </>
@@ -440,37 +469,16 @@ export function Composer({
               }
               audioLevel={voiceLevel}
             />
-            {voicePhase === 'recording' ? <VoiceWave level={voiceLevel} /> : null}
+            {voicePhase === 'recording' || voicePhase === 'transcribing' ? (
+              <VoiceWave
+                level={voiceLevel}
+                phase={voicePhase === 'transcribing' ? 'processing' : 'listening'}
+              />
+            ) : null}
             <span className={styles.composerContext} role="status">
-              {voiceConversation
-                ? voiceError
-                  ? 'Voice stopped'
-                  : voicePhase === 'starting'
-                    ? 'Voice · starting microphone…'
-                    : voicePhase === 'transcribing'
-                      ? 'Voice · transcribing…'
-                      : running || !voiceCanListen
-                        ? 'Voice · waiting…'
-                        : voicePhase === 'recording'
-                          ? 'Voice · listening…'
-                          : 'Voice · ready'
-                : voicePhase === 'starting'
-                  ? 'Starting microphone…'
-                  : voicePhase === 'recording'
-                    ? 'Listening · click stop to finish'
-                    : voicePhase === 'transcribing'
-                      ? 'Transcribing…'
-                      : presence === 'working'
-                        ? `${queued ? 'Queued' : 'Working'} · ${executionLabel ?? 'Local'}`
-                        : presence === 'waiting'
-                          ? 'Waiting for you'
-                          : presence === 'complete'
-                            ? 'Done'
-                            : presence === 'error'
-                              ? 'Needs attention'
-                              : presence === 'speaking'
-                                ? 'Speaking…'
-                                : (executionLabel ?? 'Local')}
+              <span key={contextLabel} className={styles.composerContextWord}>
+                {contextLabel}
+              </span>
             </span>
           </div>
           {stoppable ? (
@@ -485,7 +493,7 @@ export function Composer({
               disabled={stopping}
               aria-label="Stop current turn"
             >
-              <Stop weight="fill" size={13} aria-hidden="true" />
+              <Stop weight="fill" size={16} aria-hidden="true" />
               {stopping ? 'Stopping…' : 'Stop'}
             </LiquidMetalButton>
           ) : null}

@@ -1,5 +1,5 @@
 import { CaretDown, CheckCircle, CircleNotch, WarningCircle } from '@phosphor-icons/react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { ActivityEvent } from '../types';
 import activityRow from './ActivityRow.module.css';
 import styles from './WorkGroup.module.css';
@@ -43,9 +43,9 @@ export function WorkGroup({
         aria-expanded={open}
       >
         {problems ? (
-          <WarningCircle size={15} className={styles.workGroupProblemIcon} aria-hidden="true" />
+          <WarningCircle size={16} className={styles.workGroupProblemIcon} aria-hidden="true" />
         ) : (
-          <CheckCircle size={15} className={styles.workGroupDoneIcon} aria-hidden="true" />
+          <CheckCircle size={16} className={styles.workGroupDoneIcon} aria-hidden="true" />
         )}
         <span>
           {duration ? `Worked for ${duration}` : 'Worked on this'}
@@ -57,7 +57,7 @@ export function WorkGroup({
           </span>
         ) : null}
         <CaretDown
-          size={13}
+          size={16}
           className={open ? activityRow.caretExpanded : activityRow.caret}
           aria-hidden="true"
         />
@@ -127,15 +127,27 @@ export function WorkingStatus({
       data-testid="turn-running"
       data-quiet={quiet || undefined}
     >
-      <CircleNotch size={15} className={styles.workingSpinner} aria-hidden="true" />
+      <CircleNotch size={16} className={styles.workingSpinner} aria-hidden="true" />
       {/* Keyed by its words so a new phase fades in instead of snapping. */}
       <span key={label} className={styles.workingLabel}>
         {label}
       </span>
       {plan ? (
-        <span className={styles.workingElapsed}>{`Step ${plan.current} of ${plan.total}`}</span>
+        <span key={`plan-${plan.current}`} className={styles.workingCount}>
+          <span
+            className={styles.planTrack}
+            style={{ '--plan-progress': (plan.current - 1) / plan.total } as CSSProperties}
+            aria-hidden="true"
+          />
+          <span
+            className={styles.workingElapsed}
+          >{`Step ${plan.current} of ${plan.total}`}</span>
+        </span>
       ) : finished ? (
-        <span className={styles.workingElapsed}>
+        <span
+          key={`done-${finished}`}
+          className={`${styles.workingCount} ${styles.workingElapsed}`}
+        >
           {finished === 1 ? '1 step done' : `${finished} steps done`}
         </span>
       ) : null}

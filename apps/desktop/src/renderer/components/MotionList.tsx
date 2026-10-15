@@ -1,9 +1,11 @@
 import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import styles from './motion-list.module.css';
 
-const ENTER_MS = 320;
+// How long a new row keeps its entrance: longer than the CSS arrival and its hue glow
+// (three --motion-emphasis), so a re-render never cuts the glow off mid-fade.
+const ENTER_MS = 1200;
+// The leaving row stays mounted at least as long as its CSS exit (--motion-exit).
 const LEAVE_MS = 200;
-const MOVE_MS = 240;
 
 interface Ghost<T> {
   item: T;
@@ -117,7 +119,13 @@ function glide<T extends { id: string }>(
   const rows = new Map<string, HTMLElement>();
   for (const row of list.querySelectorAll<HTMLElement>(':scope > [data-motion-id]'))
     rows.set(row.dataset.motionId!, row);
-  const gap = Number.parseFloat(getComputedStyle(list).rowGap) || 0;
+  const style = getComputedStyle(list);
+  const gap = Number.parseFloat(style.rowGap) || 0;
+  // Reordering glides on the shared surface timing with the soft spring from tokens.css.
+  const motion = {
+    duration: Number.parseFloat(style.getPropertyValue('--motion-surface')) || 240,
+    easing: style.getPropertyValue('--ease-spring').trim() || 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+  };
   const height = (id: string) => (rows.get(id)?.offsetHeight ?? 0) + gap;
   const oldTop = new Map<string, number>();
   let top = 0;
@@ -131,8 +139,8 @@ function glide<T extends { id: string }>(
     const from = oldTop.get(id);
     if (row && from !== undefined && from !== newTop && typeof row.animate === 'function') {
       row.animate([{ transform: `translateY(${from - newTop}px)` }, { transform: 'none' }], {
-        duration: MOVE_MS,
-        easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+        duration: motion.duration,
+        easing: motion.easing,
       });
     }
     newTop += height(id);

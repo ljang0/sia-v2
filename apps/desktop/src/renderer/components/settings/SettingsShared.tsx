@@ -57,7 +57,7 @@ export function SavedNote({ show }: { show: boolean }) {
     <span className={styles.savedNote} role="status" aria-live="polite">
       {show ? (
         <span>
-          <Check size={12} weight="bold" aria-hidden="true" />
+          <Check size={16} weight="bold" aria-hidden="true" />
           Saved
         </span>
       ) : null}

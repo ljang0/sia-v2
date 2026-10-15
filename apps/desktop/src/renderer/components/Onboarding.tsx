@@ -20,6 +20,7 @@ import { SetupConnections } from './OnboardingConnections';
 import { SetupMacAccess } from './SetupMacAccess';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import buttons from '../styles/buttons.module.css';
+import layout from '../styles/layout.module.css';
 import styles from './Onboarding.module.css';
 import { errorMessage } from '../plainErrors';
 
@@ -43,8 +44,8 @@ const INCLUDED: readonly { icon: Icon; title: string; detail: string }[] = [
   },
   {
     icon: Microphone,
-    title: 'Microphone and Fn dictation',
-    detail: 'Hold Fn and talk instead of typing.',
+    title: 'Talk instead of typing',
+    detail: 'Hold the Fn key and speak. Uses your microphone.',
   },
   {
     icon: LockKey,
@@ -82,7 +83,7 @@ function SetupProgress({ stage, connected }: { stage: number; connected: boolean
           aria-current={index === stage ? 'step' : undefined}
         >
           <span className={styles.progressMark} aria-hidden="true">
-            {index < stage ? <Check size={11} weight="bold" /> : index + 1}
+            {index < stage ? <Check size={13} weight="bold" /> : index + 1}
           </span>
           <span>{label}</span>
         </li>
@@ -273,7 +274,12 @@ export function Onboarding({
               <CheckCircle size={30} weight="fill" />
             </span>
           ) : null}
-          <h1 ref={title} tabIndex={-1}>
+          <h1
+            ref={title}
+            tabIndex={-1}
+            data-done={done || undefined}
+            className={done ? layout.gradientHeading : undefined}
+          >
             {starting
               ? 'Let’s set up Sia.'
               : connectedSetup
@@ -282,14 +288,14 @@ export function Onboarding({
                   ? 'You’re all set.'
                   : 'Give Sia access to your Mac.'}
           </h1>
-          <p className={styles.intro}>
+          <p className={styles.intro} data-done={done || undefined}>
             {starting
               ? 'A few quick steps, then Sia can help with everyday tasks in the apps you already use.'
               : connectedSetup
                 ? 'Choose the accounts you want Sia to use. You can also start chatting now and connect them later. No Mac permissions are needed.'
                 : done
                   ? 'Sia is ready to help. Connect more apps below, or jump right in.'
-                  : 'One guided pass through Mac access, voice, and your everyday apps. macOS asks you to approve each permission. You can pause and keep chatting anytime.'}
+                  : 'Sia walks you through each permission, one at a time. You approve each one in macOS. You can pause and keep chatting anytime.'}
           </p>
           {starting ? (
             <>
@@ -375,9 +381,7 @@ export function Onboarding({
                   </button>
                 </div>
               ) : (
-                <p className={styles.note}>
-                  Connect AI access above, then continue to permissions. No terminal is needed.
-                </p>
+                <p className={styles.note}>Connect an AI service above to continue.</p>
               )}
               <details ref={customize} className={styles.details}>
                 <summary>Customize setup</summary>
@@ -473,7 +477,7 @@ export function Onboarding({
           ) : (
             <>
               {connectedSetup ? null : restarting ? (
-                <p role="status">Relaunching Sia…</p>
+                <p role="status">Reopening Sia…</p>
               ) : (
                 <SetupMacAccess
                   snapshot={snapshot}
@@ -568,16 +572,29 @@ export function Onboarding({
 }
 
 /** A calm, one-time note that setup finished; it steps aside on its own. */
-function SetupDoneToast({ onDone }: { onDone(): void }) {
+export function SetupDoneToast({ onDone }: { onDone(): void }) {
   const done = useRef(onDone);
   done.current = onDone;
+  const [leaving, setLeaving] = useState(false);
   useEffect(() => {
-    const timer = window.setTimeout(() => done.current(), 6000);
-    return () => window.clearTimeout(timer);
+    const leave = window.setTimeout(() => setLeaving(true), 6000);
+    // Removes the note even when a hidden window suppresses the exit animation's end event.
+    const remove = window.setTimeout(() => done.current(), 6400);
+    return () => {
+      window.clearTimeout(leave);
+      window.clearTimeout(remove);
+    };
   }, []);
   return (
-    <div className={styles.doneToast} role="status">
-      <CheckCircle size={18} weight="fill" aria-hidden="true" />
+    <div
+      className={styles.doneToast}
+      role="status"
+      data-leaving={leaving || undefined}
+      onAnimationEnd={(event) => {
+        if (leaving && event.target === event.currentTarget) done.current();
+      }}
+    >
+      <CheckCircle size={22} weight="fill" aria-hidden="true" />
       <span>
         <strong>You’re all set.</strong> Ask Sia anything, or try a suggestion below.
       </span>

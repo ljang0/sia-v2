@@ -54,7 +54,7 @@ describe('ApprovalCard', () => {
       />,
     );
     expect(screen.queryByRole('button', { name: 'Allow for this task' })).toBeNull();
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Allow' })).toBeTruthy();
   });
 
   it('shows the exact foreground target and resolves only after a deliberate click', () => {
@@ -135,7 +135,7 @@ describe('ApprovalCard', () => {
     expect(screen.getByText('Google Chrome, Personal')).toBeTruthy();
     expect(
       screen.getByText(
-        'This approval applies only to the target shown. Sia does not provide an automatic undo.',
+        "Allowing this covers only what is shown here. Sia can't undo it automatically.",
       ),
     ).toBeTruthy();
     expect(screen.queryByText(/reversible record/i)).toBeNull();
@@ -200,8 +200,8 @@ describe('ApprovalCard', () => {
       vi.advanceTimersByTime(60_000);
     });
     expect(screen.getByText('Preview expired')).toBeTruthy();
-    expect(screen.getByText('expired')).toBeTruthy();
-    expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+    expect(screen.getByText('Expired')).toBeTruthy();
+    expect(screen.queryByRole('button', { name: 'Allow' })).toBeNull();
   });
 
   it('drops the preview countdown once the person has answered', () => {
@@ -223,13 +223,17 @@ describe('ApprovalCard', () => {
       },
     };
     render(<ApprovalCard event={event} onResolve={vi.fn()} />);
-    expect(screen.getByText('approved')).toBeTruthy();
+    expect(screen.getByText('Allowed')).toBeTruthy();
     expect(screen.queryByText(/Preview expire/)).toBeNull();
   });
 
-  it.each(['approved', 'rejected', 'expired'] as const)(
+  it.each([
+    ['approved', 'Allowed'],
+    ['rejected', 'Not allowed'],
+    ['expired', 'Expired'],
+  ] as const)(
     'keeps %s approvals compact while preserving their exact details',
-    (status) => {
+    (status, label) => {
       const resolve = vi.fn();
       const { container } = render(
         <ApprovalCard
@@ -240,8 +244,8 @@ describe('ApprovalCard', () => {
       const disclosure = container.querySelector('details')!;
       const summary = disclosure.querySelector('summary')!;
       expect(disclosure.open).toBe(false);
-      expect(summary.textContent).toContain(status);
-      expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull();
+      expect(summary.textContent).toContain(label);
+      expect(screen.queryByRole('button', { name: 'Allow' })).toBeNull();
       fireEvent.click(summary);
       expect(disclosure.open).toBe(true);
       expect(screen.getByRole('heading', { name: 'Allow Mac action' })).toBeTruthy();
@@ -255,12 +259,12 @@ describe('ApprovalCard', () => {
     const event = nativeApproval('Run a command: git status');
     const { container, rerender } = render(<ApprovalCard event={event} onResolve={vi.fn()} />);
     expect(container.querySelector('details')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Allow' })).toBeTruthy();
     rerender(<ApprovalCard event={{ ...event, status: 'approved' }} onResolve={vi.fn()} />);
     expect(container.querySelector('details')?.open).toBe(false);
     rerender(<ApprovalCard event={event} onResolve={vi.fn()} />);
     expect(container.querySelector('details')).toBeNull();
-    expect(screen.getByRole('button', { name: 'Approve' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Allow' })).toBeTruthy();
     expect(screen.getByText('git status')).toBeTruthy();
   });
 

@@ -58,7 +58,9 @@ export function ActivityRow({ event }: ActivityRowProps) {
           : Clock;
   const statusIconClass =
     event.status === 'error'
-      ? styles.activityErrorIcon
+      ? watchedLive.current
+        ? `${styles.activityErrorIcon} ${styles.activityStatusArrive}`
+        : styles.activityErrorIcon
       : event.status === 'running'
         ? styles.activitySpinner
         : event.status === 'complete'
@@ -106,10 +108,10 @@ export function ActivityRow({ event }: ActivityRowProps) {
           ) : null}
         </span>
         <span className={primitives.visuallyHidden}>Status: {event.status}</span>
-        <StatusIcon size={15} className={statusIconClass} aria-hidden="true" />
+        <StatusIcon size={16} className={statusIconClass} aria-hidden="true" />
         {hasDetail ? (
           <CaretDown
-            size={13}
+            size={16}
             className={expanded ? styles.caretExpanded : styles.caret}
             aria-hidden="true"
           />
@@ -266,7 +268,7 @@ function RichActivityDetail({ event }: { event: ActivityEvent }) {
               {step.status === 'completed' ? (
                 <Check size={10} weight="bold" />
               ) : step.status === 'in_progress' ? (
-                <CircleHalf size={14} weight="fill" />
+                <CircleHalf size={16} weight="fill" />
               ) : null}
             </span>
             <span className={styles.planText}>{step.text}</span>

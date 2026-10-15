@@ -177,7 +177,7 @@ export function MemoryGraph({ online }: { online: boolean }) {
               <button key={node.id} onClick={() => setNoteId(node.id)}>
                 <i data-kind={node.kind} />
                 <span>{node.title}</span>
-                <small>{node.kind}</small>
+                <small>{kindLabel(node.kind)}</small>
               </button>
             ))}
         </div>
@@ -294,7 +294,7 @@ export function MemoryGraph({ online }: { online: boolean }) {
       {!list && vault.nodes.length > 0 && (
         <div className="graph-controls">
           <button className="icon" aria-label="Zoom out" onClick={() => zoom(0.8)}>
-            <Minus size={18} />
+            <Minus size={20} />
           </button>
           <button
             className="graph-reset"
@@ -303,7 +303,7 @@ export function MemoryGraph({ online }: { online: boolean }) {
             Recenter
           </button>
           <button className="icon" aria-label="Zoom in" onClick={() => zoom(1.25)}>
-            <Plus size={18} />
+            <Plus size={20} />
           </button>
         </div>
       )}
@@ -311,7 +311,7 @@ export function MemoryGraph({ online }: { online: boolean }) {
         {['memory', 'skill', 'journal', 'workflow', 'topic'].map((kind) => (
           <span key={kind}>
             <i data-kind={kind} />
-            {kind}
+            {kindLabel(kind)}
           </span>
         ))}
       </div>
@@ -336,4 +336,8 @@ export function MemoryGraph({ online }: { online: boolean }) {
       </Sheet>
     </section>
   );
+}
+/** Sentence-case kind names for people, e.g. "workflow" reads as "Workflow". */
+function kindLabel(kind: string): string {
+  return kind.charAt(0).toUpperCase() + kind.slice(1);
 }

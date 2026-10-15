@@ -36,6 +36,7 @@ import { AppearanceSettings } from './settings/AppearanceSettings';
 import type { TextSize, ThemePreference } from '../../shared/display';
 import { VoiceSettings } from './settings/VoiceSettings';
 import { StartupSettings } from './settings/StartupSettings';
+import { useNavIndicator } from './settings/useNavIndicator';
 
 export type SettingsSection =
   | 'appearance'
@@ -186,6 +187,13 @@ export function Settings({
     canReviewRelease && snapshot.cloudAuth.features?.researchArchive !== false,
   );
 
+  const moreActive =
+    ['appearance', 'about', 'advanced', 'assistant', 'release', 'research'].includes(section) ||
+    (compactNav && (section === 'scotty' || section === 'phone')) ||
+    (narrowNav && section === 'voice') ||
+    (usesMac && section === 'apps');
+  const indicator = useNavIndicator(nav, `${section}:${compactNav}:${narrowNav}:${usesMac}`);
+
   useEffect(() => {
     if (
       (section === 'release' && !canReviewRelease) ||
@@ -214,30 +222,31 @@ export function Settings({
 
       <div className={styles.settingsLayout}>
         <nav ref={nav} className={styles.settingsNav} aria-label="Settings sections">
+          <span ref={indicator} className={styles.settingsNavIndicator} aria-hidden="true" />
           <SettingsNavButton
             active={section === 'providers'}
-            icon={<Sparkle size={17} aria-hidden="true" />}
+            icon={<Sparkle size={18} aria-hidden="true" />}
             label="AI"
             onClick={() => setSection('providers')}
           />
           {!usesMac && (
             <SettingsNavButton
               active={section === 'apps'}
-              icon={<PlugsConnected size={17} aria-hidden="true" />}
+              icon={<PlugsConnected size={18} aria-hidden="true" />}
               label="Connections"
               onClick={() => setSection('apps')}
             />
           )}
           <SettingsNavButton
             active={section === 'computer'}
-            icon={<Desktop size={17} aria-hidden="true" />}
+            icon={<Desktop size={18} aria-hidden="true" />}
             label="Computer"
             onClick={() => setSection('computer')}
           />
           {!narrowNav && (
             <SettingsNavButton
               active={section === 'voice'}
-              icon={<SpeakerHigh size={17} aria-hidden="true" />}
+              icon={<SpeakerHigh size={18} aria-hidden="true" />}
               label="Voice"
               onClick={() => setSection('voice')}
             />
@@ -245,7 +254,7 @@ export function Settings({
           {scottyApi && !compactNav && (
             <SettingsNavButton
               active={section === 'scotty'}
-              icon={<PawPrint size={17} aria-hidden="true" />}
+              icon={<PawPrint size={18} aria-hidden="true" />}
               label="Scotty"
               onClick={() => setSection('scotty')}
             />
@@ -253,14 +262,14 @@ export function Settings({
           {phoneRemoteApi && !compactNav && (
             <SettingsNavButton
               active={section === 'phone'}
-              icon={<DeviceMobile size={17} aria-hidden="true" />}
+              icon={<DeviceMobile size={18} aria-hidden="true" />}
               label="Phone remote"
               onClick={() => setSection('phone')}
             />
           )}
           <SettingsNavButton
             active={section === 'privacy'}
-            icon={<ShieldCheck size={17} aria-hidden="true" />}
+            icon={<ShieldCheck size={18} aria-hidden="true" />}
             label="Privacy"
             onClick={() => setSection('privacy')}
           />
@@ -268,24 +277,11 @@ export function Settings({
             <DropdownMenu.Trigger asChild>
               <button
                 type="button"
-                className={
-                  [
-                    'appearance',
-                    'about',
-                    'advanced',
-                    'assistant',
-                    'release',
-                    'research',
-                  ].includes(section) ||
-                  (compactNav && (section === 'scotty' || section === 'phone')) ||
-                  (narrowNav && section === 'voice') ||
-                  (usesMac && section === 'apps')
-                    ? styles.settingsNavActive
-                    : undefined
-                }
+                className={moreActive ? styles.settingsNavActive : undefined}
+                data-nav-active={moreActive || undefined}
                 aria-label="More settings"
               >
-                More <CaretDown size={12} aria-hidden="true" />
+                More <CaretDown size={14} aria-hidden="true" />
               </button>
             </DropdownMenu.Trigger>
             <DropdownMenu.Portal>
@@ -296,68 +292,68 @@ export function Settings({
               >
                 {narrowNav && (
                   <SettingsMenuItem
-                    icon={<SpeakerHigh size={17} />}
+                    icon={<SpeakerHigh size={18} />}
                     label="Voice"
                     onSelect={() => setSection('voice')}
                   />
                 )}
                 {compactNav && scottyApi && (
                   <SettingsMenuItem
-                    icon={<PawPrint size={17} />}
+                    icon={<PawPrint size={18} />}
                     label="Scotty"
                     onSelect={() => setSection('scotty')}
                   />
                 )}
                 {compactNav && phoneRemoteApi && (
                   <SettingsMenuItem
-                    icon={<DeviceMobile size={17} />}
+                    icon={<DeviceMobile size={18} />}
                     label="Phone remote"
                     onSelect={() => setSection('phone')}
                   />
                 )}
                 {onSetAppearance && (
                   <SettingsMenuItem
-                    icon={<Palette size={17} />}
+                    icon={<Palette size={18} />}
                     label="Appearance"
                     onSelect={() => setSection('appearance')}
                   />
                 )}
                 <SettingsMenuItem
-                  icon={<Info size={17} />}
+                  icon={<Info size={18} />}
                   label="About"
                   onSelect={() => setSection('about')}
                 />
                 {assistantApi && (
                   <SettingsMenuItem
-                    icon={<Sparkle size={17} />}
+                    icon={<Sparkle size={18} />}
                     label="Assistant"
                     onSelect={() => setSection('assistant')}
                   />
                 )}
                 {usesMac && (
                   <SettingsMenuItem
-                    icon={<PlugsConnected size={17} />}
+                    icon={<PlugsConnected size={18} />}
                     label="Connections"
                     onSelect={() => setSection('apps')}
                   />
                 )}
                 {onSetDeveloperTools && (
                   <SettingsMenuItem
-                    icon={<Code size={17} />}
+                    icon={<Code size={18} />}
                     label="Advanced"
                     onSelect={() => setSection('advanced')}
                   />
                 )}
                 {canReviewRelease && (
                   <SettingsMenuItem
-                    icon={<CheckSquareOffset size={17} />}
+                    icon={<CheckSquareOffset size={18} />}
                     label="Release review"
                     onSelect={() => setSection('release')}
                   />
                 )}
                 {canViewResearchArchive && (
                   <SettingsMenuItem
-                    icon={<Database size={17} />}
+                    icon={<Database size={18} />}
                     label="Research archive"
                     onSelect={() => setSection('research')}
                   />
@@ -523,6 +519,7 @@ function SettingsNavButton({
       onClick={onClick}
       aria-label={label}
       aria-current={active ? 'page' : undefined}
+      data-nav-active={active || undefined}
       title={label}
     >
       {icon}

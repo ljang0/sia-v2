@@ -34,13 +34,12 @@ import type { AgentDraft, RendererApi, RendererSnapshot } from './types';
 import { useAppController } from './useAppController';
 import { executionLabel } from './agentModels';
 import { cancelComposerFocus, focusComposer } from './composerFocus';
-import { heldAsQueued, OfflineBanner, useOfflineOutbox, useOnline } from './offline';
+import { ConnectionBanner, heldAsQueued, useOfflineOutbox, useOnline } from './offline';
 import { recentThreads, welcomePrompts } from './welcome';
 import {
   useInstantThemeSwitch,
   useViewTransition,
 } from './components/effects/use-view-transition';
-import './tokens.css';
 import companion from './companion.module.css';
 import layout from './styles/layout.module.css';
 import buttons from './styles/buttons.module.css';
@@ -375,7 +374,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
           />
         ) : null}
 
-        {online ? null : <OfflineBanner />}
+        <ConnectionBanner online={online} />
         <WorkspaceNotice app={app} deviceOffline={!online} />
         <div className={styles.workspaceBody} ref={viewSurface} data-workspace-view={viewKey}>
           {app.activityOpen && app.activityTarget === 'scheduled' ? (

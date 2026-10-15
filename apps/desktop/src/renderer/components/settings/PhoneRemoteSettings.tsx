@@ -197,7 +197,7 @@ export function PhoneRemoteSettings({
                 </div>
               )}
               <div className={phone.steps}>
-                <span className={phone.eyebrow}>ONE SCAN. YOU’RE IN.</span>
+                <span className={phone.eyebrow}>One scan and you’re in.</span>
                 <h3>Meet Sia on your phone.</h3>
                 <ol>
                   <li>Connect your phone to the same Wi-Fi as this Mac.</li>
@@ -220,7 +220,7 @@ export function PhoneRemoteSettings({
                       );
                   }}
                 >
-                  {copied ? <Check size={15} /> : <Copy size={15} />}
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
                   {copied ? 'Copied' : 'Copy private link'}
                 </button>
               </div>
@@ -232,7 +232,7 @@ export function PhoneRemoteSettings({
                 disabled={pending}
                 onClick={() => void run('rotate')}
               >
-                <ArrowClockwise size={15} />
+                <ArrowClockwise size={16} />
                 Create a new link
               </button>
               <button

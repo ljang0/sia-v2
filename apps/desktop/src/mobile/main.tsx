@@ -133,8 +133,8 @@ function App() {
           cause instanceof RemoteRequestError
             ? cause.message
             : remoteTransport === 'wifi'
-              ? 'Reconnecting… Keep Sia open and your Mac awake on the same Wi-Fi.'
-              : 'Reconnecting… Keep Sia open and your Mac awake and online.',
+              ? 'Trying to reach your Mac… Keep Sia open, your Mac awake, and both on the same Wi-Fi.'
+              : 'Trying to reach your Mac… Keep Sia open and your Mac awake and online.',
         );
         if (cause instanceof RemoteRequestError && cause.status === 404) setState(undefined);
       } finally {
@@ -185,7 +185,7 @@ function App() {
       setState(await remoteRequest<RemoteState>('state'));
     } catch {
       setOnline(false);
-      setConnection('Sent to your Mac. Reconnecting for updates…');
+      setConnection('Sent to your Mac. Waiting for it to send updates…');
     }
   };
   const choosePrompt = (prompt: string) => {
@@ -232,7 +232,7 @@ function App() {
       setError(
         cause instanceof RemoteRequestError
           ? cause.message
-          : 'Connection interrupted. Your message is kept here. Send again to safely retry.',
+          : 'Your phone lost touch with your Mac. Your message is still here. Tap send to try again safely.',
       );
     } finally {
       setPending(false);
@@ -350,10 +350,11 @@ function App() {
             role="status"
             aria-label={online ? 'Connected to your Mac' : 'Mac disconnected'}
           >
-            <i />
+            {/* Remount on change so reconnecting lands with a visible pop, not a silent swap. */}
+            <i key={online ? 'online' : 'offline'} />
           </span>
           {online ? 'Mac connected' : 'Reconnecting'}
-          <Desktop size={15} />
+          <Desktop size={16} />
         </LiquidMetalButton>
         <button
           className="icon header-more"
@@ -372,7 +373,7 @@ function App() {
         {view === 'memory' ? (
           <>
             <div className="page-heading">
-              <span className="eyebrow">A LITTLE MORE YOU, EVERY DAY</span>
+              <span className="eyebrow">Memory</span>
               <h1>Made of memories.</h1>
               <p>What {state?.agent ?? 'Sia'} has learned along the way.</p>
             </div>
@@ -456,7 +457,7 @@ function App() {
                     setShowLatest(false);
                   }}
                 >
-                  <ArrowDown size={14} />
+                  <ArrowDown size={16} />
                   Latest reply
                 </button>
               )}
@@ -483,12 +484,12 @@ function App() {
                   {latest?.approval && canAnswer
                     ? `Sia asks: ${latest.approval}`
                     : latest?.approval
-                      ? 'Approve this step on your Mac'
+                      ? 'Sia needs your OK on your Mac'
                       : latest?.status === 'waiting'
                         ? 'Sia needs your answer'
                         : online
                           ? 'Sia is working on your Mac'
-                          : 'Reconnecting for task updates'}
+                          : 'Waiting for your Mac'}
                   {canAnswer ? (
                     <span className="approval-actions">
                       <button
@@ -496,7 +497,7 @@ function App() {
                         disabled={pending || !online}
                         onClick={() => void answer('approve')}
                       >
-                        Approve
+                        Allow
                       </button>
                       <button
                         type="button"
@@ -511,7 +512,7 @@ function App() {
                       {latest?.status === 'working'
                         ? 'You can leave this page'
                         : latest?.approval
-                          ? 'Your phone can’t approve'
+                          ? 'Your phone can’t give it'
                           : 'Reply below'}
                     </span>
                   )}
@@ -532,9 +533,9 @@ function App() {
                   value={text}
                   placeholder={
                     latest?.approval && canAnswer
-                      ? 'Approve or deny above to continue'
+                      ? 'Allow or deny above to continue'
                       : latest?.approval
-                        ? 'Approve on your Mac to continue'
+                        ? 'Give your OK on your Mac to continue'
                         : latest?.status === 'waiting'
                           ? 'Answer Sia…'
                           : busy
@@ -562,7 +563,7 @@ function App() {
                       </>
                     ) : (
                       <>
-                        <Desktop size={14} />
+                        <Desktop size={16} />
                         {state?.mode === 'connected' ? 'Connected apps' : 'Use my Mac'}
                       </>
                     )}
@@ -680,7 +681,7 @@ function App() {
             </div>
             <div className="connection-facts">
               <p>
-                <WifiHigh size={20} />
+                <WifiHigh size={22} />
                 <span>
                   <strong>
                     {remoteTransport === 'wifi'
@@ -691,12 +692,13 @@ function App() {
                 </span>
               </p>
               <p>
-                <ShieldCheck size={20} />
+                <ShieldCheck size={22} />
                 <span>
-                  <strong>Confirm actions on your Mac</strong>
+                  <strong>Your Mac asks first</strong>
                   <small>
-                    Requests from your phone always ask on your Mac before Sia acts, even with
-                    full bypass on.
+                    Before Sia acts on a request from your phone, your Mac asks for your OK.
+                    This happens even when Sia is set to run without asking. You can’t give the
+                    OK from your phone.
                   </small>
                 </span>
               </p>

@@ -31,22 +31,24 @@
     'Bricolage Grotesque', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
 
-  /* Type scale. Interface text uses --text-*; names and headings use --display-*. Every size
+  /* Type scale, sized for everyday readers rather than dense tools: ordinary interface text is
+     --text-sm (14px) and nothing readable falls below --text-2xs (11.5px).
+     Interface text uses --text-*; names and headings use --display-*. Every size
      follows Settings → Appearance → Text size through --text-scale (set by applyTextSize), so
      use a token, or calc(Npx * var(--text-scale)), never a bare px font size. */
   --text-scale: 1;
-  --text-2xs: calc(10px * var(--text-scale));
-  --text-xs: calc(11px * var(--text-scale));
-  --text-sm: calc(12px * var(--text-scale));
-  --text-md: calc(13px * var(--text-scale));
-  --text-base: calc(14px * var(--text-scale));
-  --text-lg: calc(15px * var(--text-scale));
-  --text-xl: calc(17px * var(--text-scale));
-  --text-2xl: calc(21px * var(--text-scale));
-  --display-sm: calc(18px * var(--text-scale));
-  --display-md: calc(22px * var(--text-scale));
-  --display-lg: calc(28px * var(--text-scale));
-  --display-xl: calc(36px * var(--text-scale));
+  --text-2xs: calc(11.5px * var(--text-scale));
+  --text-xs: calc(12.5px * var(--text-scale));
+  --text-sm: calc(14px * var(--text-scale));
+  --text-md: calc(14.5px * var(--text-scale));
+  --text-base: calc(15.5px * var(--text-scale));
+  --text-lg: calc(16.5px * var(--text-scale));
+  --text-xl: calc(19px * var(--text-scale));
+  --text-2xl: calc(24px * var(--text-scale));
+  --display-sm: calc(20px * var(--text-scale));
+  --display-md: calc(25px * var(--text-scale));
+  --display-lg: calc(32px * var(--text-scale));
+  --display-xl: calc(40px * var(--text-scale));
   --weight-regular: 450;
   --weight-medium: 560;
   --weight-semibold: 620;
@@ -137,8 +139,40 @@
   --motion-spin: 1s;
   --ease-standard: cubic-bezier(0.2, 0.72, 0.2, 1);
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  /* Shared motion vocabulary for the UI refresh (docs/ui-quality.md → Motion language). Arrivals
+     ease out with a soft spring, exits are quicker than arrivals, and lists stagger by a small step
+     capped by the component. Reduced motion and Calm collapse durations, distance, and stagger. */
+  --motion-emphasis: 380ms;
+  --motion-exit: 120ms;
+  --motion-stagger: 28ms;
+  --motion-rise: 8px;
+  --motion-nudge: 3px;
+  --motion-pop-scale: 0.96;
+  --ease-spring: linear(
+    0,
+    0.009,
+    0.035 2.1%,
+    0.141 4.4%,
+    0.723 12.9%,
+    0.938 16.7%,
+    1.017 19.4%,
+    1.067,
+    1.089 24.9%,
+    1.084 27.7%,
+    1.022 37.7%,
+    0.996 44.5%,
+    0.993 51%,
+    1
+  );
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 
-  --sidebar-width: 260px;
+  /* Comfort: touch-friendly targets and roomy rows for non-technical people. */
+  --target-min: 36px;
+  --row-min: 44px;
+  --icon-sm: 16px;
+  --icon-md: 18px;
+  --icon-lg: 22px;
+  --sidebar-width: 288px;
   --inspector-width: 360px;
   --titlebar-height: 58px;
   --composer-max: 900px;
@@ -286,9 +320,25 @@ select,
     --motion-fast: 1ms;
     --motion-standard: 1ms;
     --motion-surface: 1ms;
+    --motion-emphasis: 1ms;
+    --motion-exit: 1ms;
+    --motion-stagger: 0ms;
+    --motion-rise: 0px;
+    --motion-nudge: 0px;
+    --motion-pop-scale: 1;
   }
 
   html {
     scroll-behavior: auto;
   }
+}
+
+/* Calm keeps state changes legible but removes travel, springs, and staggers. */
+[data-appearance='calm'] {
+  --motion-emphasis: var(--motion-surface);
+  --motion-stagger: 0ms;
+  --motion-rise: 0px;
+  --motion-nudge: 0px;
+  --motion-pop-scale: 1;
+  --ease-spring: var(--ease-standard);
 }

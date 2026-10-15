@@ -30,7 +30,7 @@ function ThreadLabelContent({ thread }: { thread: ThreadSummary }) {
         {thread.pinned ? (
           <PushPin
             className={navigation.taskPin}
-            size={11}
+            size={14}
             weight="fill"
             aria-hidden="true"
             data-testid="thread-pinned"

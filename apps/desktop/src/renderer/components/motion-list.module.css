@@ -12,25 +12,38 @@
   overflow: hidden;
 }
 .item[data-motion='enter'] {
-  animation: motionEnter 300ms var(--ease-out-soft) both;
+  animation: motionEnter var(--motion-emphasis) var(--ease-spring) both;
+}
+/* A new arrival glows in its agent's hue for a moment, so the eye finds it. */
+.item[data-motion='enter'] > .clip {
+  border-radius: var(--radius-tight);
+  animation: motionArrive calc(var(--motion-emphasis) * 3) var(--ease-out-soft) both;
 }
 .item[data-motion='leave'] {
   pointer-events: none;
-  animation: motionLeave 200ms var(--ease-standard) both;
+  animation: motionLeave var(--motion-exit) var(--ease-exit) both;
 }
 @keyframes motionEnter {
   from {
     grid-template-rows: 0fr;
     opacity: 0;
-    transform: translateX(-6px);
+    transform: translateY(calc(var(--motion-rise) * -1)) scale(var(--motion-pop-scale));
   }
-  60% {
+  50% {
     opacity: 1;
   }
   to {
     grid-template-rows: 1fr;
     opacity: 1;
     transform: none;
+  }
+}
+@keyframes motionArrive {
+  from {
+    background-color: color-mix(in srgb, var(--agent-color) 34%, transparent);
+  }
+  to {
+    background-color: transparent;
   }
 }
 @keyframes motionLeave {
@@ -41,14 +54,16 @@
   to {
     grid-template-rows: 0fr;
     opacity: 0;
-    transform: translateX(-6px);
+    transform: translateX(calc(var(--motion-rise) * -1)) scale(var(--motion-pop-scale));
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .item[data-motion] {
+  .item[data-motion],
+  .item[data-motion] > .clip {
     animation: none;
   }
 }
-:global([data-appearance='calm']) .item[data-motion] {
+:global([data-appearance='calm']) .item[data-motion],
+:global([data-appearance='calm']) .item[data-motion] > .clip {
   animation: none;
 }

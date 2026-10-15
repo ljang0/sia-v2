@@ -63,9 +63,9 @@ export function ThreadModelControls({
   return (
     <details ref={menu} className={styles.agentSettingsMenu}>
       <summary>
-        Model for this conversation <CaretDown size={13} aria-hidden="true" />
+        AI for this conversation <CaretDown size={16} aria-hidden="true" />
       </summary>
-      <section className={styles.threadControls} aria-label="Model for this conversation">
+      <section className={styles.threadControls} aria-label="AI for this conversation">
         <label>
           <span>Model</span>
           <select
@@ -155,9 +155,9 @@ export function GoalControls({
           </div>
           <span className={styles.goalStatus} data-status={goal.status}>
             {goal.status === 'running' ? (
-              <CheckCircle size={15} aria-hidden="true" />
+              <CheckCircle size={16} aria-hidden="true" />
             ) : (
-              <Pause size={15} aria-hidden="true" />
+              <Pause size={16} aria-hidden="true" />
             )}
             {goal.status === 'running' ? 'Active' : 'Paused'}
           </span>
@@ -170,7 +170,7 @@ export function GoalControls({
               disabled={busy}
               onClick={() => void onPauseGoal()}
             >
-              <Pause size={14} aria-hidden="true" />
+              <Pause size={16} aria-hidden="true" />
               Pause
             </button>
           ) : (
@@ -180,7 +180,7 @@ export function GoalControls({
               disabled={busy}
               onClick={() => void onResumeGoal()}
             >
-              <Play size={14} aria-hidden="true" />
+              <Play size={16} aria-hidden="true" />
               Resume
             </button>
           )}

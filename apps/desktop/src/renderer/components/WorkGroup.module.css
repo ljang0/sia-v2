@@ -1,23 +1,32 @@
 .workGroup,
 .workGroupSteps {
   display: grid;
-  gap: 2px;
+  gap: 4px;
 }
 
 .workGroupSummary {
   display: inline-flex;
   width: fit-content;
   align-items: center;
-  gap: 8px;
-  margin-left: 42px;
-  padding: 5px 10px 5px 12px;
+  min-height: var(--target-min);
+  gap: 10px;
+  margin-left: 46px;
+  padding: 6px 12px;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: var(--weight-medium);
+  transition:
+    background-color var(--motion-fast) var(--ease-standard),
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.workGroupSummary:active {
+  transform: scale(var(--motion-pop-scale));
 }
 
 .workGroupSummary:hover {
@@ -43,25 +52,49 @@
   color: var(--text-danger);
 }
 
-/* Opening a finished run unfolds its steps; a step that arrives while Sia works slides in. */
-.workGroup[data-open='true'] > .workGroupSteps {
-  animation: workStepsReveal 220ms var(--ease-out-soft) both;
+/* Opening a finished run unfolds its steps one after another, top down, capped at eight so a
+   long run never waits on its own choreography. */
+.workGroup[data-open='true'] > .workGroupSteps > * {
+  animation: workStepsReveal var(--motion-surface) var(--ease-out-soft) both;
+}
+
+.workGroup[data-open='true'] > .workGroupSteps > :nth-child(2) {
+  animation-delay: var(--motion-stagger);
+}
+.workGroup[data-open='true'] > .workGroupSteps > :nth-child(3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+.workGroup[data-open='true'] > .workGroupSteps > :nth-child(4) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+.workGroup[data-open='true'] > .workGroupSteps > :nth-child(5) {
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+.workGroup[data-open='true'] > .workGroupSteps > :nth-child(6) {
+  animation-delay: calc(var(--motion-stagger) * 5);
+}
+.workGroup[data-open='true'] > .workGroupSteps > :nth-child(7) {
+  animation-delay: calc(var(--motion-stagger) * 6);
+}
+.workGroup[data-open='true'] > .workGroupSteps > :nth-child(n + 8) {
+  animation-delay: calc(var(--motion-stagger) * 7);
 }
 
 @keyframes workStepsReveal {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(calc(var(--motion-rise) * -0.5));
   }
 }
 
 .workingStatus {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-left: 54px;
+  min-height: var(--target-min);
+  gap: 10px;
+  margin-left: 58px;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: var(--weight-medium);
 }
 
@@ -79,14 +112,14 @@
   background-clip: text;
   color: transparent;
   animation:
-    workingLabelIn 240ms var(--ease-out-soft) both,
-    workingShimmer 2.6s linear infinite;
+    workingLabelIn var(--motion-surface) var(--ease-out-soft) both,
+    workingShimmer calc(var(--motion-spin) * 2.6) linear infinite;
 }
 
 @keyframes workingLabelIn {
   from {
     opacity: 0;
-    transform: translateY(3px);
+    transform: translateY(var(--motion-nudge));
   }
 }
 
@@ -105,6 +138,36 @@
   font-weight: var(--weight-regular);
 }
 
+/* Each new count ("Step 3 of 5", "4 steps done") rises into place, keyed by its words. */
+.workingCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  animation: workingLabelIn var(--motion-standard) var(--ease-out-soft) both;
+}
+
+/* A plan draws a short track that fills as its steps complete. Only its scale moves. */
+.planTrack {
+  --plan-progress: 0;
+  position: relative;
+  width: 36px;
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--radius-round);
+  background: color-mix(in srgb, var(--text-tertiary) 22%, transparent);
+}
+
+.planTrack::after {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--agent-color, var(--text-secondary));
+  content: '';
+  transform: scaleX(var(--plan-progress));
+  transform-origin: left center;
+  transition: transform var(--motion-emphasis) var(--ease-out-soft);
+}
+
 .workingSpinner {
   color: var(--agent-color, var(--text-secondary));
   animation: working-spin var(--motion-spin) linear infinite;
@@ -117,7 +180,7 @@
 }
 
 .workingStatus[data-quiet] .workingLabel {
-  animation: workingLabelIn 240ms var(--ease-out-soft) both;
+  animation: workingLabelIn var(--motion-surface) var(--ease-out-soft) both;
 }
 
 @keyframes working-spin {
@@ -131,11 +194,20 @@
     background: none;
     color: CanvasText;
   }
+
+  .planTrack {
+    border: 1px solid CanvasText;
+  }
+
+  .planTrack::after {
+    background: CanvasText;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .workingSpinner,
-  .workGroup[data-open='true'] > .workGroupSteps {
+  .workingCount,
+  .workGroup[data-open='true'] > .workGroupSteps > * {
     animation: none;
   }
 

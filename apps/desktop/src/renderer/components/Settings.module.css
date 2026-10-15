@@ -52,25 +52,26 @@
   display: flex;
   flex: none;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 8px clamp(16px, 2.5vw, 32px);
+  gap: 6px;
+  padding: 10px clamp(16px, 2.5vw, 32px);
   border-bottom: 1px solid color-mix(in srgb, var(--border-subtle) 76%, transparent);
   background: var(--bg-canvas);
 }
 
 .settingsNav button {
   display: flex;
-  min-height: 32px;
+  min-height: 40px;
   flex: none;
   align-items: center;
-  gap: 7px;
-  padding: 7px 8px;
+  gap: 8px;
+  padding: 8px 12px;
   border: 0;
   border-radius: var(--radius-control);
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: var(--text-md);
+  font-size: var(--text-base);
+  font-weight: var(--weight-medium);
   text-align: left;
   transition:
     background-color var(--motion-fast) var(--ease-standard),
@@ -85,13 +86,58 @@
 
 .settingsNav button:active {
   opacity: 0.72;
-  transform: none;
+  transform: scale(var(--motion-pop-scale));
 }
 
 .settingsNav .settingsNavActive {
   background: var(--bg-selected);
   color: var(--text-primary);
   font-weight: var(--weight-semibold);
+}
+
+/* One highlight glides between tabs (settings/useNavIndicator.ts): it covers the nav and is clipped
+   to the active tab, so only clip-path animates. Until it is measured, tabs keep their own fill. */
+.settingsNav {
+  --indicator-clip: inset(50%);
+
+  position: relative;
+  isolation: isolate;
+}
+
+.settingsNavIndicator {
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  left: 0;
+  background: var(--bg-selected);
+  clip-path: var(--indicator-clip);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settingsNav[data-indicator] .settingsNavIndicator {
+  opacity: 1;
+}
+
+.settingsNav[data-indicator='ready'] .settingsNavIndicator {
+  transition: clip-path var(--motion-emphasis) var(--ease-spring);
+}
+
+.settingsNav[data-indicator] .settingsNavActive,
+.settingsNav[data-indicator] .settingsNavActive:hover {
+  background: transparent;
+}
+
+/* A new section crossfades in and its blocks follow in a short stagger (SettingsShared.module.css). */
+.settingsContent {
+  animation: settingsPaneEnter var(--motion-surface) var(--ease-out-soft);
+}
+
+@keyframes settingsPaneEnter {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-rise) / 2));
+  }
 }
 
 .settingsContent {
@@ -119,15 +165,15 @@
 }
 
 .settingsContent {
-  max-width: 1040px;
+  max-width: 1120px;
   width: 100%;
   margin: 0 auto;
 }
 
-/* The title, the tabs, and each section share one left edge: the section column is 900px wide,
+/* The title, the tabs, and each section share one left edge: the section column is 960px wide,
    centered in the pane, and never closer to the edge than the content padding. */
 .settingsPage {
-  --settings-inset: max(clamp(24px, 4vw, 48px), calc((100% - 900px) / 2));
+  --settings-inset: max(clamp(24px, 4vw, 48px), calc((100% - 960px) / 2));
 }
 
 .settingsTopbar {
@@ -137,9 +183,9 @@
 .settingsNav {
   /* Compact tiers keep one row; wrapping is only a last resort so no tab is ever clipped. */
   flex-wrap: wrap;
-  padding-right: calc(var(--settings-inset) - 8px);
-  /* Tab buttons have 8px of their own padding, so their icons meet the same edge. */
-  padding-left: calc(var(--settings-inset) - 8px);
+  padding-right: calc(var(--settings-inset) - 12px);
+  /* Tab buttons have 12px of their own padding, so their icons meet the same edge. */
+  padding-left: calc(var(--settings-inset) - 12px);
 }
 
 @media (max-width: 920px) {
@@ -168,7 +214,7 @@
   }
 
   .settingsNav {
-    max-height: 90px;
+    max-height: 112px;
     overflow-y: auto;
     overscroll-behavior: contain;
     padding: 7px;
@@ -176,7 +222,7 @@
 
   .settingsNav button {
     flex: none;
-    padding: 0 9px;
+    padding: 0 10px;
   }
 
   .settingsContent {
@@ -193,7 +239,17 @@
   }
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .settingsContent {
+    animation: none;
+  }
+}
+
 @media (forced-colors: active) {
+  .settingsNavIndicator {
+    display: none;
+  }
+
   .settingsNavActive {
     outline: 2px solid Highlight;
     outline-offset: -2px;

@@ -9,6 +9,7 @@ import type { useAppController } from '../useAppController';
 import layout from '../styles/layout.module.css';
 import buttons from '../styles/buttons.module.css';
 import styles from '../App.module.css';
+import motion from './ActivityPage.module.css';
 
 interface ActivityPageProps {
   app: ReturnType<typeof useAppController>;
@@ -31,10 +32,10 @@ export function ActivityPage({ app, snapshot }: ActivityPageProps) {
           onClick={app.closeActivity}
           aria-label="Close activity"
         >
-          <X size={17} aria-hidden="true" />
+          <X size={18} aria-hidden="true" />
         </button>
       </header>
-      <div className={styles.activityPageContent}>
+      <div className={`${styles.activityPageContent} ${motion.enter}`}>
         <ActivityDashboard
           activities={activityItems(snapshot)}
           onOpenThread={(threadId) => {
