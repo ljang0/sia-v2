@@ -78,7 +78,7 @@ describe('app privacy routing', () => {
     const snapshot = structuredClone(demoSnapshot);
     for (const provider of snapshot.providers) provider.models = [];
     const { unmount } = render(<App api={createDemoRendererApi(snapshot)} />);
-    fireEvent.click(await screen.findByText('Model for this conversation'));
+    fireEvent.click(await screen.findByText('AI for this conversation'));
     const model = screen.getByRole('combobox', { name: 'Model' }) as HTMLSelectElement;
     expect(model.selectedOptions[0]?.textContent).not.toMatch(/^[a-z0-9.-]+$/);
     expect(screen.queryByText('Workspace')).toBeNull();
@@ -87,7 +87,7 @@ describe('app privacy routing', () => {
     const developer = structuredClone(snapshot);
     developer.preferences.developerTools = true;
     render(<App api={createDemoRendererApi(developer)} />);
-    fireEvent.click(await screen.findByText('Model for this conversation'));
+    fireEvent.click(await screen.findByText('AI for this conversation'));
     expect(screen.getByText('Workspace')).toBeTruthy();
   });
 
@@ -106,7 +106,7 @@ describe('app privacy routing', () => {
     thread.model = 'gpt-6-astra';
     const api = createDemoRendererApi(snapshot);
     render(<App api={api} />);
-    fireEvent.click(await screen.findByText('Model for this conversation'));
+    fireEvent.click(await screen.findByText('AI for this conversation'));
     const model = screen.getByRole('combobox', { name: 'Model' }) as HTMLSelectElement;
     expect(model.value).toBe('gpt-6-astra');
     expect(model.selectedOptions[0]?.textContent).toContain('(unavailable)');
@@ -254,7 +254,7 @@ describe('app privacy routing', () => {
     expect(archive).toBeTruthy();
     expect(screen.getByText('Previous release notes')).toBeTruthy();
     // Activity is a full page, like Settings: the conversation header steps aside.
-    expect(screen.queryByText('Model for this conversation')).toBeNull();
+    expect(screen.queryByText('AI for this conversation')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Access' })).toBeNull();
   });
 

@@ -35,6 +35,8 @@
 
 /* Activity-page search reuses .threadSearch on a room surface. */
 .transcriptSearch .threadSearch {
+  min-height: var(--row-min);
+  padding-inline: 14px;
   border-color: transparent;
   background: var(--bg-field);
   color: var(--text-tertiary);
@@ -49,6 +51,7 @@
 
 .transcriptSearch .threadSearch input {
   color: var(--text-primary);
+  font-size: var(--text-md);
 }
 
 .transcriptSearch {
@@ -67,7 +70,8 @@
   display: grid;
   gap: 4px;
   width: 100%;
-  padding: 10px 12px;
+  min-height: var(--row-min);
+  padding: 12px 14px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-control);
   background: var(--bg-raised);

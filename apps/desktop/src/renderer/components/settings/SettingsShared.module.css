@@ -440,8 +440,9 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+.settingsList + .settingsDisclosure,
 .captureSettings + .settingsDisclosure {
-  /* The capture row already draws this divider. */
+  /* The list or capture row above already draws this divider. */
   margin-top: 0;
   border-top: 0;
 }

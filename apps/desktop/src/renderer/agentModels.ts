@@ -61,7 +61,7 @@ export function modelChoices(
 
 /** A model's display name when the provider catalog does not supply one. */
 export function friendlyModelName(provider: ProviderId, model: string): string {
-  if (provider === 'meta') return 'Included model';
+  if (provider === 'meta') return 'Included AI';
   if (model === 'gpt-5.6-sol') return 'GPT-5.6 Sol';
   if (model === 'sonnet') return 'Sonnet';
   return model

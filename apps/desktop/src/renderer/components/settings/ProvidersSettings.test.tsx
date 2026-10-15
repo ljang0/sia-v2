@@ -13,7 +13,7 @@ describe('AI access settings', () => {
     renderSettings();
 
     expect(screen.getByRole('heading', { name: 'AI access' })).toBeTruthy();
-    expect(screen.getByText('Included model')).toBeTruthy();
+    expect(screen.getByText('Included AI')).toBeTruthy();
     expect(screen.getByText('ChatGPT plan')).toBeTruthy();
     expect(screen.queryByText('Claude')).toBeNull();
     expect(screen.queryByText('Grok')).toBeNull();

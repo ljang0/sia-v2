@@ -206,7 +206,7 @@ export function ProvidersSettings({
 }
 
 function providerName(provider: ProviderSetup): string {
-  if (provider.id === 'meta') return 'Included model';
+  if (provider.id === 'meta') return 'Included AI';
   if (provider.id === 'codex') return 'ChatGPT plan';
   return provider.name;
 }

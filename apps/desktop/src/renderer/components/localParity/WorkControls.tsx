@@ -63,9 +63,9 @@ export function ThreadModelControls({
   return (
     <details ref={menu} className={styles.agentSettingsMenu}>
       <summary>
-        Model for this conversation <CaretDown size={16} aria-hidden="true" />
+        AI for this conversation <CaretDown size={16} aria-hidden="true" />
       </summary>
-      <section className={styles.threadControls} aria-label="Model for this conversation">
+      <section className={styles.threadControls} aria-label="AI for this conversation">
         <label>
           <span>Model</span>
           <select

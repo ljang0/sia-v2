@@ -18,7 +18,7 @@ describe('agent dialog', () => {
     fireEvent.click(screen.getByText('Details'));
 
     expect(screen.getByRole('combobox', { name: 'Model' })).toBeTruthy();
-    expect(screen.getByRole('option', { name: 'Included model · Included' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'Included AI · Included' })).toBeTruthy();
     expect(screen.getByRole('option', { name: 'GPT-5.6 Sol · ChatGPT plan' })).toBeTruthy();
     expect(screen.queryByRole('option', { name: /Claude/ })).toBeNull();
     expect(screen.queryByLabelText('Provider')).toBeNull();
