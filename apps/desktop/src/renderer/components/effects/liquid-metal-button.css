@@ -32,6 +32,14 @@
   cursor: pointer;
   white-space: nowrap;
 }
+/* Dark surroundings: a dark face with light ink, so labels keep AA contrast. */
+@media (prefers-color-scheme: dark) {
+  .liquid-metal-button:not([data-tone]) {
+    --metal-face: linear-gradient(175deg, #2c3531, #1d2421);
+    --metal-ink: #e7ebe8;
+    --metal-shadow: rgb(0 0 0 / 40%);
+  }
+}
 .liquid-metal-button::before {
   content: '';
   position: absolute;
