@@ -671,7 +671,9 @@ it('discloses that Sia acts on its own by default and offers asking first', () =
   );
   expect(screen.getByRole('heading', { name: 'Sia acts on its own' })).toBeTruthy();
   expect(screen.getByText(/without asking you first/)).toBeTruthy();
-  const ask = screen.getByRole('checkbox', { name: /Ask before each action/ }) as HTMLInputElement;
+  const ask = screen.getByRole('checkbox', {
+    name: /Ask before each action/,
+  }) as HTMLInputElement;
   expect(ask.checked).toBe(false);
   fireEvent.click(screen.getByRole('button', { name: 'Ask me first instead' }));
   expect(screen.getByRole('heading', { name: 'Sia asks you first' })).toBeTruthy();

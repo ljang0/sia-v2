@@ -205,9 +205,7 @@ test('phone layout, send, immediate completion, persistence and result download'
   const caret = steps.locator('summary .steps-caret');
   await expect(caret).toBeVisible();
   expect(
-    await steps
-      .locator('summary')
-      .evaluate((node) => getComputedStyle(node).display),
+    await steps.locator('summary').evaluate((node) => getComputedStyle(node).display),
   ).toBe('flex');
   await page.screenshot({ path: testInfo.outputPath('phone-conversation.png') });
   await steps.locator('summary').click();
@@ -1175,7 +1173,9 @@ test('dark appearance keeps welcome labels, tabs, and the connection pill readab
       const probe = document.createElement('i');
       probe.style.color = value;
       document.body.append(probe);
-      const parts = getComputedStyle(probe).color.match(/[\d.]+/g)!.map(Number);
+      const parts = getComputedStyle(probe)
+        .color.match(/[\d.]+/g)!
+        .map(Number);
       probe.remove();
       return parts.slice(0, 3);
     };
@@ -1192,7 +1192,8 @@ test('dark appearance keeps welcome labels, tabs, and the connection pill readab
     };
     const root = getComputedStyle(document.documentElement);
     const token = (name: string) => rgb(root.getPropertyValue(name).trim());
-    const color = (selector: string) => rgb(getComputedStyle(document.querySelector(selector)!).color);
+    const color = (selector: string) =>
+      rgb(getComputedStyle(document.querySelector(selector)!).color);
     return {
       ideaTitle: ratio(color('.idea-card strong'), token('--bg-raised')),
       moreIdeas: ratio(color('.ideas-heading button'), token('--bg-canvas')),
