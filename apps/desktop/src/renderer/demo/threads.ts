@@ -131,19 +131,11 @@ export const threads: Record<string, ThreadDetail> = {
     title: 'Browser reliability audit',
     updatedAt: iso(120),
     status: 'queued',
-    queueReason: 'Waiting for the Chrome tab used by Weekly research update',
+    queueReason: 'Waiting for Chrome — starts after ‘Weekly research update’ finishes.',
     provider: 'codex',
     model: 'gpt-5.6-sol',
     workspace: '/Users/lawrencejang/Projects/sia-research',
     events: [
-      {
-        id: 'queued-notice',
-        type: 'notice',
-        tone: 'info',
-        title: 'Queued safely',
-        detail:
-          'This task needs the same Chrome tab as another turn. It will start when that tab is released.',
-      },
       {
         id: 'queued-message',
         type: 'message',

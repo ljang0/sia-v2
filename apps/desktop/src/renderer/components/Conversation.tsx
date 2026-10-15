@@ -581,11 +581,10 @@ export function Conversation({
               data-entering={openedState.status !== 'queued' ? 'true' : undefined}
             >
               <Clock size={18} aria-hidden="true" />
+              {/* One plain notice: the reason already says what it waits for and when it starts. */}
               <div>
-                <strong>Queued</strong>
-                <span>
-                  {thread.queueReason ?? 'This turn is waiting for a local resource.'}
-                </span>
+                <strong>{thread.queueReason ?? 'Waiting to start'}</strong>
+                {thread.queueReason ? null : <span>Sia starts this as soon as it can.</span>}
               </div>
             </div>
           ) : null}

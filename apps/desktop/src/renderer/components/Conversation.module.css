@@ -354,6 +354,7 @@
 }
 
 .queueBanner {
+  margin-bottom: 24px;
   border-left-color: var(--text-warning);
   background: var(--surface-warning);
   color: var(--text-warning);
