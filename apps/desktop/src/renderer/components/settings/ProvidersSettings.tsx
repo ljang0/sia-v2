@@ -93,6 +93,14 @@ export function ProvidersSettings({
               ) : (
                 <p>{providerDescription(provider)}</p>
               )}
+              {provider.id === 'codex' &&
+              (provider.status === 'needs-install' || provider.status === 'incompatible') ? (
+                // The technical name stays available for people who want it, off the main path.
+                <details className={styles.providerDetails}>
+                  <summary>Details</summary>
+                  <p>Sia installs OpenAI’s Codex app, which connects to your ChatGPT plan.</p>
+                </details>
+              ) : null}
               {provider.limits && provider.status === 'ready' ? (
                 <p className={styles.providerUsage}>
                   Plan usage: {usageLeftText(provider.limits)}
@@ -214,8 +222,8 @@ function providerName(provider: ProviderSetup): string {
 function providerDescription(provider: ProviderSetup): string {
   if (provider.status === 'needs-install' || provider.status === 'incompatible')
     return provider.status === 'incompatible'
-      ? 'One click updates the ChatGPT helper (OpenAI Codex), restarts Sia, and opens ChatGPT sign-in.'
-      : 'One click adds the ChatGPT helper (OpenAI Codex), restarts Sia, and opens ChatGPT sign-in.';
+      ? 'Connect your ChatGPT plan. One click updates ChatGPT support, restarts Sia, and opens ChatGPT sign-in.'
+      : 'Connect your ChatGPT plan. One click sets it up, restarts Sia, and opens ChatGPT sign-in.';
   if (provider.id === 'meta') {
     const labs = [
       ...new Set(

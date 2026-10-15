@@ -50,7 +50,7 @@ test('personal welcome opens existing work and finished replies retain their con
   await expect(recents).toBeVisible();
   await page.screenshot({ path: info.outputPath('personal-welcome.png') });
   await recents.getByRole('button', { name: /Weekly research update/ }).click();
-  await expect(page.getByRole('button', { name: /Stop current turn/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Task result' })).toHaveCount(0);
   const nav = page.getByRole('complementary', { name: 'Agent navigation' });
   await nav.getByRole('button', { name: 'Triage today’s inbox', exact: true }).click();
@@ -162,7 +162,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       .getByRole('main')
       .getByText('Find my assignments for this week', { exact: true });
     await expect(transcript).toHaveCount(1);
-    await page.getByRole('button', { name: 'Stop current turn' }).click();
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
     await expect(send).toBeVisible();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Voice', exact: true })).toBeVisible();
@@ -187,7 +187,7 @@ test('compact desktop keeps content reachable with reduced motion and no graphic
   expect(bounds!.y + bounds!.height).toBeLessThan(680);
   await page.screenshot({ path: info.outputPath('desktop-compact.png') });
   await field.press('Enter');
-  await expect(page.getByRole('button', { name: 'Stop current turn' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
 
   await page.emulateMedia({ forcedColors: 'active' });
   await page.getByTitle('New conversation', { exact: true }).first().click();

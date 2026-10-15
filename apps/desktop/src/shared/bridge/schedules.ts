@@ -9,6 +9,8 @@ export interface ScheduleRunView {
   startedAt: string;
   finishedAt?: string;
   outcome: 'started' | 'completed' | 'failed' | 'cancelled';
+  /** Why a failed run stopped, when Sia knows; shown under the run in Schedules. */
+  failureReason?: string;
 }
 
 export interface ScheduleView {

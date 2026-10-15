@@ -20,3 +20,20 @@
   color: var(--text-danger);
   font-size: var(--text-sm);
 }
+
+.providerDetails {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.providerDetails > summary {
+  display: inline-flex;
+  min-height: var(--target-min);
+  align-items: center;
+  cursor: pointer;
+}
+
+.providerDetails > p {
+  margin: 0 0 4px;
+}

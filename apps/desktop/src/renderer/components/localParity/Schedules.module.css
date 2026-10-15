@@ -311,6 +311,15 @@
   color: var(--text-danger);
 }
 
+/* Why the run failed, on its own line so it reads as a sentence, not metadata. */
+.scheduleFailure {
+  flex-basis: 100%;
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
 .scheduleOutcome[data-outcome='cancelled'] {
   color: var(--text-warning);
 }

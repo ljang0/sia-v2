@@ -29,6 +29,7 @@ import {
   type ScheduleCadence,
 } from './scheduleText';
 import { shortDateTime } from '../../format';
+import { plainError } from '../../plainErrors';
 import {
   blankValues,
   ScheduleForm,
@@ -170,7 +171,7 @@ function ScheduleRow({
         <div className={styles.scheduleOutcomeSummary}>
           {schedule.lastRun ? (
             <span className={styles.scheduleOutcome} data-outcome={schedule.lastRun.outcome}>
-              Last {scheduleOutcomeLabel(schedule.lastRun.outcome)} ·{' '}
+              {lastRunLabel(schedule.lastRun.outcome)} ·{' '}
               <time dateTime={scheduleRunTimestamp(schedule.lastRun)}>
                 {shortDateTime(scheduleRunTimestamp(schedule.lastRun))}
               </time>
@@ -178,6 +179,11 @@ function ScheduleRow({
           ) : (
             <span>Not run yet</span>
           )}
+          {schedule.lastRun?.outcome === 'failed' && schedule.lastRun.failureReason ? (
+            <p className={styles.scheduleFailure}>
+              {failureText(schedule.lastRun.failureReason)}
+            </p>
+          ) : null}
           {runs.length ? (
             <button
               type="button"
@@ -256,6 +262,9 @@ function ScheduleRow({
               <time dateTime={scheduleRunTimestamp(run)}>
                 {shortDateTime(scheduleRunTimestamp(run))}
               </time>
+              {run.outcome === 'failed' && run.failureReason ? (
+                <span className={styles.scheduleFailure}>{failureText(run.failureReason)}</span>
+              ) : null}
             </li>
           ))}
         </ol>
@@ -678,6 +687,17 @@ function scheduleNextLabel(schedule: ScheduleItem): string {
   if (schedule.cadence === 'once' && (schedule.runCount ?? 0) > 0) return 'Finished';
   if (scheduleFinished(schedule)) return 'Run limit reached';
   return 'Paused';
+}
+
+/** Sentence case: "Last completed", "Last failed". */
+function lastRunLabel(outcome: ScheduleRun['outcome']): string {
+  if (outcome === 'started') return 'Running now';
+  return `Last ${outcome}`;
+}
+
+/** Provider failures read as one plain sentence; anything else keeps its own words. */
+function failureText(reason: string): string {
+  return plainError(reason)?.message ?? reason;
 }
 
 function scheduleOutcomeLabel(outcome: ScheduleRun['outcome']): string {

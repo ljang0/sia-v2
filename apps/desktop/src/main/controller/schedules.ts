@@ -350,6 +350,7 @@ export class Schedules {
   markScheduleRunFinished(
     turn: QueuedTurn,
     outcome: 'completed' | 'failed' | 'cancelled',
+    failureReason?: string,
   ): void {
     if (!turn.scheduleRunId) return;
     const schedule = this.ctx.state.schedules.find(
@@ -363,10 +364,13 @@ export class Schedules {
         ? schedule.lastRun
         : schedule.runHistory?.find(({ id }) => id === turn.scheduleRunId);
     if (!startedRun) return;
+    const { failureReason: _previous, ...run } = startedRun;
+    const reason = outcome === 'failed' ? failureReason?.trim().slice(0, 300) : undefined;
     const finishedRun = {
-      ...startedRun,
+      ...run,
       outcome,
       finishedAt: new Date().toISOString(),
+      ...(reason ? { failureReason: reason } : {}),
     };
     if (schedule.lastRun?.id === turn.scheduleRunId) schedule.lastRun = finishedRun;
     upsertScheduleRun(schedule, finishedRun);

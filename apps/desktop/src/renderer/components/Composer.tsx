@@ -491,7 +491,6 @@ export function Composer({
                 void Promise.resolve(onStop()).finally(() => setStopping(false));
               }}
               disabled={stopping}
-              aria-label="Stop current turn"
             >
               <Stop weight="fill" size={16} aria-hidden="true" />
               {stopping ? 'Stopping…' : 'Stop'}

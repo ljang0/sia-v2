@@ -412,7 +412,14 @@ export class TurnRunner {
           status: 'failed',
           timestamp: new Date().toISOString(),
         });
-        this.markTurnFinished(thread, turn, 'failed', macTask);
+        this.markTurnFinished(
+          thread,
+          turn,
+          'failed',
+          macTask,
+          undefined,
+          error instanceof Error ? error.message : undefined,
+        );
       }
     } finally {
       await recordNative(
@@ -461,6 +468,7 @@ export class TurnRunner {
     outcome: 'complete' | 'failed',
     macTask?: { request: string; result?: MacTaskResult },
     taskResult?: MacTaskResult,
+    failureReason?: string,
   ): void {
     try {
       if (macTask)
@@ -486,6 +494,7 @@ export class TurnRunner {
     this.ctx.schedules.markScheduleRunFinished(
       turn,
       outcome === 'complete' ? 'completed' : 'failed',
+      failureReason ?? (taskResult?.success === false ? taskResult.response : undefined),
     );
     // Continue task resends the failed turn's files, whatever ended it (start error,
     // model error or a task that reported it could not finish).

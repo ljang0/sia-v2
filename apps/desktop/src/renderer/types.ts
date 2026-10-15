@@ -320,6 +320,7 @@ export interface ScheduleRun {
   startedAt: string;
   finishedAt?: string;
   outcome: 'started' | 'completed' | 'failed' | 'cancelled';
+  failureReason?: string;
 }
 
 export interface TranscriptSearchResult {

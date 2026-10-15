@@ -105,6 +105,10 @@ describe('AI access settings', () => {
         onOpenProviderSetup,
       });
       const name = 'Connect ChatGPT';
+      // Plain words on the main path; the technical name waits behind Details.
+      expect(screen.getByText(/^Connect your ChatGPT plan\./)).toBeTruthy();
+      expect(screen.getByText(/OpenAI’s Codex app/).closest('details')).toBeTruthy();
+      expect(screen.queryByText(/OpenAI Codex/)).toBeNull();
       fireEvent.click(screen.getByRole('button', { name }));
       const busy = screen.getByRole('button', {
         name: status === 'needs-install' ? 'Installing…' : 'Updating…',

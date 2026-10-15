@@ -320,6 +320,8 @@ export const demoSnapshot: RendererSnapshot = {
         startedAt: iso(60 * 24 * 3),
         finishedAt: iso(60 * 24 * 3 - 4),
         outcome: 'failed',
+        failureReason:
+          'Google Drive was disconnected, so Sia couldn’t open the research folder.',
       },
     },
   ],
