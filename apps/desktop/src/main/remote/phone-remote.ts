@@ -126,7 +126,7 @@ export class PhoneRemote {
   #requests = new Map<string, { input: string; task: Promise<unknown> }>();
   #failedAuth = new Map<string, { count: number; reset: number }>();
   readonly #cloud: CloudRemote | undefined;
-  #pairingQr: { qr: string; expires: number } | undefined;
+  #pairingQr: { qr: string; deviceId: string; expires: number } | undefined;
   constructor(deps: Dependencies) {
     this.#deps = deps;
     const saved = deps.repository.get<Config>('phone-remote', 'settings');
@@ -178,9 +178,13 @@ export class PhoneRemote {
         this.#stop();
       } else if (command.operation === 'pair') {
         if (!this.#cloud) throw new Error('Phone access over the internet is not available.');
-        const { url } = await this.#cloud.pair();
+        const { url, deviceId } = await this.#cloud.pair();
         // The pairing URL holds the phone's credential and key: show it only as a QR code.
-        this.#pairingQr = { qr: await this.#deps.qr(url), expires: Date.now() + 5 * 60_000 };
+        this.#pairingQr = {
+          qr: await this.#deps.qr(url),
+          deviceId,
+          expires: Date.now() + 5 * 60_000,
+        };
       } else if (command.operation === 'revoke') {
         this.#cloud?.revoke(command.deviceId);
       }
@@ -215,8 +219,13 @@ export class PhoneRemote {
         if (this.#pairingQr && this.#pairingQr.expires < Date.now())
           this.#pairingQr = undefined;
         const devices = this.#cloud.devices();
-        // Once the new phone connects, its one-time pairing code is no longer needed.
-        if (this.#pairingQr && devices.some((device) => device.online))
+        // Once the new phone connects, its one-time pairing code is no longer needed. Other
+        // phones that are already connected must not hide it.
+        const pairing = this.#pairingQr;
+        if (
+          pairing &&
+          devices.some((device) => device.deviceId === pairing.deviceId && device.online)
+        )
           this.#pairingQr = undefined;
         return {
           enabled: this.#config.enabled,
