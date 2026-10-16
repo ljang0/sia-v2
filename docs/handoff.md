@@ -238,6 +238,7 @@ The older 4:17 narrated video remains on disk but is superseded as the main prev
      Notarized (submission `a6f02d0e-a1e9-4c23-a9ad-5979b8cceec4`), stapled, accepted by
      Gatekeeper, and installed as the verification app. alpha.26 is backed up under
      `Sia Verification Backups/e656e9e`.
+
    - **Observed on alpha.27.**
      - Connect ChatGPT installed Sia's pinned Codex; ChatGPT plan and Included AI then showed
        Ready.
