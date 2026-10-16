@@ -160,7 +160,8 @@ interface Dependencies {
     'snapshot' | 'invoke' | 'remoteAccessAllowed' | 'subscribe' | 'readGeneratedResult'
   >;
   repository: RecordRepository;
-  messages: Pick<MessagesService, 'status' | 'latestRowId' | 'inbound' | 'send' | 'sendFile'>;
+  messages: Pick<MessagesService, 'status' | 'latestRowId' | 'inbound' | 'send' | 'sendFile'> &
+    Partial<Pick<MessagesService, 'sentRecently'>>;
   /** Turns a voice note into text; absent when this build has no transcription. */
   transcribe?: (path: string) => Promise<string>;
   /** Speaks a reply to an audio file; absent when this build has no voice. */
@@ -758,7 +759,13 @@ export class MessagesRelay {
       message.text.trim(),
       ...message.attachments.map((path) => basename(path)),
     ].join('\n');
-    if (text.startsWith(REPLY_PREFIX.trim()) || this.#sent.includes(text)) return undefined;
+    if (
+      text.startsWith(REPLY_PREFIX.trim()) ||
+      this.#sent.includes(text) ||
+      // Something Sia itself sent, such as an agent texting this number on request.
+      this.#deps.messages.sentRecently?.(text)
+    )
+      return undefined;
     const now = this.#now();
     this.#recent = this.#recent.filter((entry) => now - entry.at < 60000);
     // Pair only opposite-direction copies of a self-message. Suppressing every identical

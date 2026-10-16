@@ -32,6 +32,7 @@ function harness(
     transcribe?: (path: string) => Promise<string>;
     send?: (to: string, text: string) => Promise<void>;
     sendFile?: (to: string, path: string) => Promise<void>;
+    sentRecently?: (text: string) => boolean;
     scopedEvents?: boolean;
     records?: Map<string, unknown>;
   } = {},
@@ -130,6 +131,7 @@ function harness(
         await options.sendFile?.(to, path);
         files.push({ to, name: path.split('/').at(-1)! });
       },
+      ...(options.sentRecently ? { sentRecently: options.sentRecently } : {}),
     },
     ackAfterMs: 5000,
     transcribe:
@@ -464,6 +466,20 @@ describe('MessagesRelay', () => {
     h.text(102, 'Remind me what I asked yesterday', ME, false);
     await h.relay.poll();
     expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(1);
+  });
+
+  it('does not read a text an agent sent to your own number as a new request', async () => {
+    const agentText = 'Hi from Sia. Texting is set up.';
+    const h = harness({ sentRecently: (text) => text === agentText });
+    await h.ready();
+    h.text(101, agentText, ME, true);
+    h.text(102, agentText, ME, false);
+    await h.relay.poll();
+    expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(0);
+    h.text(103, 'What is in my Reports folder?', ME, false);
+    await h.relay.poll();
+    expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(1);
+    h.relay.dispose();
   });
 
   it('does not turn native attributed reply copies or metadata into a new task', async () => {
