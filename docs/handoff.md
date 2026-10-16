@@ -226,9 +226,39 @@ The older 4:17 narrated video remains on disk but is superseded as the main prev
    - **Evidence.** In `release-verification-evidence/release-claude-876164c`.
 
    Still open:
-   - Pairing a physical phone in Settings → Phone remote and running the relay acceptance checks.
+   - The rest of the relay acceptance checks (revocation, stale key, load).
    - Arena's lab entry and a signed `previewHarnesses` manifest
      ([arena-model-harness.md](./arena-model-harness.md)).
+
+8. **Visual refresh, alpha.27, and real-device checks.** October 15–16, 2026:
+   - **Build.** Signed alpha.27 built from `e656e9e` on `claude/release-ui-merge`, which adds:
+     - the visual refresh
+     - research capture pausing, instead of blocking chat, when another account signs in
+
+     Notarized (submission `a6f02d0e-a1e9-4c23-a9ad-5979b8cceec4`), stapled, accepted by
+     Gatekeeper, and installed as the verification app. alpha.26 is backed up under
+     `Sia Verification Backups/e656e9e`.
+   - **Observed on alpha.27.**
+     - Connect ChatGPT installed Sia's pinned Codex; ChatGPT plan and Included AI then showed
+       Ready.
+     - A Demo agent read three fictional files in `~/Documents/Sia Demo/Reports` and wrote
+       `q3-summary.md` in 28 seconds.
+     - The owner paired a physical iPhone over the relay and ran a task from it. The reply
+       appeared on the Mac.
+     - Texting through Messages was turned on for the owner's number. An agent texted that
+       number, and Sia replied by text.
+   - **Bugs found and fixed after alpha.27** (not yet in a build):
+     - Markdown links whose destination is in angle brackets rendered as raw text.
+     - Included AI had no setup path without ChatGPT.
+     - The New agent dialog's buttons were clipped at short window heights.
+     - An agent's own text to the owner's number was read back as a new request.
+     - A new pairing code was hidden whenever another phone was connected.
+   - **Native iPhone app.** Branch `claude/ios-app`, `apps/ios`
+     ([decision](./phone-native-app.md)).
+     - Builds and passes its unit tests.
+     - In the simulator it loaded the bundled phone screens and reached the live relay.
+     - A full paired task from the app is not yet run; it needs a build with the pairing-code
+       fix.
 
 After those gates, publish the accepted installer/update artifacts through the documented release
 commands and verify a recipient download. No alpha.25 installer was published during this work.
