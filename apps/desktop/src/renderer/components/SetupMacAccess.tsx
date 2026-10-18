@@ -1,9 +1,12 @@
+import { Cursor } from '@phosphor-icons/react';
+import { SiaLogo } from './SiaLogo';
 import { useEffect, useRef, useState } from 'react';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { dictationReady } from '../voiceReadiness';
 import { automationApps, automationStatusLabel } from '../../shared/mac-permissions';
 import ui from '../ui.module.css';
 import styles from './Onboarding.module.css';
+import guide from './SetupMacAccess.module.css';
 
 export type MacSetupApi = Pick<
   RendererApi,
@@ -210,10 +213,41 @@ export function SetupMacAccess({
     setPending(false);
     setError(undefined);
   };
+  const corePermissions = (
+    <ul className={styles.accessList} aria-label="Core permissions">
+      {steps
+        .filter((step) => ['accessibility', 'screen', 'voice'].includes(step.id))
+        .map((step) => (
+          <li className={styles.permission} key={step.id}>
+            <div>
+              <strong>{step.name}</strong>
+              <p>{step.detail}</p>
+            </div>
+            <span className={step.ready ? styles.ready : styles.status}>
+              {step.ready ? 'Allowed' : 'Needs access'}
+            </span>
+          </li>
+        ))}
+      {!voiceAvailable && (
+        <li className={styles.permission}>
+          <div>
+            <strong>Voice and microphone</strong>
+            <p>
+              {snapshot.voice.dictationDetail ?? 'Voice setup is unavailable on this device.'}
+            </p>
+          </div>
+          <span className={styles.status}>Unavailable</span>
+        </li>
+      )}
+    </ul>
+  );
   return (
-    <section aria-label="Guided Mac permissions">
+    <section
+      aria-label="Guided Mac permissions"
+      data-calm={snapshot.preferences.appearance === 'calm'}
+    >
       {!compact && <h3>Set up Mac access in one go</h3>}
-      <p className={styles.accessSummary} role="status">
+      <p className={guide.accessSummary} role="status">
         <strong>
           {current ? `${ready} of ${steps.length} permissions ready` : 'Mac access is ready.'}
         </strong>
@@ -223,7 +257,33 @@ export function SetupMacAccess({
         </span>
       </p>
       {active && current && (
-        <div className={styles.permissionGuide}>
+        <div className={guide.permissionGuide} key={current.id}>
+          {compact && (
+            <div className={guide.permissionIllustration} aria-hidden="true">
+              <div className={guide.settingsDots}>
+                <i />
+                <i />
+                <i />
+              </div>
+              <span>Privacy &amp; Security</span>
+              <div className={guide.settingsRow}>
+                <SiaLogo />
+                <strong>Sia</strong>
+                <span className={guide.settingsToggle} />
+                <Cursor size={22} weight="fill" className={guide.settingsCursor} />
+              </div>
+              <small>
+                Turn on Sia in{' '}
+                {current.id === 'accessibility'
+                  ? 'Accessibility'
+                  : current.id === 'screen'
+                    ? 'Screen Recording'
+                    : current.id === 'voice'
+                      ? 'Microphone'
+                      : 'Automation'}
+              </small>
+            </div>
+          )}
           <span className={styles.eyebrow}>
             STEP {steps.indexOf(current) + 1} OF {steps.length}
           </span>
@@ -281,32 +341,19 @@ export function SetupMacAccess({
           {error}
         </p>
       )}
-      <ul className={styles.accessList} aria-label="Core permissions">
-        {steps
-          .filter((step) => ['accessibility', 'screen', 'voice'].includes(step.id))
-          .map((step) => (
-            <li className={styles.permission} key={step.id}>
-              <div>
-                <strong>{step.name}</strong>
-                <p>{step.detail}</p>
-              </div>
-              <span className={step.ready ? styles.ready : styles.status}>
-                {step.ready ? 'Allowed' : 'Needs access'}
-              </span>
-            </li>
-          ))}
-        {!voiceAvailable && (
-          <li className={styles.permission}>
-            <div>
-              <strong>Voice and microphone</strong>
-              <p>
-                {snapshot.voice.dictationDetail ?? 'Voice setup is unavailable on this device.'}
-              </p>
-            </div>
-            <span className={styles.status}>Unavailable</span>
-          </li>
-        )}
-      </ul>
+      {compact ? (
+        <details className={styles.details}>
+          <summary>
+            Permission details{' '}
+            <span>
+              {ready} of {steps.length} ready
+            </span>
+          </summary>
+          {corePermissions}
+        </details>
+      ) : (
+        corePermissions
+      )}
       <button
         className={styles.link}
         disabled={disabled || pending}

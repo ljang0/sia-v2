@@ -106,6 +106,54 @@ function release(h: ReturnType<typeof harness>, id: string) {
 }
 
 describe('Fn push-to-talk sessions', () => {
+  it('transcribes practice without dispatching a task or reading app context, then restores normal Fn', async () => {
+    const h = harness();
+    h.service.setContextEnabled(true, true);
+    h.service.setPractice(true);
+    expect(h.native.send).toHaveBeenCalledWith({ type: 'context', enabled: false, mac: true });
+    const id = randomUUID();
+    h.event({ type: 'hold', id, context: { app: 'Safari', bundleID: 'com.apple.Safari' } });
+    await flush();
+    h.event({ type: 'recording', id });
+    expect(h.service.view().phase).toBe('listening');
+    release(h, id);
+    await flush();
+    expect(h.voice.appendRealtime).toHaveBeenCalledWith('session', 'AAAA');
+    expect(h.service.view()).toMatchObject({
+      phase: 'idle',
+      practice: true,
+      practiceTranscript: 'Please summarize this document.',
+    });
+    expect(h.send).not.toHaveBeenCalled();
+    h.service.setPractice(false);
+    expect(h.service.view().practiceTranscript).toBeUndefined();
+    expect(h.native.send).toHaveBeenCalledWith({ type: 'context', enabled: true, mac: true });
+    release(h, await listen(h));
+    await flush();
+    expect(h.send).toHaveBeenCalledExactlyOnceWith(
+      h.target(),
+      'Please summarize this document.',
+    );
+  });
+
+  it.each([true, false])(
+    'discards an in-flight transcript when practice changes to %s',
+    async (practice) => {
+      const h = harness();
+      h.service.setPractice(!practice);
+      const final = deferred<string>();
+      vi.mocked(h.voice.stopRealtime).mockImplementation(async (_id, commit) =>
+        commit ? final.promise : '',
+      );
+      release(h, await listen(h));
+      h.service.setPractice(practice);
+      final.resolve('This recording belongs to the previous mode');
+      await flush();
+      expect(h.send).not.toHaveBeenCalled();
+      expect(h.service.view().practiceTranscript).toBeUndefined();
+    },
+  );
+
   it('can defer the shared Accessibility request without starting a recording', () => {
     const h = harness();
     h.native.send.mockClear();

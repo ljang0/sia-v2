@@ -164,6 +164,7 @@ export interface VoiceTask {
   turnId: string;
 }
 interface Recording {
+  practice: boolean;
   context?: string;
   id: string;
   target: VoiceTarget;
@@ -190,6 +191,7 @@ export class PushToTalkService {
   readonly #options: Options;
   #contextEnabled = false;
   #macContext = false;
+  #practice = false;
   readonly #taskThreads = new Map<string, { task: VoiceTask; generation: number }>();
   #speechGeneration = 0;
   #taskPhase: Command['phase'];
@@ -224,7 +226,17 @@ export class PushToTalkService {
     this.#macContext = mac;
     this.#contextEnabled = enabled;
     if (!enabled && this.#recording) delete this.#recording.context;
-    this.#helper?.send({ type: 'context', enabled, mac });
+    this.#helper?.send({ type: 'context', enabled: enabled && !this.#practice, mac });
+  }
+
+  /** Onboarding uses the real Fn/audio path without reading app context or starting work. */
+  setPractice(enabled: boolean): void {
+    if (this.#practice === enabled) return;
+    this.cancel();
+    this.#practice = enabled;
+    this.#view = { ...this.#view, practice: enabled, practiceTranscript: undefined };
+    this.setContextEnabled(this.#contextEnabled, this.#macContext);
+    this.#changed();
   }
   view(): PushToTalkView {
     return { ...this.#view };
@@ -332,7 +344,11 @@ export class PushToTalkService {
         },
       );
       this.#helper = helper;
-      helper.send({ type: 'context', enabled: this.#contextEnabled, mac: this.#macContext });
+      helper.send({
+        type: 'context',
+        enabled: this.#contextEnabled && !this.#practice,
+        mac: this.#macContext,
+      });
       this.syncTasks();
     }
   }
@@ -395,7 +411,9 @@ export class PushToTalkService {
       this.#stopSpeech();
       void this.#begin(
         event.id,
-        this.#contextEnabled && event.context ? JSON.stringify(event.context) : undefined,
+        this.#contextEnabled && !this.#practice && event.context
+          ? JSON.stringify(event.context)
+          : undefined,
       );
       return;
     }
@@ -465,6 +483,7 @@ export class PushToTalkService {
       if (!this.#view.agentId) throw new Error('Choose a voice agent in Settings → Voice.');
       const target = this.#options.target(this.#view.agentId);
       const recording: Recording = {
+        practice: this.#practice,
         id: recordingId,
         ...(context ? { context } : {}),
         target,
@@ -476,6 +495,7 @@ export class PushToTalkService {
         ),
       };
       this.#recording = recording;
+      this.#view.practiceTranscript = undefined;
       this.#set('starting');
       this.#helper.send({ type: 'session', id: recordingId });
       const { sessionId } = await this.#options.voice.startRealtime();
@@ -484,7 +504,11 @@ export class PushToTalkService {
         return;
       }
       recording.sessionId = sessionId;
-      this.#helper?.send({ type: 'start', id: recordingId, label: target.label });
+      this.#helper?.send({
+        type: 'start',
+        id: recordingId,
+        label: recording.practice ? 'Sia · Voice practice' : target.label,
+      });
     } catch (cause) {
       if (this.#recording?.id === recordingId || !this.#recording) {
         this.#fail(cause instanceof Error ? cause.message : 'Voice could not start.');
@@ -504,13 +528,16 @@ export class PushToTalkService {
         this.#fail('No speech detected. Hold Fn to try again.');
         return;
       }
-      const task = await (recording.context
-        ? this.#options.send(recording.target, text, recording.context)
-        : this.#options.send(recording.target, text));
+      const task = recording.practice
+        ? undefined
+        : await (recording.context
+            ? this.#options.send(recording.target, text, recording.context)
+            : this.#options.send(recording.target, text));
 
       if (this.#recording !== recording) return;
       clearTimeout(recording.timer);
       this.#recording = undefined;
+      if (recording.practice) this.#view.practiceTranscript = text.slice(0, 4000);
       if (task)
         this.#taskThreads.set(task.threadId, { task, generation: this.#speechGeneration });
       this.syncTasks();
@@ -537,6 +564,7 @@ export class PushToTalkService {
       !this.#disposed &&
       !this.#suspended &&
       this.#options.allowed() &&
+      !this.#practice &&
       !this.#recording &&
       !this.#rendererLease &&
       Boolean(this.#helper);

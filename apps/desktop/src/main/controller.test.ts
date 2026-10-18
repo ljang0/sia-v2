@@ -5420,6 +5420,21 @@ describe('global voice routing', () => {
     });
     expect(requestMicrophonePermission).toHaveBeenCalledOnce();
     await controller.invoke('threads.select', { threadId: firstThread });
+    await controller.invoke('settings.setOnboarding', { step: 'welcome' });
+    await controller.invoke('settings.setOnboarding', { step: 'practice' });
+    const beforePractice = controller.snapshot().timeline.length;
+    emit({ type: 'hold', id: '00000000-0000-4000-8000-000000000003' });
+    await Promise.resolve();
+    emit({ type: 'recording', id: '00000000-0000-4000-8000-000000000003' });
+    emit({ type: 'released', id: '00000000-0000-4000-8000-000000000003' });
+    emit({ type: 'stopped', id: '00000000-0000-4000-8000-000000000003', hasSpeech: true });
+    await vi.waitFor(() =>
+      expect(controller.snapshot().voice.pushToTalk?.practiceTranscript).toBe('Voice task'),
+    );
+    expect(controller.snapshot().timeline).toHaveLength(beforePractice);
+    await controller.invoke('settings.setOnboarding', { step: 'complete' });
+    expect(controller.snapshot().voice.pushToTalk?.practiceTranscript).toBeUndefined();
+    expect(controller.snapshot().voice.pushToTalk?.practice).toBe(false);
     emit({ type: 'hold', id: '00000000-0000-4000-8000-000000000001' });
     await Promise.resolve();
     emit({ type: 'recording', id: '00000000-0000-4000-8000-000000000001' });

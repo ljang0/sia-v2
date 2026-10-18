@@ -1,10 +1,13 @@
-import { Check, Sparkle } from '@phosphor-icons/react';
+import { Check, ArrowRight } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { OnboardingStep } from '../../shared/bridge';
 import { modelChoices } from '../agentModels';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { SetupConnections } from './OnboardingConnections';
 import { SetupMacAccess } from './SetupMacAccess';
+import { FnPractice } from './FnPractice';
+import { SiaLogo } from './SiaLogo';
+import { dictationReady } from '../voiceReadiness';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import ui from '../ui.module.css';
 import styles from './Onboarding.module.css';
@@ -40,6 +43,13 @@ export function Onboarding({
 }) {
   const step = onboardingStep(snapshot);
   const starting = step === 'welcome' || step === 'agent';
+  const practicing = step === 'practice';
+  const voiceReady = dictationReady(snapshot.voice);
+  const practiceDone = Boolean(
+    snapshot.voice.pushToTalk?.practice &&
+    snapshot.voice.pushToTalk.practiceTranscript?.trim() &&
+    snapshot.voice.pushToTalk.phase === 'idle',
+  );
   const [name, setName] = useState('Sia');
   const [model, setModel] = useState('');
   const [pending, setPending] = useState(false);
@@ -51,7 +61,7 @@ export function Onboarding({
   );
   const [connectionsOpen, setConnectionsOpen] = useState(false);
   const [prepareApps, setPrepareApps] = useState(
-    snapshot.preferences.onboarding?.permissionSetup?.includeApps ?? starting,
+    snapshot.preferences.onboarding?.permissionSetup?.includeApps ?? false,
   );
   const autoFinished = useRef(false);
   const [error, setError] = useState<string>();
@@ -84,7 +94,7 @@ export function Onboarding({
 
   useEffect(() => {
     title.current?.focus();
-  }, [starting]);
+  }, [starting, practicing]);
   // Resuming setup only checks status. The shared checklist handles focus refreshes.
   useEffect(() => {
     if (!step || starting || restarting) return;
@@ -140,6 +150,7 @@ export function Onboarding({
     if (
       !step ||
       starting ||
+      practicing ||
       !agent ||
       !permissionPassComplete ||
       !accessReady ||
@@ -150,10 +161,16 @@ export function Onboarding({
     )
       return;
     autoFinished.current = true;
-    finish();
+    if (voiceReady)
+      void run(() =>
+        api.setOnboarding('practice', { includeApps: prepareApps, active: false }),
+      );
+    else finish();
   }, [
     step,
     starting,
+    practicing,
+    voiceReady,
     agent,
     permissionPassComplete,
     accessReady,
@@ -164,242 +181,320 @@ export function Onboarding({
 
   if (!step) return children;
   return (
-    <main className={styles.setup} aria-label="Welcome to Sia">
+    <main
+      className={styles.setup}
+      aria-label="Welcome to Sia"
+      data-appearance={snapshot.preferences.appearance ?? 'expressive'}
+    >
       <section className={styles.stage}>
-        <div className={styles.brand} aria-hidden="true">
-          <Sparkle size={24} weight="fill" /> sia
-        </div>
-        <h1 ref={title} tabIndex={-1}>
-          {starting ? 'Let’s set up Sia.' : 'Your Sia setup.'}
-        </h1>
-        {starting ? (
-          <p className={styles.intro}>
-            Set up screen control, voice, and access to the apps you already use.
-          </p>
-        ) : null}
-        {starting ? (
-          <>
-            <ul className={styles.included} aria-label="Included in setup">
-              {['Screen and keyboard control', 'Microphone and Fn dictation'].map((label) => (
-                <li key={label}>
-                  <Check size={17} aria-hidden="true" />
+        <div className={styles.setupHeader}>
+          <div className={styles.brand} aria-hidden="true">
+            <SiaLogo />
+          </div>
+          <ol className={styles.progress} aria-label="Setup progress">
+            {['Welcome', 'Mac access', 'Try Fn'].map((label, index) => {
+              const current = starting ? 0 : practicing ? 2 : 1;
+              return (
+                <li
+                  key={label}
+                  aria-current={current === index ? 'step' : undefined}
+                  data-done={current > index}
+                >
+                  <span aria-hidden="true">
+                    {current > index ? <Check size={12} weight="bold" /> : index + 1}
+                  </span>
                   {label}
                 </li>
-              ))}
-            </ul>
-            {!agent && !choices.some((item) => item.ready) ? (
-              <div className={styles.providerSetup}>
-                <ProvidersSettings
-                  providers={snapshot.providers}
-                  onProbe={(id) => api.refreshProvider(id)}
-                  onOpenProviderSetup={(id) => api.openProviderSetup(id)}
-                  onOpenCloudSettings={onAccount}
-                />
-              </div>
-            ) : null}
-            <p className={styles.note}>
-              {setupRoute === 'mac-bypass'
-                ? 'Sia can use your apps, send messages, and change files without asking each time.'
-                : 'Sia asks before taking actions in connected apps.'}
+              );
+            })}
+          </ol>
+        </div>
+        <div
+          className={styles.stepContent}
+          key={starting ? 'welcome' : practicing ? 'practice' : 'access'}
+        >
+          <h1 ref={title} tabIndex={-1}>
+            {starting
+              ? 'Let’s set up Sia.'
+              : practicing
+                ? 'A little less typing.'
+                : 'Your Sia setup.'}
+          </h1>
+          {starting ? (
+            <p className={styles.intro}>
+              A little help, right where you are. We’ll set up your Mac, then try talking to
+              Sia.
             </p>
-            {setupRoute === 'mac-bypass' && aiReady ? (
-              <label className={styles.prepareApps}>
-                <input
-                  type="checkbox"
-                  checked={prepareApps}
-                  disabled={busy || connecting}
-                  onChange={(event) => setPrepareApps(event.currentTarget.checked)}
-                />
-                <span>
-                  <strong>Prepare everyday apps now</strong>
-                  <span>
-                    Browsers, Calendar, Reminders, Finder, and Messages may open for macOS
-                    approval. You can also connect them later.
-                  </span>
-                </span>
-              </label>
-            ) : null}
-            {aiReady ? (
+          ) : null}
+          {starting ? (
+            <>
+              <ul className={styles.included} aria-label="Included in setup">
+                {['Screen and keyboard control', 'Microphone and Fn dictation'].map((label) => (
+                  <li key={label}>
+                    <Check size={17} aria-hidden="true" />
+                    {label}
+                  </li>
+                ))}
+              </ul>
+              {!agent && !choices.some((item) => item.ready) ? (
+                <div className={styles.providerSetup}>
+                  <ProvidersSettings
+                    providers={snapshot.providers}
+                    onProbe={(id) => api.refreshProvider(id)}
+                    onOpenProviderSetup={(id) => api.openProviderSetup(id)}
+                    onOpenCloudSettings={onAccount}
+                  />
+                </div>
+              ) : null}
+              <p className={styles.note}>
+                {setupRoute === 'mac-bypass'
+                  ? 'Sia can use your apps, send messages, and change files without asking each time.'
+                  : 'Sia asks before taking actions in connected apps.'}
+              </p>
+              {aiReady ? (
+                <div className={styles.actions}>
+                  <button
+                    className={ui.primaryButton}
+                    disabled={
+                      busy || connecting || (!agent && (!name.trim() || !choice?.ready))
+                    }
+                    onClick={start}
+                  >
+                    {pending ? 'Setting up Sia…' : 'Set up Sia'}{' '}
+                    <ArrowRight size={16} aria-hidden="true" />
+                  </button>
+                  <span className={styles.note}>Pick up where you left off, anytime.</span>
+                </div>
+              ) : (
+                <p className={styles.note}>
+                  Connect AI access above, then continue to permissions. No terminal is needed.
+                </p>
+              )}
+              <details className={styles.details}>
+                <summary>Customize setup</summary>
+                {setupRoute === 'mac-bypass' && aiReady ? (
+                  <label className={styles.prepareApps}>
+                    <input
+                      type="checkbox"
+                      checked={prepareApps}
+                      disabled={busy || connecting}
+                      onChange={(event) => setPrepareApps(event.currentTarget.checked)}
+                    />
+                    <span>
+                      <strong>Prepare everyday apps now</strong>
+                      <span>
+                        Browsers, Calendar, Reminders, Finder, and Messages may open for macOS
+                        approval. You can also connect them later.
+                      </span>
+                    </span>
+                  </label>
+                ) : null}
+                <fieldset className={styles.setupChoices} disabled={busy || connecting}>
+                  <legend>How Sia works</legend>
+                  <label className={styles.setupChoice}>
+                    <input
+                      type="radio"
+                      name="setup-route"
+                      checked={setupRoute === 'mac-bypass'}
+                      onChange={() => setSetupRoute('mac-bypass')}
+                    />
+                    <span>
+                      <strong>Use my Mac + full bypass</strong>
+                      <span>Use your signed-in apps. No per-action approvals.</span>
+                    </span>
+                  </label>
+                  <label className={styles.setupChoice}>
+                    <input
+                      type="radio"
+                      name="setup-route"
+                      checked={setupRoute === 'connected'}
+                      onChange={() => setSetupRoute('connected')}
+                    />
+                    <span>
+                      <strong>Connected apps + confirmations</strong>
+                      <span>Connect accounts and approve actions.</span>
+                    </span>
+                  </label>
+                  {!agent ? (
+                    <>
+                      <label className={styles.field}>
+                        Agent name
+                        <input
+                          maxLength={80}
+                          value={name}
+                          onChange={(event) => setName(event.currentTarget.value)}
+                        />
+                      </label>
+                      {choice ? (
+                        <label className={styles.field}>
+                          AI access
+                          <select
+                            value={`${choice.provider}:${choice.model}`}
+                            onChange={(event) => setModel(event.currentTarget.value)}
+                          >
+                            {choices.map((item) => (
+                              <option
+                                key={`${item.provider}:${item.model}`}
+                                value={`${item.provider}:${item.model}`}
+                                disabled={!item.ready}
+                              >
+                                {item.label}
+                                {item.ready ? '' : ' · Setup needed'}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      ) : null}
+                    </>
+                  ) : null}
+                  <button className={styles.link} onClick={onModels}>
+                    Manage AI access
+                  </button>
+                  <button className={styles.link} onClick={onCustomize}>
+                    Customize an agent instead
+                  </button>
+                </fieldset>
+              </details>
+            </>
+          ) : practicing ? (
+            <>
+              <p className={styles.intro}>Hold. Speak. Release. That’s all there is to it.</p>
+              {voiceReady ? (
+                <FnPractice voice={snapshot.voice.pushToTalk} />
+              ) : (
+                <p className={styles.note}>
+                  Voice isn’t ready on this Mac yet. You can set it up later in Settings →
+                  Voice.
+                </p>
+              )}
+              {connecting && (
+                <SetupConnections snapshot={snapshot} api={api} pending={busy} run={run} />
+              )}
               <div className={styles.actions}>
                 <button
                   className={ui.primaryButton}
-                  disabled={busy || connecting || (!agent && (!name.trim() || !choice?.ready))}
-                  onClick={start}
+                  disabled={busy || connecting || (voiceReady && !practiceDone)}
+                  onClick={finish}
                 >
-                  {pending ? 'Setting up Sia…' : 'Set up Sia'}
+                  Start using Sia <ArrowRight size={16} aria-hidden="true" />
                 </button>
+                {voiceReady && (
+                  <button
+                    className={styles.link}
+                    disabled={busy || connecting}
+                    onClick={finish}
+                  >
+                    Skip voice practice
+                  </button>
+                )}
               </div>
-            ) : (
               <p className={styles.note}>
-                Connect AI access above, then continue to permissions. No terminal is needed.
+                After setup, hold Fn from any app to ask Sia for help. Use ⌘ E for a quick text
+                request.
               </p>
-            )}
-            <details className={styles.details}>
-              <summary>Customize setup</summary>
-              <fieldset className={styles.setupChoices} disabled={busy || connecting}>
-                <legend>How Sia works</legend>
-                <label className={styles.setupChoice}>
-                  <input
-                    type="radio"
-                    name="setup-route"
-                    checked={setupRoute === 'mac-bypass'}
-                    onChange={() => setSetupRoute('mac-bypass')}
-                  />
-                  <span>
-                    <strong>Use my Mac + full bypass</strong>
-                    <span>Use your signed-in apps. No per-action approvals.</span>
-                  </span>
-                </label>
-                <label className={styles.setupChoice}>
-                  <input
-                    type="radio"
-                    name="setup-route"
-                    checked={setupRoute === 'connected'}
-                    onChange={() => setSetupRoute('connected')}
-                  />
-                  <span>
-                    <strong>Connected apps + confirmations</strong>
-                    <span>Connect accounts and approve actions.</span>
-                  </span>
-                </label>
-                {!agent ? (
-                  <>
-                    <label className={styles.field}>
-                      Agent name
-                      <input
-                        maxLength={80}
-                        value={name}
-                        onChange={(event) => setName(event.currentTarget.value)}
-                      />
-                    </label>
-                    {choice ? (
-                      <label className={styles.field}>
-                        AI access
-                        <select
-                          value={`${choice.provider}:${choice.model}`}
-                          onChange={(event) => setModel(event.currentTarget.value)}
-                        >
-                          {choices.map((item) => (
-                            <option
-                              key={`${item.provider}:${item.model}`}
-                              value={`${item.provider}:${item.model}`}
-                              disabled={!item.ready}
-                            >
-                              {item.label}
-                              {item.ready ? '' : ' · Setup needed'}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
-                  </>
-                ) : null}
-                <button className={styles.link} onClick={onModels}>
-                  Manage AI access
-                </button>
-                <button className={styles.link} onClick={onCustomize}>
-                  Customize an agent instead
-                </button>
-              </fieldset>
-            </details>
-          </>
-        ) : (
-          <>
-            {restarting ? (
-              <p role="status">Restarting Sia…</p>
-            ) : (
-              <SetupMacAccess
-                snapshot={snapshot}
-                api={api}
-                agentId={agent?.id}
-                disabled={pending || connecting}
-                onBusyChange={setPermissionBusy}
-                onReadyChange={setAccessReady}
-                compact
-                autoStart={
-                  startPermissions ||
-                  Boolean(
-                    snapshot.preferences.onboarding?.restarted &&
-                    snapshot.preferences.onboarding?.permissionSetup?.active,
-                  )
-                }
-                onPause={() => {
-                  setStartPermissions(false);
-                  void api
-                    .setOnboarding(step!, {
-                      includeApps: setupRoute === 'mac-bypass' && prepareApps,
-                      active: false,
-                    })
-                    .catch(() =>
-                      setError('Setup paused. Its saved progress could not update.'),
-                    );
-                }}
-                onRestart={async () => {
-                  await api.setOnboarding('verify', {
-                    includeApps: setupRoute === 'mac-bypass' && prepareApps,
-                    active: true,
-                  });
-                  await api.restartForOnboarding();
-                }}
-                includeApps={setupRoute === 'mac-bypass' && prepareApps}
-                onComplete={async () => {
-                  setStartPermissions(false);
-                  await run(async () => {
+            </>
+          ) : (
+            <>
+              {restarting ? (
+                <p role="status">Restarting Sia…</p>
+              ) : (
+                <SetupMacAccess
+                  snapshot={snapshot}
+                  api={api}
+                  agentId={agent?.id}
+                  disabled={pending || connecting}
+                  onBusyChange={setPermissionBusy}
+                  onReadyChange={setAccessReady}
+                  compact
+                  autoStart={
+                    startPermissions ||
+                    Boolean(
+                      snapshot.preferences.onboarding?.restarted &&
+                      snapshot.preferences.onboarding?.permissionSetup?.active,
+                    )
+                  }
+                  onPause={() => {
+                    setStartPermissions(false);
+                    void api
+                      .setOnboarding(step!, {
+                        includeApps: setupRoute === 'mac-bypass' && prepareApps,
+                        active: false,
+                      })
+                      .catch(() =>
+                        setError('Setup paused. Its saved progress could not update.'),
+                      );
+                  }}
+                  onRestart={async () => {
                     await api.setOnboarding('verify', {
                       includeApps: setupRoute === 'mac-bypass' && prepareApps,
-                      active: false,
+                      active: true,
                     });
-                    if (!snapshot.preferences.onboarding?.restarted)
-                      await api.restartForOnboarding();
-                    else setPermissionPassComplete(true);
-                  });
-                }}
-              />
-            )}
-            <div className={styles.actions}>
-              <button
-                className={ui.primaryButton}
-                disabled={busy || connecting}
-                onClick={finish}
-              >
-                Start using Sia
-              </button>
-            </div>
-            <details
-              className={styles.details}
-              open={step === 'apps' || connecting || undefined}
-              onToggle={(event) => setConnectionsOpen(event.currentTarget.open)}
-            >
-              <summary>
-                Connect Google or Slack <span>Optional</span>
-              </summary>
-              <SetupConnections snapshot={snapshot} api={api} pending={busy} run={run} />
-            </details>
-            <details className={styles.details}>
-              <summary>Permission not updating?</summary>
-              <p className={styles.note}>
-                If macOS asks you to restart Sia, use this button. Your setup is saved.
-              </p>
-              <button
-                className={ui.secondaryButton}
-                disabled={busy || connecting}
-                onClick={() =>
-                  void run(async () => {
-                    await api.setOnboarding('verify');
                     await api.restartForOnboarding();
-                  })
-                }
+                  }}
+                  includeApps={setupRoute === 'mac-bypass' && prepareApps}
+                  onComplete={async () => {
+                    setStartPermissions(false);
+                    await run(async () => {
+                      await api.setOnboarding('verify', {
+                        includeApps: setupRoute === 'mac-bypass' && prepareApps,
+                        active: false,
+                      });
+                      if (!snapshot.preferences.onboarding?.restarted)
+                        await api.restartForOnboarding();
+                      else setPermissionPassComplete(true);
+                    });
+                  }}
+                />
+              )}
+              <div className={styles.actions}>
+                <button
+                  className={ui.primaryButton}
+                  disabled={busy || connecting}
+                  onClick={
+                    voiceReady && accessReady
+                      ? () => void run(() => api.setOnboarding('practice'))
+                      : finish
+                  }
+                >
+                  {voiceReady && accessReady ? 'Try Fn' : 'Start using Sia'}
+                </button>
+              </div>
+              <details
+                className={styles.details}
+                open={step === 'apps' || connecting || undefined}
+                onToggle={(event) => setConnectionsOpen(event.currentTarget.open)}
               >
-                {restarting ? 'Restarting…' : 'Restart Sia'}
-              </button>
-            </details>
-          </>
-        )}
-        {error ? (
-          <p className={styles.error} role="alert">
-            {error}
-          </p>
-        ) : null}
+                <summary>
+                  Connect Google or Slack <span>Optional</span>
+                </summary>
+                <SetupConnections snapshot={snapshot} api={api} pending={busy} run={run} />
+              </details>
+              <details className={styles.details}>
+                <summary>Permission not updating?</summary>
+                <p className={styles.note}>
+                  If macOS asks you to restart Sia, use this button. Your setup is saved.
+                </p>
+                <button
+                  className={ui.secondaryButton}
+                  disabled={busy || connecting}
+                  onClick={() =>
+                    void run(async () => {
+                      await api.setOnboarding('verify');
+                      await api.restartForOnboarding();
+                    })
+                  }
+                >
+                  {restarting ? 'Restarting…' : 'Restart Sia'}
+                </button>
+              </details>
+            </>
+          )}
+          {error ? (
+            <p className={styles.error} role="alert">
+              {error}
+            </p>
+          ) : null}
+        </div>
         <footer className={styles.footer}>
           <span>You can change access anytime in Settings.</span>
           <button

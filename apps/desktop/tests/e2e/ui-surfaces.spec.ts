@@ -42,18 +42,18 @@ test('settings and personal-library surfaces remain readable at supported window
     const setup = await page
       .getByRole('button', { name: 'Set up Sia', exact: true })
       .boundingBox();
-    const option = await page
-      .getByRole('checkbox', { name: /Prepare everyday apps now/ })
-      .locator('..')
-      .boundingBox();
-    expect(setup!.y - (option!.y + option!.height)).toBeGreaterThanOrEqual(16);
     await expect(
       page.getByRole('checkbox', { name: /Prepare everyday apps now/ }),
-    ).toBeChecked();
+    ).toBeHidden();
     await expect(
       page.getByRole('button', { name: 'Set up Sia', exact: true }),
     ).toBeInViewport();
     await page.getByText('Customize setup', { exact: true }).click();
+    const optionalApps = page.getByRole('checkbox', { name: /Prepare everyday apps now/ });
+    await expect(optionalApps).not.toBeChecked();
+    const option = await optionalApps.locator('..').boundingBox();
+    // Optional app preparation follows the primary action instead of crowding first-run setup.
+    expect(option!.y - (setup!.y + setup!.height)).toBeGreaterThanOrEqual(16);
     await page.getByLabel('Agent name').scrollIntoViewIfNeeded();
     await capture(page, info, 'setup-customize');
     await page.getByRole('radio', { name: /Connected apps \+ confirmations/ }).check();

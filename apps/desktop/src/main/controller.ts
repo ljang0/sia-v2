@@ -636,6 +636,7 @@ export class DesktopController {
       this.#assistantLibrary.view().context || this.computerAccessMode() === 'mac',
       this.computerAccessMode() === 'mac',
     );
+    this.#pushToTalk.setPractice(this.#state.preferences.onboarding?.step === 'practice');
     this.#pushToTalk.syncAccess();
   }
 
@@ -1921,6 +1922,7 @@ export class DesktopController {
           step,
           ...(agent ? { agentId: agent.id } : {}),
         };
+        this.#pushToTalk?.setPractice(step === 'practice');
         this.#commit();
         return this.snapshot() as BridgeResultMap[M];
       }

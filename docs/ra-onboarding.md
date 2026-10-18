@@ -198,15 +198,21 @@ After any required email sign-in:
 2. Follow the on-screen guide and approve each macOS prompt. Sia opens one missing permission at a
    time, waits for verified access, and advances automatically. **I don’t see the prompt** reopens
    the current step; denied access opens its System Settings pane.
-3. Sia restarts after the completed permission pass and opens your conversation. If Screen Recording
+3. Sia restarts after the completed permission pass and offers **Try Fn** when dictation is ready. If Screen Recording
    requires an earlier restart, choose **I enabled it — restart Sia**. Setup resumes the remaining
    permissions using your saved choice of apps. **Finish later** stops the pass; **Start using Sia**
    continues with the access already granted.
+4. Hold the physical **Fn** key, speak, then release. The key illustration fills with a gentle wave
+   while the native recorder listens, and your actual transcript appears below it. This is practice:
+   it does not read the current app, create a task, or send words to the agent. **Start using Sia**
+   unlocks after transcription; **Skip voice practice** is always available. If voice is unavailable,
+   setup opens your conversation without requiring practice. After setup, Fn requests run normally;
+   **⌘ E** opens the quick text box.
 
-In Use my Mac, **Prepare everyday apps now** is selected by default. The same setup pass requests
+In **Customize setup**, **Prepare everyday apps now** is optional and off by default. Selecting it requests
 missing Automation grants for System Events, Safari, Chrome, Calendar, Reminders, Finder and
 Messages. Already allowed or unavailable apps are skipped; running apps are reused and missing
-apps open hidden where macOS supports it. Uncheck the option to defer those app prompts until a
+apps open hidden where macOS supports it. Leaving the option off defers those app prompts until a
 task needs them. Connected apps setup does not request these Automation grants.
 **Settings → Computer → Grant all permissions** runs the same guided pass later.
 
@@ -221,9 +227,12 @@ dictation, the Fn shortcut, and selected app Automation grants. Messages history
 remains a separate optional setup when needed. macOS still requires its
 own approvals; a single Sia button cannot replace them with a single password prompt. Passwords
 are entered only in macOS dialogs, never Sia or the agent. Sia skips grants already allowed and
-never records during setup. Returning from System Settings only reads current status. A setup
+does not record during permission setup. The microphone records in practice only while you hold Fn.
+Practice transcripts are temporary, are not saved in conversations or memory, and clear when you
+leave practice. They use the configured transcription service, just like normal dictation.
+Returning from System Settings only reads current status. A setup
 restart resumes an explicitly active pass, while a paused pass stays paused. **Permission details**
-shows which access is ready. You can start chatting
+shows the full checklist; the main guide focuses on one missing grant at a time. You can start chatting
 without optional permissions. A closed app may need to be opened before its Automation grant can
 be checked.
 
@@ -234,8 +243,9 @@ the pending grant while keeping completed connections. Google begins with read a
 sends require separate consent. In an unconfigured build, use your signed-in websites through
 Mac access instead. Chrome window selection remains available in **Settings → Computer**.
 
-Restart is no longer a required onboarding step. If macOS asks for one, open **Permission not
-updating? → Restart Sia**. Progress is saved before relaunch; active tasks, recordings, or account
+The guided permission pass restarts Sia once before practice. If a grant needs an earlier restart,
+use **I enabled it — restart Sia**, or **Permission not updating? → Restart Sia**.
+Progress is saved before relaunch; active tasks, recordings, or account
 approvals block a restart. Development restarts keep the same profile and service configuration.
 Older saved setup steps resume on the simplified screen. **Start using Sia** opens the existing
 conversation without sending a message. To revisit setup, use **Settings → Voice → Walk me

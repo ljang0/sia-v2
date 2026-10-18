@@ -9,7 +9,7 @@ and legal surfaces remain sober. Sia is not an AI dashboard and not a chat templ
 
 The audience is an average consumer without technical knowledge. Make the next action obvious,
 use familiar language, and choose sensible defaults. Keep onboarding to a short welcome and access
-check; offer advanced settings and optional features when relevant. Avoid developer jargon,
+check followed by optional Fn practice; offer advanced settings and optional features when relevant. Avoid developer jargon,
 mandatory tutorials, and long sequences of setup screens. Archived conversations remain available
 in Activity and search, without a dedicated sidebar item.
 
@@ -120,8 +120,9 @@ use whitespace and a hairline divider before adding another box.
 ## Merge checklist
 
 - One clear primary action per surface; no duplicate controls or provider-specific layout fork.
-- Onboarding places the optional everyday-app access checkbox before the setup button. Keep it a
-  compact, unboxed choice with approval guidance so it does not compete with the primary action.
+- Onboarding keeps optional everyday-app access off by default under Customize setup. Show one
+  current permission with recovery guidance; keep the full checklist available under Permission details.
+  Fn practice reflects actual recorder states and is always skippable.
 - Conversation remains dominant. Tool activity is compact and progressively disclosed.
 - Settings use one horizontal section rail that wraps when space is tight, keeping every category
   visible. The content pane scrolls independently; avoid a second sidebar inside the application shell.
@@ -157,11 +158,34 @@ profiles; no provider turn or personal account is involved. Phone layouts have a
 
 ## New-user setup
 
-| Before                                                      | After                                                                                          | Why                                                  |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| Install/update then a separate sign-in action after restart | Set up Codex resumes browser sign-in once after restart, with visible stage and retry feedback | No terminal or second setup action                   |
-| Disabled Set up Sia button while no model is ready          | Resolve AI access first, then show Set up Sia                                                  | One actionable next step                             |
-| Core permission statuses hidden with optional apps          | Core checklist always visible; everyday apps expandable                                        | See missing access and recovery guidance immediately |
+| Before                                                      | After                                                                                          | Why                                |
+| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------- |
+| Install/update then a separate sign-in action after restart | Set up Codex resumes browser sign-in once after restart, with visible stage and retry feedback | No terminal or second setup action |
+| Disabled Set up Sia button while no model is ready          | Resolve AI access first, then show Set up Sia                                                  | One actionable next step           |
+| All permission instructions compete for attention           | One missing grant with a small Settings illustration; full checklist expandable                | Know exactly what to do next       |
+| Permission setup ends without a first-use moment            | Skippable hold–speak–release Fn lesson with an actual transcript                               | Learn the gesture by doing it      |
 
 One permission action requests only missing access. macOS owns approval dialogs; returning to Sia
 checks status without repeating prompts. Interrupted or denied access does not erase allowed grants.
+
+### Component references
+
+These are design references, not additional runtime dependencies. Match Sia's existing fonts,
+colors, native button semantics, focus styles, Calm setting, and Reduce Motion. The Fn lesson and
+setup transitions are implemented with local CSS and the typed recorder state; no shader or motion
+library is needed for them. The remaining suggestions are candidates for later UI work.
+
+| Component                                                                        | Where                   | Adaptation                                                                                                         |
+| -------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| [21st Animated Keyboard](https://21st.dev/@badtzx0/components/animated-keyboard) | Fn lesson               | Focus on the Fn key and two neighboring keys; fill it only while the real recorder listens.                        |
+| [React Bits Stepper](https://reactbits.dev/components/stepper)                   | Setup header            | Three quiet stages: Welcome, Mac access, Try Fn. Follow saved progress without artificial delays.                  |
+| [React Bits Animated Content](https://reactbits.dev/animations/animated-content) | Setup transitions       | Short fade and 8px arrival when the stage changes. Keep controls usable immediately.                               |
+| [React Bits Spotlight Card](https://reactbits.dev/components/spotlight-card)     | First-task suggestions  | A restrained sage hover/focus treatment; each card starts an editable request.                                     |
+| [React Bits Gradient Text](https://reactbits.dev/text-animations/gradient-text)  | Welcome headline        | One slow mint/blue sweep, keeping body text still and readable. Retain the current welcome gradient.               |
+| [21st SendButton](https://agent-elements.21st.dev/docs/send-button)              | Desktop/phone composer  | Make idle, send, and stop states unmistakable. Keep an actual labeled button and the existing cancel behavior.     |
+| [React Bits Star Border](https://reactbits.dev/animations/star-border)           | Active voice affordance | Consider a very faint highlight on the Fn practice key only; avoid more perpetual borders or competing highlights. |
+
+[Wispr's official setup guide](https://docs.wisprflow.ai/articles/3152211871-setup-guide) supports
+the learn-by-doing pattern: skip existing grants, press/speak/release to practice, permit skipping,
+and resume interrupted setup. Its documented flow is the reference for the sequence; Sia's key-fill
+visual is a local design, not copied proprietary artwork.

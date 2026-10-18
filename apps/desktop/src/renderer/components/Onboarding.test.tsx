@@ -10,6 +10,20 @@ import { Onboarding, onboardingStep } from './Onboarding';
 
 afterEach(cleanup);
 
+function readyVoice() {
+  return {
+    status: 'connected' as const,
+    voices: [],
+    pushToTalk: {
+      available: true,
+      enabled: true,
+      accessibility: true,
+      microphone: true,
+      phase: 'idle' as const,
+    },
+  };
+}
+
 function setup(step: OnboardingStep = 'welcome') {
   const snapshot = structuredClone(demoSnapshot);
   snapshot.preferences.onboarding = {
@@ -46,7 +60,108 @@ function setup(step: OnboardingStep = 'welcome') {
   return { snapshot, api, props };
 }
 
-it.each(['mac-bypass', 'connected'] as const)(
+it('advances a verified permission pass to real Fn practice without opening another agent or recording', async () => {
+  const { snapshot, api, props } = setup('verify');
+  snapshot.preferences.onboarding!.restarted = true;
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.screenRecording = 'allowed';
+  snapshot.voice = readyVoice();
+  const view = render(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  await waitFor(() =>
+    expect(api.setOnboarding).toHaveBeenCalledExactlyOnceWith('practice', {
+      includeApps: false,
+      active: false,
+    }),
+  );
+  snapshot.preferences.onboarding!.step = 'practice';
+  snapshot.voice.pushToTalk!.practice = true;
+  view.rerender(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  expect(screen.getByRole('heading', { name: 'A little less typing.' })).toBeTruthy();
+  expect(
+    screen.getByRole('list', { name: 'Setup progress' }).querySelector('[aria-current="step"]')!
+      .textContent,
+  ).toContain('Try Fn');
+  expect(api.createAgent).not.toHaveBeenCalled();
+  expect(api.createThread).not.toHaveBeenCalled();
+  expect(api.startRealtimeVoice).not.toHaveBeenCalled();
+  expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');
+});
+
+it('shows genuine recording states and only unlocks the practice finish after native transcription', async () => {
+  const { snapshot, api, props } = setup('practice');
+  snapshot.voice = readyVoice();
+  snapshot.voice.pushToTalk!.practice = true;
+  const content = () => (
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>
+  );
+  const view = render(content());
+  const finish = screen.getByRole('button', { name: 'Start using Sia' }) as HTMLButtonElement;
+  expect(finish.disabled).toBe(true);
+  // DOM key events cannot stand in for the native Fn recorder.
+  fireEvent.keyDown(window, { key: 'Fn' });
+  fireEvent.keyUp(window, { key: 'Fn' });
+  expect(finish.disabled).toBe(true);
+  snapshot.voice.pushToTalk!.phase = 'listening';
+  view.rerender(content());
+  expect(screen.getByRole('status').textContent).toContain('Release Fn');
+  snapshot.voice.pushToTalk!.phase = 'transcribing';
+  view.rerender(content());
+  expect(screen.getByRole('status').textContent).toContain('Turning your voice into words');
+  snapshot.voice.pushToTalk!.phase = 'idle';
+  snapshot.voice.pushToTalk!.practiceTranscript = 'Plan a walk after lunch.';
+  view.rerender(content());
+  expect(screen.getByText('Plan a walk after lunch.')).toBeTruthy();
+  expect(finish.disabled).toBe(false);
+  expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');
+  fireEvent.click(finish);
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
+  expect(api.createAgent).not.toHaveBeenCalled();
+});
+
+it('allows voice practice to be skipped and resumes the existing conversation', async () => {
+  const { snapshot, api, props } = setup('practice');
+  snapshot.voice = readyVoice();
+  snapshot.voice.pushToTalk!.practice = true;
+  render(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Skip voice practice' }));
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
+  expect(api.createThread.mock.calls.length + api.selectThread.mock.calls.length).toBe(1);
+  expect(api.startRealtimeVoice).not.toHaveBeenCalled();
+});
+
+it('keeps pending account approval visible with a cancel action during practice', async () => {
+  const { snapshot, api, props } = setup('practice');
+  snapshot.voice = readyVoice();
+  snapshot.apps[0]!.status = 'connecting';
+  snapshot.apps[0]!.connectionId = 'pending-google';
+  render(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  for (const name of ['Start using Sia', 'Skip voice practice', 'Exit setup'])
+    expect((screen.getByRole('button', { name }) as HTMLButtonElement).disabled).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Cancel connection setup' }));
+  await waitFor(() =>
+    expect(api.disconnectApp).toHaveBeenCalledWith('gmail', 'pending-google'),
+  );
+});
+
+it.each(['mac-bypass', 'connected', 'mac-with-apps'] as const)(
   'one click creates the default agent and starts missing permissions in %s mode',
   async (route) => {
     const { snapshot, api, props } = setup();
@@ -101,13 +216,17 @@ it.each(['mac-bypass', 'connected'] as const)(
       fireEvent.click(screen.getByText('Customize setup'));
       fireEvent.click(screen.getByRole('radio', { name: /Connected apps \+ confirmations/ }));
     }
+    if (route === 'mac-with-apps') {
+      fireEvent.click(screen.getByText('Customize setup'));
+      fireEvent.click(screen.getByRole('checkbox', { name: /Prepare everyday apps now/ }));
+    }
     fireEvent.click(screen.getByRole('button', { name: 'Set up Sia' }));
     await waitFor(() => expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1));
     expect(api.createAgent).toHaveBeenCalledTimes(1);
     expect(snapshot.computer.accessibility).toBe('allowed');
     await waitFor(() =>
       expect(api.setOnboarding).toHaveBeenCalledWith('verify', {
-        includeApps: route === 'mac-bypass',
+        includeApps: route === 'mac-with-apps',
         active: false,
       }),
     );
@@ -115,15 +234,15 @@ it.each(['mac-bypass', 'connected'] as const)(
       expect.objectContaining({ name: 'Sia', workspace: '', startOnboarding: true }),
     );
     expect(api.setComputerAccessMode).toHaveBeenCalledWith(
-      route === 'mac-bypass' ? 'mac' : 'connected',
+      route !== 'connected' ? 'mac' : 'connected',
     );
-    expect(api.setComputerTrust).toHaveBeenCalledWith(route === 'mac-bypass' ? 'auto' : 'ask');
+    expect(api.setComputerTrust).toHaveBeenCalledWith(route !== 'connected' ? 'auto' : 'ask');
     expect(api.createAgent.mock.invocationCallOrder[0]).toBeGreaterThan(
       api.setComputerTrust.mock.invocationCallOrder[0]!,
     );
     expect(api.requestComputerPermissions).toHaveBeenCalledTimes(1);
     expect(api.requestAutomationPermission).toHaveBeenCalledTimes(
-      route === 'mac-bypass' ? 7 : 0,
+      route === 'mac-with-apps' ? 7 : 0,
     );
     expect(api.setupMessages).not.toHaveBeenCalled();
     expect(api.startRealtimeVoice).not.toHaveBeenCalled();
@@ -190,7 +309,11 @@ it.each(['voice', 'access', 'apps', 'restart', 'verify', 'practice'] as const)(
       </Onboarding>,
     );
     await waitFor(() => expect(api.refreshComputerPermissions).toHaveBeenCalledTimes(1));
-    expect(screen.getByRole('heading', { name: 'Your Sia setup.' })).toBeTruthy();
+    expect(
+      screen.getByRole('heading', {
+        name: step === 'practice' ? 'A little less typing.' : 'Your Sia setup.',
+      }),
+    ).toBeTruthy();
     expect(api.requestComputerPermissions).not.toHaveBeenCalled();
     expect(api.requestAutomationPermission).not.toHaveBeenCalled();
     expect(api.createAgent).not.toHaveBeenCalled();

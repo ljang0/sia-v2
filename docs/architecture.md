@@ -452,8 +452,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   profiles are not enrolled automatically. Codex setup uses a single action for the managed installer
   and official ChatGPT browser sign-in. A one-use, expiring continuation resumes after the installer
   restarts Sia; progress is sent through typed provider snapshots without login URLs or credentials.
-  A connected account is checked before setup completes. Core permission statuses remain visible,
-  and the permission pass reads fresh grants before configuring voice.
+  A connected account is checked before setup completes. The welcome → Mac access → Try Fn guide
+  keeps the current grant visible and the full checklist under Permission details. Optional app
+  Automation preparation is off by default under Customize setup. The permission pass reads fresh grants before configuring voice.
   Permission steps are optional and use the typed bridge.
   The guide waits for observed grants before advancing and never treats a request returning as consent.
   Passive focus/poll checks do not replay prompts. A persisted `permissionSetup` records the app
@@ -463,8 +464,13 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   dialogs remain user-operated, with no credential entry or model turn in setup. Explicit Fn setup
   requests microphone consent from the signed Electron app, not the background voice helper;
   previously denied access opens the Microphone pane. The helper only observes the grant. Native voice readiness publishes actual microphone
-  and Accessibility grants, including changes while returning from System Settings. Practice
-  suggestions use the regular composer and never send themselves or replace an existing draft.
+  and Accessibility grants, including changes while returning from System Settings. After the
+  authorized restart, ready dictation advances to skippable Fn practice. The persisted `practice`
+  step enables a transient mode in `PushToTalkService`, including after relaunch. It uses the actual
+  native Fn/audio/transcription pipeline, disables helper app context, and publishes a bounded preview
+  only in the typed voice snapshot. It never dispatches a turn, drives task speech, or persists the
+  transcript. Leaving practice cancels capture and clears the preview; a late result cannot cross
+  modes. Step transitions and the listening wave honor reduced motion. Voice remains optional.
 - The renderer permission handler admits only an audio-only microphone request from Sia's own main
   frame. Camera, display capture, Bluetooth, and unrelated renderer permissions remain denied.
 - Under v3 raw research consent, eligible provider protocol frames and connected-app/browser/

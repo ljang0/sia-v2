@@ -431,6 +431,9 @@ export interface BrowserView {
 }
 
 export interface PushToTalkView {
+  /** Ephemeral onboarding preview; never persisted or submitted as a task. */
+  practiceTranscript?: string | undefined;
+  practice?: boolean;
   speakReplies?: boolean;
   available: boolean;
   enabled: boolean;
