@@ -5,6 +5,12 @@ import {
 } from './browser-window.js';
 import { MacWindowHistory } from './mac-window-history.js';
 import { macExecutionTools } from './mac-execution.js';
+import {
+  sameWindowFrame,
+  windowFrame,
+  windowPixelBounds,
+  type WindowFrame,
+} from './window-pixels.js';
 import { workspaceFileAction } from './background-files.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { createHash, randomUUID } from 'node:crypto';
@@ -1157,6 +1163,28 @@ export class DesktopActionBackend implements ActionBackend {
     }
   }
 
+  async #readWindowFrame(
+    binding: ComputerWindowBinding,
+    request: ValidatedActionInvocation,
+  ): Promise<WindowFrame | undefined> {
+    try {
+      const value = await this.#callCua(request, 'list_windows', {
+        pid: binding.pid,
+        on_screen_only: false,
+      });
+      const window = findRecordArray(value, 'windows').find(
+        (record) =>
+          positiveInteger(record.pid, MAX_PID) === binding.pid &&
+          positiveInteger(record.window_id ?? record.id, MAX_WINDOW_ID) === binding.windowId,
+      );
+      return windowFrame(window?.bounds);
+    } catch {
+      request.context.signal?.throwIfAborted();
+      // Optional geometry must not turn a usable observation into a failure.
+      return undefined;
+    }
+  }
+
   async #captureWindow(
     binding: ComputerWindowBinding,
     request: ValidatedActionInvocation,
@@ -1176,13 +1204,22 @@ export class DesktopActionBackend implements ActionBackend {
       return stale(
         'The observed browser page does not match expected_url. No page content was read. Wait for navigation or inspect the intended window; do not assign this page to the requested course or account item.',
       );
-    const capture = (includeScreenshot: boolean) =>
-      this.#callCua(request, 'get_window_state', {
+    let capturedFrame: WindowFrame | undefined;
+    const capture = async (includeScreenshot: boolean) => {
+      const before =
+        this.#macBrowserAccess() && includeScreenshot
+          ? await this.#readWindowFrame(binding, request)
+          : undefined;
+      const result = await this.#callCua(request, 'get_window_state', {
         pid: binding.pid,
         window_id: binding.windowId,
         session: this.#computerSession(request),
         include_screenshot: includeScreenshot,
       });
+      const after = before ? await this.#readWindowFrame(binding, request) : undefined;
+      capturedFrame = sameWindowFrame(before, after) ? before : undefined;
+      return result;
+    };
     let includeImage =
       request.arguments.read_text === true ||
       request.arguments.include_image === true ||
@@ -1308,6 +1345,8 @@ export class DesktopActionBackend implements ActionBackend {
     if (title) this.#computerWindows.set(binding.id, { ...binding, title });
     const snapshotId = randomUUID();
     const nativeSnapshotId = findString(raw, ['snapshot_id', 'snapshotId']);
+    const pixels =
+      !includeImage || windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
     const elementMap = new Map<string, NativeElementAddress>();
     const elements = findElementRecords(raw, 'window')
       .map((record, position) => {
@@ -1333,12 +1372,20 @@ export class DesktopActionBackend implements ActionBackend {
           ...(role ? { role } : {}),
         });
         const element = sanitizeElement(record, ref);
-        if (this.#macBrowserAccess()) delete element.frame;
+        if (this.#macBrowserAccess()) {
+          delete element.frame;
+          if (
+            /^AX(?:TextField|TextArea|ComboBox|Button|PopUpButton|Link|CheckBox|RadioButton|Slider|Cell)$/.test(
+              role ?? '',
+            )
+          ) {
+            const box = windowPixelBounds(record.frame ?? record.bounds, capturedFrame, pixels);
+            if (box) element.pixel_bounds = box;
+          }
+        }
         return element;
       })
       .filter(isDefined);
-    const pixels =
-      !includeImage || windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
     if (
       this.#macBrowserAccess() &&
       !windowHasProtectedControls(raw) &&
@@ -1554,7 +1601,7 @@ export class DesktopActionBackend implements ActionBackend {
     const pixel =
       typeof args.x === 'number' &&
       typeof args.y === 'number' &&
-      ['click', 'drag'].includes(String(args.action));
+      ['click', 'drag', 'type'].includes(String(args.action));
     const backgroundDelivery = this.#macBrowserAccess() && args.delivery !== 'foreground';
     const inputRoute: BackgroundInputRoute = ['type', 'key'].includes(String(args.action))
       ? 'pid_keyboard'
@@ -1607,12 +1654,13 @@ export class DesktopActionBackend implements ActionBackend {
       if (windowHasProtectedControls(current))
         return refused('Pixel actions are blocked on windows containing protected controls.');
       if (backgroundDelivery) {
-        const unavailable = backgroundRouteRefusal(
-          windowBackgroundInput(current, binding),
-          'window_pointer',
-          request,
-        );
-        if (unavailable) return unavailable;
+        const availability = windowBackgroundInput(current, binding);
+        const routes: BackgroundInputRoute[] =
+          args.action === 'type' ? ['window_pointer', 'pid_keyboard'] : ['window_pointer'];
+        for (const route of routes) {
+          const unavailable = backgroundRouteRefusal(availability, route, request);
+          if (unavailable) return unavailable;
+        }
       }
       const currentSize = screenshotDimensions(current);
       if (
@@ -1679,7 +1727,9 @@ export class DesktopActionBackend implements ActionBackend {
         const text = typeof args.text === 'string' ? args.text : undefined;
         if (text === undefined) return refused('computer_action type requires text.');
         tool = 'type_text';
-        input = { ...base, text };
+        // Keep focus and insertion in the same driver operation. A separate
+        // foreground click restores the previous app before typing begins.
+        input = { ...base, text, ...(pixel ? { x: args.x, y: args.y } : {}) };
         break;
       }
       case 'set': {

@@ -2266,18 +2266,112 @@ it('binds pixel clicks and drags to fresh window images and rechecks protected c
     to_x: 200,
     to_y: 250,
   });
+  const typed = await backend.invoke(
+    request('computer_action', {
+      ...args,
+      snapshot_id: dataRecord(dragged.data).snapshot_id,
+      action: 'type',
+      text: 'Focus and insert together',
+    }),
+  );
+  expect(typed.outcome).toBe('accepted_unverified');
+  const typing = cua.call.mock.calls.filter(([tool]) => tool === 'type_text');
+  expect(typing).toHaveLength(1);
+  expect(typing[0]![1]).toMatchObject({
+    pid: 42,
+    window_id: 91,
+    x: 20,
+    y: 30,
+    text: 'Focus and insert together',
+    delivery_mode: 'foreground',
+  });
+  expect(typing[0]![1].element_token).toBeUndefined();
+  expect(typing[0]![1].snapshot_id).toBeUndefined();
+  // No separate click to lose focus, and no insertion if a secure control appears.
+  expect(cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
   protectedWindow = true;
   expect(
     (
       await backend.invoke(
         request('computer_action', {
           ...args,
-          snapshot_id: dataRecord(dragged.data).snapshot_id,
+          snapshot_id: dataRecord(typed.data).snapshot_id,
+          action: 'type',
+          text: 'Must not be inserted',
         }),
       )
     ).outcome,
   ).toBe('refused');
   expect(cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
+  expect(cua.call.mock.calls.filter(([tool]) => tool === 'type_text')).toHaveLength(1);
+});
+
+it('provides screenshot field centers only with stable, fresh Mac window geometry', async () => {
+  const png = Buffer.alloc(24);
+  Buffer.from('89504e470d0a1a0a', 'hex').copy(png);
+  png.write('IHDR', 12);
+  png.writeUInt32BE(1344, 16);
+  png.writeUInt32BE(1568, 20);
+  let x = 0,
+    move = false;
+  const cua = fakeCua(async (tool) => {
+    if (tool === 'list_apps')
+      return { apps: [{ pid: 42, name: 'TextEdit', bundle_id: 'com.apple.TextEdit' }] };
+    if (tool === 'list_windows')
+      return {
+        windows: [
+          {
+            pid: 42,
+            window_id: 91,
+            app_name: 'TextEdit',
+            bounds: { x, y: 34, width: 841, height: 981 },
+          },
+        ],
+      };
+    if (tool === 'get_window_state') {
+      if (move) x += 20;
+      return {
+        value: {
+          snapshot_id: 'native',
+          elements: [
+            {
+              element_index: 1,
+              element_token: 'title',
+              role: 'AXTextField',
+              label: 'Event title',
+              frame: { x: 120, y: 323, w: 157, h: 22 },
+            },
+            {
+              element_index: 2,
+              element_token: 'clipped',
+              role: 'AXTextField',
+              label: 'Clipped',
+              frame: { x: -100, y: 323, w: 10, h: 22 },
+            },
+          ],
+        },
+        images: [{ mimeType: 'image/png', dataBase64: png.toString('base64') }],
+      };
+    }
+    throw new Error('Unexpected tool');
+  });
+  const backend = new DesktopActionBackend({
+    cua,
+    macBrowserAccess: () => true,
+    macBackgroundControl: () => true,
+  });
+  const target = await grantedComputerTarget(backend);
+  const args = { app_id: target.appId, window_id: target.windowId, include_image: true };
+  const capture = async (input = args) =>
+    dataRecord((await backend.invoke(request('computer_snapshot', input))).data)
+      .elements as Record<string, unknown>[];
+  const elements = await capture();
+  expect(elements[0]!.pixel_bounds).toMatchObject({ center_x: 317.2, center_y: 479.5 });
+  expect(elements[0]!.frame).toBeUndefined();
+  expect(elements[1]!.pixel_bounds).toBeUndefined();
+  expect((await capture({ ...args, include_image: false }))[0]!.pixel_bounds).toBeUndefined();
+  move = true;
+  expect((await capture())[0]!.pixel_bounds).toBeUndefined();
 });
 
 it('stops a failed control loop after two attempts without posting any input', async () => {
@@ -3426,6 +3520,21 @@ describe('native window input availability', () => {
           request('computer_action', {
             ...ids,
             snapshot_id: data.snapshot_id,
+            action: 'type',
+            x: 20,
+            y: 30,
+            text: 'Blocked',
+          }),
+        )
+      ).outcome,
+    ).toBe('needs_foreground');
+    expect(cua.call.mock.calls.some(([tool]) => tool === 'type_text')).toBe(false);
+    expect(
+      (
+        await backend.invoke(
+          request('computer_action', {
+            ...ids,
+            snapshot_id: data.snapshot_id,
             action: 'click',
             x: 20,
             y: 30,
@@ -3434,6 +3543,31 @@ describe('native window input availability', () => {
       ).outcome,
     ).toBe('accepted_unverified');
     expect(cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
+  });
+
+  it('rechecks keyboard availability as well as pointer availability before atomic pixel typing', async () => {
+    const { backend, cua, state } = harness();
+    state.status = 'matched';
+    const target = await grantedComputerTarget(backend);
+    const ids = { app_id: target.appId, window_id: target.windowId };
+    const snapshot = await backend.invoke(
+      request('computer_snapshot', { ...ids, include_image: true }),
+    );
+    // Another window appeared after the original observation. Pixel clicking is
+    // still available, but keyboard dispatch is now ambiguous and must not run.
+    state.keyboardOnly = true;
+    const result = await backend.invoke(
+      request('computer_action', {
+        ...ids,
+        snapshot_id: dataRecord(snapshot.data).snapshot_id,
+        action: 'type',
+        x: 20,
+        y: 30,
+        text: 'Must not reach another window',
+      }),
+    );
+    expect(result.outcome).toBe('needs_foreground');
+    expect(cua.call.mock.calls.some(([tool]) => tool === 'type_text')).toBe(false);
   });
 
   it('rechecks route availability before pixel input and resumes after a fresh matched observation', async () => {

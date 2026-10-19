@@ -142,13 +142,15 @@ const computerAction = z
       });
     if (
       (x !== undefined || y !== undefined || to_x !== undefined || to_y !== undefined) &&
-      (!coordinates || element_ref || !['click', 'drag'].includes(action))
+      (!coordinates || element_ref || !['click', 'drag', 'type'].includes(action))
     )
       context.addIssue({
         code: 'custom',
         message:
-          'Use either an element reference or complete screenshot coordinates for click/drag.',
+          'Use either an element reference or complete screenshot coordinates for click/drag/type.',
       });
+    if (action !== 'drag' && (to_x !== undefined || to_y !== undefined))
+      context.addIssue({ code: 'custom', message: 'End coordinates only apply to drag.' });
     if (action === 'drag' && (!coordinates || to_x === undefined || to_y === undefined))
       context.addIssue({
         code: 'custom',
@@ -710,7 +712,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_action: {
     name: 'computer_action',
     description:
-      'Perform one action against the exact freshly captured application window. Use my Mac defaults to background delivery; unsupported actions return needs_foreground. Explicit delivery:foreground is available when necessary. Do not use an AXWindow reference as an editable field. Prefer an element_ref for actual controls. If an Electron or canvas app exposes no usable element, type, key, and scroll may omit element_ref to use the focused control in that exact window; click can use x/y screenshot pixels and drag uses x/y plus to_x/to_y when pixel_actions_available is true. Coordinates use the original window screenshot, top-left origin; set requires a ref. "type" inserts only new text at the current caret. "set" replaces the entire editable value. For shortcuts, put one non-modifier key in value and list modifiers separately. The result already includes a fresh post-action snapshot; use it to check the rendered effect without another snapshot unless observation_pending/loading is true or the result is unclear. Delivery alone does not prove success.',
+      'Perform one action against the exact freshly captured application window. Use my Mac defaults to background delivery; unsupported actions return needs_foreground. Explicit delivery:foreground is available when necessary. Do not use an AXWindow reference as an editable field. Prefer an element_ref for actual controls. If an Electron or canvas app exposes no usable element, type, key, and scroll may omit element_ref to use the focused control in that exact window. Click and type can use x/y screenshot pixels; type with x/y focuses the field and types in ONE driver call, avoiding focus loss between separate calls. Use this when browser AX focus/setters fail. When a control has pixel_bounds, use its center_x/center_y as x/y rather than guessing. Otherwise choose the inside of the input box from the fresh image, not its label. Drag uses x/y plus to_x/to_y. Pixel actions require pixel_actions_available. Coordinates use the original window screenshot, top-left origin; set requires a ref. "type" inserts only new text at the current caret. "set" replaces the entire editable value. For shortcuts, put one non-modifier key in value and list modifiers separately. The result already includes a fresh post-action snapshot; use it to check the rendered effect without another snapshot unless observation_pending/loading is true or the result is unclear. Delivery alone does not prove success.',
     inputSchema: object(
       {
         app_id: string('Exact application id'),

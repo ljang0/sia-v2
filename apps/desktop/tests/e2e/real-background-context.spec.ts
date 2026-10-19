@@ -9,6 +9,7 @@ import { startBackgroundCampus } from '../support/background-campus.js';
 
 // Explicitly opt in: real model turns + real Mac CUA, fictional accounts only.
 const real = process.env.SIA_REAL_BACKGROUND_CONTEXT_E2E === '1' ? test : test.skip;
+const atomicInput = process.env.SIA_REAL_BACKGROUND_ATOMIC_INPUT_E2E === '1';
 
 real(
   'reuses existing sessions for background research and writes with permitted foreground recovery',
@@ -254,7 +255,7 @@ real(
         );
         await task(
           'Verified calendar write',
-          `Create exactly one event titled "Graph lab study" on ${portal.week.last} at 15:00 UTC for 30 minutes in my campus Student work calendar. Inspect the destination account and existing events first, avoid duplicates, and verify the saved event. Do not create an event in Personal.`,
+          `Create exactly one event titled "Graph lab study" on ${portal.week.last} at 15:00 UTC for 30 minutes in my campus Student work calendar. Inspect the destination account and existing events first, avoid duplicates, and verify the saved event. Do not create an event in Personal.${atomicInput ? ' This is also an atomic input capability check: for each text field use computer_action action type with x/y inside its fresh screenshot input box, no element_ref, and foreground delivery when permitted. Do not use separate click and type calls for text fields. Verify each rendered value and the saved event.' : ''}`,
           true,
         );
         expect(portal.events).toEqual([
@@ -273,6 +274,8 @@ real(
       const { readdir } = await import('node:fs/promises');
       let delivered = 0;
       let foreground = 0;
+      let pixelTypes = 0;
+      const fieldsWithBounds = new Set<string>();
       for (const directory of await readdir(trajectoryRoot)) {
         if (directory === 'app-lifecycle') continue;
         const events = (await readFile(join(trajectoryRoot, directory, 'events.jsonl'), 'utf8'))
@@ -281,6 +284,19 @@ real(
           .map((line) => JSON.parse(line));
         for (const event of events) {
           if (event.type !== 'action_result') continue;
+          if (
+            event.name === 'computer_action' &&
+            event.arguments?.action === 'type' &&
+            typeof event.arguments.x === 'number'
+          )
+            pixelTypes++;
+          for (const element of event.data?.elements ?? [])
+            if (
+              element.role === 'AXTextField' &&
+              element.pixel_bounds &&
+              ['Event title', 'Date (YYYY-MM-DD)', 'Time (HH:MM, UTC)'].includes(element.label)
+            )
+              fieldsWithBounds.add(element.label);
           if (event.data?.source_url)
             expect(event.data.source_url.startsWith(portal.origin + '/')).toBe(true);
           if (event.name === 'computer_action' && event.data?.delivery) {
@@ -294,6 +310,11 @@ real(
         }
       }
       expect(delivered).toBeGreaterThan(0);
+      if (atomicInput) {
+        expect(pixelTypes).toBeGreaterThanOrEqual(3);
+        expect(fieldsWithBounds.size).toBe(3);
+        console.info('Verified atomic pixel typing:', pixelTypes, 'calls with field bounds');
+      }
       console.info(
         'Verified input delivery:',
         JSON.stringify({ background: delivered, foreground }),

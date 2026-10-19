@@ -320,8 +320,18 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Multiple Safari windows can refuse PID keyboard input as `same_pid_keyboard_ambiguity` while
   accessibility clicks still work. A browser accessibility setter can also leave a field unchanged.
   The prompt directs the model to verify the rendered value and, when already permitted, type into
-  the fresh exact field with explicit foreground delivery before resuming background work. With
-  pause selected, it reports this limit instead. It cannot close unrelated windows or change access
+  the fresh exact field with explicit foreground delivery before resuming background work.
+  Screenshot-addressed `computer_action` typing passes x/y to the driver's single `type_text`
+  operation: focus and insertion happen together, avoiding focus restoration between separate
+  calls. It requires a fresh, unchanged, unprotected window image; background delivery checks
+  both the pointer and keyboard routes. The host never automatically replays an uncertain edit.
+  Visible controls also receive `pixel_bounds` with screenshot-relative center coordinates when
+  an image and native AX frame are available. The host converts Mac screen points (including
+  the driver's w/h frames) using the actual PNG dimensions and exact WindowServer bounds,
+  rather than assuming a Retina multiplier. Window bounds must match before and after capture;
+  moved/resized, clipped, hidden and invalid controls receive no pixel target. Raw screen frames
+  remain withheld. These coordinates aid targeting and do not expand the window's input authority.
+  With pause selected, it reports this limit instead. It cannot close unrelated windows or change access
   settings to bypass the driver. See the driver's [typing guidance](https://cua.ai/docs/cua-driver/reference/mcp-tools/keyboard).
   With foreground recovery enabled, `computer_open_app` accepts explicit `delivery:"foreground"`
   to activate the installed app, followed by a fresh observation of the intended exact window.
