@@ -34,3 +34,15 @@ it('bounds retrieval and ranks filename evidence above incidental mentions', () 
     'c.md',
   ]);
 });
+
+it('retrieves relevant notes beyond the first 200 filenames without expanding the read budget', () => {
+  const names = Array.from({ length: 250 }, (_, i) => `archive-${i}.md`);
+  names.push('z-campus.md', 'z-work.md', 'z-unrelated.md');
+  expect(
+    selectMemoryNotes(
+      'Find my professors this semester',
+      '- [[z-campus]] — current courses and instructors\n- [[z-work]] — campus account profile',
+      names,
+    ),
+  ).toEqual(['z-campus.md', 'z-work.md']);
+});

@@ -350,6 +350,7 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #hostPid: number;
   readonly #computerApps = new Map<string, ComputerAppBinding>();
   readonly #computerWindows = new Map<string, ComputerWindowBinding>();
+  readonly #inspectedBrowserIdentities = new Set<string>();
   readonly #windowSnapshots = new Map<string, WindowSnapshotCapability>();
   readonly #latestWindowSnapshot = new Map<string, string>();
   readonly #browserBindings = new Map<string, BrowserBinding>();
@@ -860,7 +861,7 @@ export class DesktopActionBackend implements ActionBackend {
     // Preserve exact window identities across inventory refreshes within this turn.
     // Later turns discover fresh targets under a new, host-owned CUA session.
     const mac = this.#macBrowserAccess();
-    this.#computerSession(request);
+    const sessionId = this.#computerSession(request);
     if (!mac) this.#resetComputerCapabilities();
     const previousApps = [...this.#computerApps.values()];
     const previousWindows = [...this.#computerWindows.values()];
@@ -961,6 +962,7 @@ export class DesktopActionBackend implements ActionBackend {
         const snapshot = this.#latestWindowSnapshot.get(id);
         if (snapshot) this.#windowSnapshots.delete(snapshot);
         this.#latestWindowSnapshot.delete(id);
+        this.#inspectedBrowserIdentities.delete(id);
       }
     // WindowServer enumerates back-to-front on some builds. Give the model the
     // frontmost candidates first, retaining every permitted window for discovery.
@@ -981,7 +983,17 @@ export class DesktopActionBackend implements ActionBackend {
           return binding && this.#isNativeBrowser(binding);
         })
       : [];
-    const inspected = browserWindows.slice(0, 8);
+    // Repeated inventories must eventually discover windows beyond the first
+    // eight. Do not cache page identities: each returned identity is read live.
+    if (
+      browserWindows.every((window) =>
+        this.#inspectedBrowserIdentities.has(String(window.window_id)),
+      )
+    )
+      this.#inspectedBrowserIdentities.clear();
+    const inspected = browserWindows
+      .filter((window) => !this.#inspectedBrowserIdentities.has(String(window.window_id)))
+      .slice(0, 8);
     for (let offset = 0; offset < inspected.length; offset += 4) {
       request.context.signal?.throwIfAborted();
       await Promise.all(
@@ -994,7 +1006,9 @@ export class DesktopActionBackend implements ActionBackend {
           } catch {
             state = { status: 'unavailable' };
           }
+          if (request.context.signal?.aborted || this.#computerSessionId !== sessionId) return;
           Object.assign(window, { browser_state: state.status });
+          this.#inspectedBrowserIdentities.add(binding.id);
           if (state.status === 'ready' && state.url !== 'about:blank') {
             const page = new URL(state.url);
             Object.assign(window, {
@@ -1006,6 +1020,9 @@ export class DesktopActionBackend implements ActionBackend {
       );
     }
     request.context.signal?.throwIfAborted();
+    const remaining = browserWindows.filter(
+      (window) => !this.#inspectedBrowserIdentities.has(String(window.window_id)),
+    ).length;
 
     return {
       outcome: 'verified',
@@ -1018,6 +1035,13 @@ export class DesktopActionBackend implements ActionBackend {
               browser_route:
                 'Existing Mac browser sessions are reused in place; no account connection or login copying is needed. Select the task window using its observed page identity and saved account hints, then verify the live account with computer_snapshot. Inspect visible tabs and account-switcher controls in that window before opening a site in another default profile. Page metadata does not prove sign-in. Protected or unavailable windows do not establish that other accounts are blocked.',
               browser_metadata_partial: browserWindows.length > inspected.length,
+              browser_windows_uninspected: remaining,
+              ...(remaining > 0
+                ? {
+                    next_step:
+                      'Some browser windows have not been identified yet. Repeat computer_list to inspect the next batch, or use computer_snapshot on a specific task window. Missing metadata is not evidence of sign-out.',
+                  }
+                : {}),
             }
           : {}),
         installed_apps: ((await this.#installedApplications?.()) ?? [])
@@ -2526,6 +2550,7 @@ export class DesktopActionBackend implements ActionBackend {
   #resetComputerCapabilities(): void {
     this.#computerApps.clear();
     this.#computerWindows.clear();
+    this.#inspectedBrowserIdentities.clear();
     this.#windowSnapshots.clear();
     this.#latestWindowSnapshot.clear();
   }

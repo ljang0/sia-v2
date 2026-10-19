@@ -39,9 +39,10 @@ export function selectMemoryNotes(
     }
   }
   const personal = /\b(?:my|our|me)\b/i.test(request);
+  // Rank metadata before bounding reads; a note's alphabetical position must
+  // not make it disappear as more memories accumulate.
   return names
     .filter((name) => !core.has(name) && /^[a-zA-Z0-9][a-zA-Z0-9_-]{0,100}\.md$/.test(name))
-    .slice(0, 200)
     .map((name) => {
       const filename = tokens(name.slice(0, -3));
       const description = tokens(descriptions.get(name) ?? '');

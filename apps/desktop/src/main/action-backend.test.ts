@@ -2465,9 +2465,40 @@ describe('Use my Mac browser routing', () => {
     expect(windows).toHaveLength(10);
     expect(h.inspect).toHaveBeenCalledTimes(8);
     expect(data.browser_metadata_partial).toBe(true);
+    expect(data.browser_windows_uninspected).toBe(2);
+    expect(data.next_step).toContain('Repeat computer_list');
     expect(windows.filter((window) => window.browser_state === 'unavailable')).toHaveLength(8);
     expect(windows.every((window) => window.source_url === undefined)).toBe(true);
     expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
+    // Reach the remaining windows on the next inventory, without caching any
+    // prior page identities or broadening the per-call observation budget.
+    h.inspect.mockResolvedValue({
+      status: 'ready',
+      url: 'https://campus.example/courses?private=omit#omit',
+      bundleID: 'com.apple.Safari',
+    });
+    const next = dataRecord((await h.backend.invoke(request('computer_list', {}))).data);
+    const nextWindows = next.windows as Record<string, unknown>[];
+    expect(h.inspect).toHaveBeenCalledTimes(10);
+    expect(next.browser_windows_uninspected).toBe(0);
+    expect(next.next_step).toBeUndefined();
+    expect(nextWindows.slice(0, 8).every((window) => !window.browser_state)).toBe(true);
+    expect(nextWindows.slice(8).map((window) => window.source_url)).toEqual([
+      'https://campus.example/courses',
+      'https://campus.example/courses',
+    ]);
+    expect(nextWindows.map((window) => window.window_id)).toEqual(
+      windows.map((window) => window.window_id),
+    );
+    // A completed cycle refreshes live metadata rather than claiming a lasting
+    // login grant. New turns also begin a fresh cycle with fresh capabilities.
+    h.inspect.mockResolvedValue({ status: 'protected' });
+    const refreshed = dataRecord((await h.backend.invoke(request('computer_list', {}))).data);
+    expect(h.inspect).toHaveBeenCalledTimes(18);
+    expect((refreshed.windows as Record<string, unknown>[])[0]!.browser_state).toBe(
+      'protected',
+    );
+    expect((refreshed.windows as Record<string, unknown>[])[0]!.source_url).toBeUndefined();
   });
 
   it('marks partial source coverage instead of treating a bounded observation as the full page', async () => {

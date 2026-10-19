@@ -116,6 +116,10 @@ it.runIf(process.platform === 'darwin')(
     );
     vault.write('accounts.md', '# Accounts\nUse Alder work for campus tasks.\n', '');
     vault.write('recipes.md', 'Unrelated private cooking notes.', '');
+    // These sort ahead of accounts/campus. A growing vault must not hide the
+    // relevant notes on either execution route, even with journaling paused.
+    for (let i = 0; i < 210; i++)
+      writeFileSync(join(vault.root, `a-archive-${i}.md`), 'Unrelated archive body.');
     writeFileSync(join(vault.root, 'canvas-secret.md'), 'password: must never be injected');
     writeFileSync(join(workspace, 'outside.md'), 'Must not follow a file link');
     symlinkSync(join(workspace, 'outside.md'), join(vault.root, 'canvas-link.md'));
@@ -139,6 +143,7 @@ it.runIf(process.platform === 'darwin')(
       expect(result.prompt).toContain('Use Alder work');
       expect(result.prompt).toContain('campus.md (partial excerpt)');
       expect(result.prompt).not.toContain('cooking notes');
+      expect(result.prompt).not.toContain('Unrelated archive body');
       expect(result.prompt).not.toContain('must never be injected');
       expect(result.prompt).not.toContain('Must not follow');
       expect(result.prompt).toContain('Automatic journaling is paused');

@@ -247,6 +247,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   `computer_list` adds current page origin/path metadata for up to eight existing browser windows,
   read in batches of four without page contents or screenshots. Queries and fragments are omitted;
   protected identities return no URL and `browser_metadata_partial` marks a capped inventory.
+  Repeated inventories inspect the next previously uninspected windows, in the same turn, so a
+  window beyond the first eight is discoverable. `browser_windows_uninspected` and `next_step`
+  identify remaining coverage. Completing a cycle starts fresh discovery; identities are not
+  cached between calls, and new turns reset the cycle with the other capabilities.
   This is discovery, not proof of sign-in or a fresh input capability. Snapshots/actions revalidate
   the exact live window and account. Background tasks reuse the person's existing app sessions in
   place: no browser profile, cookie, password or token is copied. The model is instructed to inspect
@@ -378,6 +382,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   New Mac agents in either mode enable Notch-style learning. Existing opt-outs remain unchanged.
   Before request preparation, the host selects up to four relevant Markdown notes from filenames
   and MOC descriptions using local term matching (including coursework/account vocabulary).
+  Ranking considers every eligible filename before choosing four notes; accumulating more than
+  200 notes does not hide later filenames. Only the selected note bodies are read.
   Excerpts are bounded to 4,000 characters per note and 12,000 total; unsafe files and notes with
   credential markers are skipped. The copied Swift adapter injects these as historical,
   untrusted `relevant_memory` data on both routes, including when learning is paused. They help
