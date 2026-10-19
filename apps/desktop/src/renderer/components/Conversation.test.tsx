@@ -491,7 +491,32 @@ describe('Conversation waiting controls', () => {
 });
 
 describe('Conversation continuity tools', () => {
-  it('starts an empty thread from a contextual prompt', () => {
+  it('does not replay an old suggestion over a saved draft after switching conversations', () => {
+    const props = {
+      starterPrompts: ['Review the release blockers.'],
+      onSend: vi.fn(),
+      onStop: vi.fn(),
+      onRetry: vi.fn(),
+      onResolveApproval: vi.fn(),
+    };
+    const first = baseThread({ status: 'idle', events: [] });
+    const { rerender } = render(<Conversation {...props} thread={first} />);
+    fireEvent.click(screen.getByRole('button', { name: /Review the release blockers/ }));
+    const field = () => screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
+    fireEvent.change(field(), { target: { value: 'My edited request' } });
+    rerender(
+      <Conversation
+        {...props}
+        thread={baseThread({ id: 'thread-2', status: 'idle', draft: 'Another draft' })}
+      />,
+    );
+    expect(field().value).toBe('Another draft');
+    rerender(<Conversation {...props} thread={{ ...first, draft: 'My edited request' }} />);
+    expect(field().value).toBe('My edited request');
+    expect(props.onSend).not.toHaveBeenCalled();
+  });
+
+  it('lets people edit a contextual prompt before explicitly sending it', async () => {
     const onSend = vi.fn(async () => undefined);
     render(
       <Conversation
@@ -505,7 +530,16 @@ describe('Conversation continuity tools', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: /Review the release blockers/ }));
-    expect(onSend).toHaveBeenCalledWith('Review the release blockers.');
+    const field = screen.getByRole('textbox', { name: 'Message' });
+    expect((field as HTMLTextAreaElement).value).toBe('Review the release blockers.');
+    expect(document.activeElement).toBe(field);
+    expect(onSend).not.toHaveBeenCalled();
+    fireEvent.change(field, { target: { value: 'Review only the urgent blockers.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
+    await waitFor(() =>
+      expect(onSend).toHaveBeenCalledWith('Review only the urgent blockers.', []),
+    );
+    expect(onSend).toHaveBeenCalledOnce();
   });
 
   it('finds matching events inside the open thread', () => {

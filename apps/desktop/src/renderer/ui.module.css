@@ -1019,21 +1019,6 @@ button.agentAvatar {
   opacity: 0.2;
 }
 
-.gradientHeading {
-  color: var(--aurora-ink-start);
-  background: linear-gradient(
-    110deg,
-    var(--aurora-ink-start),
-    var(--aurora-ink-middle) 32%,
-    var(--aurora-ink-end) 64%,
-    var(--aurora-ink-start)
-  );
-  background-size: 260% 100%;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation: auroraDrift 18s ease-in-out infinite alternate;
-}
-
 @keyframes auroraDrift {
   from {
     background-position: 0% 50%;
@@ -1043,7 +1028,7 @@ button.agentAvatar {
   }
 }
 
-.mainPane:has(.conversationAurora[data-paused='true']) .gradientHeading,
+.mainPane:has(.conversationAurora[data-paused='true']) [data-gradient-text],
 .mainPane:has(.conversationAurora[data-paused='true']) .composer {
   animation-play-state: paused;
 }
@@ -7003,7 +6988,6 @@ button.agentAvatar {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .gradientHeading,
   .composer {
     animation: none;
   }
@@ -7112,11 +7096,6 @@ button.agentAvatar {
 @media (forced-colors: active) {
   .conversationAurora {
     display: none;
-  }
-  .gradientHeading {
-    background: none;
-    -webkit-text-fill-color: currentColor;
-    color: CanvasText;
   }
   .composer {
     border-color: ButtonText;
@@ -7261,7 +7240,6 @@ button.agentAvatar {
 }
 
 /* Calm keeps the color palette without continuous decorative motion. */
-.appShell[data-appearance='calm'] .gradientHeading,
 .appShell[data-appearance='calm'] .composer,
 .appShell[data-appearance='calm'] .composer::before,
 .appShell[data-appearance='calm'] .composer::after {

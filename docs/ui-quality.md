@@ -22,6 +22,14 @@ appear below the suggestions, prioritizing work that needs attention. Opening on
 conversation; it does not resend the original request. Phone greetings identify the paired agent and
 retain the existing editable recent prompts.
 
+Desktop and phone suggestions use a restrained pointer-following sage highlight, with a centered
+keyboard-focus treatment and native button semantics. Choosing a suggestion fills and focuses an
+editable request; sending is explicit. Welcome headline gradients drift slowly and pause when
+hidden. Calm and Reduce Motion keep these surfaces still, and forced colors restores solid text.
+The composer shares a labeled send/working/stop control across desktop and phone, with a pending
+state that prevents duplicate submissions. A delayed acknowledgement cannot erase the next desktop
+draft; a failed send keeps it, and a failed stop permits retry with visible feedback.
+
 The latest finished desktop reply and completed phone replies appear in a soft result card. The
 original text, links, copy/read-aloud controls, and phone file downloads remain available. “Reply ready”
 describes availability, not independent verification that every requested action succeeded. Running,
@@ -173,7 +181,9 @@ checks status without repeating prompts. Interrupted or denied access does not e
 These are design references, not additional runtime dependencies. Match Sia's existing fonts,
 colors, native button semantics, focus styles, Calm setting, and Reduce Motion. The Fn lesson and
 setup transitions are implemented with local CSS and the typed recorder state; no shader or motion
-library is needed for them. The remaining suggestions are candidates for later UI work.
+library is needed for them. Spotlight Card and Gradient Text are adapted locally with provenance
+in `THIRD_PARTY_NOTICES.md`; SendButton's state pattern is implemented using Sia's native button.
+Star Border remains an optional reference, not an additional screen-border effect.
 
 | Component                                                                        | Where                   | Adaptation                                                                                                         |
 | -------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------ |

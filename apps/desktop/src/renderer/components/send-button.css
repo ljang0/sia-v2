@@ -1,0 +1,35 @@
+.sia-send-button .metal-content {
+  gap: 7px;
+}
+.send-glyph {
+  display: grid;
+  place-items: center;
+  animation: send-glyph-arrive 160ms ease-out;
+}
+.send-spinner {
+  animation: send-spin 900ms linear infinite;
+}
+@keyframes send-glyph-arrive {
+  from {
+    opacity: 0;
+    transform: translateY(2px) scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes send-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+[data-appearance='calm'] .send-glyph {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .send-glyph,
+  .send-spinner {
+    animation: none;
+  }
+}

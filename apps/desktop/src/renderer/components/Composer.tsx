@@ -1,5 +1,4 @@
 import {
-  ArrowUp,
   File,
   Image,
   Microphone,
@@ -12,7 +11,7 @@ import {
 import { type KeyboardEvent, useEffect, useRef, useState } from 'react';
 import styles from '../ui.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
-import { LiquidMetalButton } from './effects/liquid-metal-button';
+import { SendButton } from './SendButton';
 
 interface ComposerAttachment {
   id: string;
@@ -22,6 +21,7 @@ interface ComposerAttachment {
 }
 
 interface ComposerProps {
+  suggestion?: { id: number; text: string } | undefined;
   initialValue?: string;
   disabled?: boolean;
   running?: boolean;
@@ -51,6 +51,7 @@ interface ComposerProps {
 }
 
 export function Composer({
+  suggestion,
   initialValue = '',
   disabled,
   running,
@@ -79,7 +80,12 @@ export function Composer({
   onStop,
 }: ComposerProps) {
   const [value, setValue] = useState(initialValue);
+  const valueRef = useRef(initialValue);
   const [sending, setSending] = useState(false);
+  const sendInFlight = useRef(false);
+  const [stopping, setStopping] = useState(false);
+  const stopInFlight = useRef(false);
+  const [controlError, setControlError] = useState<string>();
   const [voicePhase, setVoicePhase] = useState<
     'idle' | 'starting' | 'recording' | 'transcribing'
   >('idle');
@@ -178,9 +184,20 @@ export function Composer({
   };
 
   const updateValue = (content: string) => {
+    valueRef.current = content;
     setValue(content);
     persistDraftSoon(content);
   };
+
+  useEffect(() => {
+    if (!suggestion) return;
+    updateValue(suggestion.text);
+    if (textArea.current) {
+      textArea.current.style.height = 'auto';
+      textArea.current.style.height = `${Math.min(textArea.current.scrollHeight, 168)}px`;
+      textArea.current.focus({ preventScroll: true });
+    }
+  }, [suggestion?.id]);
 
   const persistDraftNow = (content: string) => {
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
@@ -219,8 +236,10 @@ export function Composer({
   ]);
 
   const submit = async () => {
-    const content = value.trim();
-    if ((!content && attachments.length === 0) || disabled || sending) return;
+    const draft = valueRef.current;
+    const content = draft.trim();
+    if ((!content && attachments.length === 0) || disabled || sendInFlight.current) return;
+    sendInFlight.current = true;
     setSending(true);
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
     draftSaveTimer.current = undefined;
@@ -230,14 +249,33 @@ export function Composer({
         content,
         attachments.map((attachment) => attachment.id),
       );
-      setValue('');
-      persistDraftNow('');
-      if (textArea.current) textArea.current.style.height = 'auto';
+      if (valueRef.current === draft) {
+        valueRef.current = '';
+        setValue('');
+        if (textArea.current) textArea.current.style.height = 'auto';
+      }
+      persistDraftNow(valueRef.current);
     } catch {
-      persistDraftNow(value);
+      persistDraftNow(valueRef.current);
       textArea.current?.focus();
     } finally {
+      sendInFlight.current = false;
       setSending(false);
+    }
+  };
+
+  const stop = async () => {
+    if (stopInFlight.current) return;
+    stopInFlight.current = true;
+    setControlError(undefined);
+    setStopping(true);
+    try {
+      await onStop();
+    } catch {
+      setControlError('Couldn’t stop the task. Please try Stop again.');
+    } finally {
+      stopInFlight.current = false;
+      setStopping(false);
     }
   };
 
@@ -781,33 +819,37 @@ export function Composer({
             </span>
           </div>
           {stoppable ? (
-            <LiquidMetalButton
+            <SendButton
+              state={stopping ? 'stopping' : 'working'}
               type="button"
-              size="compact"
+              showLabel
               className={styles.composerAction}
-              onClick={() => void onStop()}
+              onClick={() => void stop()}
               aria-label="Stop current turn"
-            >
-              <Stop weight="fill" size={13} aria-hidden="true" />
-              Stop
-            </LiquidMetalButton>
+            />
           ) : null}
           {!running ? (
-            <LiquidMetalButton
+            <SendButton
+              state={
+                sending ? 'sending' : value.trim() || attachments.length ? 'ready' : 'idle'
+              }
               type="button"
               size="compact"
               viewMode="icon"
               tone="sage"
               onClick={() => void submit()}
-              disabled={disabled || (!value.trim() && attachments.length === 0) || sending}
+              disabled={disabled}
               aria-label="Send message"
               data-testid="composer-send"
-            >
-              <ArrowUp weight="bold" size={16} aria-hidden="true" />
-            </LiquidMetalButton>
+            />
           ) : null}
         </div>
       </div>
+      {controlError ? (
+        <p className={styles.composerError} role="alert">
+          {controlError}
+        </p>
+      ) : null}
       {voiceError ? (
         <p className={styles.composerError} role="alert">
           {voiceError}

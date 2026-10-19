@@ -1,6 +1,7 @@
 import { ArrowUpRight, ChatCircle } from '@phosphor-icons/react';
 import type { ThreadSummary } from '../types';
 import styles from './welcome-recents.module.css';
+import { SpotlightButton } from './effects/SpotlightButton';
 
 export function WelcomeRecents({
   threads,
@@ -15,7 +16,7 @@ export function WelcomeRecents({
       <h3>Pick up where you left off</h3>
       <div className={styles.grid}>
         {threads.map((thread) => (
-          <button key={thread.id} type="button" onClick={() => onOpen(thread.id)}>
+          <SpotlightButton key={thread.id} type="button" onClick={() => onOpen(thread.id)}>
             <span className={styles.meta}>
               <ChatCircle size={15} aria-hidden="true" />
               {thread.status === 'waiting'
@@ -36,7 +37,7 @@ export function WelcomeRecents({
                 : thread.preview?.text ||
                   'Open this conversation to pick up where you left off.'}
             </span>
-          </button>
+          </SpotlightButton>
         ))}
       </div>
     </section>

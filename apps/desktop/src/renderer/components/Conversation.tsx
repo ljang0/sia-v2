@@ -40,6 +40,8 @@ import { ConversationOutline, hasConversationOutline } from './ConversationOutli
 import { SafeMarkdown } from './SafeMarkdown';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { LiquidMetalButton } from './effects/liquid-metal-button';
+import { SpotlightButton } from './effects/SpotlightButton';
+import { GradientText } from './effects/GradientText';
 
 interface ConversationProps {
   recentThreads?: readonly ThreadSummary[] | undefined;
@@ -156,6 +158,12 @@ export function Conversation({
   const [findQuery, setFindQuery] = useState('');
   const [findIndex, setFindIndex] = useState(0);
   const [draggingFiles, setDraggingFiles] = useState(false);
+  const suggestionId = useRef(0);
+  const [suggestion, setSuggestion] = useState<{
+    threadId: string;
+    id: number;
+    text: string;
+  }>();
   const [preview, setPreview] = useState<{
     attachment: RendererAttachment;
     result?: AttachmentPreview;
@@ -178,6 +186,10 @@ export function Conversation({
   useEffect(() => {
     setFindIndex(0);
   }, [findQuery, thread?.id]);
+
+  useEffect(() => {
+    setSuggestion(undefined);
+  }, [thread?.id]);
 
   useEffect(() => {
     if (!findOpen || !findQuery || matchingEventIds.length === 0) return;
@@ -547,7 +559,7 @@ export function Conversation({
                 {timeGreeting()}
                 {agentName ? ` · ${agentName} is ready` : ''}
               </span>
-              <h2 className={styles.gradientHeading}>What would you like to do?</h2>
+              <GradientText as="h2">What would you like to do?</GradientText>
               <p>Describe the outcome, attach any useful files, or choose a suggested start.</p>
               {onOpenApps ? (
                 <button className={styles.textButton} type="button" onClick={onOpenApps}>
@@ -557,10 +569,20 @@ export function Conversation({
               {starterPrompts.length ? (
                 <div className={styles.starterPrompts} aria-label="Suggested starts">
                   {starterPrompts.map((prompt) => (
-                    <button key={prompt} type="button" onClick={() => void onSend(prompt)}>
+                    <SpotlightButton
+                      key={prompt}
+                      type="button"
+                      onClick={() =>
+                        setSuggestion({
+                          threadId: thread.id,
+                          id: ++suggestionId.current,
+                          text: prompt,
+                        })
+                      }
+                    >
                       <span>{prompt}</span>
                       <span aria-hidden="true">↗</span>
-                    </button>
+                    </SpotlightButton>
                   ))}
                 </div>
               ) : null}
@@ -665,6 +687,7 @@ export function Conversation({
       ) : null}
 
       <Composer
+        suggestion={suggestion?.threadId === thread.id ? suggestion : undefined}
         key={thread.id}
         initialValue={thread.draft ?? ''}
         disabled={queued || waitingForApproval}

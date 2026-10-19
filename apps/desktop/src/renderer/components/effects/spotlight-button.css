@@ -1,0 +1,46 @@
+/* React Bits SpotlightCard's isolated radial light, in Sia's existing palette. */
+.sia-spotlight {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.sia-spotlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    240px circle at var(--spotlight-x, 50%) var(--spotlight-y, 50%),
+    color-mix(in srgb, var(--text-success) 15%, transparent),
+    transparent 75%
+  );
+  opacity: 0;
+  transition: opacity 190ms ease;
+}
+@media (hover: hover) {
+  .sia-spotlight:hover:not(:disabled)::before {
+    opacity: 1;
+  }
+}
+.sia-spotlight:focus-visible::before {
+  opacity: 1;
+}
+.sia-spotlight:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+.sia-spotlight[data-calm='true']::before {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sia-spotlight::before {
+    transition: none;
+  }
+}
+@media (forced-colors: active) {
+  .sia-spotlight::before {
+    display: none;
+  }
+}

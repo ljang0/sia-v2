@@ -3,13 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
-  ArrowUp,
   ArrowDown,
-  CircleNotch,
   Desktop,
   Microphone,
   Plus,
-  Stop,
   X,
   ChatCircle,
   Stack,
@@ -27,6 +24,7 @@ import { MemoryGraph } from './memory-graph';
 import { DitherAurora as Aurora } from '../renderer/components/effects/DitherAurora';
 import { usePhoneViewport } from './use-phone-viewport';
 import { LiquidMetalButton } from '../renderer/components/effects/liquid-metal-button';
+import { SendButton } from '../renderer/components/SendButton';
 import { Sheet, Welcome, Activity, statusLabels } from './remote-ui';
 import { Turn } from './turn';
 import { useViewTransition } from '../renderer/components/effects/use-view-transition';
@@ -503,7 +501,8 @@ function App() {
                     <Microphone size={20} />
                   </LiquidMetalButton>
                   {busy && (!text.trim() || latest?.status === 'working') ? (
-                    <LiquidMetalButton
+                    <SendButton
+                      state={pending ? 'stopping' : 'working'}
                       type="button"
                       className="send stop"
                       viewMode="icon"
@@ -511,24 +510,17 @@ function App() {
                       disabled={pending || !online}
                       aria-label="Stop task"
                       onClick={() => void action('cancel')}
-                    >
-                      <Stop size={16} weight="fill" />
-                    </LiquidMetalButton>
+                    />
                   ) : (
-                    <LiquidMetalButton
+                    <SendButton
+                      state={pending ? 'sending' : text.trim() ? 'ready' : 'idle'}
                       type="submit"
                       viewMode="icon"
                       tone="sage"
                       className="send"
                       disabled={!text.trim() || pending || !online}
                       aria-label="Send message"
-                    >
-                      {pending ? (
-                        <CircleNotch className="spin" size={20} />
-                      ) : (
-                        <ArrowUp size={21} weight="bold" />
-                      )}
-                    </LiquidMetalButton>
+                    />
                   )}
                 </div>
               </form>

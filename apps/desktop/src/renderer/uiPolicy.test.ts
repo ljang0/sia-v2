@@ -89,11 +89,7 @@ describe('renderer accessibility CSS policy', () => {
     expect(`${tokens}\n${companion}`).not.toMatch(gradient);
     // Shared effects own their palettes; the core UI only opts in on its welcome
     // heading, background mask, and composer. Transcript and settings stay plain.
-    const decorativeSurfaces = new Set([
-      '.conversationAurora',
-      '.gradientHeading',
-      '.composer',
-    ]);
+    const decorativeSurfaces = new Set(['.conversationAurora', '.composer']);
     const rules = styles.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/([^{}]+){([^}]*)}/g);
     for (const rule of rules) {
       if (!gradient.test(rule[2]!)) continue;

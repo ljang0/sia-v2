@@ -43,7 +43,7 @@ ConsolidationScheduler PROMOTE/DISTILL instructions through Sia's existing runti
 that revision does not include a license file. Attribution and adaptation details are preserved in
 `apps/desktop/native/voice/README.md`; no replacement license is asserted for the original sources.
 
-## React Bits Shape Waves
+## React Bits Shape Waves, Spotlight Card and Gradient Text
 
 The phone aurora adapts the noise field and three-band shape treatment from
 [Shape Waves](https://reactbits.dev/backgrounds/shape-waves),
@@ -53,7 +53,16 @@ Sia translates the WGSL field to WebGL 1 for the HTTP phone connection, adds col
 aurora ribbons, and replaces the GPU framework/interaction/glow passes with a bounded
 single pass and static fallback. This is an application adaptation, not the standalone component.
 
-The original license follows verbatim:
+The desktop and phone suggestion surfaces adapt SpotlightCard's isolated radial highlight,
+and welcome headlines adapt GradientText's linear palette from the same repository at
+[`c2a1408d9219a5bd7a2d9c93c9c499042f5fa34a`](https://github.com/DavidHDev/react-bits/tree/c2a1408d9219a5bd7a2d9c93c9c499042f5fa34a),
+`src/ts-default/Components/SpotlightCard/SpotlightCard.tsx` and its CSS, and
+`src/ts-default/TextAnimations/GradientText/GradientText.tsx` and its CSS. Sia retains native
+buttons, coalesces local pointer updates, uses visibility-aware CSS text motion, and respects
+Calm, Reduce Motion, and forced colors. These adaptations use the license below.
+
+The license at the Spotlight Card / Gradient Text adaptation revision follows verbatim
+(the earlier Shape Waves revision omits the two tools/exports paragraphs):
 
 MIT + Commons Clause License Condition v1.0
 
@@ -70,6 +79,10 @@ copies or substantial portions of the Software.
 ## Commons Clause Restriction
 
 You may use this Software, including for any commercial purpose, **so long as you do not sell, sublicense, or redistribute the components themselves-whether alone, in a bundle, or as a ported version.**
+
+The same restriction covers the React Bits tools (Background Studio, Texture Lab, Shape Magic, Center Stage, Sound Lab and any tools added later) and the sounds in the sound library. **You may not sell, sublicense, or redistribute the tools or the sounds themselves, or offer the tools or a substantially similar copy of them as a hosted service-whether alone, in a bundle, or as a ported version.**
+
+What you make with the tools is yours to use. You can use exported code, images, videos, and audio files in any personal or commercial application, website, or product, including paid ones. **You may not sell or redistribute the exports on their own, either individually or as the product itself, such as a sound, texture, background, or template pack.**
 
 ## No Warranty
 

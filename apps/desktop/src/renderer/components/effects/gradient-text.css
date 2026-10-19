@@ -1,0 +1,39 @@
+.sia-gradient-text {
+  color: var(--aurora-ink-start, var(--text-primary));
+  background: linear-gradient(
+    110deg,
+    var(--aurora-ink-start, var(--text-primary)),
+    var(--aurora-ink-middle, var(--text-success)) 32%,
+    var(--aurora-ink-end, var(--text-link)) 64%,
+    var(--aurora-ink-start, var(--text-primary))
+  );
+  background-size: 260% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: sia-gradient-drift var(--gradient-speed, 18s) ease-in-out infinite alternate;
+}
+@keyframes sia-gradient-drift {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+.sia-gradient-text[data-appearance='calm'] {
+  animation: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sia-gradient-text {
+    animation: none;
+  }
+}
+@media (forced-colors: active) {
+  .sia-gradient-text {
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    color: CanvasText;
+    animation: none;
+  }
+}
