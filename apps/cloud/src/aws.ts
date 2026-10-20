@@ -17,6 +17,7 @@ import { DynamoState } from './aws/dynamo-state.js';
 import { ElevenLabsHttpProvider } from './aws/elevenlabs-voice.js';
 import { HostedLabProvider } from './aws/meta-provider.js';
 import { DynamoMetaQuota } from './aws/meta-quota.js';
+import { DynamoRatings } from './aws/dynamo-ratings.js';
 import { DynamoRemoteRelayStore } from './aws/remote-relay-store.js';
 import { AwsDeletionQueue, AwsResearchExportQueue } from './aws/queues.js';
 import { S3ReleaseManifests } from './aws/release-manifests.js';
@@ -143,6 +144,7 @@ export function createAwsDependencies(config = loadRuntimeConfig()): ServiceDepe
     metaProvider: new HostedLabProvider(),
     voiceProvider: new ElevenLabsHttpProvider(),
     quota: new DynamoMetaQuota(documentClient, config.tableName, config.metaConcurrency),
+    ratings: new DynamoRatings(documentClient, config.tableName),
     remoteDevices: new DynamoRemoteRelayStore(documentClient, config.tableName),
     audit: new MetadataAuditSink(s3, config.auditBucketName, config.kmsKeyArn),
     config: {

@@ -22,7 +22,7 @@ import { QueuedMessages } from './QueuedMessages';
 import { ConversationOutline, hasConversationOutline } from './ConversationOutline';
 import { ThreadErrorText } from './PlainErrorText';
 import { usageWarningText } from '../plainErrors';
-import type { ReplyRating } from './ReplyFeedback';
+import type { RateTaskInput, ReplyRating } from './ReplyFeedback';
 import { TurnChangesBar, turnChangeSummaries, type TurnChangeActions } from './TurnChanges';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { ConversationFind } from './conversation/ConversationFind';
@@ -86,8 +86,10 @@ interface ConversationProps {
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
   /** Undo changes: where the files a reply changed stand, and putting them back or forward. */
   turnChanges?: TurnChangeActions | undefined;
-  /** Thumbs up or down on a reply opens a feedback draft about it. */
+  /** "Send feedback to the Sia team" from a rating opens a feedback draft about the reply. */
   onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
+  /** Thumbs on a finished task's final reply record a rating of that task. */
+  onRateTask?: ((input: RateTaskInput) => Promise<void>) | undefined;
   onCreateThread?: (() => void) | undefined;
   onCreateAgent?: (() => void) | undefined;
   onOpenApps?: (() => void) | undefined;
@@ -137,6 +139,7 @@ export function Conversation({
   onResolveApproval,
   turnChanges,
   onRateReply,
+  onRateTask,
   onCreateThread,
   onCreateAgent,
   onOpenApps,
@@ -348,6 +351,7 @@ export function Conversation({
         return result.kind === 'image' ? result.dataUrl : undefined;
       },
       rateReply: (rating, reply) => onRateReply?.(rating, reply),
+      rateTask: (input) => onRateTask?.(input) ?? Promise.resolve(),
       redo: (text) => onRedo?.(text) ?? Promise.resolve(),
       resolveApproval: async (approvalId, decision) => {
         setBusyApprovalId(approvalId);
@@ -372,6 +376,7 @@ export function Conversation({
       loadThumbnail: (attachment) =>
         latestRowActions.current?.loadThumbnail(attachment) ?? Promise.resolve(undefined),
       rateReply: (rating, reply) => latestRowActions.current?.rateReply(rating, reply),
+      rateTask: (input) => latestRowActions.current?.rateTask(input) ?? Promise.resolve(),
       redo: (text) => latestRowActions.current?.redo(text) ?? Promise.resolve(),
       resolveApproval: (approvalId, decision) =>
         latestRowActions.current?.resolveApproval(approvalId, decision) ?? Promise.resolve(),
@@ -521,7 +526,7 @@ export function Conversation({
         completed={event.id === resultId}
         speakable={Boolean(voiceEnabled && onSpeak)}
         previewable={Boolean(onPreviewAttachment)}
-        rateable={Boolean(onRateReply)}
+        rateable={Boolean(onRateTask)}
         editable={event.id === editableEventId}
         retryable={event.id === tryAgainEventId}
       />

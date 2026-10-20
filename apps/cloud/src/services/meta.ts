@@ -302,6 +302,14 @@ function hostedModelCatalogEntry(
   };
 }
 
+/** Catalog ids and display names of every configured hosted lab, active or not. */
+export function hostedLabs(config: MetaConfig): { id: string; name: string }[] {
+  return hostedLabConfigs(config).map((lab) => ({
+    id: labIdOf(lab),
+    name: lab.displayName ?? 'Included model',
+  }));
+}
+
 function hostedLabConfigs(config: MetaConfig): readonly HostedLabConfig[] {
   return [config, ...(config.additionalLabs ?? [])];
 }

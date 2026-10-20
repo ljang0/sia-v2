@@ -278,6 +278,18 @@ function App() {
       setPending(false);
     }
   };
+  // Thumbs on a finished task, from the owner's own phone only (the Mac checks this too).
+  const rate = async (turnId: string, rating: 'good' | 'bad') => {
+    if (!online || !state?.session) throw new Error('offline');
+    setError('');
+    try {
+      await remoteRequest('rate', { session: state.session, id: turnId, rating });
+      await refreshAfterAction();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Try again when your Mac reconnects.');
+      throw cause;
+    }
+  };
   const microphone = () => {
     if (listening) {
       dictation.current?.stop();
@@ -443,7 +455,12 @@ function App() {
               ) : (
                 <div className="turns">
                   {state.turns.map((turn) => (
-                    <Turn key={turn.id} turn={turn} agent={state.agent} />
+                    <Turn
+                      key={turn.id}
+                      turn={turn}
+                      agent={state.agent}
+                      onRate={state.canApprove ? (rating) => rate(turn.id, rating) : undefined}
+                    />
                   ))}
                 </div>
               )}

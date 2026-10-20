@@ -76,6 +76,7 @@ function harness(
       return { turnId, snapshot };
     }
     if (method === 'approvals.resolve') return snapshot;
+    if (method === 'ratings.submit') return snapshot;
     if (method === 'attachments.drop') {
       return {
         attachments: (input.paths as unknown as string[]).map((path, index) => ({
@@ -447,6 +448,42 @@ describe('MessagesRelay', () => {
     expect(h.sent).toEqual([
       { to: ME, text: `${REPLY_PREFIX}Two meetings: Standup (https://cal/x) at 10.` },
     ]);
+  });
+
+  it('rates the task that just finished from a thumbs or good/bad reply', async () => {
+    const h = harness();
+    await h.ready();
+    h.text(101, 'Book the dentist');
+    await h.relay.poll();
+    h.finish('thread-1', 'Booked for Tuesday.');
+    await h.relay.flush();
+    const turnId = h.snapshot.timeline.findLast((item) => item.kind === 'user')!.turnId!;
+    h.snapshot.ratings = { [turnId]: {} };
+    h.text(102, '👍🏽');
+    await h.relay.poll();
+    expect(h.invoke).toHaveBeenCalledWith('ratings.submit', {
+      threadId: 'thread-1',
+      turnId,
+      rating: 'good',
+    });
+    h.text(103, 'Bad');
+    await h.relay.poll();
+    expect(h.invoke).toHaveBeenLastCalledWith('ratings.submit', {
+      threadId: 'thread-1',
+      turnId,
+      rating: 'bad',
+    });
+    await h.relay.flush();
+    expect(h.sent.at(-1)!.text).toBe(`${REPLY_PREFIX}Thanks, saved your rating.`);
+    // Without a finished, rateable task, "good" is an ordinary message.
+    h.snapshot.ratings = {};
+    h.text(104, 'good');
+    await h.relay.poll();
+    expect(h.invoke).toHaveBeenLastCalledWith('threads.send', {
+      threadId: 'thread-1',
+      text: 'good',
+      fromPhone: 'own_device',
+    });
   });
 
   it('ignores untrusted senders, history before enabling, and Sia’s own replies', async () => {

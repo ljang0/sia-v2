@@ -12,6 +12,7 @@ import {
   MemoryDeletionQueue,
   MemoryIdentity,
   MemoryQuota,
+  MemoryRatings,
   MemoryRemoteRelayStore,
   MemoryReleaseManifests,
   MemoryResearchObjects,
@@ -1809,6 +1810,7 @@ function makeFixture(
   const audit = new MemoryAudit();
   const voiceProvider = new MemoryVoiceProvider();
   const quota = new MemoryQuota();
+  const ratings = new MemoryRatings();
   const remoteDevices = new MemoryRemoteRelayStore();
   const clock = new FixedClock(new Date('2026-08-13T00:00:00.000Z'));
   const metaConfig: MetaConfig = overrides.metaConfig ?? {
@@ -1853,6 +1855,7 @@ function makeFixture(
     metaProvider: new EchoMetaProvider(),
     voiceProvider,
     quota,
+    ratings,
     remoteDevices,
     audit,
     config: {
@@ -1882,6 +1885,7 @@ function makeFixture(
     audit,
     voiceProvider,
     quota,
+    ratings,
     remoteDevices,
     clock,
     services: createServices(deps),

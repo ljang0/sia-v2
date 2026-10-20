@@ -28,6 +28,7 @@ type BridgeRouterContext = Pick<
   | 'phoneRemote'
   | 'messagesRelay'
   | 'providers'
+  | 'ratings'
   | 'releaseAccessLocked'
   | 'rendererCall'
   | 'researchOutbox'
@@ -134,6 +135,7 @@ export class BridgeRouter {
     'settings.setOpenAtLogin': ({ enabled }) => this.ctx.settings.setOpenAtLogin(enabled),
     'settings.setDeveloperTools': ({ enabled }) => this.ctx.settings.setDeveloperTools(enabled),
     'feedback.compose': (input) => this.ctx.support.composeFeedbackMessage(input),
+    'ratings.submit': (input) => this.ctx.ratings.submit(input),
     'updates.check': () => this.ctx.support.checkForUpdates(),
     'updates.openDownload': () => this.ctx.support.openUpdateDownload(),
     'computer.permissions': () => this.ctx.computerAccess.refreshComputer(false),

@@ -41,6 +41,7 @@ import { RuntimeEventApplier } from './runtime-events.js';
 import { Schedules } from './schedules.js';
 import { AppSettings } from './settings.js';
 import { Snapshots } from './snapshots.js';
+import { TaskRatings } from './ratings.js';
 import { AppSupport } from './support.js';
 import { Threads } from './threads.js';
 import { TurnRunner } from './turn-runner.js';
@@ -60,6 +61,7 @@ export class DesktopController {
     this.#ctx = new ControllerContext(options, (ctx) => ({
       researchOutbox: new ResearchOutbox(ctx),
       researchCapture: new ResearchCapture(ctx),
+      ratings: new TaskRatings(ctx),
       connections: new ConnectorConnections(ctx),
       account: new CloudAccount(ctx),
       providers: new ProviderAccess(ctx),

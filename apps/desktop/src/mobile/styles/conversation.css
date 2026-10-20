@@ -455,3 +455,30 @@
 .spin {
   animation: spin var(--motion-spin) linear infinite;
 }
+/* Rating a finished task: thumb-sized targets and a calm confirmation. */
+.turn-rating {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--text-secondary);
+  font-size: var(--phone-text-label);
+}
+.turn-rating span {
+  margin-right: auto;
+}
+.turn-rating button {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.turn-rating button[aria-pressed='true'] {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}

@@ -43,6 +43,13 @@ const approveSchema = z
     decision: z.enum(['approve', 'deny']),
   })
   .strict();
+const rateSchema = z
+  .object({
+    session: z.string().max(100),
+    id: z.string().min(1).max(100),
+    rating: z.enum(['good', 'bad']),
+  })
+  .strict();
 /** One phone request after its transport has authenticated it. */
 export interface RemoteCall {
   method: 'GET' | 'POST';
@@ -629,6 +636,25 @@ export class PhoneRemote {
         await this.#deps.controller.invoke('approvals.resolve', {
           approvalId: input.approvalId,
           decision: input.decision,
+        });
+        return { status: 200, json: { ok: true } };
+      } else if (call.method === 'POST' && route === 'rate') {
+        // Ratings come only from the owner's encrypted phone, for a finished task it can see.
+        if (call.origin !== 'own_device')
+          throw new RemoteError('Rate this task in Sia on your Mac.');
+        const input = rateSchema.parse(call.body);
+        const state = this.#state();
+        const turn = state.turns.find((entry) => entry.id === input.id);
+        const threadId = state.session?.split(':')[0];
+        const turnId = this.#deps.controller
+          .snapshot()
+          .timeline.find((item) => item.id === input.id && item.threadId === threadId)?.turnId;
+        if (input.session !== state.session || !turn?.rateable || !threadId || !turnId)
+          throw new RemoteError('This task changed. Review it and try again.');
+        await this.#deps.controller.invoke('ratings.submit', {
+          threadId,
+          turnId,
+          rating: input.rating,
         });
         return { status: 200, json: { ok: true } };
       } else if (call.method === 'POST' && ['command', 'cancel', 'clear'].includes(route)) {
