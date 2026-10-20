@@ -17,6 +17,7 @@ type SnapshotsContext = Pick<
   | 'deps'
   | 'mac'
   | 'providers'
+  | 'ratings'
   | 'releaseAccessLocked'
   | 'revision'
   | 'settings'
@@ -171,10 +172,14 @@ export class Snapshots {
                 ({ threadId }) => threadId === this.ctx.state.activeThreadId,
               ),
             ),
+            ratings: this.ctx.state.activeThreadId
+              ? this.ctx.ratings.view(this.ctx.state.activeThreadId)
+              : {},
           }
         : {
             timeline: structuredClone(this.ctx.state.timeline),
             approvals: structuredClone(this.ctx.state.approvals),
+            ratings: this.ctx.ratings.view(),
           }),
       providers: this.ctx.providers.views.map((provider) => ({
         ...structuredClone(provider),

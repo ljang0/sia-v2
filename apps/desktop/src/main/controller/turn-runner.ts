@@ -27,6 +27,7 @@ type TurnRunnerContext = Pick<
   | 'computerAccess'
   | 'deps'
   | 'providers'
+  | 'ratings'
   | 'requireThread'
   | 'researchCapture'
   | 'runtime'
@@ -46,6 +47,7 @@ export class TurnRunner {
   constructor(private readonly ctx: TurnRunnerContext) {}
 
   async runTurn(turn: QueuedTurn, signal: AbortSignal): Promise<void> {
+    const startedAt = Date.now();
     let lease: TurnLease | undefined;
     let macTask: { request: string; result?: MacTaskResult } | undefined;
     let nativeVault: NotchVault | undefined;
@@ -455,6 +457,16 @@ export class TurnRunner {
           }
         }
       }
+      this.ctx.ratings.recordFinishedTask(
+        turn,
+        signal.aborted
+          ? 'cancelled'
+          : this.ctx.state.threads.find(({ id }) => id === turn.threadId)?.status === 'failed'
+            ? 'failed'
+            : 'completed',
+        startedAt,
+        macTask !== undefined,
+      );
       this.ctx.approvals.revokeApprovalsForTurn(turn.threadId, turn.id);
       lease?.release();
       this.ctx.turns.releaseTurn(turn.threadId);

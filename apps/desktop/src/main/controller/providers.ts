@@ -656,6 +656,16 @@ export class ProviderAccess {
     );
   }
 
+  /**
+   * The lab a rating is filed under: the hosted catalog's lab for an included model, otherwise
+   * the provider itself (for example Codex on the person's own plan).
+   */
+  labFor(providerId: ProviderId, model: string): { id: string; name: string } {
+    const provider = this.views.find(({ id }) => id === providerId);
+    const lab = provider?.models?.find(({ id }) => id === model)?.lab;
+    return lab ? { ...lab } : { id: providerId, name: provider?.label ?? providerId };
+  }
+
   providerReadinessError(providerId: ProviderId, model?: string): string | undefined {
     const provider = this.views.find(({ id }) => id === providerId);
     if (!provider) return 'Provider status is unavailable. Check again before starting.';

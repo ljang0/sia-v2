@@ -3,6 +3,7 @@ import type { ApprovalView } from './approvals.js';
 import type { BrowserView, ComputerView, VoiceView } from './computer.js';
 import type { ConnectionView } from './connections.js';
 import type { ProviderUsageView, ProviderView } from './providers.js';
+import type { TurnRatingView } from './ratings.js';
 import type { CaptureView } from './research.js';
 import type { ScheduleView } from './schedules.js';
 import type { AgentView, ThreadPreview, ThreadView, TimelineItemView } from './threads.js';
@@ -28,6 +29,11 @@ export interface DesktopSnapshot {
   timeline: TimelineItemView[];
   previews?: Record<string, ThreadPreview>;
   approvals: ApprovalView[];
+  /**
+   * Finished tasks that can be rated, by turn id, with the person's current rating. Pushed to
+   * the renderer for the active thread only.
+   */
+  ratings?: Record<string, TurnRatingView>;
   providers: ProviderView[];
   connections: ConnectionView[];
   capture: CaptureView;
