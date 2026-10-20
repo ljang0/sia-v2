@@ -633,3 +633,28 @@ test('leaving an unused new conversation does not leave an empty row behind', as
   await nav.getByRole('button', { name: 'Triage today’s inbox', exact: true }).click();
   await expect(emptyRows).toHaveCount(0);
 });
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`a working agent breathes with ${reducedMotion} motion`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion });
+    await page.goto('/#demo');
+    await page.getByTitle('New conversation', { exact: true }).first().click();
+    const message = page.getByRole('textbox', { name: 'Message', exact: true });
+    await message.fill('Summarise the open risks');
+    await message.press('Enter');
+    const working = page.getByTestId('turn-running');
+    await expect(working).toBeVisible();
+    const form = working.locator('[data-identity]');
+    await expect(form).toHaveAttribute('data-state', 'working');
+    const motion = await form.evaluate((element) => ({
+      breath: getComputedStyle(element).animationName,
+      ring: getComputedStyle(element.parentElement!, '::after').animationName,
+    }));
+    if (reducedMotion === 'reduce') {
+      expect(motion).toEqual({ breath: 'none', ring: 'none' });
+    } else {
+      expect(motion.breath).not.toBe('none');
+      expect(motion.ring).not.toBe('none');
+    }
+  });
+}
