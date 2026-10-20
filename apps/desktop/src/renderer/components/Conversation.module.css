@@ -476,6 +476,46 @@
   animation: responseSettle var(--motion-emphasis) var(--ease-out-soft) both;
 }
 
+/* A reply being written grows block by block: each new paragraph, list item, or code block
+   fades up into place once as it appears, while text inside a block streams without motion.
+   Blocks keep their identity across chunks, so a block never replays. */
+.streamingContent > *,
+.streamingContent > :is(ul, ol) > li {
+  animation: streamBlockIn var(--motion-surface) var(--ease-out-soft) both;
+}
+
+@keyframes streamBlockIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-reveal));
+  }
+}
+
+/* When the reply finishes, its tools (copy, read aloud, rate) arrive one after another instead of
+   all snapping in at once. Only on the live finish, never when a finished thread reopens. */
+.messageSettled > header > :not(span, time) {
+  animation: replyToolIn var(--motion-surface) var(--ease-out-soft) backwards;
+}
+
+.messageSettled > header > :nth-child(4) {
+  animation-delay: var(--motion-stagger);
+}
+
+.messageSettled > header > :nth-child(5) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+
+.messageSettled > header > :nth-child(n + 6) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+
+@keyframes replyToolIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-reveal)) scale(var(--motion-pop-scale));
+  }
+}
+
 @keyframes responseCursor {
   50% {
     opacity: 0.26;
@@ -891,6 +931,9 @@
   .skeletonActivity,
   .skeletonComposer,
   .messageSettled,
+  .streamingContent > *,
+  .streamingContent > :is(ul, ol) > li,
+  .messageSettled > header > :not(span, time),
   .streamingContent > :is(p, h1, h2, h3, h4, h5, h6):last-child::after,
   .streamingContent > :is(ul, ol):last-child > li:last-child::after,
   .streamingContent > blockquote:last-child > :last-child::after {
