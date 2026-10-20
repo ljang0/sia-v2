@@ -65,6 +65,10 @@ import type {
   VoiceCatalogEntry,
   VoiceProvider,
   VoiceTokenQuotaPolicy,
+  RatingAggregate,
+  RatingAggregateKey,
+  RatingRepository,
+  StoredTaskRating,
 } from './ports.js';
 
 export class SystemClock implements Clock {
@@ -872,5 +876,57 @@ export class MemoryRemoteRelayStore implements RemoteRelayStore {
     for (const [deviceId, device] of this.devices) {
       if (device.userId === userId) this.devices.delete(deviceId);
     }
+  }
+}
+
+/** In-memory ratings for tests and local runs. */
+export class MemoryRatings implements RatingRepository {
+  readonly ratings = new Map<string, StoredTaskRating>();
+  readonly aggregates = new Map<string, RatingAggregate>();
+  private readonly limits = new Map<string, number>();
+
+  async consumeRatingLimit(
+    userId: string,
+    windowStart: number,
+    _expiresAt: number,
+    limit: number,
+  ): Promise<boolean> {
+    const recordKey = key(userId, String(windowStart));
+    const next = (this.limits.get(recordKey) ?? 0) + 1;
+    this.limits.set(recordKey, next);
+    return next <= limit;
+  }
+
+  async putRating(rating: StoredTaskRating): Promise<StoredTaskRating | undefined> {
+    const recordKey = key(rating.labId, rating.day, rating.model, rating.harnessId, rating.id);
+    const previous = this.ratings.get(recordKey);
+    this.ratings.set(recordKey, structuredClone(rating));
+    return previous;
+  }
+
+  async addRatingCounters(
+    aggregateKey: RatingAggregateKey,
+    deltas: Record<string, number>,
+  ): Promise<void> {
+    const recordKey = key(
+      aggregateKey.labId,
+      aggregateKey.day,
+      aggregateKey.model,
+      aggregateKey.harnessId,
+    );
+    const aggregate = this.aggregates.get(recordKey) ?? { ...aggregateKey, counters: {} };
+    for (const [name, value] of Object.entries(deltas))
+      aggregate.counters[name] = (aggregate.counters[name] ?? 0) + value;
+    this.aggregates.set(recordKey, aggregate);
+  }
+
+  async listRatingAggregates(
+    labId: string,
+    fromDay: string,
+    toDay: string,
+  ): Promise<RatingAggregate[]> {
+    return [...this.aggregates.values()]
+      .filter((row) => row.labId === labId && row.day >= fromDay && row.day <= toDay)
+      .map((row) => structuredClone(row));
   }
 }
