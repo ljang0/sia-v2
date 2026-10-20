@@ -632,6 +632,7 @@ export function Conversation({
                   thinking={thread.thinking}
                   plan={currentPlanProgress}
                   finished={finishedSteps}
+                  agentHue={agentHue}
                 />
               ) : null}
               {browserRecovery}

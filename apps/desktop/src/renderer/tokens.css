@@ -161,6 +161,18 @@
     1
   );
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  /* Liveliness: the slow, low-amplitude loops that say an agent is alive and working. A breath is
+     one inhale-exhale of a presence; a ring is one radiating pulse; a sweep is one pass of the
+     shimmer across a live label. Reduced motion stops these loops (each component sets
+     `animation: none`) instead of shortening them. */
+  --motion-breathe: 2.8s;
+  --motion-ring: 2.4s;
+  --motion-sweep: 2.6s;
+  --motion-breathe-scale: 1.06;
+  /* Streamed reply blocks and newly revealed controls fade up from this distance. */
+  --motion-reveal: 4px;
+  /* The welcome room's ambient drift: one slow cycle, nearly invisible. */
+  --motion-ambient: 28s;
 
   /* Comfort: touch-friendly targets and roomy rows for non-technical people. */
   --target-min: 36px;
@@ -331,6 +343,8 @@ select,
     --motion-rise: 0px;
     --motion-nudge: 0px;
     --motion-pop-scale: 1;
+    --motion-breathe-scale: 1;
+    --motion-reveal: 0px;
   }
 
   html {
@@ -345,5 +359,7 @@ select,
   --motion-rise: 0px;
   --motion-nudge: 0px;
   --motion-pop-scale: 1;
+  --motion-breathe-scale: 1;
+  --motion-reveal: 0px;
   --ease-spring: var(--ease-standard);
 }
