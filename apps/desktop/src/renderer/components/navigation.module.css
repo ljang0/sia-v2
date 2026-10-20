@@ -3,7 +3,13 @@ aside.navigation {
   border-right: 1px solid var(--shell-line);
 }
 .navigation .brand {
-  font-size: 38px;
+  font-size: 40px;
+  pointer-events: none;
+}
+.brand :global(.sia-logo) {
+  padding: 0;
+  border-radius: 0;
+  background: transparent;
 }
 .primaryActions {
   display: grid;
