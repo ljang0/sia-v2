@@ -354,7 +354,10 @@ function App() {
             {/* Remount on change so reconnecting lands with a visible pop, not a silent swap. */}
             <i key={online ? 'online' : 'offline'} />
           </span>
-          {online ? 'Mac connected' : 'Reconnecting'}
+          {/* Keyed so the words land with the light instead of swapping silently. */}
+          <span className="connection-label" key={online ? 'online' : 'offline'}>
+            {online ? 'Mac connected' : 'Reconnecting'}
+          </span>
           <Desktop size={16} />
         </button>
         <button

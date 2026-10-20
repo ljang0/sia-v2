@@ -28,9 +28,10 @@
 .phone-aurora .dither-aurora-field {
   opacity: 0.26;
 }
+/* On a dark canvas the dither grid reads as noise, so it stays quieter there. */
 @media (prefers-color-scheme: dark) {
   .phone-aurora .dither-aurora-field {
-    opacity: 0.2;
+    opacity: 0.12;
   }
 }
 .phone-shell[data-scene='workspace'] .phone-aurora {
