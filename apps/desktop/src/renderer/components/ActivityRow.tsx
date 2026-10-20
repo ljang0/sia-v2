@@ -94,7 +94,7 @@ export function ActivityRow({ event }: ActivityRowProps) {
       >
         <Icon size={16} aria-hidden="true" />
         <span className={styles.activityTitle}>
-          {label}
+          <span className={styles.activityLabel}>{label}</span>
           {summary ? (
             <span
               className={

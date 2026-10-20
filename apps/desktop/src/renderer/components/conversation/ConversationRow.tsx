@@ -213,7 +213,7 @@ function EventViewContent({
         {event.role === 'user' ? (
           <User size={16} />
         ) : (
-          <AgentForm identity={agentHue} size="small" />
+          <AgentForm identity={agentHue} state={streaming ? 'working' : 'idle'} size="small" />
         )}
       </span>
       <header>

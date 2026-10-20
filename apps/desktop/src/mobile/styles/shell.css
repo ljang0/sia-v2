@@ -91,7 +91,12 @@
 .connection-pill {
   transition:
     color var(--motion-standard) var(--ease-standard),
-    border-color var(--motion-standard) var(--ease-standard);
+    border-color var(--motion-standard) var(--ease-standard),
+    background-color var(--motion-standard) var(--ease-standard),
+    transform var(--motion-surface) var(--phone-spring);
+}
+.connection-label {
+  animation: settle var(--motion-surface) var(--ease-out-soft) both;
 }
 .icon {
   width: var(--phone-target);

@@ -216,6 +216,21 @@ effect (what appeared, what moved, what finished, what needs attention).
   voice level while listening and shows a travelling pulse while transcribing. Reduced Motion keeps
   the ring as a static outline.
 - The startup curtain breathes after it settles and lifts away on ready within the 240 ms budget.
+- A working agent shows its own form, not a bare spinner: on the live status line it breathes over
+  `--motion-breathe` and sends a ring every `--motion-ring`; while a step row or the reply caret
+  already moves, the ring stops and the form only breathes. The step in progress (desktop and phone)
+  and the live label carry one light sweep per `--motion-sweep`. A watched run settles into its
+  "Worked for" summary with one check pop; reopened runs stay still.
+- Streamed replies reveal per block, never per token: each new paragraph, list item, or code block
+  fades up `--motion-reveal` once. A reply's tools arrive in a short stagger only on the live finish.
+- Loading areas use the shared `primitives.skeleton` (a still block with a soft light sweep that
+  waits a beat before showing) instead of a lone spinner or a wrong placeholder state.
+- Menus grow from the corner Radix reports and unfold their items in a capped stagger. Focus rings
+  tighten onto their control over `--motion-standard` at zero specificity, so a control's own
+  animation always wins. The message field eases to its new height; the send arrow lifts away on
+  each send.
+- The welcome light drifts on `--motion-ambient` only while the welcome scene is focused. In dark
+  mode the dither grid stays quieter so it never reads as noise behind text.
 
 ## Locked dials
 

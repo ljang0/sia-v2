@@ -213,7 +213,7 @@
 
 .agentForm[data-state='working'] .agentFormCore,
 .agentForm[data-state='speaking'] .agentFormCore {
-  animation: companionPulse 1.15s var(--ease-out-soft) infinite;
+  animation: companionPulse calc(var(--motion-breathe) / 2) var(--ease-out-soft) infinite;
 }
 
 .agentForm[data-state='waiting'] .agentFormBody {

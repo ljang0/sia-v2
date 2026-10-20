@@ -11,7 +11,10 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
   const result = (
     <>
       {turn.response && (
-        <div className="remote-response">
+        <div
+          className="remote-response"
+          data-streaming={turn.status === 'working' || undefined}
+        >
           <SafeMarkdown content={turn.response} />
         </div>
       )}
@@ -72,7 +75,7 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
         </span>
       </div>
       {turn.steps.length > 0 && (
-        <details className="task-steps">
+        <details className="task-steps" data-live={turn.status === 'working' || undefined}>
           <summary>
             <CaretRight className="steps-caret" size={16} weight="bold" aria-hidden="true" />
             <span

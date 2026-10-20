@@ -29,6 +29,8 @@
   width: 100%;
   max-height: 168px;
   resize: none;
+  /* The field grows with its text over a short ease rather than jumping a line at a time. */
+  transition: height var(--motion-fast) var(--ease-out-soft);
   padding: 7px 8px 11px;
   border: 0;
   background: transparent;

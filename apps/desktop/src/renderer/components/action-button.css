@@ -18,7 +18,8 @@
     border-color var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard),
     box-shadow var(--motion-fast) var(--ease-standard),
-    transform var(--motion-fast) var(--ease-standard);
+    transform var(--motion-fast) var(--ease-standard),
+    filter var(--motion-fast) var(--ease-standard);
 }
 .action-button[data-tone='neutral'] {
   border-color: var(--border-control);
@@ -68,8 +69,46 @@
     background: var(--bg-danger-hover);
   }
 }
+/* Pressing settles the button a step deeper and dims it slightly; letting go springs back on
+   the base transition. Depth derives from the motion tokens, so Calm and Reduced Motion keep
+   only the colour change. */
 .action-button:active:not(:disabled) {
-  transform: scale(0.97);
+  transform: scale(calc(1 - (1 - var(--motion-pop-scale)) * 0.75));
+  filter: brightness(0.94);
+  transition-duration: var(--motion-fast);
+  transition-timing-function: var(--ease-out-soft);
+}
+@media (hover: hover) {
+  .action-button[data-tone]:not([data-tone='danger']):hover:not(:disabled) {
+    transform: translateY(-0.5px);
+  }
+}
+/* A sent message leaves through the send button: the arrow lifts away and a fresh one rises. */
+.action-button .action-button-launch {
+  animation: actionLaunch var(--motion-emphasis) var(--ease-out-soft);
+}
+@keyframes actionLaunch {
+  0% {
+    opacity: 1;
+    transform: none;
+  }
+  40% {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-rise) * -1.5));
+  }
+  41% {
+    opacity: 0;
+    transform: translateY(var(--motion-rise));
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .action-button .action-button-launch {
+    animation: none;
+  }
 }
 .action-button:focus-visible {
   outline: 2px solid var(--focus-ring);
