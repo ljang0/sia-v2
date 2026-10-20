@@ -100,8 +100,13 @@ describe('renderer accessibility CSS policy', () => {
   });
 
   it('defines every CSS custom property it uses', () => {
-    // Components set these per element (ScottySprite, VoiceWave).
-    const inline = ['--sprite-size', '--sprite-row', '--voice-level'];
+    // Components set these per element (ScottySprite, VoiceWave); Radix sets a menu's origin.
+    const inline = [
+      '--sprite-size',
+      '--sprite-row',
+      '--voice-level',
+      '--radix-dropdown-menu-content-transform-origin',
+    ];
     const definitions = new Set([
       ...inline,
       ...[...css.matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1]),
@@ -129,6 +134,9 @@ describe('renderer accessibility CSS policy', () => {
       '.composer',
       // Text shimmer on the working status, like Codex and Claude; still under reduced motion.
       '.workingLabel',
+      // The same shimmer on the step in progress, and the light passing over a loading block.
+      '.activity_running .activityLabel',
+      '.skeleton::after',
     ]);
     for (const file of moduleFiles) {
       if (effectModules.has(file)) continue;
