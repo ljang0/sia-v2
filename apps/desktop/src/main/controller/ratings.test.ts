@@ -38,6 +38,12 @@ describe('task ratings', () => {
     try {
       const { threadId, turnId } = await finishedPracticeTask(controller);
       expect(controller.snapshot().ratings?.[turnId]).toEqual({});
+      // The header names the lab, model, and engine being rated.
+      expect(controller.snapshot().activeRoute).toEqual({
+        lab: 'Codex',
+        model: expect.any(String),
+        engine: 'Codex',
+      });
 
       let snapshot = await controller.invoke('ratings.submit', {
         threadId,

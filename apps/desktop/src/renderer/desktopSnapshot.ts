@@ -85,15 +85,26 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
     threadItems.slice(lastUserItem + 1).findLast((item) => item.kind === 'reasoning')?.text ??
       '',
   );
+  // A finished task's final reply carries its rating controls.
+  const finalReplies = new Map<string, string>();
+  for (const item of threadItems)
+    if (item.kind === 'assistant' && item.turnId && source.ratings?.[item.turnId])
+      finalReplies.set(item.turnId, item.id);
   const timeline = currentThread
     ? threadItems
         .filter((item) => item.kind !== 'reasoning')
-        .map((item) => {
+        .map((item): ThreadEvent => {
           const approval =
             item.kind === 'approval'
               ? source.approvals.find((candidate) => candidate.id === item.approvalId)
               : undefined;
-          return approval ? mapApproval(approval, item.timestamp) : mapTimelineItem(item);
+          if (approval) return mapApproval(approval, item.timestamp);
+          const event = mapTimelineItem(item);
+          return event.type === 'message' &&
+            item.turnId &&
+            finalReplies.get(item.turnId) === item.id
+            ? { ...event, taskRating: { turnId: item.turnId, ...source.ratings![item.turnId] } }
+            : event;
         })
     : [];
   const timelineApprovalIds = new Set(
@@ -130,6 +141,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
         draft: currentThread.draft,
         worktree: currentThread.worktree ? structuredClone(currentThread.worktree) : undefined,
         events: [...timeline, ...pendingApprovals],
+        ...(source.activeRoute ? { route: { ...source.activeRoute } } : {}),
         ...(thinking && currentThread.status === 'running' ? { thinking } : {}),
         ...(threadLimits
           ? {

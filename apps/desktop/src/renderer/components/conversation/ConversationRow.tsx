@@ -21,7 +21,7 @@ import { ApprovalCard } from '../ApprovalCard';
 import { AttachmentChip } from '../ConversationAttachments';
 import { RowErrorBoundary } from '../ErrorBoundary';
 import { NoticeText } from '../PlainErrorText';
-import { ReplyFeedbackButtons, type ReplyRating } from '../ReplyFeedback';
+import { type RateTaskInput, type ReplyRating, TaskRatingButtons } from '../ReplyFeedback';
 import { ReplyReadyMark, ReplySurface } from '../ResultCard';
 import { SafeMarkdown } from '../SafeMarkdown';
 
@@ -39,7 +39,10 @@ interface EventViewProps {
   streaming?: boolean | undefined;
   justCompleted?: boolean | undefined;
   onToggleSpeech?: ((text: string) => Promise<void>) | undefined;
+  /** Opens the support feedback draft about a reply. */
   onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
+  /** Records a rating of the finished task this reply ends. */
+  onRateTask?: ((input: RateTaskInput) => Promise<void>) | undefined;
   /** Replaces the last message with new text and asks again. */
   onEditMessage?: ((text: string) => Promise<void>) | undefined;
   /** Asks the last message again for a new reply. */
@@ -56,6 +59,7 @@ export interface RowActions {
   previewAttachment(attachment: RendererAttachment): void;
   loadThumbnail(attachment: RendererAttachment): Promise<string | undefined>;
   rateReply(rating: ReplyRating, reply: string): void;
+  rateTask(input: RateTaskInput): Promise<void>;
   redo(text?: string): Promise<void>;
   resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
@@ -67,6 +71,7 @@ interface ConversationRowProps extends Omit<
   | 'onLoadThumbnail'
   | 'onResolveApproval'
   | 'onRateReply'
+  | 'onRateTask'
   | 'onEditMessage'
   | 'onTryAgain'
 > {
@@ -111,6 +116,7 @@ export const ConversationRow = memo(function ConversationRow({
         onPreviewAttachment={previewable ? actions.previewAttachment : undefined}
         onLoadThumbnail={previewable ? actions.loadThumbnail : undefined}
         onRateReply={rateable ? actions.rateReply : undefined}
+        onRateTask={rateable ? actions.rateTask : undefined}
         onEditMessage={editable ? (text) => actions.redo(text) : undefined}
         onTryAgain={retryable ? () => actions.redo() : undefined}
         onResolveApproval={actions.resolveApproval}
@@ -142,6 +148,7 @@ function EventViewContent({
   justCompleted,
   onToggleSpeech,
   onRateReply,
+  onRateTask,
   onEditMessage,
   onTryAgain,
   onPreviewAttachment,
@@ -271,8 +278,14 @@ function EventViewContent({
             )}
           </button>
         ) : null}
-        {event.role === 'assistant' && onRateReply && !streaming ? (
-          <ReplyFeedbackButtons onRate={(rating) => onRateReply(rating, event.content)} />
+        {event.role === 'assistant' && event.taskRating && onRateTask && !streaming ? (
+          <TaskRatingButtons
+            state={event.taskRating}
+            onRate={onRateTask}
+            onSendFeedback={
+              onRateReply ? (rating) => onRateReply(rating, event.content) : undefined
+            }
+          />
         ) : null}
       </header>
       <div

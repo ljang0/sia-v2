@@ -103,6 +103,13 @@ export class Snapshots {
     };
   }
 
+  private activeRoute(): Pick<DesktopSnapshot, 'activeRoute'> | undefined {
+    const thread = this.ctx.state.threads.find(
+      ({ id }) => id === this.ctx.state.activeThreadId,
+    );
+    return thread ? { activeRoute: this.ctx.providers.routeSummary(thread) } : undefined;
+  }
+
   build(scoped: boolean): DesktopSnapshot {
     const identity = this.ctx.deps.identity.status();
     const cloud: DesktopSnapshot['cloud'] = {
@@ -236,6 +243,7 @@ export class Snapshots {
       ...(this.ctx.state.activeThreadId
         ? { activeThreadId: this.ctx.state.activeThreadId }
         : {}),
+      ...(this.activeRoute() ?? {}),
       cloud,
       ...(this.ctx.deps.startupNotice
         ? { startupNotice: structuredClone(this.ctx.deps.startupNotice) }

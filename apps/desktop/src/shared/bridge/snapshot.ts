@@ -57,6 +57,8 @@ export interface DesktopSnapshot {
   schedules?: ScheduleView[];
   activeAgentId?: string;
   activeThreadId?: string;
+  /** Who runs the active conversation: lab, model, and engine display names. */
+  activeRoute?: { lab: string; model: string; engine: string };
   cloud: {
     status: 'offline' | 'connecting' | 'online' | 'error';
     auth:

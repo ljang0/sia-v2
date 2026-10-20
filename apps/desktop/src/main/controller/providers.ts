@@ -8,10 +8,11 @@ import type {
   ProviderUsageLimitView,
   ProviderUsageView,
   ProviderView,
+  ThreadView,
 } from '../../shared/bridge.js';
 import { providerPlan } from '../providers/provider-probe.js';
 import type { ControllerContext } from './context.js';
-import { modelRouteKey } from './execution-routes.js';
+import { legacyResolvedExecutionTarget, modelRouteKey } from './execution-routes.js';
 
 /** The parts of the controller context ProviderAccess uses. */
 type ProviderAccessContext = Pick<
@@ -116,12 +117,13 @@ export class ProviderAccess {
       model: harnesses[0]!.models[0]!.id,
       detail: harnesses.map(({ name, disclosure }) => `${name}: ${disclosure}`).join(' '),
       billing: 'Provided by the model lab for testing.',
-      models: harnesses.flatMap(({ name, models }) =>
+      models: harnesses.flatMap(({ id, name, models }) =>
         models.map((model) => ({
           id: model.id,
           label: model.label,
           description: `Runs in ${name}’s own harness.`,
           reasoningEfforts: [],
+          lab: { id, name },
         })),
       ),
     };
@@ -664,6 +666,26 @@ export class ProviderAccess {
     const provider = this.views.find(({ id }) => id === providerId);
     const lab = provider?.models?.find(({ id }) => id === model)?.lab;
     return lab ? { ...lab } : { id: providerId, name: provider?.label ?? providerId };
+  }
+
+  /** The engine's display name, from the signed lab manifest or the harness registry. */
+  harnessName(harnessId: string): string {
+    return (
+      this.ctx.deps.labHarnesses.find(({ id }) => id === harnessId)?.name ??
+      this.hostedHarnessRegistry().get(harnessId)?.name ??
+      harnessId
+    );
+  }
+
+  /** What the conversation header shows, so the person knows what they are rating. */
+  routeSummary(thread: ThreadView): { lab: string; model: string; engine: string } {
+    const target = thread.resolvedExecutionTarget ?? legacyResolvedExecutionTarget(thread);
+    const provider = this.views.find(({ id }) => id === target.provider);
+    return {
+      lab: this.labFor(target.provider, target.model).name,
+      model: provider?.models?.find(({ id }) => id === target.model)?.label ?? target.model,
+      engine: this.harnessName(target.harnessId),
+    };
   }
 
   providerReadinessError(providerId: ProviderId, model?: string): string | undefined {

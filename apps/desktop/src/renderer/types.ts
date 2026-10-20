@@ -4,8 +4,10 @@ import type {
   OnboardingStep,
   ProviderId,
   PushToTalkView,
+  SubmitRatingInput,
   ThreadPreview,
   TurnChangesView,
+  TurnRatingView,
 } from '../shared/bridge';
 import type { TextSize, ThemePreference } from '../shared/display';
 import type { ScheduleCadence } from '../shared/schedule-cadence';
@@ -68,7 +70,11 @@ export interface MessageEvent {
   timestamp: string;
   provider?: ProviderId | undefined;
   attachments?: RendererAttachment[] | undefined;
+  /** Set on the final reply of a finished task: it can be rated. */
+  taskRating?: TaskRatingState | undefined;
 }
+
+export type TaskRatingState = TurnRatingView & { turnId: string };
 
 export interface ActivityEvent {
   toolName?: string;
@@ -206,6 +212,8 @@ export interface ThreadDetail extends ThreadSummary {
   workspace: string;
   goal?: ThreadGoal | undefined;
   events: ThreadEvent[];
+  /** Lab, model, and engine display names for the header, so people know what they rate. */
+  route?: { lab: string; model: string; engine: string } | undefined;
   /** The thread's provider plan usage window, when reported. */
   usageLimit?: { usedPercent: number; resetsAt?: string | undefined } | undefined;
   /** Headline of the running turn's latest reasoning summary, for the live status line. */
@@ -747,6 +755,8 @@ export interface RendererApi {
   setCompletionSound(enabled: boolean): Promise<void>;
   setOpenAtLogin(enabled: boolean): Promise<void>;
   setDeveloperTools(enabled: boolean): Promise<void>;
+  /** Records a rating of a finished task. Rating again replaces it. */
+  rateTask(input: SubmitRatingInput): Promise<void>;
   composeFeedback(
     message: string,
     threadId: string | undefined,
