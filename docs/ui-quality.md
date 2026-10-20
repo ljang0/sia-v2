@@ -47,10 +47,10 @@ loading state; Calm dismisses it immediately when the saved appearance becomes a
 errors replace the animation with the existing reconnect action. For local visual review, the demo
 supports `?startup-delay=2200#demo`; this delay is unavailable in production.
 
-Desktop navigation and phone branding share the supplied white isometric **S** logo. The sidebar,
+Desktop navigation and phone branding share the supplied white geometric **Sia** logo. The sidebar,
 phone header, welcome screen, favicon, and iOS Home Screen icon all load the same bundled PNG.
 The original image is preserved, and the Home Screen name remains **Sia**.
-The desktop title bar centers a small, unboxed S between the Mac window controls and sidebar toggle,
+The desktop title bar centers the unboxed logo between the Mac window controls and sidebar toggle,
 with clear space around the mark. Phone and welcome-screen icon treatments remain independent.
 An existing iOS Home Screen shortcut may need to be removed and added again to refresh its cached icon.
 

@@ -231,7 +231,7 @@ test('Home Screen and phone branding load the supplied logo through the paired l
         await expect(logo).toBeVisible();
         await expect
           .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
-          .toBe(1213);
+          .toBe(1536);
       }
       await page.screenshot({ path: info.outputPath('phone-logo.png') });
     }
@@ -257,7 +257,7 @@ test('Home Screen and phone branding load the supplied logo through the paired l
         height: image.naturalHeight,
       };
     }, url.href);
-    expect(image).toEqual({ width: 1213, height: 1296 });
+    expect(image).toEqual({ width: 1536, height: 1024 });
     expect(
       (
         await page.request.get(new URL(`/assets/${url.pathname.split('/').at(-1)}`, url).href)
