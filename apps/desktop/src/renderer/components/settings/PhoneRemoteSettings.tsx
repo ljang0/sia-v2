@@ -11,6 +11,7 @@ import type { MessagesRelayApi } from '../../../shared/messages-relay';
 import { SettingsSectionHeader, InlineSettingsError } from './SettingsShared';
 import { TextSiaSettings } from './TextSiaSettings';
 import buttons from '../../styles/buttons.module.css';
+import primitives from '../../styles/primitives.module.css';
 import phone from './PhoneRemoteSettings.module.css';
 import { errorMessage } from '../../plainErrors';
 
@@ -78,6 +79,8 @@ export function PhoneRemoteSettings({
     }
   };
   const relay = state?.relay;
+  // Until the first status arrives, placeholders hold the card's shape instead of showing "Off".
+  const loading = !state && !error;
   return (
     <SettingsSectionHeader
       title="Phone remote"
@@ -97,12 +100,21 @@ export function PhoneRemoteSettings({
             <h3>Take Sia with you</h3>
             <p>Send a request from your phone. Your Mac does the work.</p>
           </div>
-          <span className={state?.running ? phone.live : phone.off}>
-            <i />
-            {state?.running ? 'Ready' : state?.enabled ? 'Waiting' : 'Off'}
-          </span>
+          {loading ? (
+            <span className={`${primitives.skeleton} ${phone.statusSkeleton}`} />
+          ) : (
+            <span className={state?.running ? phone.live : phone.off}>
+              <i />
+              {state?.running ? 'Ready' : state?.enabled ? 'Waiting' : 'Off'}
+            </span>
+          )}
         </div>
-        {!state?.enabled ? (
+        {loading ? (
+          <div className={phone.loading} role="status" aria-label="Checking phone remote">
+            <span className={`${primitives.skeleton} ${phone.lineSkeleton}`} />
+            <span className={`${primitives.skeleton} ${phone.buttonSkeleton}`} />
+          </div>
+        ) : !state?.enabled ? (
           <>
             <label className={phone.agent}>
               Assistant

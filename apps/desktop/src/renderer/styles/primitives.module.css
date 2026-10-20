@@ -84,6 +84,46 @@
   animation: spin var(--motion-spin) linear infinite;
 }
 
+/* A placeholder for content still loading: a quiet block with a soft light passing across it.
+   It waits a beat before showing so a fast load never flashes it. Reduced Motion keeps the
+   still block. */
+.skeleton {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius-control);
+  background: var(--bg-subtle);
+  animation: skeletonIn var(--motion-surface) var(--ease-out-soft)
+    calc(var(--motion-stagger) * 4) backwards;
+}
+
+.skeleton::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--bg-raised) 60%, transparent) 50%,
+    transparent 100%
+  );
+  content: '';
+  transform: translateX(-100%);
+  animation: skeletonSweep var(--motion-sweep) var(--ease-standard) infinite;
+}
+
+@keyframes skeletonIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes skeletonSweep {
+  60%,
+  to {
+    transform: translateX(100%);
+  }
+}
+
 @keyframes spin {
   to {
     transform: rotate(360deg);
@@ -240,6 +280,7 @@
 
   .threadMenuContent,
   .threadMenuContent > *,
+  .skeleton::after,
   .spin,
   .inlineError {
     animation: none;

@@ -413,13 +413,6 @@
   margin-top: 13px;
 }
 
-.skeletonMessage,
-.skeletonActivity,
-.skeletonComposer {
-  background: var(--bg-subtle);
-  animation: skeleton calc(var(--motion-spin) * 1.4) var(--ease-standard) infinite alternate;
-}
-
 .skeletonMessage {
   width: 76%;
   height: 74px;
@@ -446,15 +439,6 @@
   height: 88px;
   margin: 10px auto 20px;
   border-radius: var(--radius-surface);
-}
-
-@keyframes skeleton {
-  from {
-    opacity: 0.45;
-  }
-  to {
-    opacity: 0.82;
-  }
 }
 
 /* The caret follows the last text written, including the last item of a list or quote. */
@@ -927,9 +911,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeletonMessage,
-  .skeletonActivity,
-  .skeletonComposer,
   .messageSettled,
   .streamingContent > *,
   .streamingContent > :is(ul, ol) > li,
