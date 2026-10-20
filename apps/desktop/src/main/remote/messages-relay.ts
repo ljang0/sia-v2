@@ -865,6 +865,33 @@ export class MessagesRelay {
       this.#reply(handle, HELP);
       return;
     }
+    // A thumbs or "good"/"bad" reply rates the task that just finished in this conversation.
+    // Skin tones and the emoji presentation selector do not change the meaning.
+    const bare = command.replace(
+      /\uFE0F|\u{1F3FB}|\u{1F3FC}|\u{1F3FD}|\u{1F3FE}|\u{1F3FF}/gu,
+      '',
+    );
+    const rating = /^(👍|good)$/u.test(bare)
+      ? 'good'
+      : /^(👎|bad)$/u.test(bare)
+        ? 'bad'
+        : undefined;
+    const ratedTurn =
+      rating && thread && !['running', 'queued', 'waiting'].includes(thread.status)
+        ? snapshot.timeline.findLast(
+            (item) => item.threadId === thread.id && item.kind === 'user',
+          )?.turnId
+        : undefined;
+    if (rating && thread && ratedTurn && snapshot.ratings?.[ratedTurn]) {
+      await this.#deps.controller.invoke('ratings.submit', {
+        threadId: thread.id,
+        turnId: ratedTurn,
+        rating,
+      });
+      if (!current()) return;
+      this.#reply(handle, 'Thanks, saved your rating.');
+      return;
+    }
     const decision = /^(yes|y|allow|approve|ok)$/.test(command)
       ? 'approve'
       : /^(no|n|deny|don't|dont)$/.test(command)

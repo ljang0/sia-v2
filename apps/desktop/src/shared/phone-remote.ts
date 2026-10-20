@@ -69,6 +69,9 @@ export interface RemoteTurn {
   approval?: string;
   /** The pending approval's id, for phones allowed to answer it (see RemoteState.canApprove). */
   approvalId?: string;
+  /** A finished task the owner's own phone may rate, with the current rating if any. */
+  rateable?: true;
+  rating?: 'good' | 'bad';
 }
 export interface RemoteState {
   agent: string;

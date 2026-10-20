@@ -101,7 +101,14 @@ export function remoteState(
             (entry) => entry.threadId === thread.id && entry.status === 'pending',
           )
         : undefined;
+    // Only the owner's encrypted phone sees rating controls, and only on finished tasks.
+    const rating =
+      ownDevice && status !== 'working' && status !== 'waiting' && user.turnId
+        ? snapshot.ratings?.[user.turnId]
+        : undefined;
     return {
+      ...(rating ? { rateable: true as const } : {}),
+      ...(rating?.rating ? { rating: rating.rating } : {}),
       ...(pending?.title ? { approval: pending.title.slice(0, 200) } : {}),
       ...(pending && ownDevice ? { approvalId: pending.id } : {}),
       id: user.id,

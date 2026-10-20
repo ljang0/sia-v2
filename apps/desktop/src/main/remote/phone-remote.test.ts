@@ -665,3 +665,113 @@ it('never lets the plain-HTTP Wi-Fi link approve a step', async () => {
     error: 'Approve or deny this step in Sia on your Mac.',
   });
 });
+
+it('lets only the owner’s encrypted phone rate a finished task', async () => {
+  const { deps, post, state, invoke, url } = await setup();
+  const threadId = randomUUID();
+  const turnId = randomUUID();
+  const userItemId = randomUUID();
+  state.threads.push({
+    id: threadId,
+    agentId,
+    status: 'idle',
+  } as DesktopSnapshot['threads'][number]);
+  state.activeThreadId = threadId;
+  state.timeline.push(
+    {
+      id: userItemId,
+      threadId,
+      turnId,
+      sequence: 1,
+      timestamp: '',
+      kind: 'user',
+      text: 'Book the dentist',
+    },
+    {
+      id: randomUUID(),
+      threadId,
+      turnId,
+      sequence: 2,
+      timestamp: '',
+      kind: 'assistant',
+      text: 'Booked for Tuesday.',
+    },
+  );
+  state.ratings = { [turnId]: {} };
+
+  // The plain-HTTP Wi-Fi link never sees or uses rating controls.
+  const wifiState = (await (await fetch(new URL('state', url))).json()) as RemoteState;
+  expect(wifiState.turns.at(-1)?.rateable).toBeUndefined();
+  const wifi = await post('rate', {
+    session: `${threadId}:${userItemId}`,
+    id: userItemId,
+    rating: 'good',
+  });
+  expect(wifi.status).toBe(409);
+  expect(await wifi.json()).toEqual({ error: 'Rate this task in Sia on your Mac.' });
+
+  const relayed = new PhoneRemote({
+    ...deps,
+    relay: {
+      relayUrl: 'wss://relay.example.test/v1',
+      pageUrl: 'https://sia.example.test/remote/',
+      idToken: async () => 'id-token',
+      connect: () => ({
+        send: () => undefined,
+        close: () => undefined,
+        onopen: null,
+        onmessage: null,
+        onclose: null,
+        onerror: null,
+      }),
+    },
+  });
+  cleanups.push(() => relayed.dispose());
+  await relayed.initialize();
+  await relayed.configure({ operation: 'enable', agentId });
+  const current = await relayed.dispatch(
+    { method: 'GET', route: 'state', query: new URLSearchParams(), origin: 'own_device' },
+    () => true,
+  );
+  const remoteState = (current as { json: RemoteState }).json;
+  expect(remoteState.turns.at(-1)).toMatchObject({ id: userItemId, rateable: true });
+  const session = remoteState.session!;
+
+  // Another origin is refused even through dispatch.
+  const spoofed = await relayed.dispatch(
+    {
+      method: 'POST',
+      route: 'rate',
+      query: new URLSearchParams(),
+      origin: 'unencrypted_link',
+      body: { session, id: userItemId, rating: 'good' },
+    },
+    () => true,
+  );
+  expect(spoofed.status).toBe(409);
+  const stale = await relayed.dispatch(
+    {
+      method: 'POST',
+      route: 'rate',
+      query: new URLSearchParams(),
+      origin: 'own_device',
+      body: { session: 'other:session', id: userItemId, rating: 'good' },
+    },
+    () => true,
+  );
+  expect(stale.status).toBe(409);
+  expect(invoke).not.toHaveBeenCalledWith('ratings.submit', expect.anything());
+
+  const rated = await relayed.dispatch(
+    {
+      method: 'POST',
+      route: 'rate',
+      query: new URLSearchParams(),
+      origin: 'own_device',
+      body: { session, id: userItemId, rating: 'bad' },
+    },
+    () => true,
+  );
+  expect(rated).toEqual({ status: 200, json: { ok: true } });
+  expect(invoke).toHaveBeenCalledWith('ratings.submit', { threadId, turnId, rating: 'bad' });
+});
