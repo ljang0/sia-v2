@@ -316,6 +316,19 @@ select,
   outline-offset: 2px;
 }
 
+/* The ring eases in, tightening from a faint halo onto the control. Zero specificity, so a
+   control's own entrance or loop always wins over it. Reduced motion collapses the duration. */
+:where(:focus-visible) {
+  animation: focusRingIn var(--motion-standard) var(--ease-out-soft);
+}
+
+@keyframes focusRingIn {
+  from {
+    outline-color: color-mix(in srgb, var(--focus-ring) 0%, transparent);
+    outline-offset: 5px;
+  }
+}
+
 ::selection {
   background: color-mix(in srgb, var(--bg-accent) 24%, transparent);
 }
