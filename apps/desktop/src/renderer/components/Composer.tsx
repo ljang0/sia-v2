@@ -99,13 +99,18 @@ export function Composer({
   onStop,
 }: ComposerProps) {
   const [value, setValue] = useState(initialValue);
+  // The latest text, read when a send settles so typing during the send is never lost.
+  const valueRef = useRef(initialValue);
   // Which sent message ↑/↓ is showing, counted back from the newest; unset while typing.
   const recall = useRef<number | undefined>(undefined);
   const [sending, setSending] = useState(false);
+  const sendInFlight = useRef(false);
   // Counts sent messages so the send arrow can play its launch once per send.
   const [launches, setLaunches] = useState(0);
   // Stopping takes a round trip; one click shows it is underway and cannot be sent twice.
   const [stopping, setStopping] = useState(false);
+  const stopInFlight = useRef(false);
+  const [controlError, setControlError] = useState<string>();
   const textArea = useRef<HTMLTextAreaElement>(null);
   const draftSaveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const pendingDraft = useRef<string | undefined>(undefined);
@@ -156,6 +161,7 @@ export function Composer({
   const updateValue = (content: string) => {
     // Editing or clearing a recalled message makes it the person's own draft again.
     recall.current = undefined;
+    valueRef.current = content;
     setValue(content);
     persistDraftSoon(content);
   };
@@ -199,9 +205,11 @@ export function Composer({
   });
 
   const submit = async () => {
-    const content = value.trim();
+    const draft = valueRef.current;
+    const content = draft.trim();
     // While a turn runs, a sent message is queued as a follow-up by the main process.
-    if ((!content && attachments.length === 0) || disabled || sending) return;
+    if ((!content && attachments.length === 0) || disabled || sendInFlight.current) return;
+    sendInFlight.current = true;
     setSending(true);
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
     draftSaveTimer.current = undefined;
@@ -211,14 +219,19 @@ export function Composer({
         content,
         attachments.map((attachment) => attachment.id),
       );
-      recall.current = undefined;
       setLaunches((count) => count + 1);
-      setValue('');
-      persistDraftNow('');
+      // Text typed while the send was in flight is the next draft; keep it.
+      if (valueRef.current === draft) {
+        recall.current = undefined;
+        valueRef.current = '';
+        setValue('');
+      }
+      persistDraftNow(valueRef.current);
     } catch {
-      persistDraftNow(value);
+      persistDraftNow(valueRef.current);
       textArea.current?.focus();
     } finally {
+      sendInFlight.current = false;
       setSending(false);
     }
   };
@@ -227,6 +240,7 @@ export function Composer({
   const showRecalled = (index: number | undefined) => {
     recall.current = index;
     const content = index === undefined ? '' : (history[history.length - 1 - index] ?? '');
+    valueRef.current = content;
     setValue(content);
     requestAnimationFrame(() => {
       const input = textArea.current;
@@ -262,6 +276,21 @@ export function Composer({
       return true;
     }
     return false;
+  };
+
+  const stop = async () => {
+    if (stopInFlight.current) return;
+    stopInFlight.current = true;
+    setControlError(undefined);
+    setStopping(true);
+    try {
+      await onStop();
+    } catch {
+      setControlError('Couldn’t stop the task. Please try Stop again.');
+    } finally {
+      stopInFlight.current = false;
+      setStopping(false);
+    }
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -497,11 +526,9 @@ export function Composer({
               type="button"
               size="compact"
               className={styles.composerAction}
-              onClick={() => {
-                setStopping(true);
-                void Promise.resolve(onStop()).finally(() => setStopping(false));
-              }}
+              onClick={() => void stop()}
               disabled={stopping}
+              aria-busy={stopping || undefined}
             >
               <Stop weight="fill" size={16} aria-hidden="true" />
               {stopping ? 'Stopping…' : 'Stop'}
@@ -514,6 +541,7 @@ export function Composer({
             tone="accent"
             onClick={() => void submit()}
             disabled={disabled || (!value.trim() && attachments.length === 0) || sending}
+            aria-busy={sending || undefined}
             aria-label={running ? 'Queue follow-up message' : 'Send message'}
             title={running ? 'Queue follow-up' : undefined}
             data-testid="composer-send"
@@ -528,6 +556,11 @@ export function Composer({
           </ActionButton>
         </div>
       </div>
+      {controlError ? (
+        <p className={styles.composerError} role="alert">
+          {controlError}
+        </p>
+      ) : null}
       {voiceError ? (
         <p className={styles.composerError} role="alert">
           {voiceError}

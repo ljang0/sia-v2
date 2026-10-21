@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type {
   ActionBackend,
   ActionExecutionResult,
@@ -76,6 +77,34 @@ export class DesktopActionBackend implements ActionBackend {
     );
   }
 
+  #controlRecoveryKey(request: ValidatedActionInvocation): string {
+    const turn = [request.context.sessionId, request.context.threadId, request.context.turnId];
+    if (!this.#ctx.macBrowserAccess() || request.name !== 'computer_action')
+      return JSON.stringify(turn);
+    const args = request.arguments;
+    const snapshot = this.#ctx.computer.snapshots.get(String(args.snapshot_id));
+    const element = snapshot?.elements.get(String(args.element_ref));
+    // Scope recovery to the failing control/page/route. Another app or a
+    // distinct observed route must remain usable after a guarded refusal.
+    return createHash('sha256')
+      .update(
+        JSON.stringify([
+          ...turn,
+          args.app_id,
+          args.window_id,
+          snapshot?.browserUrl,
+          args.action,
+          args.element_ref
+            ? [element?.role, element?.label ?? args.element_ref]
+            : typeof args.x === 'number'
+              ? [args.x, args.y]
+              : (args.value ?? 'focused'),
+          args.delivery ?? 'background',
+        ]),
+      )
+      .digest('hex');
+  }
+
   async invoke(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
     // A late cancelled caller must not revoke a newer turn's active window refs.
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
@@ -91,10 +120,10 @@ export class DesktopActionBackend implements ActionBackend {
       this.#ctx.computer.session(request);
     const computerWrite =
       request.name === 'computer_action' || request.name === 'browser_action';
-    const key = `${request.context.threadId}:${request.context.turnId}`;
+    const key = this.#controlRecoveryKey(request);
     if (computerWrite && (this.#recoveryFailures.get(key) ?? 0) >= 2) {
       return refused(
-        'Two control attempts failed in this turn. Stop retrying, explain the blocker, and ask the user to repair access or the target before a new request.',
+        'Two attempts at this control failed. Stop repeating it. Observe fresh state and use another permitted target or distinct input route when available; otherwise explain this exact blocker. Never bypass protected surfaces or replay an uncertain write.',
       );
     }
     const rawResult = await this.#invoke(request);

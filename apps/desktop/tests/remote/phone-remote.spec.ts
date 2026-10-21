@@ -260,7 +260,7 @@ test('Home Screen and phone branding load the supplied logo through the paired l
     await expect(logo).toBeVisible();
     await expect
       .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
-      .toBe(256);
+      .toBe(768);
     await expect(page.locator('.sia-logo:visible')).toHaveCount(1);
     if (!route) {
       await expect(page.locator('.phone-brand .sia-logo')).toBeHidden();
@@ -288,7 +288,7 @@ test('Home Screen and phone branding load the supplied logo through the paired l
         height: image.naturalHeight,
       };
     }, url.href);
-    expect(image).toEqual({ width: 256, height: 256 });
+    expect(image).toEqual({ width: 768, height: 512 });
     expect(
       (
         await page.request.get(new URL(`/assets/${url.pathname.split('/').at(-1)}`, url).href)

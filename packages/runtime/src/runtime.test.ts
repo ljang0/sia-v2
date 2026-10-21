@@ -18,7 +18,7 @@ import {
   SIA_CODEX_DISABLED_FEATURES,
   SIA_CODEX_ENABLED_FEATURES,
 } from './providers/codex-isolation.js';
-import { CodexAppServerAdapter } from './providers/codex.js';
+import { CODEX_SUPPORTED_VERSIONS, CodexAppServerAdapter } from './providers/codex.js';
 import {
   AcpAdapter,
   permissionOptionId,
@@ -310,13 +310,10 @@ describe('CLI discovery', () => {
     expect(compareVersions('0.155.0-alpha.9.2', '0.155.0-alpha.9')).toBe(1);
     expect(compareVersions('0.155.0-alpha.10', '0.155.0-alpha.9.2')).toBe(1);
     expect(compareVersions('0.155.0', '0.155.0-alpha.9.2')).toBe(1);
-    const pinned = {
-      minimum: '0.147.0',
-      maximumExclusive: '0.154.0',
-      additionalVersions: ['0.155.0-alpha.9', '0.155.0-alpha.9.2'],
-    };
+    const pinned = CODEX_SUPPORTED_VERSIONS;
     expect(isVersionSupported('0.155.0-alpha.9', pinned)).toBe(true);
     expect(isVersionSupported('0.155.0-alpha.9.2', pinned)).toBe(true);
+    expect(isVersionSupported('0.160.0', pinned)).toBe(true);
     for (const version of [
       '0.154.0',
       '0.154.0-alpha.1',
@@ -325,6 +322,9 @@ describe('CLI discovery', () => {
       '0.155.0-alpha.10',
       '0.155.0',
       '0.156.0',
+      '0.160.0-alpha.1',
+      '0.160.1',
+      '0.161.0',
     ])
       expect(isVersionSupported(version, pinned)).toBe(false);
     expect(

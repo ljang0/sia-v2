@@ -51,6 +51,7 @@ export class AppSettings {
       step,
       ...(agent ? { agentId: agent.id } : {}),
     };
+    this.ctx.speech.pushToTalk?.setPractice(step === 'practice');
     this.ctx.commit();
     return this.ctx.resultSnapshot();
   }

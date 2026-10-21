@@ -5,7 +5,7 @@ import {
   type ActionExecutionResult,
   type ValidatedActionInvocation,
 } from '@sia/action-gateway';
-import { MAC_BROWSER_BUNDLES } from '../mac/browser-window.js';
+import { MAC_BROWSER_BUNDLES, type BrowserWindowState } from '../mac/browser-window.js';
 import { refused } from './action-results.js';
 import { requiredString } from './arguments.js';
 import { browserUrlLooksSensitive } from './browser-urls.js';
@@ -47,7 +47,7 @@ export class ComputerInventory {
     // Preserve exact window identities across inventory refreshes within this turn.
     // Later turns discover fresh targets under a new, host-owned CUA session.
     const mac = this.ctx.macBrowserAccess();
-    this.ctx.computer.session(request);
+    const sessionId = this.ctx.computer.session(request);
     if (!mac) this.ctx.computer.reset();
     const previousApps = [...this.ctx.computer.apps.values()];
     const previousWindows = [...this.ctx.computer.windows.values()];
@@ -140,6 +140,7 @@ export class ComputerInventory {
         const snapshot = this.ctx.computer.latestSnapshot.get(id);
         if (snapshot) this.ctx.computer.snapshots.delete(snapshot);
         this.ctx.computer.latestSnapshot.delete(id);
+        this.ctx.computer.inspectedBrowsers.delete(id);
       }
     // WindowServer enumerates back-to-front on some builds. Give the model the
     // frontmost candidates first, retaining every permitted window for discovery.
@@ -151,6 +152,54 @@ export class ComputerInventory {
           Number(a.z_order ?? Infinity) - Number(b.z_order ?? Infinity),
       );
 
+    // Inspect only page identity, never page content, cookies or profile files.
+    // This lets the agent select an existing app/session before opening a site
+    // in a different default browser/profile. Full observations still revalidate.
+    const inspectedBrowsers = this.ctx.computer.inspectedBrowsers;
+    const browserWindows = mac
+      ? windows.filter((window) => {
+          const binding = this.ctx.computer.windows.get(String(window.window_id));
+          return binding && this.isNativeBrowser(binding);
+        })
+      : [];
+    // Repeated inventories must eventually discover windows beyond the first
+    // eight. Do not cache page identities: each returned identity is read live.
+    if (browserWindows.every((window) => inspectedBrowsers.has(String(window.window_id))))
+      inspectedBrowsers.clear();
+    const inspected = browserWindows
+      .filter((window) => !inspectedBrowsers.has(String(window.window_id)))
+      .slice(0, 8);
+    for (let offset = 0; offset < inspected.length; offset += 4) {
+      request.context.signal?.throwIfAborted();
+      await Promise.all(
+        inspected.slice(offset, offset + 4).map(async (window) => {
+          const binding = this.ctx.computer.windows.get(String(window.window_id));
+          if (!binding) return;
+          let state: BrowserWindowState;
+          try {
+            state = await this.nativeBrowserState(binding);
+          } catch {
+            state = { status: 'unavailable' };
+          }
+          if (request.context.signal?.aborted || this.ctx.computer.sessionId !== sessionId)
+            return;
+          Object.assign(window, { browser_state: state.status });
+          inspectedBrowsers.add(binding.id);
+          if (state.status === 'ready' && state.url !== 'about:blank') {
+            const page = new URL(state.url);
+            Object.assign(window, {
+              browser_origin: page.origin,
+              source_url: page.origin + page.pathname,
+            });
+          }
+        }),
+      );
+    }
+    request.context.signal?.throwIfAborted();
+    const remaining = browserWindows.filter(
+      (window) => !inspectedBrowsers.has(String(window.window_id)),
+    ).length;
+
     return {
       outcome: 'verified',
       summary: `Found ${apps.length} running application${apps.length === 1 ? '' : 's'} and ${windows.length} window${windows.length === 1 ? '' : 's'}.`,
@@ -160,7 +209,15 @@ export class ComputerInventory {
         ...(this.ctx.macBrowserAccess()
           ? {
               browser_route:
-                'Use computer_snapshot and computer_action on an existing browser window. No Chrome attachment is needed. Prefer the active browser or the window matching this task. Sensitive or ambiguous windows require user input.',
+                'Existing Mac browser sessions are reused in place; no account connection or login copying is needed. Select the task window using its observed page identity and saved account hints, then verify the live account with computer_snapshot. Inspect visible tabs and account-switcher controls in that window before opening a site in another default profile. Page metadata does not prove sign-in. Protected or unavailable windows do not establish that other accounts are blocked.',
+              browser_metadata_partial: browserWindows.length > inspected.length,
+              browser_windows_uninspected: remaining,
+              ...(remaining > 0
+                ? {
+                    next_step:
+                      'Some browser windows have not been identified yet. Repeat computer_list to inspect the next batch, or use computer_snapshot on a specific task window. Missing metadata is not evidence of sign-out.',
+                  }
+                : {}),
             }
           : {}),
         installed_apps: ((await this.ctx.options.installedApplications?.()) ?? [])
@@ -246,6 +303,35 @@ export class ComputerInventory {
         evidence: 'The trusted desktop host submitted the validated web URL to macOS.',
       },
     };
+  }
+
+  isNativeBrowser(binding: ComputerWindowBinding): boolean {
+    return MAC_BROWSER_BUNDLES.has(
+      this.ctx.computer.apps.get(binding.appId)?.identity.replace(/^bundle:/, '') ?? '',
+    );
+  }
+
+  async nativeBrowserState(binding: ComputerWindowBinding): Promise<BrowserWindowState> {
+    if (!this.ctx.macBrowserAccess() || !this.ctx.options.inspectBrowserWindow)
+      return { status: 'unavailable' };
+    const state = await this.ctx.options.inspectBrowserWindow(binding.pid, binding.windowId);
+    if (state.status !== 'ready') return state;
+    if (
+      `bundle:${state.bundleID.toLowerCase()}` !==
+      this.ctx.computer.apps.get(binding.appId)?.identity
+    )
+      return { status: 'unavailable', reason: 'window' };
+    if (state.url === 'about:blank') return state;
+    try {
+      if (
+        !['http:', 'https:'].includes(new URL(state.url).protocol) ||
+        browserUrlLooksSensitive(state.url)
+      )
+        return { status: 'protected', reason: 'page' };
+      return state;
+    } catch {
+      return { status: 'unavailable', reason: 'page' };
+    }
   }
 
   async windowStillValid(

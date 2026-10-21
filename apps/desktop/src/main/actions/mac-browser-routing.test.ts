@@ -84,6 +84,181 @@ describe('Use my Mac browser routing', () => {
     };
   }
 
+  it('discovers existing browser page identities without page contents or query/fragment data', async () => {
+    const h = browserHarness();
+    h.navigate('https://canvas.cmu.edu/courses?view=active#section');
+    const listed = await h.backend.invoke(request('computer_list', {}));
+    expect(dataRecord(listed.data).windows).toEqual([
+      expect.objectContaining({
+        browser_state: 'ready',
+        browser_origin: 'https://canvas.cmu.edu',
+        source_url: 'https://canvas.cmu.edu/courses',
+      }),
+    ]);
+    expect(dataRecord(listed.data).browser_metadata_partial).toBe(false);
+    expect(JSON.stringify(listed)).not.toContain('view=active');
+    expect(JSON.stringify(listed)).not.toContain('#section');
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
+    h.inspect.mockResolvedValue({ status: 'protected' });
+    const protectedList = await h.backend.invoke(request('computer_list', {}));
+    const window = (dataRecord(protectedList.data).windows as Record<string, unknown>[])[0]!;
+    expect(window.browser_state).toBe('protected');
+    expect(window.source_url).toBeUndefined();
+    expect(window.browser_origin).toBeUndefined();
+  });
+
+  it('isolates retry limits to the failed Mac control and permits another background route', async () => {
+    const h = browserHarness();
+    const args = await capture(h);
+    const implementation = h.cua.call.getMockImplementation() as (
+      tool: string,
+      input: Record<string, unknown>,
+    ) => Promise<unknown>;
+    h.cua.call.mockImplementation(async (tool: string, input: Record<string, unknown>) => {
+      if (tool === 'click' && input.element_token)
+        return { error_code: 'background_unavailable' };
+      if (tool === 'press_key')
+        return { effect: 'unverifiable', delivery: { mode: 'background' } };
+      return implementation(tool, input);
+    });
+    const click = request('computer_action', { ...args, action: 'click' });
+    for (let i = 0; i < 2; i++)
+      expect((await h.backend.invoke(click)).outcome).toBe('needs_foreground');
+    expect((await h.backend.invoke(click)).summary).toContain(
+      'Two attempts at this control failed',
+    );
+    expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(2);
+    const key = await h.backend.invoke(
+      request('computer_action', {
+        ...args,
+        element_ref: undefined,
+        action: 'key',
+        value: 'tab',
+      }),
+    );
+    expect(key.outcome).toBe('accepted_unverified');
+    expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'press_key')).toHaveLength(1);
+    expect(h.cua.call.mock.calls.find(([tool]) => tool === 'press_key')![1].delivery_mode).toBe(
+      'background',
+    );
+  });
+
+  it('bounds browser metadata discovery and keeps windows whose identity is unavailable', async () => {
+    const h = browserHarness();
+    const implementation = h.cua.call.getMockImplementation() as (
+      tool: string,
+      input: Record<string, unknown>,
+    ) => Promise<unknown>;
+    h.cua.call.mockImplementation(async (tool: string, input: Record<string, unknown>) =>
+      tool === 'list_windows'
+        ? {
+            windows: Array.from({ length: 10 }, (_, i) => ({
+              pid: 42,
+              window_id: 91 + i,
+              title: 'Home',
+              app_name: 'Safari',
+            })),
+          }
+        : implementation(tool, input),
+    );
+    h.inspect.mockResolvedValue({ status: 'unavailable', reason: 'ambiguous' });
+    const result = await h.backend.invoke(request('computer_list', {}));
+    const data = dataRecord(result.data);
+    const windows = data.windows as Record<string, unknown>[];
+    expect(windows).toHaveLength(10);
+    expect(h.inspect).toHaveBeenCalledTimes(8);
+    expect(data.browser_metadata_partial).toBe(true);
+    expect(data.browser_windows_uninspected).toBe(2);
+    expect(data.next_step).toContain('Repeat computer_list');
+    expect(windows.filter((window) => window.browser_state === 'unavailable')).toHaveLength(8);
+    expect(windows.every((window) => window.source_url === undefined)).toBe(true);
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
+    // Reach the remaining windows on the next inventory, without caching any
+    // prior page identities or broadening the per-call observation budget.
+    h.inspect.mockResolvedValue({
+      status: 'ready',
+      url: 'https://campus.example/courses?private=omit#omit',
+      bundleID: 'com.apple.Safari',
+    });
+    const next = dataRecord((await h.backend.invoke(request('computer_list', {}))).data);
+    const nextWindows = next.windows as Record<string, unknown>[];
+    expect(h.inspect).toHaveBeenCalledTimes(10);
+    expect(next.browser_windows_uninspected).toBe(0);
+    expect(next.next_step).toBeUndefined();
+    expect(nextWindows.slice(0, 8).every((window) => !window.browser_state)).toBe(true);
+    expect(nextWindows.slice(8).map((window) => window.source_url)).toEqual([
+      'https://campus.example/courses',
+      'https://campus.example/courses',
+    ]);
+    expect(nextWindows.map((window) => window.window_id)).toEqual(
+      windows.map((window) => window.window_id),
+    );
+    // A completed cycle refreshes live metadata rather than claiming a lasting
+    // login grant. New turns also begin a fresh cycle with fresh capabilities.
+    h.inspect.mockResolvedValue({ status: 'protected' });
+    const refreshed = dataRecord((await h.backend.invoke(request('computer_list', {}))).data);
+    expect(h.inspect).toHaveBeenCalledTimes(18);
+    expect((refreshed.windows as Record<string, unknown>[])[0]!.browser_state).toBe(
+      'protected',
+    );
+    expect((refreshed.windows as Record<string, unknown>[])[0]!.source_url).toBeUndefined();
+  });
+
+  it('marks partial source coverage instead of treating a bounded observation as the full page', async () => {
+    const h = browserHarness();
+    const implementation = h.cua.call.getMockImplementation() as (
+      tool: string,
+      input: Record<string, unknown>,
+    ) => Promise<unknown>;
+    h.cua.call.mockImplementation(async (tool: string, input: Record<string, unknown>) =>
+      tool === 'get_window_state'
+        ? {
+            snapshot_id: 'partial',
+            elements_complete: false,
+            returned_element_count: 1,
+            total_element_count: 40,
+            elements: [
+              { role: 'AXLink', label: 'Next page', element_index: 1, element_token: 'next' },
+            ],
+          }
+        : implementation(tool, input),
+    );
+    const args = await capture(h);
+    const result = await h.backend.invoke(request('computer_snapshot', args));
+    expect(result.outcome).toBe('verified');
+    expect(dataRecord(result.data).observation_partial).toBe(true);
+    expect(dataRecord(result.data).coverage_note).toContain('absence here does not establish');
+  });
+
+  it('does not mint or retain an input capability after a completely empty observation', async () => {
+    const h = browserHarness();
+    const args = await capture(h);
+    const implementation = h.cua.call.getMockImplementation() as (
+      tool: string,
+      input: Record<string, unknown>,
+    ) => Promise<unknown>;
+    h.cua.call.mockImplementation(async (tool: string, input: Record<string, unknown>) =>
+      tool === 'get_window_state'
+        ? { snapshot_id: 'empty', elements: [] }
+        : implementation(tool, input),
+    );
+    const empty = await h.backend.invoke(
+      request('computer_snapshot', {
+        app_id: args.app_id,
+        window_id: args.window_id,
+        include_image: false,
+      }),
+    );
+    expect(empty.outcome).toBe('refused');
+    expect(dataRecord(empty.data).blocker_code).toBe('empty_observation');
+    expect(dataRecord(empty.data).snapshot_id).toBeUndefined();
+    expect(
+      (await h.backend.invoke(request('computer_action', { ...args, action: 'click' })))
+        .outcome,
+    ).toBe('stale');
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(false);
+  });
+
   it.each([
     ['Root Key Signing Key (DNSSEC)', false],
     ['Key Signing Ceremonies', false],
@@ -306,7 +481,9 @@ describe('Use my Mac browser routing', () => {
 
   it('recovers a missing helper window through one exact CUA observation before allowing a background click', async () => {
     const h = browserHarness();
-    h.inspect.mockResolvedValueOnce({ status: 'unavailable', reason: 'ambiguous' });
+    h.inspect
+      .mockResolvedValueOnce({ status: 'unavailable', reason: 'ambiguous' })
+      .mockResolvedValueOnce({ status: 'unavailable', reason: 'ambiguous' });
     const args = await capture(h);
     const captures = h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state');
     expect(captures).toHaveLength(1);

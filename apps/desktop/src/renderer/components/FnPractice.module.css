@@ -1,0 +1,205 @@
+.practice {
+  margin-top: 20px;
+}
+.keyboardScene {
+  height: 200px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  overflow: hidden;
+  isolation: isolate;
+  background: radial-gradient(ellipse at center, #70b6a115, transparent 70%);
+}
+.fnKey {
+  width: 158px;
+  height: 154px;
+  flex: none;
+  border: 1px solid var(--border-control);
+  border-radius: 30px;
+  background: var(--bg-control);
+  color: var(--text-primary);
+  box-shadow:
+    0 8px 0 var(--border-subtle),
+    0 22px 32px #00000014,
+    inset 0 1px 0 #ffffff20;
+  position: relative;
+  overflow: hidden;
+  transition:
+    transform 240ms,
+    box-shadow 240ms,
+    border-color 240ms;
+}
+.fnKey > span,
+.fnKey > svg {
+  position: absolute;
+  z-index: 1;
+  left: 24px;
+}
+.fnKey > span {
+  top: 18px;
+  font-size: calc(26px * var(--text-scale));
+  font-weight: 500;
+}
+.fnKey > svg {
+  bottom: 22px;
+}
+.keyNeighbor {
+  width: 108px;
+  height: 122px;
+  flex: none;
+  padding: 18px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 24px;
+  color: var(--text-tertiary);
+  background: var(--bg-control);
+  font-size: calc(11px * var(--text-scale));
+  opacity: 0.45;
+  transform: scale(0.92);
+}
+.keyWater {
+  position: absolute;
+  inset: 0;
+  transform: translateY(115%);
+  transition: transform 800ms cubic-bezier(0.2, 0.7, 0.25, 1);
+  background: linear-gradient(160deg, #a7d9bd, #78b5bc 50%, #b4addc);
+}
+.keyWave {
+  position: absolute;
+  width: 320px;
+  height: 320px;
+  border-radius: 43%;
+  left: calc(50% - 160px);
+  top: -302px;
+  background: var(--bg-control);
+  animation: key-wave 6s linear infinite paused;
+}
+.keyWave + .keyWave {
+  opacity: 0.55;
+  animation-direction: reverse;
+  animation-duration: 9s;
+  top: -310px;
+}
+.practice[data-phase='starting'] .fnKey,
+.practice[data-phase='listening'] .fnKey {
+  transform: translateY(5px);
+  border-color: #8cbeab;
+  box-shadow:
+    0 3px 0 var(--border-subtle),
+    0 12px 42px #70b6a125;
+}
+.practice[data-phase='listening'] .keyWater {
+  transform: translateY(26%);
+}
+.practice[data-phase='listening'] .fnKey > svg,
+.practice[data-phase='transcribing'] .fnKey > svg {
+  color: #183e36;
+}
+.practice[data-phase='listening'] .keyWave,
+.practice[data-phase='transcribing'] .keyWave {
+  animation-play-state: running;
+}
+.practice[data-phase='transcribing'] .keyWater {
+  transform: translateY(60%);
+}
+.practice[data-phase='complete'] .keyWater {
+  transform: translateY(0);
+}
+.practice[data-phase='complete'] .fnKey {
+  color: #183e36;
+  border-color: #8cbeab;
+}
+.practiceStatus {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px 0 20px;
+  font-size: calc(13px * var(--text-scale));
+  text-align: center;
+  color: var(--text-primary);
+}
+.recordingDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+  flex: none;
+}
+.practice[data-phase='listening'] .recordingDot {
+  background: var(--text-success);
+  animation: voice-pulse 1.4s ease-in-out infinite;
+}
+.practice[data-phase='complete'] .recordingDot {
+  background: var(--text-success);
+}
+.transcript {
+  min-height: 94px;
+  padding: 18px 22px;
+  background: var(--bg-control);
+  border: 1px solid var(--border-subtle);
+  border-radius: 16px;
+}
+.transcript p {
+  margin: 10px 0 0;
+  font-size: calc(16px * var(--text-scale));
+  color: var(--text-secondary);
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.practice[data-phase='complete'] .transcript p {
+  color: var(--text-primary);
+}
+@keyframes key-wave {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes voice-pulse {
+  50% {
+    opacity: 0.4;
+  }
+}
+@media (max-width: 600px) {
+  .keyNeighbor {
+    width: 70px;
+    padding: 10px;
+  }
+}
+@media (max-height: 760px) {
+  .keyboardScene {
+    height: 164px;
+  }
+  .practiceStatus {
+    margin: 8px 0 12px;
+  }
+  .transcript {
+    min-height: 78px;
+    padding: 14px 18px;
+  }
+  .practice > p {
+    margin: 10px 0 0;
+  }
+}
+.practice[data-appearance='calm'] .keyWave,
+.practice[data-appearance='calm'] .recordingDot {
+  animation: none;
+}
+.practice[data-appearance='calm'] .fnKey,
+.practice[data-appearance='calm'] .keyWater {
+  transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .practice .keyWave,
+  .practice .recordingDot {
+    animation: none;
+  }
+  .practice .fnKey,
+  .practice .keyWater {
+    transition: none;
+  }
+}

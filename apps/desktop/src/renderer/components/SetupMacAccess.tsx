@@ -1,4 +1,5 @@
-import { Check } from '@phosphor-icons/react';
+import { Check, Cursor } from '@phosphor-icons/react';
+import { SiaLogo } from './SiaLogo';
 import { useEffect, useRef, useState } from 'react';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { dictationReady } from '../voiceReadiness';
@@ -6,6 +7,7 @@ import { automationApps, type AutomationStatus } from '../../shared/mac-permissi
 import buttons from '../styles/buttons.module.css';
 import styles from './Onboarding.module.css';
 import { errorMessage } from '../plainErrors';
+import guide from './SetupMacAccess.module.css';
 
 export type MacSetupApi = Pick<
   RendererApi,
@@ -16,6 +18,14 @@ export type MacSetupApi = Pick<
   | 'configurePushToTalk'
 > &
   Partial<Pick<RendererApi, 'setupMessages'>>;
+
+/** The System Settings pane where each guided row's switch lives. */
+const SETTINGS_PANE: Record<string, string> = {
+  accessibility: 'Accessibility',
+  screen: 'Screen Recording',
+  voice: 'Microphone',
+  messages_history: 'Full Disk Access',
+};
 
 /** What a row needs from the person right now. */
 type AccessState =
@@ -461,6 +471,23 @@ export function SetupMacAccess({
       {active && current && (
         // Keyed so each step of the pass arrives on its own instead of swapping text in place.
         <div className={styles.permissionGuide} key={current.id}>
+          {compact && current.state !== 'closed' ? (
+            <div className={guide.permissionIllustration} aria-hidden="true">
+              <div className={guide.settingsDots}>
+                <i />
+                <i />
+                <i />
+              </div>
+              <span>Privacy &amp; Security</span>
+              <div className={guide.settingsRow}>
+                <SiaLogo />
+                <strong>Sia</strong>
+                <span className={guide.settingsToggle} />
+                <Cursor size={22} weight="fill" className={guide.settingsCursor} />
+              </div>
+              <small>Turn on Sia in {SETTINGS_PANE[current.id] ?? 'Automation'}</small>
+            </div>
+          ) : null}
           <span className={styles.eyebrow}>
             Step {walk.indexOf(current) + 1} of {walk.length}
             {current.optional ? ' · Optional' : ''}

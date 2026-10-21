@@ -32,9 +32,12 @@ release approval by themselves.
 
 Codex installation discovery selects the newest admitted installed binary, including the copy
 bundled with the official desktop app. The stable range remains `>=0.147.0 <0.154.0`;
-`0.155.0-alpha.9` and `0.155.0-alpha.9.2` are additional exact builds, independently checked for ChatGPT authentication,
+`0.155.0-alpha.9`, `0.155.0-alpha.9.2` and `0.160.0` are additional exact builds, independently checked for ChatGPT authentication,
 ephemeral session isolation in connected/review/foreground/background modes, and its live Astra
-catalog. Other `0.155` prereleases and releases remain excluded until tested. The exact exception
+catalog. Discovery includes both the older `Contents/Resources/codex` executable and the current
+`Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex` bundle layout; otherwise an updated
+official app can be missed and an older managed runtime selected instead. Other untested versions,
+including `0.160.1` and `0.161.0`, remain excluded. The exact exception
 lives in `CODEX_SUPPORTED_VERSIONS` and is shared by discovery, probing and runtime startup.
 This avoids falling back to an older CLI with a narrower model catalog. Existing threads retain
 their selected model and harness. Model discovery uses the official
@@ -42,7 +45,7 @@ their selected model and harness. Model discovery uses the official
 access from a static model label.
 
 When Codex is missing or incompatible, **Set up Codex** in onboarding or
-Settings → AI downloads the Sia-pinned stable `0.153.0` from the official npm registry.
+Settings → AI downloads the Sia-pinned stable `0.160.0` from the official npm registry.
 It checks the embedded SHA-512 before unpacking fixed members into a private installation under
 `<userData>/tools/codex`, verifies the executable version, and atomically selects the completed
 installation. No npm, terminal command, administrator access, or global CLI replacement is needed.
@@ -59,7 +62,7 @@ platform archive integrity values and admission evidence together.
 The opt-in no-turn candidate check is:
 
 ```sh
-SIA_CODEX_REAL_SMOKE=1 SIA_CODEX_CANDIDATE_COMMAND='/Applications/ChatGPT.app/Contents/Resources/codex' SIA_CODEX_CANDIDATE_VERSION=0.155.0-alpha.9.2 SIA_SMOKE_MODEL=gpt-6-astra pnpm --filter @sia/runtime exec vitest run src/codex-isolation.smoke.test.ts
+SIA_CODEX_REAL_SMOKE=1 SIA_CODEX_CANDIDATE_COMMAND='/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex' SIA_CODEX_CANDIDATE_VERSION=0.160.0 SIA_SMOKE_MODEL=gpt-6-astra pnpm --filter @sia/runtime exec vitest run src/codex-isolation.smoke.test.ts
 ```
 
 It creates isolated sessions but sends no model turn or app action. Use the opt-in desktop

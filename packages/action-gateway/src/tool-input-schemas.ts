@@ -98,13 +98,15 @@ const computerAction = z
       });
     if (
       (x !== undefined || y !== undefined || to_x !== undefined || to_y !== undefined) &&
-      (!coordinates || element_ref || !['click', 'drag'].includes(action))
+      (!coordinates || element_ref || !['click', 'drag', 'type'].includes(action))
     )
       context.addIssue({
         code: 'custom',
         message:
-          'Use either an element reference or complete screenshot coordinates for click/drag.',
+          'Use either an element reference or complete screenshot coordinates for click/drag/type.',
       });
+    if (action !== 'drag' && (to_x !== undefined || to_y !== undefined))
+      context.addIssue({ code: 'custom', message: 'End coordinates only apply to drag.' });
     if (action === 'drag' && (!coordinates || to_x === undefined || to_y === undefined))
       context.addIssue({
         code: 'custom',

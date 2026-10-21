@@ -61,10 +61,11 @@
 }
 
 .sidebarTitlebar {
+  position: relative;
   display: flex;
   min-height: var(--titlebar-height);
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   padding: 8px 9px 8px 14px;
   -webkit-app-region: drag;
 }
@@ -74,10 +75,12 @@
 }
 
 .wordmark {
+  position: absolute;
+  left: 50%;
   display: flex;
   align-items: center;
   gap: 7px;
-  padding-left: 62px;
+  translate: -50% 0;
   color: var(--shell-text);
   font-family: var(--font-brand);
   font-size: 20px;

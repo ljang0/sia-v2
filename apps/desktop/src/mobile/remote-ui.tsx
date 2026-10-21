@@ -16,6 +16,8 @@ import {
 import type { RemoteTurn } from '../shared/phone-remote';
 import { SiaLogo } from '../renderer/components/SiaLogo';
 import { ActionButton } from '../renderer/components/ActionButton';
+import { SpotlightButton } from '../renderer/components/effects/SpotlightButton';
+import { GradientText } from '../renderer/components/effects/GradientText';
 import { timeGreeting } from '../renderer/welcome';
 import { plainText } from '../shared/plain-text';
 
@@ -140,7 +142,7 @@ export function Welcome({
         <h1>
           Your Mac,
           <br />
-          <span>within reach.</span>
+          <GradientText>within reach.</GradientText>
         </h1>
         <p>
           Big ideas. Little errands.
@@ -164,7 +166,7 @@ export function Welcome({
           </div>
           <div className="idea-grid">
             {ideas.slice(0, expanded ? 4 : 2).map((idea, index) => (
-              <button
+              <SpotlightButton
                 className="idea-card"
                 key={idea.title}
                 data-tone={index % 2 === 0 ? 'sage' : 'sand'}
@@ -176,7 +178,7 @@ export function Welcome({
                 <ArrowUpRight className="idea-arrow" size={16} />
                 <strong>{idea.title}</strong>
                 <span>{idea.detail}</span>
-              </button>
+              </SpotlightButton>
             ))}
           </div>
           {!!recents.length && (

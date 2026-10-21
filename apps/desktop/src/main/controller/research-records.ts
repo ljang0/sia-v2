@@ -1,6 +1,6 @@
 /** Consented research records: their shapes, storage limits and pure encoding helpers. */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { ProviderId } from '../../shared/bridge.js';
 import { isRecord } from '../actions/records.js';
 
@@ -142,6 +142,48 @@ export function researchSyncErrorMessage(error: unknown): string {
   const message = error instanceof Error ? error.message.trim() : '';
   if (!message) return 'The encrypted research outbox could not reach AWS.';
   return message.length > 240 ? `${message.slice(0, 237)}…` : message;
+}
+
+/**
+ * Counts what a raw episode recorded and fingerprints it. The Mac cannot independently verify the
+ * task or capture privileged before/after state, so the summary says so explicitly.
+ */
+export function summarizeRawEpisode(
+  events: readonly RawResearchEventRecord[],
+): Record<string, unknown> {
+  let providerToolEvents = 0;
+  let gatewayActions = 0;
+  let computerSnapshots = 0;
+  let computerActions = 0;
+  let computerImages = 0;
+  const observationEventIds: string[] = [];
+  for (const event of events) {
+    if (event.payload.eventType === 'provider.tool') providerToolEvents += 1;
+    if (event.payload.eventType !== 'sia.action_result' || !isRecord(event.payload.data))
+      continue;
+    gatewayActions += 1;
+    const name = event.payload.data.name;
+    if (name !== 'computer_snapshot' && name !== 'computer_action') continue;
+    if (name === 'computer_snapshot') computerSnapshots += 1;
+    else computerActions += 1;
+    observationEventIds.push(event.id);
+    const result = event.payload.data.result;
+    if (isRecord(result) && Array.isArray(result.images))
+      computerImages += result.images.length;
+  }
+  return {
+    recordedEventCount: events.length,
+    providerToolEvents,
+    gatewayActions,
+    computerSnapshots,
+    computerActions,
+    computerImages,
+    firstObservationEventId: observationEventIds[0],
+    lastObservationEventId: observationEventIds.at(-1),
+    eventDigestSha256: createHash('sha256').update(JSON.stringify(events)).digest('hex'),
+    independentTaskVerification: 'not_available',
+    privilegedInitialAndFinalState: 'not_captured',
+  };
 }
 
 export function expandRawResearchEvents(

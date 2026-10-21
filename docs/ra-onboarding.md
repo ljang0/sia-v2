@@ -232,12 +232,18 @@ After any required email sign-in:
    the grant. **I don’t see the prompt** reopens the current step; optional steps have **Skip**.
    Statuses refresh on their own every few seconds and when you return from System Settings, so
    rows flip to **Allowed** without restarting Sia.
-3. When the needed permissions are on, setup opens your conversation. There is no routine
-   restart. If macOS applies a grant only after Sia reopens (usually Screen Recording), the row
+3. When the needed permissions are on, setup offers **Try Fn** if dictation is ready; otherwise it
+   opens your conversation. There is no routine restart. If macOS applies a grant only after Sia reopens (usually Screen Recording), the row
    shows **Reopen Sia**. The guided pass finishes the remaining prompts before showing one
    **Reopen Sia** button. It saves the step, relaunches,
    and resumes the checklist where it was, without asking again for anything already granted or
    skipped. **Finish later** stops the pass; **Start using Sia** continues with the access granted.
+
+4. **Try Fn** (optional): hold the physical **Fn** key, speak, then release. The key illustration
+   fills with a gentle wave while the native recorder listens, and your actual transcript appears
+   below it. This is practice: it does not read the current app, create a task, or send words to
+   the agent. **Start using Sia** unlocks after transcription; **Skip voice practice** is always
+   available. After setup, hold Fn to ask Sia for help; **⌘E** opens the quick text box.
 
 | Row                                                                  | macOS permission                                            | Needed?  | How Sia asks                                             |
 | -------------------------------------------------------------------- | ----------------------------------------------------------- | -------- | -------------------------------------------------------- |
@@ -289,6 +295,9 @@ app’s “off” means macOS is waiting for a relaunch. If that check cannot ru
 Reopen Sia** link appears after you ask for a needed permission. A relaunch resumes an
 explicitly active pass, while a paused pass stays paused. A closed app may need to be opened
 before its Automation grant can be checked.
+The microphone records during **Try Fn** only while you hold Fn. Practice transcripts are
+temporary, are not saved in conversations or memory, and clear when you leave practice. They use
+the configured transcription service, just like normal dictation.
 
 **Connect Google or Slack** is optional. Both accounts are checked by default; uncheck unused
 accounts and click **Connect selected apps** once. Complete each provider's sign-in in order.

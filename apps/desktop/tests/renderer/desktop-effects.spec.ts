@@ -137,6 +137,13 @@ for (const colorScheme of ['light', 'dark'] as const) {
     const send = page.getByRole('button', { name: 'Send message', exact: true });
     await expect(heading).toBeVisible();
     await expect(send).toBeDisabled();
+    const suggestion = page.getByRole('button', { name: /Compare the strongest sources/ });
+    await expect(suggestion).toBeVisible();
+    await suggestion.hover();
+    await expect(suggestion).toHaveClass(/sia-spotlight/);
+    await expect
+      .poll(() => suggestion.evaluate((el) => getComputedStyle(el, '::before').opacity))
+      .toBe('1');
     await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'dither');
     await expect
       .poll(() => heading.evaluate((el) => getComputedStyle(el).backgroundPosition))
@@ -264,7 +271,7 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   await expect(logo).toBeVisible();
   await expect
     .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
-    .toBe(256);
+    .toBe(768);
   const task = nav.getByRole('button', { name: 'Weekly research update', exact: true });
   await task.hover();
   await expect(page.getByRole('tooltip')).toBeVisible();

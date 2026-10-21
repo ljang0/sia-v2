@@ -4,6 +4,7 @@ import type { ThreadSummary } from '../types';
 import { threadDisplayTitle } from '../threadTitle';
 import { timeAgo } from '../welcome';
 import styles from './welcome-recents.module.css';
+import { SpotlightButton } from './effects/SpotlightButton';
 
 const STATUS: Partial<Record<ThreadSummary['status'], string>> = {
   waiting: 'Needs you',
@@ -30,7 +31,7 @@ export function WelcomeRecents({
             ? 'You have an unsent draft here.'
             : thread.preview?.text;
           return (
-            <button
+            <SpotlightButton
               key={thread.id}
               type="button"
               data-status={thread.status}
@@ -49,7 +50,7 @@ export function WelcomeRecents({
                 <time dateTime={thread.updatedAt}>{timeAgo(thread.updatedAt)}</time>
               </span>
               <ArrowRight className={styles.arrow} size={16} aria-hidden="true" />
-            </button>
+            </SpotlightButton>
           );
         })}
       </div>

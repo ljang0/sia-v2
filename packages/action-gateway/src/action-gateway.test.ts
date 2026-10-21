@@ -902,12 +902,23 @@ it('accepts bounded pixel gestures but rejects ambiguous or incomplete addresses
       to_y: 200,
     }),
   ).toMatchObject({ action: 'drag' });
+  expect(
+    parseActionArguments('computer_action', {
+      ...base,
+      action: 'type',
+      x: 10,
+      y: 20,
+      text: 'A normal field',
+    }),
+  ).toMatchObject({ action: 'type', x: 10, y: 20 });
   for (const args of [
     { action: 'click', x: 10 },
     { action: 'drag', x: 10, y: 20 },
     { action: 'click', x: -1, y: 20 },
     { action: 'click', x: 10, y: 20, element_ref: 'w:1' },
-    { action: 'type', x: 10, y: 20, text: 'bad' },
+    { action: 'type', x: 10, text: 'bad' },
+    { action: 'type', x: 10, y: 20, element_ref: 'w:1', text: 'bad' },
+    { action: 'type', x: 10, y: 20, to_x: 30, to_y: 40, text: 'bad' },
   ])
     expect(() => parseActionArguments('computer_action', { ...base, ...args })).toThrow();
   expect(() =>
@@ -916,6 +927,19 @@ it('accepts bounded pixel gestures but rejects ambiguous or incomplete addresses
 });
 
 it.each([
+  {
+    name: 'computer_action',
+    arguments: {
+      app_id: 'app',
+      window_id: 'window',
+      snapshot_id: 'snapshot',
+      action: 'type',
+      x: 10,
+      y: 20,
+      text: 'An ordinary field',
+      delivery: 'foreground',
+    },
+  },
   {
     name: 'computer_action',
     arguments: {

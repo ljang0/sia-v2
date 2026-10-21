@@ -52,7 +52,9 @@ it('stops a failed control loop after two attempts without posting any input', a
   });
   expect((await backend.invoke(input)).outcome).toBe('stale');
   expect((await backend.invoke(input)).outcome).toBe('stale');
-  expect((await backend.invoke(input)).summary).toContain('Two control attempts failed');
+  expect((await backend.invoke(input)).summary).toContain(
+    'Two attempts at this control failed',
+  );
   expect(cua.call).not.toHaveBeenCalled();
 });
 

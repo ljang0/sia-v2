@@ -55,8 +55,8 @@ export class ComputerInput {
     ) {
       return stale('The window snapshot is missing, superseded, or belongs to another window.');
     }
-    if (this.observation.isNativeBrowser(binding)) {
-      const current = await this.observation.nativeBrowserState(binding);
+    if (this.inventory.isNativeBrowser(binding)) {
+      const current = await this.inventory.nativeBrowserState(binding);
       if (current.status !== 'ready' || current.url !== capability.browserUrl)
         return stale(
           'The browser page changed or needs login. Capture a fresh browser window state before continuing; do not replay the previous action.',
@@ -124,7 +124,7 @@ export class ComputerInput {
     const pixel =
       typeof args.x === 'number' &&
       typeof args.y === 'number' &&
-      ['click', 'drag'].includes(String(args.action));
+      ['click', 'drag', 'type'].includes(String(args.action));
     const backgroundDelivery = this.ctx.macBrowserAccess() && args.delivery !== 'foreground';
     const inputRoute: BackgroundInputRoute = ['type', 'key'].includes(String(args.action))
       ? 'pid_keyboard'
@@ -177,12 +177,13 @@ export class ComputerInput {
       if (windowHasProtectedControls(current))
         return refused('Pixel actions are blocked on windows containing protected controls.');
       if (backgroundDelivery) {
-        const unavailable = backgroundRouteRefusal(
-          windowBackgroundInput(current, binding),
-          'window_pointer',
-          request,
-        );
-        if (unavailable) return unavailable;
+        const availability = windowBackgroundInput(current, binding);
+        const routes: BackgroundInputRoute[] =
+          args.action === 'type' ? ['window_pointer', 'pid_keyboard'] : ['window_pointer'];
+        for (const route of routes) {
+          const unavailable = backgroundRouteRefusal(availability, route, request);
+          if (unavailable) return unavailable;
+        }
       }
       const currentSize = screenshotDimensions(current);
       if (
@@ -249,7 +250,9 @@ export class ComputerInput {
         const text = typeof args.text === 'string' ? args.text : undefined;
         if (text === undefined) return refused('computer_action type requires text.');
         tool = 'type_text';
-        input = { ...base, text };
+        // Keep focus and insertion in the same driver operation. A separate
+        // foreground click restores the previous app before typing begins.
+        input = { ...base, text, ...(pixel ? { x: args.x, y: args.y } : {}) };
         break;
       }
       case 'set': {

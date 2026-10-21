@@ -11,7 +11,7 @@ and legal surfaces remain sober. Sia is not an AI dashboard and not a chat templ
 
 The audience is an average consumer without technical knowledge. Make the next action obvious,
 use familiar language, and choose sensible defaults. Keep onboarding to a short welcome and access
-check; offer advanced settings and optional features when relevant. Avoid developer jargon,
+check followed by optional Fn practice; offer advanced settings and optional features when relevant. Avoid developer jargon,
 mandatory tutorials, and long sequences of setup screens. Archived conversations remain available
 in Activity and search, without a dedicated sidebar item.
 
@@ -23,6 +23,14 @@ agent's stated purpose, with everyday tasks as the default; choosing Codex or na
 appear below the suggestions, prioritizing work that needs attention. Opening one resumes its existing
 conversation; it does not resend the original request. Phone greetings identify the paired agent and
 retain the existing editable recent prompts.
+
+Desktop and phone suggestions use a restrained pointer-following sage highlight, with a centered
+keyboard-focus treatment and native button semantics. Choosing a suggestion sends its full
+request, so the first task is one click. Welcome headline gradients drift slowly and pause when
+hidden. Calm and Reduce Motion keep these surfaces still, and forced colors restores solid text.
+The desktop composer's send and Stop buttons ignore repeat clicks while a send or stop is in
+flight. Text typed during a send stays as the next draft, a failed send keeps the draft, and a
+failed stop shows an error and permits retry.
 
 The latest finished desktop reply and completed phone replies appear in a soft result card. The
 original text, links, copy/read-aloud controls, and phone file downloads remain available. “Reply ready”
@@ -41,11 +49,14 @@ loading state; Calm dismisses it immediately when the saved appearance becomes a
 errors replace the animation with the existing reconnect action. For local visual review, the demo
 supports `?startup-delay=2200#demo`; this delay is unavailable in production.
 
-Desktop navigation and phone branding share the supplied mint-gradient **S** logo. The sidebar,
+Desktop navigation and phone branding share the supplied white geometric **Sia** logo. The sidebar,
 setup welcome, sign-in, phone header, phone welcome, favicon, and iOS Home Screen icon all load the
 same bundled PNG. Only one logo is on screen at a time: the phone welcome hero carries it, so the
 header keeps an empty slot there.
-The original image is preserved, and the Home Screen name remains **Sia**.
+The bundled copy is the supplied artwork scaled to 768×512 to keep the app light, and the Home
+Screen name remains **Sia**.
+The desktop title bar centers the unboxed logo between the Mac window controls and sidebar toggle,
+with clear space around the mark. Phone and welcome-screen icon treatments remain independent.
 An existing iOS Home Screen shortcut may need to be removed and added again to refresh its cached icon.
 
 Settings → More → Appearance has three choices, all saved in the existing encrypted profile and
@@ -252,6 +263,7 @@ use whitespace and a hairline divider before adding another box.
 - One clear primary action per surface; no duplicate controls or provider-specific layout fork.
 - Use my Mac onboarding has one setup button that walks every required macOS permission; there
   is no separate opt-in for everyday apps.
+- Fn practice after setup reflects actual recorder states and is always skippable.
 - Conversation remains dominant. Tool activity is compact and progressively disclosed.
 - Settings use one horizontal section rail that wraps when space is tight, keeping every category
   visible. The content pane scrolls independently; avoid a second sidebar inside the application shell.
@@ -293,6 +305,31 @@ profiles; no provider turn or personal account is involved. Phone layouts have a
 | Install/update then a separate sign-in action after restart | Connect ChatGPT resumes browser sign-in once after restart, with visible stage and retry feedback | No terminal or second setup action                   |
 | Disabled Set up Sia button while no model is ready          | Resolve AI access first, then show Set up Sia                                                     | One actionable next step                             |
 | Core permission statuses hidden with optional apps          | Core checklist always visible; everyday apps expandable                                           | See missing access and recovery guidance immediately |
+| Permission setup ends without a first-use moment            | Skippable hold–speak–release Fn lesson with an actual transcript                                  | Learn the gesture by doing it                        |
 
 One permission action requests only missing access. macOS owns approval dialogs; returning to Sia
 checks status without repeating prompts. Interrupted or denied access does not erase allowed grants.
+
+### Component references
+
+These are design references, not additional runtime dependencies. Match Sia's existing fonts,
+colors, native button semantics, focus styles, Calm setting, and Reduce Motion. The Fn lesson and
+setup transitions are implemented with local CSS and the typed recorder state; no shader or motion
+library is needed for them. Spotlight Card and Gradient Text are adapted locally with provenance
+in `THIRD_PARTY_NOTICES.md`; the composer keeps Sia's native action buttons.
+Star Border remains an optional reference, not an additional screen-border effect.
+
+| Component                                                                        | Where                   | Adaptation                                                                                                         |
+| -------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| [21st Animated Keyboard](https://21st.dev/@badtzx0/components/animated-keyboard) | Fn lesson               | Focus on the Fn key and two neighboring keys; fill it only while the real recorder listens.                        |
+| [React Bits Stepper](https://reactbits.dev/components/stepper)                   | Setup header            | Three quiet stages: Welcome, Mac access, Try Fn. Follow saved progress without artificial delays.                  |
+| [React Bits Animated Content](https://reactbits.dev/animations/animated-content) | Setup transitions       | Short fade and 8px arrival when the stage changes. Keep controls usable immediately.                               |
+| [React Bits Spotlight Card](https://reactbits.dev/components/spotlight-card)     | First-task suggestions  | A restrained sage hover/focus treatment; each card sends its request in one click.                                 |
+| [React Bits Gradient Text](https://reactbits.dev/text-animations/gradient-text)  | Welcome headline        | One slow mint/blue sweep, keeping body text still and readable; pauses when hidden.                                |
+| [21st SendButton](https://agent-elements.21st.dev/docs/send-button)              | Desktop/phone composer  | Reference only: idle, send, and stop states stay distinct on the native action buttons; guard repeat clicks.       |
+| [React Bits Star Border](https://reactbits.dev/animations/star-border)           | Active voice affordance | Consider a very faint highlight on the Fn practice key only; avoid more perpetual borders or competing highlights. |
+
+[Wispr's official setup guide](https://docs.wisprflow.ai/articles/3152211871-setup-guide) supports
+the learn-by-doing pattern: skip existing grants, press/speak/release to practice, permit skipping,
+and resume interrupted setup. Its documented flow is the reference for the sequence; Sia's key-fill
+visual is a local design, not copied proprietary artwork.

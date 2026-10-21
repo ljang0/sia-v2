@@ -29,7 +29,7 @@ describe('text size', () => {
     // Brand wordmarks and the hero headings keep their own size; everything else is a token or
     // calc(Npx * var(--text-scale)), so a bare px font size would ignore the person's choice.
     const allowed = new Set([
-      'components/navigation.module.css:font-size: 38px',
+      'components/navigation.module.css:font-size: 40px',
       'components/Sidebar.module.css:font-size: 20px',
       'components/startup.module.css:font-size: 17px',
       'components/startup.module.css:font: 650 42px/1 var(--font-brand)',
@@ -124,6 +124,8 @@ describe('renderer accessibility CSS policy', () => {
     // heading, background mask, and composer. Transcript and settings stay plain.
     const effectModules = new Set([
       'components/CommandLauncher.module.css',
+      // The Fn practice keyboard illustration fills its key and lights the scene behind it.
+      'components/FnPractice.module.css',
       'components/navigation.module.css',
       'components/result-card.module.css',
       'components/settings/AppearanceSettings.module.css',

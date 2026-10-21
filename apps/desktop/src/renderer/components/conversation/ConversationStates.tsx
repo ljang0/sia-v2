@@ -8,6 +8,7 @@ import { AgentForm } from '../AgentForm';
 import { WelcomeRecents } from '../WelcomeRecents';
 import { DitherAurora as Aurora } from '../effects/DitherAurora';
 import { ActionButton } from '../ActionButton';
+import { GradientText } from '../effects/GradientText';
 
 interface ConversationWelcomeProps {
   agentName?: string | undefined;
@@ -37,9 +38,9 @@ export function ConversationWelcome({
         <span className={styles.emptyStateKicker}>
           {agentName ? `${timeGreeting()} · ${agentName} is ready` : 'Start here'}
         </span>
-        <h1 className={layout.gradientHeading}>
+        <GradientText as="h1">
           {agentName ? `Start a conversation with ${agentName}.` : 'Create your first agent.'}
-        </h1>
+        </GradientText>
         <p>
           {agentName
             ? recentThreads.length

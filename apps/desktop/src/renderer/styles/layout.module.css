@@ -60,6 +60,7 @@
 }
 
 .mainPane:has(.conversationAurora[data-paused='true']) .gradientHeading,
+.mainPane:has(.conversationAurora[data-paused='true']) [data-gradient-text],
 .mainPane:has(.conversationAurora[data-paused='true']) .auroraSurface {
   animation-play-state: paused;
 }

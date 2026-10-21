@@ -129,8 +129,17 @@ export default defineConfig(
       '**/scripts/**',
       'scripts/**',
       'apps/desktop/build/*.cjs',
+      // Opt-in real-provider probes print local diagnostics; research tools are CLIs.
+      'apps/desktop/tests/e2e/real-*.spec.ts',
+      'research/**',
     ],
     rules: { 'no-console': 'off' },
+  },
+
+  // Research tools drive the app page through Playwright's page.evaluate.
+  {
+    files: ['research/**/*.mjs'],
+    languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
 
   // Node CommonJS files.

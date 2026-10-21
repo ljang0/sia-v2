@@ -64,14 +64,6 @@
     transform: scaleX(calc(1 - (1 - var(--motion-pop-scale)) * 12.5));
   }
 }
-@keyframes gradient-drift {
-  from {
-    background-position: 0% 50%;
-  }
-  to {
-    background-position: 100% 50%;
-  }
-}
 /* Reuse the wave field's visibility/reduced-motion lifecycle for CSS decoration. */
 .phone-shell:has(.phone-aurora[data-paused='true']) .hero-copy h1 span,
 .phone-shell:has(.phone-aurora[data-paused='true']) .hero-presence {

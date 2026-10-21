@@ -1,33 +1,41 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
-import { MAC_BROWSER_BUNDLES, type BrowserWindowState } from '../mac/browser-window.js';
+import type { BrowserWindowState } from '../mac/browser-window.js';
 import { actionImages, resultRefusal, screenshotDimensions, stale } from './action-results.js';
 import { requiredString } from './arguments.js';
 import { windowBackgroundInput, windowInputRecovery } from './background-input.js';
-import { browserUrlLooksSensitive, samePageUrl } from './browser-urls.js';
+import { samePageUrl } from './browser-urls.js';
 import type {
   ComputerWindowBinding,
   NativeElementAddress,
   WindowSnapshotCapability,
 } from './computer-grants.js';
-import type { ComputerInventory } from './computer-inventory.js';
+import { MAX_PID, MAX_WINDOW_ID, type ComputerInventory } from './computer-inventory.js';
 import type { ActionBackendContext } from './context.js';
 import {
   asRecord,
   compact,
   findElementRecords,
+  findRecordArray,
   findString,
   firstString,
   isDefined,
   isHiddenWindowStructure,
   isProtectedElement,
   nonNegativeInteger,
+  positiveInteger,
   sanitizeElement,
   trustedDisplayText,
   trustedElementLabel,
   windowHasProtectedControls,
 } from './driver-records.js';
+import {
+  sameWindowFrame,
+  windowFrame,
+  windowPixelBounds,
+  type WindowFrame,
+} from './window-pixels.js';
 
 /**
  * Captures a granted window's state and mints its snapshot capability. Browser windows are
@@ -72,8 +80,8 @@ export class ComputerObservation {
     binding: ComputerWindowBinding,
     request: ValidatedActionInvocation,
   ): Promise<ActionExecutionResult> {
-    const browser = this.isNativeBrowser(binding);
-    let browserState = browser ? await this.nativeBrowserState(binding) : undefined;
+    const browser = this.inventory.isNativeBrowser(binding);
+    let browserState = browser ? await this.inventory.nativeBrowserState(binding) : undefined;
     // A missing helper AX window is not a driver refusal. Let CUA resolve and
     // initialize the exact window once, then revalidate browser metadata before
     // releasing any captured content or minting an input capability.
@@ -87,13 +95,22 @@ export class ComputerObservation {
       return stale(
         'The observed browser page does not match expected_url. No page content was read. Wait for navigation or inspect the intended window; do not assign this page to the requested course or account item.',
       );
-    const capture = (includeScreenshot: boolean) =>
-      this.ctx.callCua(request, 'get_window_state', {
+    let capturedFrame: WindowFrame | undefined;
+    const capture = async (includeScreenshot: boolean) => {
+      const before =
+        this.ctx.macBrowserAccess() && includeScreenshot
+          ? await this.#readWindowFrame(binding, request)
+          : undefined;
+      const result = await this.ctx.callCua(request, 'get_window_state', {
         pid: binding.pid,
         window_id: binding.windowId,
         session: this.ctx.computer.session(request),
         include_screenshot: includeScreenshot,
       });
+      const after = before ? await this.#readWindowFrame(binding, request) : undefined;
+      capturedFrame = sameWindowFrame(before, after) ? before : undefined;
+      return result;
+    };
     let includeImage =
       request.arguments.read_text === true ||
       request.arguments.include_image === true ||
@@ -118,7 +135,7 @@ export class ComputerObservation {
     if (browserState?.status === 'unavailable') {
       if (windowHasProtectedControls(raw))
         return this.#browserObservationRefused(binding, { status: 'protected' });
-      browserState = await this.nativeBrowserState(binding);
+      browserState = await this.inventory.nativeBrowserState(binding);
       if (browserState.status !== 'ready') {
         const refusal = this.#browserObservationRefused(binding, browserState);
         return {
@@ -198,7 +215,7 @@ export class ComputerObservation {
         ? await this.ctx.options.readImageText?.(image.dataBase64)
         : undefined;
     if (browser) {
-      const after = await this.nativeBrowserState(binding);
+      const after = await this.inventory.nativeBrowserState(binding);
       if (windowHasProtectedControls(raw) || after.status !== 'ready')
         return this.#browserObservationRefused(
           binding,
@@ -219,6 +236,8 @@ export class ComputerObservation {
     if (title) this.ctx.computer.windows.set(binding.id, { ...binding, title });
     const snapshotId = randomUUID();
     const nativeSnapshotId = findString(raw, ['snapshot_id', 'snapshotId']);
+    const pixels =
+      !includeImage || windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
     const elementMap = new Map<string, NativeElementAddress>();
     const elements = findElementRecords(raw, 'window')
       .map((record, position) => {
@@ -244,12 +263,54 @@ export class ComputerObservation {
           ...(role ? { role } : {}),
         });
         const element = sanitizeElement(record, ref);
-        if (this.ctx.macBrowserAccess()) delete element.frame;
+        if (this.ctx.macBrowserAccess()) {
+          delete element.frame;
+          if (
+            /^AX(?:TextField|TextArea|ComboBox|Button|PopUpButton|Link|CheckBox|RadioButton|Slider|Cell)$/.test(
+              role ?? '',
+            )
+          ) {
+            const box = windowPixelBounds(record.frame ?? record.bounds, capturedFrame, pixels);
+            if (box) element.pixel_bounds = box;
+          }
+        }
         return element;
       })
       .filter(isDefined);
-    const pixels =
-      !includeImage || windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
+    if (
+      this.ctx.macBrowserAccess() &&
+      !windowHasProtectedControls(raw) &&
+      !elements.length &&
+      !pixels &&
+      !readableContext?.text &&
+      !imageText
+    ) {
+      const previous = this.ctx.computer.latestSnapshot.get(binding.id);
+      if (previous) this.ctx.computer.snapshots.delete(previous);
+      this.ctx.computer.latestSnapshot.delete(binding.id);
+      return {
+        outcome: 'refused',
+        summary:
+          'The window returned no readable text, controls or image. No input capability was created. This is an observation failure, not evidence that the account needs sign-in.',
+        data: {
+          app_id: binding.appId,
+          window_id: binding.id,
+          blocker_code: 'empty_observation',
+          observation_only: true,
+          pixel_actions_available: false,
+          next_step: includeImage
+            ? 'Try a fresh text-only snapshot of this exact window (include_image:false). Do not open duplicate windows or infer account state from an empty result.'
+            : 'Request include_image:true on this exact window for visual inspection. If no readable state is available, report this exact observation problem; do not guess account facts.',
+        },
+      };
+    }
+    const driverState = asRecord(raw);
+    const returnedCount = nonNegativeInteger(driverState?.returned_element_count);
+    const totalCount = nonNegativeInteger(driverState?.total_element_count);
+    const partial =
+      readableContext?.partial === true ||
+      driverState?.elements_complete === false ||
+      (returnedCount !== undefined && totalCount !== undefined && returnedCount < totalCount);
     const backgroundInput = windowBackgroundInput(raw, binding);
     const observationOnly =
       backgroundInput?.routes.every((route) => route.status === 'refused') ?? false;
@@ -290,6 +351,13 @@ export class ComputerObservation {
             ? new URL(browserUrl).origin + new URL(browserUrl).pathname
             : undefined,
         visible_text: readableContext?.text || undefined,
+        ...(partial
+          ? {
+              observation_partial: true,
+              coverage_note:
+                'Only part of this window was read. Continue with scrolling, pagination or the relevant view; absence here does not establish that an item/account is missing.',
+            }
+          : {}),
         image_text: imageText,
         ...(request.arguments.read_text === true
           ? {
@@ -335,32 +403,25 @@ export class ComputerObservation {
     };
   }
 
-  isNativeBrowser(binding: ComputerWindowBinding): boolean {
-    return MAC_BROWSER_BUNDLES.has(
-      this.ctx.computer.apps.get(binding.appId)?.identity.replace(/^bundle:/, '') ?? '',
-    );
-  }
-
-  async nativeBrowserState(binding: ComputerWindowBinding): Promise<BrowserWindowState> {
-    if (!this.ctx.macBrowserAccess() || !this.ctx.options.inspectBrowserWindow)
-      return { status: 'unavailable' };
-    const state = await this.ctx.options.inspectBrowserWindow(binding.pid, binding.windowId);
-    if (state.status !== 'ready') return state;
-    if (
-      `bundle:${state.bundleID.toLowerCase()}` !==
-      this.ctx.computer.apps.get(binding.appId)?.identity
-    )
-      return { status: 'unavailable', reason: 'window' };
-    if (state.url === 'about:blank') return state;
+  async #readWindowFrame(
+    binding: ComputerWindowBinding,
+    request: ValidatedActionInvocation,
+  ): Promise<WindowFrame | undefined> {
     try {
-      if (
-        !['http:', 'https:'].includes(new URL(state.url).protocol) ||
-        browserUrlLooksSensitive(state.url)
-      )
-        return { status: 'protected', reason: 'page' };
-      return state;
+      const value = await this.ctx.callCua(request, 'list_windows', {
+        pid: binding.pid,
+        on_screen_only: false,
+      });
+      const window = findRecordArray(value, 'windows').find(
+        (record) =>
+          positiveInteger(record.pid, MAX_PID) === binding.pid &&
+          positiveInteger(record.window_id ?? record.id, MAX_WINDOW_ID) === binding.windowId,
+      );
+      return windowFrame(window?.bounds);
     } catch {
-      return { status: 'unavailable', reason: 'page' };
+      request.context.signal?.throwIfAborted();
+      // Optional geometry must not turn a usable observation into a failure.
+      return undefined;
     }
   }
 

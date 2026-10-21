@@ -16,6 +16,7 @@ _old-builds
 release
 release-*
 *.woff2
+research/rl-environments/local
 
 # Generated Xcode projects, archives, and simulator products.
 apps/ios/build

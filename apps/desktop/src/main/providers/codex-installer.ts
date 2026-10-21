@@ -16,7 +16,7 @@ import { downloadCodexArchive } from './codex-download.js';
 
 const exec = promisify(execFile);
 const MAX_FILE_BYTES = 350 * 1024 * 1024;
-const VERSION = '0.153.0';
+const VERSION = '0.160.0';
 const FILES = [
   'bin/codex',
   'bin/codex-code-mode-host',
@@ -31,12 +31,12 @@ const RELEASES = {
   arm64: {
     target: 'aarch64-apple-darwin',
     integrity:
-      'C9F3HVEYekVJC3WhiGSztcxItWBwd7Y6hTWoDqa9Z9aLWsYywzqChABB59n7G5F5jCil9wxW3+u2L6uiVUydmw==',
+      'aefV6cqZA2REZgR//4McyXlp7zLcTti4CI2v3j9IVgNndPBv2kCeNEcz07qeelXcwOdSFPUKb6roA48vZmDgrQ==',
   },
   x64: {
     target: 'x86_64-apple-darwin',
     integrity:
-      'DO5u+X/eL8pObrV0WDErOjS9DeuDvVuOL5oHR5y5Yklp0NGoGj3oOHsmaSXjGesiIiu3IX8l4pzS6dbeQXJAvQ==',
+      'ir7cdsPrb9VkqNqpTECoTiomv04xws/FQ968mHQzuL+2J5Da0Dkh2Qlxp7sguDDZJab4YpYmNjQvBVMXbTeQaQ==',
   },
 } as const;
 
@@ -113,7 +113,9 @@ async function hasVersion(command: string, expected: string): Promise<boolean> {
   try {
     const { stdout } = await exec(command, ['--version'], {
       env: sanitizedEnvironment(process.env),
-      timeout: 5000,
+      // A fresh macOS executable can spend several seconds in OS assessment
+      // before main(). Keep verification bounded without rejecting that first launch.
+      timeout: 20_000,
       killSignal: 'SIGKILL',
       maxBuffer: 4096,
     });

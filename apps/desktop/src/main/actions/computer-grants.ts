@@ -53,6 +53,8 @@ export class ComputerGrants {
   readonly windows = new Map<string, ComputerWindowBinding>();
   readonly snapshots = new Map<string, WindowSnapshotCapability>();
   readonly latestSnapshot = new Map<string, string>();
+  /** Browser windows whose page identity this inventory cycle already read. */
+  readonly inspectedBrowsers = new Set<string>();
   #turnKey: string | undefined;
   #sessionId: string | undefined;
 
@@ -72,11 +74,17 @@ export class ComputerGrants {
     return this.#sessionId!;
   }
 
+  /** The current CUA session, so slow async work can tell a newer turn has begun. */
+  get sessionId(): string | undefined {
+    return this.#sessionId;
+  }
+
   reset(): void {
     this.apps.clear();
     this.windows.clear();
     this.snapshots.clear();
     this.latestSnapshot.clear();
+    this.inspectedBrowsers.clear();
   }
 
   resolveWindow(appId: string, windowId: string): ComputerWindowBinding | undefined {

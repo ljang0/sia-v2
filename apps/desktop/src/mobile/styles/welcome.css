@@ -98,21 +98,6 @@
     font-size var(--typing-duration) var(--phone-ease),
     margin var(--typing-duration) var(--phone-ease);
 }
-.hero-copy h1 span {
-  color: var(--aurora-ink-start);
-  background: linear-gradient(
-    105deg,
-    var(--aurora-ink-start),
-    var(--aurora-ink-middle) 32%,
-    var(--aurora-ink-end) 64%,
-    var(--aurora-ink-start)
-  );
-  background-size: 260% 100%;
-  animation: gradient-drift 18s ease-in-out infinite alternate;
-  background-clip: text;
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
 .hero-copy p {
   color: var(--text-secondary);
   font-size: var(--phone-text-body);

@@ -214,6 +214,21 @@ describe('native window input availability', () => {
           request('computer_action', {
             ...ids,
             snapshot_id: data.snapshot_id,
+            action: 'type',
+            x: 20,
+            y: 30,
+            text: 'Blocked',
+          }),
+        )
+      ).outcome,
+    ).toBe('needs_foreground');
+    expect(cua.call.mock.calls.some(([tool]) => tool === 'type_text')).toBe(false);
+    expect(
+      (
+        await backend.invoke(
+          request('computer_action', {
+            ...ids,
+            snapshot_id: data.snapshot_id,
             action: 'click',
             x: 20,
             y: 30,
@@ -222,6 +237,31 @@ describe('native window input availability', () => {
       ).outcome,
     ).toBe('accepted_unverified');
     expect(cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
+  });
+
+  it('rechecks keyboard availability as well as pointer availability before atomic pixel typing', async () => {
+    const { backend, cua, state } = harness();
+    state.status = 'matched';
+    const target = await grantedComputerTarget(backend);
+    const ids = { app_id: target.appId, window_id: target.windowId };
+    const snapshot = await backend.invoke(
+      request('computer_snapshot', { ...ids, include_image: true }),
+    );
+    // Another window appeared after the original observation. Pixel clicking is
+    // still available, but keyboard dispatch is now ambiguous and must not run.
+    state.keyboardOnly = true;
+    const result = await backend.invoke(
+      request('computer_action', {
+        ...ids,
+        snapshot_id: dataRecord(snapshot.data).snapshot_id,
+        action: 'type',
+        x: 20,
+        y: 30,
+        text: 'Must not reach another window',
+      }),
+    );
+    expect(result.outcome).toBe('needs_foreground');
+    expect(cua.call.mock.calls.some(([tool]) => tool === 'type_text')).toBe(false);
   });
 
   it('rechecks route availability before pixel input and resumes after a fresh matched observation', async () => {

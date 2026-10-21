@@ -14,6 +14,7 @@ import {
   type ResearchEventRecord,
   SAFE_RESEARCH_ACTIONS,
   type StagedResearchTurn,
+  summarizeRawEpisode,
 } from './research-records.js';
 
 /** The parts of the controller context ResearchCapture uses. */
@@ -333,6 +334,7 @@ export class ResearchCapture {
     if (version !== RESEARCH_CONSENT_VERSION || !acceptedAt) return;
     const first = staged.rawEvents[0]!;
     const threadId = first.payload.threadId;
+    const evidence = summarizeRawEpisode(staged.rawEvents);
     const expanded = expandRawResearchEvents([
       ...staged.rawEvents,
       {
@@ -346,7 +348,7 @@ export class ResearchCapture {
           threadId,
           turnId,
           eventType: 'turn.capture_finished',
-          data: { outcome },
+          data: { outcome, evidence },
         },
         sourceEventIds: [],
       },

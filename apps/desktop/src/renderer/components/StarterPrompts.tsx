@@ -18,6 +18,7 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 import type { StarterPrompt } from '../welcome';
+import { SpotlightButton } from './effects/SpotlightButton';
 import styles from './StarterPrompts.module.css';
 
 const ICONS: Record<StarterPrompt['icon'], Icon> = {
@@ -52,7 +53,7 @@ export function StarterPrompts({
       {prompts.map(({ icon, title, prompt }) => {
         const StarterIcon = ICONS[icon];
         return (
-          <button key={prompt} type="button" onClick={() => onSend(prompt)}>
+          <SpotlightButton key={prompt} type="button" onClick={() => onSend(prompt)}>
             <span className={styles.starterIcon} aria-hidden="true">
               <StarterIcon size={18} />
             </span>
@@ -61,7 +62,7 @@ export function StarterPrompts({
               <span>{prompt}</span>
             </span>
             <ArrowUpRight className={styles.starterArrow} size={16} aria-hidden="true" />
-          </button>
+          </SpotlightButton>
         );
       })}
     </div>

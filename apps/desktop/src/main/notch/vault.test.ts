@@ -100,7 +100,57 @@ it('refuses traversal, links, stale revisions and accidental skill execution', (
   expect(statSync(join(vault.root, skill.name)).mode & 0o777).toBe(0o700);
   expect(existsSync(marker)).toBe(false);
   expect(readFileSync(outside, 'utf8')).toBe('keep');
+  expect(() => vault.write('blocked.md', 'sk_' + 'x'.repeat(30), '')).toThrow('Credentials');
 });
+
+it.runIf(process.platform === 'darwin')(
+  'injects bounded task-relevant memory on both routes while excluding unsafe and sensitive notes',
+  async () => {
+    const { workspace, vault, view } = fixture();
+    vault.initialize(view);
+    vault.write(
+      'campus.md',
+      '# CMU Canvas\nInstitution: Carnegie Mellon. Use the work Safari profile.\n' +
+        'x'.repeat(5000),
+      '',
+    );
+    vault.write('accounts.md', '# Accounts\nUse Alder work for campus tasks.\n', '');
+    vault.write('recipes.md', 'Unrelated private cooking notes.', '');
+    // These sort ahead of accounts/campus. A growing vault must not hide the
+    // relevant notes on either execution route, even with journaling paused.
+    for (let i = 0; i < 210; i++)
+      writeFileSync(join(vault.root, `a-archive-${i}.md`), 'Unrelated archive body.');
+    writeFileSync(join(vault.root, 'canvas-secret.md'), 'password: must never be injected');
+    writeFileSync(join(workspace, 'outside.md'), 'Must not follow a file link');
+    symlinkSync(join(workspace, 'outside.md'), join(vault.root, 'canvas-link.md'));
+    const index = vault.read('MOC.md');
+    vault.write(
+      'MOC.md',
+      index.text +
+        '\n- [[campus]] — Canvas institution and courses\n- [[accounts]] — account profile\n- [[canvas-secret]]\n- [[canvas-link]]',
+      index.revision,
+    );
+    for (const background of [false, true]) {
+      const result = await vault.engine(helper, {
+        operation: 'prepare',
+        request: 'Find my Canvas professors',
+        background,
+        learning: false,
+        nativeLearning: false,
+      });
+      expect(result.prompt).toContain('<relevant_memory');
+      expect(result.prompt).toContain('Institution: Carnegie Mellon');
+      expect(result.prompt).toContain('Use Alder work');
+      expect(result.prompt).toContain('campus.md (partial excerpt)');
+      expect(result.prompt).not.toContain('cooking notes');
+      expect(result.prompt).not.toContain('Unrelated archive body');
+      expect(result.prompt).not.toContain('must never be injected');
+      expect(result.prompt).not.toContain('Must not follow');
+      expect(result.prompt).toContain('Automatic journaling is paused');
+    }
+  },
+  20_000,
+);
 
 it.runIf(process.platform === 'darwin')(
   'executes the copied Swift journal, full MOC, lesson tail and skill registry across requests',

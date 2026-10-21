@@ -85,6 +85,11 @@ enum WindowContext {
                 windows.append(candidate)
             }
         }
+        // Native window identity is authoritative. Avoid slow position/size/title
+        // reads for every other browser window when the exact ID is available.
+        // Multiple representations remain ambiguous; never fall back to focus.
+        let exact = windows.filter { nativeWindowID($0, pid: pid) == windowID }
+        if !exact.isEmpty { return exact.count == 1 ? exact[0] : nil }
         let candidates: [(element: AXUIElement, identity: Identity)] = windows.compactMap { window in
             guard let position: AXValue = attribute(window, kAXPositionAttribute),
                   let size: AXValue = attribute(window, kAXSizeAttribute),
@@ -136,22 +141,26 @@ enum WindowContext {
         guard complete, Date() < deadline else { return ["status": "unavailable"] }
         var lines: [String] = []
         var chars = 0
+        var partial = false
         // Actionable controls already come from CUA. Supplement only readable
         // content, not a second inventory of buttons or editable field values.
         for (node, role, label) in nodes where ["AXStaticText", "AXText", "AXHeading"].contains(role) {
-            guard Date() < deadline, chars < 12000 else { break }
+            guard Date() < deadline, chars < 12000 else { partial = true; break }
             let liveRole: String = attribute(node, kAXRoleAttribute) ?? ""
             let subrole: String = attribute(node, kAXSubroleAttribute) ?? ""
             guard liveRole == role, !subrole.lowercased().contains("secure") else { return ["status": "unavailable"] }
             let raw: Any? = attribute(node, kAXValueAttribute)
             let value = contentValue(role: role, value: raw) ?? ""
             let text = label.isEmpty ? value : value.isEmpty || value == label ? label : "\(label): \(value)"
-            let line = FnContext.bounded(text.trimmingCharacters(in: .whitespacesAndNewlines), min(2000, 12000 - chars))
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            let limit = min(2000, 12000 - chars)
+            if trimmed.utf16.count > limit { partial = true }
+            let line = FnContext.bounded(trimmed, limit)
             if !line.isEmpty, lines.last != line { lines.append(line); chars += line.utf16.count + 1 }
         }
         guard NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == bundle,
               let live = resolve(pid: pid, windowID: windowID), CFEqual(window, live), Date() < deadline else { return ["status": "unavailable"] }
         let title: String = attribute(window, kAXTitleAttribute) ?? ""
-        return ["status": "ready", "bundleID": bundle, "title": FnContext.bounded(title, 300), "text": FnContext.bounded(lines.joined(separator: "\n"), 12000)]
+        return ["status": "ready", "bundleID": bundle, "title": FnContext.bounded(title, 300), "text": FnContext.bounded(lines.joined(separator: "\n"), 12000), "partial": partial]
     }
 }

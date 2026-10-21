@@ -259,8 +259,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   validates PNG dimensions, coordinates, live app/window ownership, and protected controls again
   before delivery; no global-coordinate tool is exposed. Windows with protected controls omit
   screenshots. Input delivery returns `accepted_unverified` plus fresh state for semantic review.
-  Two failed control attempts stop further computer/browser mutations in that turn; read-only
-  observations remain available to diagnose the blocker. Chrome attachment failures include an
+  Two failed control attempts stop repetition of the affected control. In background Mac mode,
+  the guard is scoped to its page/window/control and input route so another authorized app or
+  distinct observed route can continue. Connected-app retries remain scoped to the turn. Read-only
+  observations remain available; protected surfaces and foreground policy are enforced on every
+  attempt. Chrome attachment failures include an
   actionable connection repair instruction without changing trust mode. Connected apps returns a connection refusal for
   unattached `browser_tabs`.
   **On my screen runs the Notch-style native execution path.** It uses the same Codex
@@ -332,6 +335,21 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   tools, avoiding a contradictory read-only instruction that caused a real model to decline reports.
   Its standalone window-control prompt contains no native command instructions;
   foreground native context is not injected. Mac response formatting and the progress watchdog remain active.
+  `computer_list` adds current page origin/path metadata for up to eight existing browser windows,
+  read in batches of four without page contents or screenshots. Queries and fragments are omitted;
+  protected identities return no URL and `browser_metadata_partial` marks a capped inventory.
+  Repeated inventories inspect the next previously uninspected windows, in the same turn, so a
+  window beyond the first eight is discoverable. `browser_windows_uninspected` and `next_step`
+  identify remaining coverage. Completing a cycle starts fresh discovery; identities are not
+  cached between calls, and new turns reset the cycle with the other capabilities.
+  This is discovery, not proof of sign-in or a fresh input capability. Snapshots/actions revalidate
+  the exact live window and account. Background tasks reuse the person's existing app sessions in
+  place: no browser profile, cookie, password or token is copied. The model is instructed to inspect
+  visible tabs/account controls in the established window before opening a URL in a different
+  default browser/profile.
+  Driver truncation and supplemental text limits are exposed as partial observations, not complete
+  coverage. A response with no readable text, controls or image revokes the previous input snapshot
+  and returns an explicit observation failure; it cannot mint a verified state or imply sign-out.
   Background also exposes `computer_list_files`, `computer_read_file` and `computer_write_file`
   through ActionGateway. They read bounded UTF-8 data files and create new txt/md/csv/tsv/json
   reports in the host-pinned task workspace. Updating an existing file requires the SHA-256 from
@@ -390,6 +408,22 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   foreground control** setting permits an explicit foreground attempt after fresh observation,
   with ordinary action approvals still applying. Changing the fallback creates a new session on
   the next request and cannot relax a running turn. No automatic input replay occurs.
+  Multiple Safari windows can refuse PID keyboard input as `same_pid_keyboard_ambiguity` while
+  accessibility clicks still work. A browser accessibility setter can also leave a field unchanged.
+  The prompt directs the model to verify the rendered value and, when already permitted, type into
+  the fresh exact field with explicit foreground delivery before resuming background work.
+  Screenshot-addressed `computer_action` typing passes x/y to the driver's single `type_text`
+  operation: focus and insertion happen together, avoiding focus restoration between separate
+  calls. It requires a fresh, unchanged, unprotected window image; background delivery checks
+  both the pointer and keyboard routes. The host never automatically replays an uncertain edit.
+  Visible controls also receive `pixel_bounds` with screenshot-relative center coordinates when
+  an image and native AX frame are available. The host converts Mac screen points (including
+  the driver's w/h frames) using the actual PNG dimensions and exact WindowServer bounds,
+  rather than assuming a Retina multiplier. Window bounds must match before and after capture;
+  moved/resized, clipped, hidden and invalid controls receive no pixel target. Raw screen frames
+  remain withheld. These coordinates aid targeting and do not expand the window's input authority.
+  With pause selected, it reports this limit instead. It cannot close unrelated windows or change access
+  settings to bypass the driver. See the driver's [typing guidance](https://cua.ai/docs/cua-driver/reference/mcp-tools/keyboard).
   With foreground recovery enabled, `computer_open_app` accepts explicit `delivery:"foreground"`
   to activate the installed app, followed by a fresh observation of the intended exact window.
   The task then prefers background routes again where available; no uncertain write is replayed.
@@ -451,6 +485,15 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   sandboxed `skill_save`/`skill_run` route. No credentials or browser profiles are copied: background
   window control operates on the same already-signed-in Mac apps.
   New Mac agents in either mode enable Notch-style learning. Existing opt-outs remain unchanged.
+  Before request preparation, the host selects up to four relevant Markdown notes from filenames
+  and MOC descriptions using local term matching (including coursework/account vocabulary).
+  Ranking considers every eligible filename before choosing four notes; accumulating more than
+  200 notes does not hide later filenames. Only the selected note bodies are read.
+  Excerpts are bounded to 4,000 characters per note and 12,000 total; unsafe files and notes with
+  credential markers are skipped. The copied Swift adapter injects these as historical,
+  untrusted `relevant_memory` data on both routes, including when learning is paused. They help
+  locate the person's institution/profile but never establish current facts, grant permission,
+  or replace live account verification. The model can read more through the existing vault tools.
   Native consolidation uses the source recipe on the agent's pinned Codex model after new
   experience, at most every six hours while idle; explicit review/trigger can request it sooner.
   The review has only `memory_vault` list/read/write/append: no native shell, GUI, accounts or
@@ -570,8 +613,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   profiles are not enrolled automatically. Codex setup uses a single action for the managed installer
   and official ChatGPT browser sign-in. A one-use, expiring continuation resumes after the installer
   restarts Sia; progress is sent through typed provider snapshots without login URLs or credentials.
-  A connected account is checked before setup completes. Core permission statuses remain visible,
-  and the permission pass reads fresh grants before configuring voice.
+  A connected account is checked before setup completes. The welcome → Mac access → Try Fn guide
+  walks every permission Use my Mac needs, app Automation included, one grant at a time; Try Fn
+  is offered only when dictation is ready and can always be skipped. The permission pass reads
+  fresh grants before configuring voice.
   Permission steps are optional and use the typed bridge.
   The guide waits for observed grants before advancing and never treats a request returning as consent.
   Passive focus/poll checks do not replay prompts. A persisted `permissionSetup` records the app
@@ -583,16 +628,28 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   dialogs remain user-operated, with no credential entry or model turn in setup. Explicit Fn setup
   requests microphone consent from the signed Electron app, not the background voice helper;
   previously denied access opens the Microphone pane. The helper only observes the grant. Native voice readiness publishes actual microphone
-  and Accessibility grants, including changes while returning from System Settings. Practice
-  suggestions use the regular composer and never send themselves or replace an existing draft.
+  and Accessibility grants, including changes while returning from System Settings. After the
+  authorized restart, ready dictation advances to skippable Fn practice. The persisted `practice`
+  step enables a transient mode in `PushToTalkService`, including after relaunch. It uses the actual
+  native Fn/audio/transcription pipeline, disables helper app context, and publishes a bounded preview
+  only in the typed voice snapshot. It never dispatches a turn, drives task speech, or persists the
+  transcript. Leaving practice cancels capture and clears the preview; a late result cannot cross
+  modes. Step transitions and the listening wave honor reduced motion. Voice remains optional.
 - The renderer permission handler admits only an audio-only microphone request from Sia's own main
   frame. Camera, display capture, Bluetooth, and unrelated renderer permissions remain denied.
 - Under v3 raw research consent, eligible provider protocol frames and connected-app/browser/
   computer/action events observed during a turn are copied into encrypted local research batches
   and synced to AWS. A turn that invokes Gmail, Drive, Docs, Sheets, or Slides is excluded in full;
   Google Workspace action results remain only in the normal local user-facing transcript, and the
-  diagnostic trajectory excludes the entire turn. Without
-  consent, other events remain within their normal runtime/transcript boundaries.
+  diagnostic trajectory excludes the entire turn. Each consented turn automatically records an
+  `episode.started` route (`mac_foreground_native`, `mac_background_cua`, or `connected_apps`) and a
+  capture-finished evidence summary with event counts, background CUA observation references, and
+  a digest of the captured events. Background CUA's existing snapshot and action results carry the
+  task-visible images and verification IDs; capture does not take extra screenshots or read browser
+  sessions. The summary explicitly marks independent task verification and privileged initial/final
+  app state as unavailable. Those require separate, consented test environments and checkers before
+  these traces can support reliable outcome labels. Without consent, other events remain within
+  their normal runtime/transcript boundaries.
 - AWS stores invite, consent, connection, preview, quota, deletion, and KMS-encrypted raw research
   objects behind the Sia API. Raw objects are organized by participant and batch, metadata carries
   thread/turn/sequence/event-kind scope, and only Cognito `Admins` can list or read the archive;

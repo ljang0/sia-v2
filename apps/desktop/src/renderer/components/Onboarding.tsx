@@ -18,12 +18,14 @@ import { STARTER_INSTRUCTIONS } from '../welcome';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { SetupConnections } from './OnboardingConnections';
 import { SetupMacAccess } from './SetupMacAccess';
+import { FnPractice } from './FnPractice';
 import { SiaLogo } from './SiaLogo';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import buttons from '../styles/buttons.module.css';
 import layout from '../styles/layout.module.css';
 import styles from './Onboarding.module.css';
 import { errorMessage } from '../plainErrors';
+import { dictationReady } from '../voiceReadiness';
 
 export function onboardingStep(snapshot: RendererSnapshot): OnboardingStep | undefined {
   const progress = snapshot.preferences.onboarding;
@@ -74,21 +76,31 @@ const CONNECTED_INCLUDED: typeof INCLUDED = [
 ];
 
 /** Where the person is in setup: a short, fixed path so progress is always clear. */
-function SetupProgress({ stage, connected }: { stage: number; connected: boolean }) {
+function SetupProgress({
+  stage,
+  connected,
+  practice,
+}: {
+  stage: number;
+  connected: boolean;
+  practice: boolean;
+}) {
   return (
     <ol className={styles.progress} aria-label="Setup progress">
-      {['Welcome', connected ? 'Connections' : 'Mac access', 'Ready'].map((label, index) => (
-        <li
-          key={label}
-          data-state={index < stage ? 'done' : index === stage ? 'current' : 'todo'}
-          aria-current={index === stage ? 'step' : undefined}
-        >
-          <span className={styles.progressMark} aria-hidden="true">
-            {index < stage ? <Check size={14} weight="bold" /> : index + 1}
-          </span>
-          <span>{label}</span>
-        </li>
-      ))}
+      {['Welcome', connected ? 'Connections' : 'Mac access', practice ? 'Try Fn' : 'Ready'].map(
+        (label, index) => (
+          <li
+            key={label}
+            data-state={index < stage ? 'done' : index === stage ? 'current' : 'todo'}
+            aria-current={index === stage ? 'step' : undefined}
+          >
+            <span className={styles.progressMark} aria-hidden="true">
+              {index < stage ? <Check size={14} weight="bold" /> : index + 1}
+            </span>
+            <span>{label}</span>
+          </li>
+        ),
+      )}
     </ol>
   );
 }
@@ -110,6 +122,14 @@ export function Onboarding({
 }) {
   const step = onboardingStep(snapshot);
   const starting = step === 'welcome' || step === 'agent';
+  const practicing = step === 'practice';
+  const voiceReady = dictationReady(snapshot.voice);
+  // The practice preview finishes only on a real native transcript, never a simulated key event.
+  const practiceDone = Boolean(
+    snapshot.voice.pushToTalk?.practice &&
+    snapshot.voice.pushToTalk.practiceTranscript?.trim() &&
+    snapshot.voice.pushToTalk.phase === 'idle',
+  );
   const [name, setName] = useState('Sia');
   const [model, setModel] = useState('');
   const [pending, setPending] = useState(false);
@@ -159,7 +179,7 @@ export function Onboarding({
 
   useEffect(() => {
     title.current?.focus();
-  }, [starting]);
+  }, [starting, practicing]);
   // Finishing or leaving setup lands in the first conversation, ready to type.
   const inSetup = Boolean(step);
   const wasInSetup = useRef(inSetup);
@@ -218,12 +238,19 @@ export function Onboarding({
       setCelebrate(true);
     });
 
+  // Fn voice stays optional: practice is offered only when dictation is already ready.
+  const practice = () =>
+    void run(() =>
+      api.setOnboarding('practice', { includeApps: !connectedSetup, active: false }),
+    );
+
   // Only a completed, user-started permission pass can advance automatically.
   // An authorized restart resumes only missing steps; passive status checks do not prompt.
   useEffect(() => {
     if (
       !step ||
       starting ||
+      practicing ||
       !agent ||
       !permissionPassComplete ||
       !accessReady ||
@@ -234,11 +261,15 @@ export function Onboarding({
     )
       return;
     autoFinished.current = true;
-    finish();
+    if (voiceReady && !connectedSetup) practice();
+    else finish();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- finish is recreated every render.
   }, [
     step,
     starting,
+    practicing,
+    voiceReady,
+    connectedSetup,
     agent,
     permissionPassComplete,
     accessReady,
@@ -258,7 +289,7 @@ export function Onboarding({
       </>
     );
   // Stay on Mac access while a Grant all pass is still walking its rows.
-  const done = !starting && !restarting && accessReady && !permissionBusy;
+  const done = !starting && !practicing && !restarting && accessReady && !permissionBusy;
   return (
     <main className={styles.setup} aria-label="Welcome to Sia">
       <section className={styles.stage}>
@@ -266,10 +297,17 @@ export function Onboarding({
           <div className={styles.brand} aria-hidden="true">
             <SiaLogo /> Sia
           </div>
-          <SetupProgress stage={starting ? 0 : done ? 2 : 1} connected={connectedSetup} />
+          <SetupProgress
+            stage={starting ? 0 : practicing || done ? 2 : 1}
+            connected={connectedSetup}
+            practice={practicing || (!connectedSetup && voiceReady)}
+          />
         </div>
         {/* Keyed so moving from welcome to permissions plays one calm entrance. */}
-        <div key={starting ? 'welcome' : 'access'} className={styles.stageBody}>
+        <div
+          key={starting ? 'welcome' : practicing ? 'practice' : 'access'}
+          className={styles.stageBody}
+        >
           {done ? (
             <span className={styles.doneMark} aria-hidden="true">
               <CheckCircle size={30} weight="fill" />
@@ -285,18 +323,22 @@ export function Onboarding({
               ? 'Let’s set up Sia.'
               : connectedSetup
                 ? 'Connect the apps you use.'
-                : done
-                  ? 'You’re all set.'
-                  : 'Give Sia access to your Mac.'}
+                : practicing
+                  ? 'A little less typing.'
+                  : done
+                    ? 'You’re all set.'
+                    : 'Give Sia access to your Mac.'}
           </h1>
           <p className={styles.intro} data-done={done || undefined}>
             {starting
               ? 'A few quick steps, then Sia can help with everyday tasks in the apps you already use.'
               : connectedSetup
                 ? 'Choose the accounts you want Sia to use. You can also start chatting now and connect them later. No Mac permissions are needed.'
-                : done
-                  ? 'Sia is ready to help. Connect more apps below, or jump right in.'
-                  : 'Sia walks you through each permission, one at a time. You approve each one in macOS. You can pause and keep chatting anytime.'}
+                : practicing
+                  ? 'Hold Fn. Speak. Release. That’s all there is to it.'
+                  : done
+                    ? 'Sia is ready to help. Connect more apps below, or jump right in.'
+                    : 'Sia walks you through each permission, one at a time. You approve each one in macOS. You can pause and keep chatting anytime.'}
           </p>
           {starting ? (
             <>
@@ -475,6 +517,43 @@ export function Onboarding({
                 </fieldset>
               </details>
             </>
+          ) : practicing ? (
+            <>
+              {voiceReady ? (
+                <FnPractice voice={snapshot.voice.pushToTalk} />
+              ) : (
+                <p className={styles.note}>
+                  Voice isn’t ready on this Mac yet. You can set it up later in Settings →
+                  Voice.
+                </p>
+              )}
+              {/* A pending account approval stays visible so it can still be cancelled. */}
+              {connecting ? (
+                <SetupConnections snapshot={snapshot} api={api} pending={busy} run={run} />
+              ) : null}
+              <div className={styles.actions}>
+                <button
+                  className={buttons.primaryButton}
+                  disabled={busy || connecting || (voiceReady && !practiceDone)}
+                  onClick={finish}
+                >
+                  Start using Sia
+                </button>
+                {voiceReady ? (
+                  <button
+                    className={styles.link}
+                    disabled={busy || connecting}
+                    onClick={finish}
+                  >
+                    Skip voice practice
+                  </button>
+                ) : null}
+              </div>
+              <p className={styles.note}>
+                After setup, hold Fn in any app to ask Sia for help. Press ⌘E to type a quick
+                request.
+              </p>
+            </>
           ) : (
             <>
               {connectedSetup ? null : restarting ? (
@@ -534,9 +613,9 @@ export function Onboarding({
                   className={buttons.primaryButton}
                   // Use my Mac needs every permission; the guide above asks for each in turn.
                   disabled={busy || connecting || (!connectedSetup && !accessReady)}
-                  onClick={finish}
+                  onClick={!connectedSetup && voiceReady ? practice : finish}
                 >
-                  Start using Sia
+                  {!connectedSetup && voiceReady ? 'Try Fn' : 'Start using Sia'}
                 </button>
               </div>
               <details

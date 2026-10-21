@@ -96,7 +96,9 @@ export function ComputerAccessMode({
       <p className={settings.settingsNote}>
         {computer.accessMode === 'mac'
           ? computer.backgroundControl
-            ? 'Sia works in the background so you can keep using your Mac. Saved Mac scripts need On my screen. Changes apply to your next task.'
+            ? computer.backgroundFallback === 'foreground'
+              ? 'Sia works in the background and can briefly bring an app forward to finish a step, such as typing. Saved Mac scripts need On my screen. Changes apply to your next task.'
+              : 'Sia works in the background so you can keep using your Mac. If a step needs the screen, such as typing with several browser windows open, Sia pauses and tells you. Saved Mac scripts need On my screen. Changes apply to your next task.'
             : 'Sia can control your apps and files. With Act without asking on, Sia’s Mac commands have full access to your Mac. Changes apply to your next task.'
           : 'Connect your accounts in Connections. To let Sia use the apps on your Mac, choose Use my Mac.'}
       </p>

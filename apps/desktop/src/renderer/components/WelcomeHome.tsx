@@ -1,9 +1,9 @@
 import { Plugs } from '@phosphor-icons/react';
 import type { CSSProperties } from 'react';
 import type { ThreadSummary } from '../types';
-import layout from '../styles/layout.module.css';
 import { timeGreeting, type StarterPrompt } from '../welcome';
 import { AgentForm } from './AgentForm';
+import { GradientText } from './effects/GradientText';
 import { StarterPrompts } from './StarterPrompts';
 import { WelcomeRecents } from './WelcomeRecents';
 import home from './welcome-home.module.css';
@@ -37,9 +37,9 @@ export function WelcomeHome({
           {agentName ? ` · ${agentName} is ready` : ''}
         </span>
       </div>
-      <h2 className={`${layout.gradientHeading} ${home.heading}`} style={step(1)}>
+      <GradientText as="h2" className={home.heading} style={step(1)}>
         What would you like to do?
-      </h2>
+      </GradientText>
       <p className={home.lede} style={step(2)}>
         Describe what you want done, or start from a suggestion.
       </p>

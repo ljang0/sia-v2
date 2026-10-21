@@ -21,6 +21,7 @@ import {
 import { join } from 'node:path';
 import type { AssistantLibraryView } from '../../shared/assistant-library.js';
 import { notchVaultRoot } from './foreground.js';
+import { selectMemoryNotes } from './memory-selection.js';
 
 export interface VaultNote {
   name: string;
@@ -30,7 +31,7 @@ export interface VaultNote {
 }
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
 const sensitive =
-  /(?:-----BEGIN|\b(?:password|api[_ -]?key|access[_ -]?token|secret)\s*[:=]|\bsk-[a-z0-9]{12})/i;
+  /(?:-----BEGIN|\b(?:password|api[_ -]?key|access[_ -]?token|secret)\s*[:=]|\bsk[-_][a-z0-9]{12})/i;
 const safeText = (text: string) =>
   sensitive.test(text) ? '[sensitive content omitted]' : text;
 const validName =
@@ -298,6 +299,27 @@ export class NotchVault {
     signal?: AbortSignal,
   ): Promise<{ prompt?: string; recorded?: boolean }> {
     const root = this.ensure();
+    if (input.operation === 'prepare') {
+      const names = selectMemoryNotes(
+        String(input.request ?? ''),
+        this.read('MOC.md').text,
+        readdirSync(root).sort(),
+      );
+      let remaining = 12_000;
+      const relevantNotes = names.flatMap((name) => {
+        try {
+          const note = this.read(name);
+          if (!note.text || sensitive.test(note.text) || remaining <= 0) return [];
+          const text = note.text.slice(0, Math.min(4000, remaining));
+          remaining -= text.length;
+          return [{ name, text, truncated: text.length < note.text.length }];
+        } catch {
+          // Missing, replaced or unsafe notes cannot prevent a real app task.
+          return [];
+        }
+      });
+      input = { ...input, relevantNotes };
+    }
     if (input.operation === 'record') {
       input = {
         ...input,

@@ -37,6 +37,11 @@ local files, with private directory/file permissions; they are not encrypted by 
 conversations and manually saved preferences remain in encrypted SQLite. Enabled preferences
 are projected into read-only `preferences.md` and up to 16,000 characters are included in each
 native request, including while automatic learning is paused; old Sia task summaries/scripts migrate once.
+The Sia host also selects up to four task-relevant Markdown notes by filename and MOC descriptions.
+It supplies excerpts to the Swift request adapter (4,000 characters each, 12,000 total), so useful
+account/institution context does not rely entirely on the model opening index links first. Unsafe
+files and credential-marked content are skipped. These are historical hints; live app facts and
+account identities still require verification. Pausing learning does not erase existing notes.
 Deleting a preference updates the projection. Previous model history and learned notes can still
 contain the fact, so deleting a saved preference is not a comprehensive erasure operation.
 

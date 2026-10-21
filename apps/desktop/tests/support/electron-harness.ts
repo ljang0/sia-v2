@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 export interface IsolatedSiaOptions {
+  readonly executablePath?: string;
   readonly fakeServices?: boolean;
   readonly environment?: Readonly<Record<string, string>>;
   readonly attachmentNames?: readonly string[];
@@ -39,6 +40,7 @@ export async function launchIsolatedSia(
   ]);
 
   const application = await electron.launch({
+    ...(options.executablePath ? { executablePath: options.executablePath } : {}),
     // Match CI's sRGB, 1x screenshots on Retina/wide-gamut Mac displays. Otherwise Chromium
     // applies the host display profile and backing scale, changing colors and text edges.
     // Real-provider probes keep the production display behavior.

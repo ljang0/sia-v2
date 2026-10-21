@@ -13,7 +13,7 @@ afterEach(async () => {
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
-async function fixture(version = '0.153.0') {
+async function fixture(version = '0.160.0') {
   const root = await mkdtemp(join(tmpdir(), 'sia-installer-test-'));
   roots.push(root);
   const target = 'test-platform';
@@ -53,7 +53,7 @@ it('verifies and installs the real archive path, selects it atomically, and make
   const test = await fixture();
   await installCodexRelease(test.root, test.release, test.download);
   expect((await exec(managedCodexCommand(test.root), ['--version'])).stdout.trim()).toBe(
-    'codex-cli 0.153.0',
+    'codex-cli 0.160.0',
   );
   const selected = await readlink(join(test.root, 'current'));
   expect(await readdir(join(test.root, selected))).toEqual([
@@ -83,7 +83,7 @@ it('rejects tampered and wrong-version downloads while preserving the last worki
   await expect(
     installCodexRelease(
       previous.root,
-      { ...previous.release, version: '0.153.0' },
+      { ...previous.release, version: '0.160.0' },
       previous.download,
     ),
   ).rejects.toThrow('could not start');
@@ -95,7 +95,7 @@ it('rejects tampered and wrong-version downloads while preserving the last worki
   await installCodexRelease(previous.root, next.release, next.download);
   expect(await readlink(join(previous.root, 'current'))).not.toBe(selected);
   expect((await exec(managedCodexCommand(previous.root), ['--version'])).stdout.trim()).toBe(
-    'codex-cli 0.153.0',
+    'codex-cli 0.160.0',
   );
 });
 

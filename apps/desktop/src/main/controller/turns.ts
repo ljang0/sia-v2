@@ -608,6 +608,27 @@ export class Turns {
     if (turn.fromPhone) this.phoneTurns.set(turn.id, turn.fromPhone);
     thread.status = 'running';
     delete thread.queueReason;
+    this.ctx.researchCapture.stageRawResearchEvent({
+      threadId: thread.id,
+      turnId: turn.id,
+      eventType: 'episode.started',
+      data: {
+        schemaVersion: 1,
+        source: turn.source ?? 'manual',
+        route:
+          this.ctx.computerAccess.accessMode() === 'mac'
+            ? this.ctx.computerAccess.backgroundControl()
+              ? 'mac_background_cua'
+              : 'mac_foreground_native'
+            : 'connected_apps',
+        provider: thread.provider,
+        model: thread.model,
+        harnessId: thread.harnessId,
+        reasoningEffort: thread.reasoningEffort,
+        platform: process.platform,
+        architecture: process.arch,
+      },
+    });
     this.ctx.appendTimeline(thread.id, {
       id: randomUUID(),
       turnId: turn.id,

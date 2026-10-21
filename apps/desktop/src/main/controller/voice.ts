@@ -111,6 +111,7 @@ export class VoiceControls {
         this.ctx.computerAccess.accessMode() === 'mac',
       this.ctx.computerAccess.accessMode() === 'mac',
     );
+    this.pushToTalk.setPractice(this.ctx.state.preferences.onboarding?.step === 'practice');
     this.pushToTalk.syncAccess();
   }
 
