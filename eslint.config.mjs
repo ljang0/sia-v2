@@ -22,6 +22,7 @@ export default defineConfig(
       '**/cdk.out/**',
       '**/.aws-sam/**',
       'apps/cloud/lambda/**',
+      'apps/ios/build/**',
       'apps/desktop/build/native/**',
       // Vendored React Bits component, kept as upstream ships it (see its LICENSE.md).
       'apps/desktop/src/renderer/components/effects/dither-preview/**',

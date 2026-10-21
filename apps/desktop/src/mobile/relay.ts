@@ -55,6 +55,10 @@ export function forgetPairing(): void {
   } catch {
     // Nothing stored.
   }
+  // The native iPhone app keeps the pairing in its Keychain; tell it to forget too.
+  (
+    window as { webkit?: { messageHandlers?: { sia?: { postMessage(body: unknown): void } } } }
+  ).webkit?.messageHandlers?.sia?.postMessage({ type: 'unpaired' });
 }
 
 function pairingFrom(values: URLSearchParams): RelayPairing | undefined {
