@@ -6,7 +6,7 @@ Updated October 21, 2026. The next controlled product-pilot candidate is
 Alpha.30 and alpha.31 passed signing/notarization and upgrades retained the demo profile. Live file tasks
 found missing result controls on plain-text and streamed provider replies; alpha.32 addresses both paths.
 Native iPhone 0.1.0 (31) is **Ready to Test** in the internal **Pilot QA** TestFlight group
-(zero testers). It fixes native result downloads and pairing-save errors. Seven native tests,
+(zero testers). It fixes native result downloads and pairing-save errors. Eight native tests,
 signed archive, upload and Apple processing passed. External beta review awaits contact details. The last published
 pilot remains alpha.24.
 

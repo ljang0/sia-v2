@@ -43,8 +43,12 @@ remain incomplete. No tester invitations were sent. Push notifications remain un
 
 Native build 31 from `55a7f58a4b75b8f6c2c233078009a3b7a9167d0d` adds the missing WebKit
 result-download handler and iOS save/share sheet, and reports Keychain save failures instead of
-silently continuing. Seven native tests passed, including byte-for-byte blob downloads and
-temporary-file cleanup plus isolated Keychain save/reload/update/revoke. The signed archive
+silently continuing. Eight native tests passed, including byte-for-byte blob downloads and
+temporary-file cleanup plus isolated Keychain save/reload/update/revoke. A native UIKit test
+also verified that the real download handler presents the iOS share sheet and dismisses it on
+unpairing. This is automated simulator coverage, not a physical Save to Files walkthrough.
+The complete integrated `pnpm test:pilot` gate also passed after excluding generated Xcode
+products from source linting (same 1,318/45/27/72 counts above). The signed archive
 succeeded and App Store Connect accepted the upload. Build 31 finished processing and shows
 **Ready to Test** in **Pilot QA** (zero testers). A signed simulator retained its
 pairing after relaunch without a debug pairing link. The temporary October 21 test phone was
