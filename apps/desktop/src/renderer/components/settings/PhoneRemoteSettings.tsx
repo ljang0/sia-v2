@@ -263,8 +263,8 @@ export function PhoneRemoteSettings({
         <div className={phone.footnotes}>
           <p>
             <strong>The same Sia, with you in charge.</strong> Phone requests use this
-            assistant’s model and Mac access. Each step a phone request takes asks for your OK
-            here on the Mac, one at a time.
+            assistant’s model and Mac access. Your paired phones follow Settings → Computer:
+            bypass runs without per-step approvals; confirmations ask before each action.
           </p>
           <p>
             <strong>Encrypted end to end.</strong> Your phone and this Mac share a key from the

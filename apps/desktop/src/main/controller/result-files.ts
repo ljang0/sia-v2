@@ -86,3 +86,21 @@ export async function verifyResultFile(identity: ResultFileIdentity): Promise<vo
   if (current.dev !== identity.dev || current.ino !== identity.ino)
     throw new Error('This result was replaced. Ask Sia to check it again before opening it.');
 }
+
+/** Candidate links are untrusted; grantResult still checks scope, type and file identity. */
+export function resultPathsFromMarkdown(text: string): string[] {
+  const paths = new Set<string>();
+  const links = /!?\[[^\]\n]*\]\((?:<([^<>\n]+)>|([^\s()]+))\)/g;
+  for (const match of text.matchAll(links)) {
+    const destination = match[1] ?? match[2] ?? '';
+    if (!destination.startsWith('/')) continue;
+    try {
+      const path = decodeURIComponent(destination);
+      if (isAbsolute(path) && !/[\x00-\x1f]/.test(path)) paths.add(path);
+    } catch {
+      // Malformed percent escapes are not local file grants.
+    }
+    if (paths.size === 10) break;
+  }
+  return [...paths];
+}

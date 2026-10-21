@@ -1,4 +1,4 @@
-# Sia 0.1.0-alpha.30
+# Sia 0.1.0-alpha.31
 
 Pilot candidate — acceptance and distribution pending.
 
@@ -17,7 +17,8 @@ anything else or paste an API key.
   Connected-app setup skips Mac permissions, and ordinary chat remains available before screen access.
 - **Visible setup progress.** Codex setup shows downloaded megabytes and handles slow connections;
   a stalled download offers a clear retry without replacing a working installation.
-- **Reports you can open.** Generated documents have Preview, Open, and Reveal controls that
+- **Reports you can open.** Final file links from ordinary provider replies now also receive
+  verified result controls. Generated documents have Preview, Open, and Reveal controls that
   remain available when you reopen the conversation. Phone remote can download saved results.
 - **Monthly and yearly schedules.** Create schedules directly from Scheduled. Month-end and
   leap-day dates are preserved, and successful monitoring checks with no new findings stay quiet.
