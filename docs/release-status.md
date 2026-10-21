@@ -1,11 +1,11 @@
 # Release status
 
 Updated October 21, 2026. The next controlled product-pilot candidate is
-`0.1.0-alpha.31` on `claude/demo-candidate` (PR #22). It is under verification;
+`0.1.0-alpha.32` on `claude/demo-candidate` (PR #22). It is under verification;
 **do not describe it as ready or send invitations until the acceptance record is complete**.
-Alpha.30 passed signing/notarization and its upgrade retained the demo profile. A live file task
-found missing result controls on plain-text provider replies; alpha.31 fixes that acceptance defect.
-Native iPhone 0.1.0 (30) uploaded to TestFlight and is processing. The last published pilot remains alpha.24.
+Alpha.30 and alpha.31 passed signing/notarization and upgrades retained the demo profile. Live file tasks
+found missing result controls on plain-text and streamed provider replies; alpha.32 addresses both paths.
+Native iPhone 0.1.0 (30) is ready for internal TestFlight testing. External beta review awaits contact details. The last published pilot remains alpha.24.
 
 ## Pilot scope
 

@@ -1,4 +1,4 @@
-# Sia 0.1.0-alpha.31
+# Sia 0.1.0-alpha.32
 
 Pilot candidate — acceptance and distribution pending.
 

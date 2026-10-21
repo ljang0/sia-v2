@@ -1,6 +1,6 @@
 # CMU pilot runbook
 
-This runbook is for the controlled `0.1.0-alpha.31` CMU pilot. It keeps the first session short,
+This runbook is for the controlled `0.1.0-alpha.32` CMU pilot. It keeps the first session short,
 safe, and easy to support. It is not approval for public distribution or a research launch.
 
 ## Five-minute first session
@@ -20,6 +20,26 @@ safe, and easy to support. It is not approval for public distribution or a resea
 6. Add optional Google Workspace, Slack or Chrome connections only when the test requires them.
    Use my Mac requires its complete permission walkthrough; choose Connected apps only if the
    test does not need local computer control.
+
+## Native iPhone companion
+
+The combined pilot pairs Mac alpha.32 with native iPhone version 0.1.0 (30). Install the
+invited **Sia - Your Mac Assistant** build from TestFlight; the Home Screen app is named **Sia**.
+The operator must finish external beta review before inviting external testers.
+
+1. On the Mac, open **Settings → Phone remote → Pair a phone**.
+2. In the iPhone app, choose **Scan pairing code** and scan the code on your own Mac.
+3. Send a harmless request, for example “Reply with the words phone pilot connected.” Confirm
+   the reply appears on both devices.
+4. Run a fictional document task and check that its saved result is available on the phone.
+5. Close and reopen the phone app; then switch between Wi-Fi and cellular and repeat the request.
+6. Remove the test phone on the Mac and verify that the phone returns to pairing without old
+   task content. Pair again only if the tester intends to keep using the companion.
+
+Paired owner phones follow the Mac's Computer approval setting. Keep confirmations on for
+supervised testing. The Mac must remain awake with Sia open. Push notifications and universal
+links are not in this build. Microphone capture and generated-file handling require real-device
+acceptance; a successful simulator connection alone is insufficient.
 
 ## Recommended pilot settings
 

@@ -367,10 +367,11 @@ export class TurnRunner {
           if (
             !stoppedStatus &&
             !taskResult?.output_file &&
-            event.type === 'message' &&
-            event.payload.role === 'assistant' &&
-            event.payload.phase !== 'commentary' &&
-            !event.payload.delta
+            ((event.type === 'message' &&
+              event.payload.role === 'assistant' &&
+              event.payload.phase !== 'commentary' &&
+              !event.payload.delta) ||
+              (event.type === 'completion' && event.payload.status === 'completed'))
           ) {
             const message = this.ctx.state.timeline.findLast(
               (item) =>
@@ -379,9 +380,9 @@ export class TurnRunner {
                 item.kind === 'assistant',
             );
             if (message && !message.attachments?.length) {
-              const text = event.payload.parts
-                .flatMap((part) => (part.kind === 'text' ? [part.text] : []))
-                .join('');
+              // Connected-app Codex replies stream deltas without a final message event.
+              // At successful completion, inspect the assembled last reply as well.
+              const text = message.text ?? '';
               const results = [];
               for (const path of resultPathsFromMarkdown(text)) {
                 try {
