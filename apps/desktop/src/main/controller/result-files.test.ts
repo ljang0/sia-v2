@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Attachments } from './attachments.js';
-import { inspectResultFile } from './result-files.js';
+import { inspectResultFile, resultPathsFromMarkdown } from './result-files.js';
 import { createHarness } from './test-support.js';
 import { presentMacResponse } from '../actions/mac-execution.js';
 import type { RuntimeTurnInput } from '../providers/runtime-coordinator.js';
@@ -58,112 +58,135 @@ it('accepts an authorized root alias without permitting nested symlink traversal
   ).rejects.toThrow();
 });
 
-it('delivers a real result through the controller and reopens its grant after the manager reloads', async () => {
-  const root = await directory();
-  const opened = vi.fn(async () => {});
-  const revealed = vi.fn(async () => {});
-  const runtime = {
-    async *runTurn(input: RuntimeTurnInput) {
-      const path = join(input.thread.workspace, 'Family résumé.csv');
-      await writeFile(path, 'category,total\nfood,25\n');
-      const result = {
-        type: 'action',
-        success: true,
-        response: 'Your report is ready.',
-        steps: [],
-        output_file: await realpath(path),
-      };
-      input.onMacResult?.(result);
-      const base = {
-        threadId: input.thread.id,
-        turnId: input.turnId,
-        provider: 'codex' as const,
-        timestamp: new Date().toISOString(),
-      };
-      yield presentMacResponse({
-        ...base,
-        id: 'result-message',
-        sequence: 1,
-        type: 'message',
-        payload: {
-          role: 'assistant',
-          messageId: 'message',
-          parts: [{ kind: 'text', text: JSON.stringify(result) }],
-        },
-      } as ThreadEventEnvelope);
-      yield {
-        ...base,
-        id: 'finished',
-        sequence: 2,
-        type: 'completion',
-        payload: { status: 'completed' },
-      } as ThreadEventEnvelope;
-    },
-    dispose: vi.fn(async () => {}),
-    cancel: vi.fn(async () => {}),
-  };
-  const { controller, repository } = await createHarness({
-    fakeServices: false,
-    runtime,
-    defaultWorkspaceRoot: root,
-    openPath: opened,
-    revealDirectory: revealed,
-  });
-  try {
-    const { agentId } = await controller.invoke('agents.save', {
-      name: 'Reports',
-      instructions: '',
-      provider: 'codex',
-      model: 'gpt-5.6-sol',
-      workspace: '',
-    });
-    const { threadId } = await controller.invoke('threads.create', { agentId });
-    await controller.invoke('threads.send', { threadId, text: 'Save the fixture report.' });
-    await vi.waitFor(() =>
-      expect(
-        controller.snapshot().timeline.find((item) => item.id === 'result-message')
-          ?.attachments,
-      ).toHaveLength(1),
-    );
-    const message = controller
-      .snapshot()
-      .timeline.find((item) => item.id === 'result-message')!;
-    expect(message.text).toBe('Your report is ready.');
-    const attachment = message.attachments![0]!;
-    expect(attachment).toMatchObject({ name: 'Family résumé.csv', generated: true });
-    const thread = controller.snapshot().threads.find((item) => item.id === threadId)!;
-    const restored = new Attachments({
-      deps: {
-        repository,
-        openPath: opened,
-        revealDirectory: revealed,
-        chooseFiles: undefined,
-        pastedAttachmentRoot: undefined,
+it.each(['structured', 'markdown'] as const)(
+  'delivers a %s result and reopens its grant after reload',
+  async (format) => {
+    const root = await directory();
+    const opened = vi.fn(async () => {});
+    const revealed = vi.fn(async () => {});
+    const runtime = {
+      async *runTurn(input: RuntimeTurnInput) {
+        const path = join(input.thread.workspace, 'Family résumé.csv');
+        await writeFile(path, 'category,total\nfood,25\n');
+        const result = {
+          type: 'action',
+          success: true,
+          response: 'Your report is ready.',
+          steps: [],
+          output_file: await realpath(path),
+        };
+        if (format === 'structured') input.onMacResult?.(result);
+        const markdown = `Your report is ready: [report](<${path}>). [Again](${encodeURI(path)}) [Private](/etc/hosts) [Web](https://example.com/report.csv)`;
+        const base = {
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+        };
+        const event = {
+          ...base,
+          id: 'result-message',
+          sequence: 1,
+          type: 'message',
+          payload: {
+            role: 'assistant',
+            messageId: 'message',
+            parts: [
+              {
+                kind: 'text',
+                text: format === 'structured' ? JSON.stringify(result) : markdown,
+              },
+            ],
+          },
+        } as ThreadEventEnvelope;
+        yield format === 'structured' ? presentMacResponse(event) : event;
+        yield {
+          ...base,
+          id: 'finished',
+          sequence: 2,
+          type: 'completion',
+          payload: { status: 'completed' },
+        } as ThreadEventEnvelope;
       },
-      requireThread: () => thread,
+      dispose: vi.fn(async () => {}),
+      cancel: vi.fn(async () => {}),
+    };
+    const { controller, repository } = await createHarness({
+      fakeServices: false,
+      runtime,
+      defaultWorkspaceRoot: root,
+      openPath: opened,
+      revealDirectory: revealed,
     });
-    const input = { threadId, attachmentId: attachment.id };
-    expect(await restored.previewAttachment(input)).toMatchObject({
-      kind: 'text',
-      content: 'category,total\nfood,25\n',
-    });
-    await restored.openAttachment(input);
-    await restored.revealAttachment(input);
-    expect(opened).toHaveBeenCalledWith(expect.stringContaining(attachment.name));
-    expect(revealed).toHaveBeenCalledWith(expect.stringContaining(attachment.name));
-    const downloaded = await restored.readGeneratedResult(threadId, attachment.id);
-    expect(downloaded.name).toBe(attachment.name);
-    expect(downloaded.data.toString()).toBe('category,total\nfood,25\n');
-    await expect(
-      restored.openAttachment({ ...input, threadId: 'other-thread' }),
-    ).rejects.toThrow('grant');
-    await rm(join(thread.workspace, attachment.name));
-    await symlink(join(root, 'outside.csv'), join(thread.workspace, attachment.name));
-    await expect(restored.openAttachment(input)).rejects.toThrow();
-    expect(opened).toHaveBeenCalledTimes(1);
-    restored.forgetThread(threadId);
-    expect(repository.list('result-files')).toEqual([]);
-  } finally {
-    await controller.shutdown();
-  }
+    try {
+      const { agentId } = await controller.invoke('agents.save', {
+        name: 'Reports',
+        instructions: '',
+        provider: 'codex',
+        model: 'gpt-5.6-sol',
+        workspace: '',
+      });
+      const { threadId } = await controller.invoke('threads.create', { agentId });
+      await controller.invoke('threads.send', { threadId, text: 'Save the fixture report.' });
+      await vi.waitFor(() =>
+        expect(
+          controller.snapshot().timeline.find((item) => item.id === 'result-message')
+            ?.attachments,
+        ).toHaveLength(1),
+      );
+      const message = controller
+        .snapshot()
+        .timeline.find((item) => item.id === 'result-message')!;
+      expect(message.text).toContain('Your report is ready');
+      const attachment = message.attachments![0]!;
+      expect(attachment).toMatchObject({ name: 'Family résumé.csv', generated: true });
+      const thread = controller.snapshot().threads.find((item) => item.id === threadId)!;
+      const restored = new Attachments({
+        deps: {
+          repository,
+          openPath: opened,
+          revealDirectory: revealed,
+          chooseFiles: undefined,
+          pastedAttachmentRoot: undefined,
+        },
+        requireThread: () => thread,
+      });
+      const input = { threadId, attachmentId: attachment.id };
+      expect(await restored.previewAttachment(input)).toMatchObject({
+        kind: 'text',
+        content: 'category,total\nfood,25\n',
+      });
+      await restored.openAttachment(input);
+      await restored.revealAttachment(input);
+      expect(opened).toHaveBeenCalledWith(expect.stringContaining(attachment.name));
+      expect(revealed).toHaveBeenCalledWith(expect.stringContaining(attachment.name));
+      const downloaded = await restored.readGeneratedResult(threadId, attachment.id);
+      expect(downloaded.name).toBe(attachment.name);
+      expect(downloaded.data.toString()).toBe('category,total\nfood,25\n');
+      await expect(
+        restored.openAttachment({ ...input, threadId: 'other-thread' }),
+      ).rejects.toThrow('grant');
+      await rm(join(thread.workspace, attachment.name));
+      await symlink(join(root, 'outside.csv'), join(thread.workspace, attachment.name));
+      await expect(restored.openAttachment(input)).rejects.toThrow();
+      expect(opened).toHaveBeenCalledTimes(1);
+      restored.forgetThread(threadId);
+      expect(repository.list('result-files')).toEqual([]);
+    } finally {
+      await controller.shutdown();
+    }
+  },
+);
+
+it('extracts bounded local result links without treating URLs or malformed escapes as grants', () => {
+  expect(
+    resultPathsFromMarkdown(
+      '[ok](</tmp/Family résumé.csv>) [same](/tmp/Family%20r%C3%A9sum%C3%A9.csv) [web](https://example.com/a.md) [bad](/tmp/%ZZ.md) [relative](report.md) [control](/tmp/a%00.md)',
+    ),
+  ).toEqual(['/tmp/Family résumé.csv']);
+  expect(
+    resultPathsFromMarkdown(
+      Array.from({ length: 20 }, (_, i) => `[report](/tmp/${i}.md)`).join(' '),
+    ),
+  ).toHaveLength(10);
 });

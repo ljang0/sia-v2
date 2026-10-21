@@ -13,6 +13,7 @@ import { turnFinishedNotice } from './notification-copy.js';
 import { abortableDelay } from './async-utils.js';
 import { backgroundControlUnavailable } from './computer-access.js';
 import type { ControllerContext } from './context.js';
+import { resultPathsFromMarkdown } from './result-files.js';
 import { isStreamingDelta } from './runtime-events.js';
 import type { QueuedTurn } from './types.js';
 
@@ -361,6 +362,35 @@ export class TurnRunner {
             } catch (cause) {
               taskResult.success = false;
               taskResult.response += ` The result file could not be opened here. ${cause instanceof Error ? cause.message : 'Ask Sia to save the result again.'}`;
+            }
+          }
+          if (
+            !stoppedStatus &&
+            !taskResult?.output_file &&
+            event.type === 'message' &&
+            event.payload.role === 'assistant' &&
+            event.payload.phase !== 'commentary' &&
+            !event.payload.delta
+          ) {
+            const message = this.ctx.state.timeline.findLast(
+              (item) =>
+                item.threadId === thread.id &&
+                item.turnId === turn.id &&
+                item.kind === 'assistant',
+            );
+            if (message && !message.attachments?.length) {
+              const text = event.payload.parts
+                .flatMap((part) => (part.kind === 'text' ? [part.text] : []))
+                .join('');
+              const results = [];
+              for (const path of resultPathsFromMarkdown(text)) {
+                try {
+                  results.push(await this.ctx.attachments.grantResult(thread.id, path));
+                } catch {
+                  // A Markdown link cannot grant access beyond this thread's result roots.
+                }
+              }
+              if (results.length) message.attachments = results;
             }
           }
           if (stoppedStatus) {

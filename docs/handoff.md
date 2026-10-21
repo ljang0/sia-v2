@@ -1,6 +1,6 @@
 # Sia development handoff
 
-Updated October 21, 2026. The current pilot preparation is alpha.30 on
+Updated October 21, 2026. The current pilot preparation is alpha.31 on
 `claude/demo-candidate` (PR #22), based on the signed/notarized alpha.29 demo.
 The separate native iPhone shell is PR #23. Both are draft; main is unchanged.
 
