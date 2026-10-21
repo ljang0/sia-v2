@@ -1,11 +1,14 @@
 # Release status
 
 Updated October 21, 2026. The next controlled product-pilot candidate is
-`0.1.0-alpha.32` on `claude/demo-candidate` (PR #22). It is under verification;
+`0.1.0-alpha.32` on `claude/demo-candidate` (PR #22). Source, CI, and signed packaging passed; live acceptance remains open;
 **do not describe it as ready or send invitations until the acceptance record is complete**.
 Alpha.30 and alpha.31 passed signing/notarization and upgrades retained the demo profile. Live file tasks
 found missing result controls on plain-text and streamed provider replies; alpha.32 addresses both paths.
-Native iPhone 0.1.0 (30) is ready for internal TestFlight testing. External beta review awaits contact details. The last published pilot remains alpha.24.
+Native iPhone 0.1.0 (31) is **Ready to Test** in the internal **Pilot QA** TestFlight group
+(zero testers). It fixes native result downloads and pairing-save errors. Seven native tests,
+signed archive, upload and Apple processing passed. External beta review awaits contact details. The last published
+pilot remains alpha.24.
 
 ## Pilot scope
 
@@ -28,11 +31,22 @@ by this status file. Keep the recipient list and private distribution links outs
 
 ## Acceptance before inviting testers
 
-1. Complete source/CI and signed/notarized packaging for the exact candidate; retain alpha.29.
+1. Source/CI and signed/notarized alpha.32 packaging passed; retain the prior signed artifacts.
+   The full local gate passed (1,318 desktop unit, 45 Electron, 27 renderer, 72 phone checks).
+   See the exact source and checksums in [public release](./public-release.md).
 2. Cloud ratings deployed successfully: both code hashes match, anonymous routes return 401,
-   and all 18 alarms are OK. Authenticated app feedback still needs acceptance.
-3. Rehearse signed-app file work, native computer use, phone relay, voice and texting.
-4. Pass native iPhone tests, device acceptance, signed archive and TestFlight processing.
+   and all 18 alarms are OK. An authenticated app rating on a synthetic task reached the report.
+3. Complete signed-app file work, native computer use, phone relay, voice and texting.
+   Alpha.32 result preview and Finder reveal passed. Native relay delivered a synthetic task;
+   a fresh post-restart file task and preview passed. Native Save UI and current voice/texting
+   remain open. The signed simulator
+   retained its pairing after relaunch. Revocation removed only the temporary test phone and
+   returned the simulator to pairing, including after relaunch. The Finder rehearsal read the
+   expected filenames but could not complete Go to Folder; current-artifact computer actions
+   remain unverified.
+4. Native iPhone tests, signed archive and TestFlight processing passed. Complete physical
+   iPhone acceptance (camera pairing, file Save, Wi-Fi/cellular reconnect and microphone), then
+   supply beta-review contacts and complete Apple review before external testing.
 5. Complete clean macOS-account signup/permissions and previous-release upgrade acceptance.
 6. Confirm a named support/incident owner, recipient list and redistribution permission for
    third-party native sources whose license is not recorded in this repository.
