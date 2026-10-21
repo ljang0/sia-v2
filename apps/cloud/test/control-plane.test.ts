@@ -1404,8 +1404,13 @@ describe('invites and deletion', () => {
       expiresAt: 123456,
       tokenMintLimit: 20,
     });
+    const removedRatingUsers: string[] = [];
+    fixture.ratings.deleteUserRatings = async (userId) => {
+      removedRatingUsers.push(userId);
+    };
     const requested = await fixture.services.research.requestDeletion(user, 'account');
     await fixture.services.deletionWorker.process(user.subject, requested.id, 'account');
+    assert.deepEqual(removedRatingUsers, [user.subject]);
     assert.equal(fixture.connector.statuses.get('connection-1')?.status, 'disconnected');
     assert.equal(fixture.state.connectionRecords.size, 0);
     assert.equal(fixture.identity.users.has(user.subject), false);

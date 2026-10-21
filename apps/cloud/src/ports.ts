@@ -618,13 +618,10 @@ export interface RatingRepository {
     expiresAt: number,
     limit: number,
   ): Promise<boolean>;
-  /** Stores the rating, replacing any earlier one with the same key; returns the earlier one. */
-  putRating(rating: StoredTaskRating, expiresAt: number): Promise<StoredTaskRating | undefined>;
-  addRatingCounters(
-    key: RatingAggregateKey,
-    deltas: Record<string, number>,
-    expiresAt: number,
-  ): Promise<void>;
+  /** Atomically replaces a rating and adjusts its daily counters; retries cannot double count. */
+  writeRating(userId: string, rating: StoredTaskRating, expiresAt: number): Promise<void>;
+  /** Removes this account's ratings, optional notes, and contributions to reports. */
+  deleteUserRatings(userId: string): Promise<void>;
   listRatingAggregates(
     labId: string,
     fromDay: string,

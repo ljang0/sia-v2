@@ -58,7 +58,7 @@ The schema is strict: any other field (a prompt, a reply, a screenshot) is rejec
 **Desktop storage and sync.** Task facts and ratings are kept in the encrypted local repository
 (scopes `rating_tasks`, at most 1,000 recent tasks, and `ratings`). `ratings.submit` on the bridge
 checks that the turn finished and belongs to the thread, then queues the rating for Sia cloud.
-Upload retries with backoff (15 s doubling to 5 min) and runs only for the signed-in account the
+Each cloud write commits the rating, its report-counter delta, and a private account reference in one DynamoDB transaction. A conditional read/write retries competing edits; retrying after a lost response cannot double count. Upload retries with backoff (15 s doubling to 5 min) and runs only for the signed-in account the
 rating was made under.
 
 **Cloud.**
@@ -73,7 +73,7 @@ rating was made under.
     replaces it but the record names no account.
   - `PK = LAB#<lab>`, `SK = RATING_DAY#<day>#<model>#<harness>`: daily counters (ratings, good,
     bad, each reason, each outcome, notes, computer and browser use, duration and step totals).
-    Re-rating subtracts the earlier rating's counts.
+    Re-rating subtracts the earlier rating's counts atomically.
   - Both expire after 400 days. The per-account hourly limit is `USER#<sub> / RATE#RATING#<hour>`.
 - `GET /v1/admin/ratings?lab=&from=&to=` (Admins with an authenticator, audited): one row per day,
   model, and engine with the counts and averages. It never returns a rating, a note, or anything
@@ -85,8 +85,10 @@ rating was made under.
   has no field for it and rejects unknown fields on the Mac and in the cloud.
 - The only free text is the optional note, which the person types and sees in full before Send.
 - The route and task facts come from the main process, not the renderer.
-- Cloud rating records carry no account id, email, thread id, or turn id. The sponsor report is
-  counts only.
+- Lab rating records carry no account id, email, thread id, or turn id. A separate reference in
+  the account partition links its ratings for deletion, so these records are pseudonymous, not
+  anonymous. The sponsor report is counts only. Account deletion removes ratings and optional
+  notes and subtracts their report contributions atomically.
 - Phone ratings are accepted only from the owner's encrypted-relay phone; texted ratings only from
   the owner's own numbers.
 
@@ -94,9 +96,6 @@ rating was made under.
 
 - The cloud routes are not deployed. Follow the operator step in
   [`arena-model-harness.md`](./arena-model-harness.md).
-- Because cloud records are not linked to an account, deleting a Sia account does not remove its
-  past ratings or notes from the lab report; they expire after 400 days. The owner should confirm
-  this is acceptable for notes, or ask for a per-account index so deletion can remove them.
 - There is no sponsor-facing (non-admin) role yet; an admin shares the report.
 - The phone has thumbs only; reasons and notes are on the Mac. Texting's HELP message does not
   mention ratings yet.

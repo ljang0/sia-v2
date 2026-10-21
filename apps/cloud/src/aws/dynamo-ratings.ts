@@ -1,5 +1,12 @@
 import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
-import { PutCommand, QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
+import {
+  GetCommand,
+  QueryCommand,
+  TransactWriteCommand,
+  UpdateCommand,
+} from '@aws-sdk/lib-dynamodb';
+import { randomUUID } from 'node:crypto';
+import { ratingCounters, ratingUpdate } from '../rating-counters.js';
 import type {
   RatingAggregate,
   RatingAggregateKey,
@@ -52,31 +59,166 @@ export class DynamoRatings implements RatingRepository {
     return typeof count === 'number' && count <= limit;
   }
 
-  async putRating(
+  async writeRating(
+    userId: string,
     rating: StoredTaskRating,
     expiresAt: number,
-  ): Promise<StoredTaskRating | undefined> {
-    const result = await this.client.send(
-      new PutCommand({
-        TableName: this.tableName,
-        Item: {
-          PK: labPk(rating.labId),
-          SK: ratingSk(rating),
-          Type: 'TaskRating',
-          rating,
-          expiresAt,
-        },
-        ReturnValues: 'ALL_OLD',
-      }),
-    );
-    return result.Attributes?.rating as StoredTaskRating | undefined;
+  ): Promise<void> {
+    const key = { PK: labPk(rating.labId), SK: ratingSk(rating) };
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const current = await this.client.send(
+        new GetCommand({
+          TableName: this.tableName,
+          Key: key,
+          ConsistentRead: true,
+        }),
+      );
+      const previous = current.Item?.rating as StoredTaskRating | undefined;
+      const { key: aggregateKey, deltas } = ratingUpdate(rating, previous);
+      try {
+        await this.client.send(
+          new TransactWriteCommand({
+            ClientRequestToken: randomUUID(),
+            TransactItems: [
+              {
+                Put: {
+                  TableName: this.tableName,
+                  Item: { ...key, Type: 'TaskRating', rating, expiresAt },
+                  ConditionExpression: previous
+                    ? '#rating = :previous'
+                    : 'attribute_not_exists(PK)',
+                  ...(previous
+                    ? {
+                        ExpressionAttributeNames: { '#rating': 'rating' },
+                        ExpressionAttributeValues: { ':previous': previous },
+                      }
+                    : {}),
+                },
+              },
+              { Update: this.counterUpdate(aggregateKey, deltas, expiresAt) },
+              {
+                Put: {
+                  TableName: this.tableName,
+                  Item: {
+                    PK: userPk(userId),
+                    SK: `RATING_REF#${rating.id}#${rating.labId}#${rating.day}#${rating.model}#${rating.harnessId}`,
+                    Type: 'RatingOwnerReference',
+                    ratingKey: key,
+                    expiresAt,
+                  },
+                },
+              },
+            ],
+          }),
+        );
+        return;
+      } catch (error) {
+        const failure = error as { name?: string; CancellationReasons?: { Code?: string }[] };
+        if (
+          failure.name !== 'TransactionCanceledException' ||
+          !failure.CancellationReasons?.some(
+            ({ Code }) => Code === 'ConditionalCheckFailed' || Code === 'TransactionConflict',
+          ) ||
+          attempt === 4
+        )
+          throw error;
+        // Another re-rating won. Read its committed value before recomputing the delta.
+      }
+    }
   }
 
-  async addRatingCounters(
+  async deleteUserRatings(userId: string): Promise<void> {
+    let startKey: Record<string, unknown> | undefined;
+    do {
+      const page = await this.client.send(
+        new QueryCommand({
+          TableName: this.tableName,
+          KeyConditionExpression: 'PK = :pk AND begins_with(SK, :prefix)',
+          ExpressionAttributeValues: { ':pk': userPk(userId), ':prefix': 'RATING_REF#' },
+          ConsistentRead: true,
+          ...(startKey ? { ExclusiveStartKey: startKey } : {}),
+        }),
+      );
+      for (const item of page.Items ?? [])
+        await this.deleteRating(
+          { PK: item.PK, SK: item.SK },
+          item.ratingKey as { PK: string; SK: string },
+        );
+      startKey = page.LastEvaluatedKey;
+    } while (startKey);
+  }
+
+  private async deleteRating(
+    referenceKey: { PK: string; SK: string },
+    key: { PK: string; SK: string },
+  ): Promise<void> {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const current = await this.client.send(
+        new GetCommand({ TableName: this.tableName, Key: key, ConsistentRead: true }),
+      );
+      const previous = current.Item?.rating as StoredTaskRating | undefined;
+      const deletion = { Delete: { TableName: this.tableName, Key: referenceKey } };
+      try {
+        await this.client.send(
+          new TransactWriteCommand({
+            ClientRequestToken: randomUUID(),
+            TransactItems: previous
+              ? [
+                  {
+                    Delete: {
+                      TableName: this.tableName,
+                      Key: key,
+                      ConditionExpression: '#rating = :previous',
+                      ExpressionAttributeNames: { '#rating': 'rating' },
+                      ExpressionAttributeValues: { ':previous': previous },
+                    },
+                  },
+                  {
+                    Update: this.counterUpdate(
+                      ratingUpdate(previous).key,
+                      Object.fromEntries(
+                        Object.entries(ratingCounters(previous.record)).map(([name, value]) => [
+                          name,
+                          -value,
+                        ]),
+                      ),
+                      Number(current.Item?.expiresAt),
+                    ),
+                  },
+                  deletion,
+                ]
+              : [
+                  {
+                    Delete: {
+                      TableName: this.tableName,
+                      Key: key,
+                      ConditionExpression: 'attribute_not_exists(PK)',
+                    },
+                  },
+                  deletion,
+                ],
+          }),
+        );
+        return;
+      } catch (error) {
+        const failure = error as { name?: string; CancellationReasons?: { Code?: string }[] };
+        if (
+          failure.name !== 'TransactionCanceledException' ||
+          !failure.CancellationReasons?.some(
+            ({ Code }) => Code === 'ConditionalCheckFailed' || Code === 'TransactionConflict',
+          ) ||
+          attempt === 4
+        )
+          throw error;
+      }
+    }
+  }
+
+  private counterUpdate(
     key: RatingAggregateKey,
     deltas: Record<string, number>,
     expiresAt: number,
-  ): Promise<void> {
+  ) {
     const names: Record<string, string> = {
       '#type': 'Type',
       '#labName': 'labName',
@@ -101,17 +243,15 @@ export class DynamoRatings implements RatingRepository {
       values[`:c${index}`] = value;
       adds.push(`#c${index} :c${index}`);
     });
-    await this.client.send(
-      new UpdateCommand({
-        TableName: this.tableName,
-        Key: { PK: labPk(key.labId), SK: aggregateSk(key) },
-        UpdateExpression: `SET #type = if_not_exists(#type, :type), #labName = :labName, #provider = :provider, #model = :model, #harness = :harness, #day = :day, expiresAt = :ttl${
-          adds.length ? ` ADD ${adds.join(', ')}` : ''
-        }`,
-        ExpressionAttributeNames: names,
-        ExpressionAttributeValues: values,
-      }),
-    );
+    return {
+      TableName: this.tableName,
+      Key: { PK: labPk(key.labId), SK: aggregateSk(key) },
+      UpdateExpression: `SET #type = if_not_exists(#type, :type), #labName = :labName, #provider = :provider, #model = :model, #harness = :harness, #day = :day, expiresAt = :ttl${
+        adds.length ? ` ADD ${adds.join(', ')}` : ''
+      }`,
+      ExpressionAttributeNames: names,
+      ExpressionAttributeValues: values,
+    };
   }
 
   async listRatingAggregates(

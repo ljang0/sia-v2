@@ -119,6 +119,20 @@ describe('task ratings', () => {
     });
   });
 
+  it('account removal erases that account’s notes and preserves other ratings', async () => {
+    const { ratings, service } = fixture();
+    await service.submit(user, rating({ comment: 'Disposable note' }));
+    await service.submit(other, rating());
+    await ratings.deleteUserRatings(user.subject);
+    await ratings.deleteUserRatings(user.subject);
+    assert.equal(ratings.ratings.size, 1);
+    assert.ok(!JSON.stringify([...ratings.ratings.values()]).includes('Disposable note'));
+    const [aggregate] = [...ratings.aggregates.values()];
+    assert.equal(aggregate?.counters.ratings, 1);
+    assert.equal(aggregate?.counters.good, 1);
+    assert.equal(aggregate?.counters.comments, 0);
+  });
+
   it('accepts only route and counters: content fields and unknown labs are refused', async () => {
     const { ratings, service } = fixture();
     for (const body of [
