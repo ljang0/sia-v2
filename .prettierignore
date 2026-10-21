@@ -16,3 +16,7 @@ _old-builds
 release
 release-*
 *.woff2
+
+# Generated Xcode projects, archives, and simulator products.
+apps/ios/build
+apps/ios/*.xcodeproj

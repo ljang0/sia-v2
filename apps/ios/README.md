@@ -30,11 +30,12 @@ an App Store Connect app record for `ai.sia.phone` (team `DXYJ578DD4`) and distr
 xcodebuild archive -project Sia.xcodeproj -scheme Sia -configuration Release \
   -destination 'generic/platform=iOS' -archivePath build/Sia.xcarchive \
   -allowProvisioningUpdates
-xcodebuild -exportArchive -archivePath build/Sia.xcarchive \
+PATH=/usr/bin:/bin:/usr/sbin:/sbin xcodebuild -exportArchive -archivePath build/Sia.xcarchive \
   -exportOptionsPlist ExportOptions.plist -exportPath build/export \
   -allowProvisioningUpdates
 ```
 
+The system-only PATH avoids mixing Apple rsync with an incompatible Homebrew rsync during export.
 The export options request App Store Connect upload. Use the signed-in Xcode account; do not
 put Apple credentials in this repository. Verify build processing in App Store Connect before
 marking the TestFlight gate complete. External testing also requires Apple's beta review.
