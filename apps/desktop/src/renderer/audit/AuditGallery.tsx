@@ -73,8 +73,7 @@ export default function AuditGallery() {
             unavailable.
           </StatePanel>
           <StatePanel icon={<Clock size={18} />} title="Queued" tone="neutral">
-            Waiting for the Chrome tab used by another turn. The task will begin when it is
-            released.
+            Waiting for Chrome — starts after ‘Weekly research update’ finishes.
           </StatePanel>
           <StatePanel icon={<WarningCircle size={18} />} title="Turn stopped" tone="danger">
             Chrome closed before the action could be verified. Nothing was submitted.

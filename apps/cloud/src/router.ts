@@ -23,6 +23,8 @@ import type { createServices } from './services.js';
 
 type Services = ReturnType<typeof createServices>;
 
+const RATING_BODY_MAX_BYTES = 4 * 1024;
+
 export async function routeControlRequest(
   event: APIGatewayProxyEvent,
   services: Services,
@@ -185,6 +187,23 @@ export async function routeControlRequest(
         max: 128,
       });
       return json(200, await services.researchAdmin.batch(user, subject, batchId));
+    }
+    if (method === 'POST' && path === '/v1/ratings') {
+      // A rating is a few hundred bytes; the 500-character note is the only free text.
+      if (Buffer.byteLength(event.body ?? '') > RATING_BODY_MAX_BYTES)
+        throw new CloudError(413, 'request_too_large', 'A rating is at most 4 KiB');
+      return json(201, await services.ratings.submit(user, parseBody(event)));
+    }
+    if (method === 'GET' && path === '/v1/admin/ratings') {
+      const query = event.queryStringParameters ?? {};
+      return json(
+        200,
+        await services.ratings.report(user, {
+          ...(query.lab ? { lab: query.lab.slice(0, 64) } : {}),
+          ...(query.from ? { from: query.from.slice(0, 10) } : {}),
+          ...(query.to ? { to: query.to.slice(0, 10) } : {}),
+        }),
+      );
     }
     if (path === '/v1/admin/invites') {
       if (method === 'POST') {

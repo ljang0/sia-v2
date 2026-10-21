@@ -164,12 +164,12 @@ export function ConversationOutline({
         className={styles.conversationOutlineTrigger}
         aria-controls={panelId}
         aria-expanded={open}
-        aria-label="Thread outline"
-        title="Thread outline"
+        aria-label="Overview of this conversation"
+        title="Overview of this conversation"
         onClick={() => setOpen((current) => !current)}
       >
-        <ListBullets size={15} aria-hidden="true" />
-        <span>Outline</span>
+        <ListBullets size={16} aria-hidden="true" />
+        <span>Overview</span>
         <small>{messageCount + workCount}</small>
       </button>
 
@@ -178,11 +178,11 @@ export function ConversationOutline({
           ref={panelRef}
           id={panelId}
           className={styles.conversationOutlinePanel}
-          aria-label="Conversation outline"
+          aria-label="Conversation overview"
         >
           <header>
             <div>
-              <span>Thread trail</span>
+              <span>Overview</span>
               <h2>How this conversation unfolded</h2>
               <p>{outlineSummary(messageCount, workCount)}</p>
             </div>
@@ -193,9 +193,9 @@ export function ConversationOutline({
                 setOpen(false);
                 requestAnimationFrame(() => triggerRef.current?.focus());
               }}
-              aria-label="Close thread outline"
+              aria-label="Close overview"
             >
-              <X size={14} aria-hidden="true" />
+              <X size={16} aria-hidden="true" />
             </button>
           </header>
           <ol className={styles.conversationOutlineList}>
@@ -229,7 +229,7 @@ function OutlineEntry({
     <li data-kind={entry.kind} data-status={entry.status}>
       <button type="button" data-outline-item onClick={() => onNavigate(entry.eventId)}>
         <span className={styles.conversationOutlineIcon} aria-hidden="true">
-          <Icon size={15} />
+          <Icon size={16} />
         </span>
         <span className={styles.conversationOutlineCopy}>
           <strong>{entry.label}</strong>
@@ -244,9 +244,9 @@ function OutlineEntry({
               <button type="button" onClick={() => onNavigate(entry.eventId)}>
                 <span aria-hidden="true">
                   {step.status === 'completed' ? (
-                    <Check size={12} weight="bold" />
+                    <Check size={14} weight="bold" />
                   ) : step.status === 'in_progress' ? (
-                    <SpinnerGap size={12} />
+                    <SpinnerGap size={14} />
                   ) : (
                     <Circle size={8} />
                   )}
@@ -269,11 +269,11 @@ function OutlineStatus({ status }: { status: OutlineStatus }) {
   return (
     <span className={styles.conversationOutlineStatus} data-status={status} title={label}>
       {status === 'error' ? (
-        <WarningCircle size={13} aria-hidden="true" />
+        <WarningCircle size={16} aria-hidden="true" />
       ) : status === 'complete' ? (
-        <Check size={12} weight="bold" aria-hidden="true" />
+        <Check size={14} weight="bold" aria-hidden="true" />
       ) : status === 'running' ? (
-        <SpinnerGap size={13} aria-hidden="true" />
+        <SpinnerGap size={16} aria-hidden="true" />
       ) : (
         <Circle size={8} aria-hidden="true" />
       )}
@@ -299,7 +299,7 @@ function activityKindLabel(kind: ActivityEvent['kind']): string {
   if (kind === 'connector') return 'Connected app';
   if (kind === 'plan') return 'Plan';
   if (kind === 'other') return 'Work step';
-  return 'Command';
+  return 'Task on your Mac';
 }
 
 function subagentPhaseLabel(phase: 'started' | 'message' | 'completed' | 'failed'): string {

@@ -54,5 +54,5 @@ export class ThemeSync {
 
 /** The ⌘E launcher's panel color, painted before its page loads. Matches CommandLauncher.module.css. */
 export function launcherBackgroundColor(dark: boolean): string {
-  return dark ? '#202422' : '#f8f9f8';
+  return dark ? '#1a1b1e' : '#ffffff';
 }

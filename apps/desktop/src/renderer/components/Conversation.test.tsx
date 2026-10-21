@@ -139,7 +139,7 @@ describe('Conversation waiting controls', () => {
     ).toBe(false);
     expect(screen.queryByRole('button', { name: 'Send message' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Queue follow-up message' })).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Stop current turn' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     expect(onStop).toHaveBeenCalledOnce();
   });
 
@@ -163,7 +163,7 @@ describe('Conversation waiting controls', () => {
     fireEvent.change(input, { target: { value: 'Use main.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send message' }));
     expect(onSend).toHaveBeenCalledWith('Use main.', []);
-    fireEvent.click(screen.getByRole('button', { name: 'Stop current turn' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop' }));
     expect(onStop).toHaveBeenCalledOnce();
   });
 
@@ -805,7 +805,7 @@ describe('Conversation follow-ups while running', () => {
     const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
     expect(input.disabled).toBe(false);
     expect(input.placeholder).toBe('Add a follow-up — Sia will pick it up next');
-    expect(screen.getByRole('button', { name: 'Stop current turn' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy();
 
     fireEvent.change(input, { target: { value: 'Also add the dates' } });
     fireEvent.keyDown(input, { key: 'Enter' });
@@ -820,7 +820,15 @@ describe('Conversation follow-ups while running', () => {
     const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
     expect(input.disabled).toBe(false);
     expect(screen.getByRole('button', { name: 'Queue follow-up message' })).toBeTruthy();
-    expect(screen.getByText('Finishing the stopped task.')).toBeTruthy();
+    // One plain notice carries the reason; no second "Queued" heading is stacked above it.
+    const notice = screen.getByText('Finishing the stopped task.').closest('[role="status"]')!;
+    expect(notice.textContent).toBe('Finishing the stopped task.');
+  });
+
+  it('explains a queued turn without a reason in one plain notice', () => {
+    renderConversation(baseThread({ status: 'queued' }));
+    const notice = screen.getByText('Waiting to start').closest('[role="status"]')!;
+    expect(notice.textContent).toBe('Waiting to startSia starts this as soon as it can.');
   });
 
   it('shows queued follow-ups apart from the transcript and removes one', async () => {

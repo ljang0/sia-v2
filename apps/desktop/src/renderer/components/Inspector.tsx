@@ -45,7 +45,7 @@ interface InspectorProps {
 
 type AccessTab = 'browser' | 'computer' | 'data';
 
-/** Matches --motion-fast, the panel's closing animation. */
+/** At least --motion-exit, the panel's closing animation. */
 const CLOSE_MS = 160;
 
 export function Inspector({
@@ -189,7 +189,7 @@ export function Inspector({
                 aria-label="Close access"
                 title="Close access"
               >
-                <X size={17} aria-hidden="true" />
+                <X size={18} aria-hidden="true" />
               </button>
             </Dialog.Close>
           </header>
@@ -265,7 +265,7 @@ function BrowserPanel({
             <Browser size={22} aria-hidden="true" />
             <div>
               <h2>Choose a Chrome window</h2>
-              <p>Sia will attach only the window you choose. The others will not be granted.</p>
+              <p>Sia uses only the window you choose. It can’t see the others.</p>
             </div>
           </section>
           {browser.status === 'error' && browser.snapshotLabel ? (
@@ -279,7 +279,7 @@ function BrowserPanel({
             onSelect={onAttach}
           />
           <div className={styles.inspectorFootnote}>
-            <LockKey size={15} aria-hidden="true" />
+            <LockKey size={16} aria-hidden="true" />
             <span>
               Sia uses each visible window title only for this chooser. It does not copy
               cookies.
@@ -295,7 +295,7 @@ function BrowserPanel({
         role="tabpanel"
         aria-labelledby={labelledBy}
       >
-        <Browser size={25} aria-hidden="true" />
+        <Browser size={24} aria-hidden="true" />
         <h2>{pending ? 'Looking for Chrome…' : 'Use your signed-in Chrome'}</h2>
         <p>
           Open the Chrome window you want to use. If several are open, Sia will let you choose
@@ -323,17 +323,17 @@ function BrowserPanel({
     <div className={styles.inspectorBody} id={id} role="tabpanel" aria-labelledby={labelledBy}>
       <section className={styles.inspectorSummary}>
         <div>
-          <span className={primitives.sectionLabel}>Attached profile</span>
+          <span className={primitives.sectionLabel}>Chrome profile in use</span>
           <strong>{browser.profileName}</strong>
         </div>
         <button type="button" className={buttons.textButtonDanger} onClick={onDetach}>
-          <LinkBreak size={15} aria-hidden="true" />
+          <LinkBreak size={16} aria-hidden="true" />
           Detach
         </button>
       </section>
 
       <section>
-        <h2 className={styles.inspectorSectionTitle}>Granted sites</h2>
+        <h2 className={styles.inspectorSectionTitle}>Sites Sia can use</h2>
         {grantedSites.length ? (
           <div className={styles.inspectorList}>
             {grantedSites.map((item) => (
@@ -345,7 +345,7 @@ function BrowserPanel({
                   <strong>{item.origin}</strong>
                   {item.title !== item.origin ? <span>{item.title}</span> : null}
                 </div>
-                <span className={styles.accessGranted}>Granted</span>
+                <span className={styles.accessGranted}>Allowed</span>
               </div>
             ))}
           </div>
@@ -375,7 +375,7 @@ function BrowserPanel({
       </form>
 
       <div className={styles.inspectorFootnote}>
-        <LockKey size={15} aria-hidden="true" />
+        <LockKey size={16} aria-hidden="true" />
         <span>
           Only granted sites are listed. Sia does not receive a complete inventory of your tabs.
         </span>
@@ -401,7 +401,7 @@ function ComputerPanel({
   return (
     <div className={styles.inspectorBody} id={id} role="tabpanel" aria-labelledby={labelledBy}>
       <section>
-        <h2 className={styles.inspectorSectionTitle}>System access</h2>
+        <h2 className={styles.inspectorSectionTitle}>Mac permissions</h2>
         <div className={styles.permissionList}>
           <PermissionRow label="Accessibility" state={computer.accessibility} />
           <PermissionRow label="Screen Recording" state={computer.screenRecording} />
@@ -418,14 +418,12 @@ function ComputerPanel({
       </section>
 
       <section>
-        <h2 className={styles.inspectorSectionTitle}>Action approvals</h2>
+        <h2 className={styles.inspectorSectionTitle}>Asking first</h2>
         <div className={styles.permissionRow} data-testid="computer-approval-mode">
           <ShieldCheck size={16} aria-hidden="true" />
-          <span>Sia actions</span>
+          <span>Sia’s actions</span>
           <strong>
-            {computer.trust === 'auto'
-              ? 'Runs without asking (full bypass)'
-              : 'Asks before each action'}
+            {computer.trust === 'auto' ? 'Acts without asking' : 'Asks before each action'}
           </strong>
         </div>
       </section>
@@ -439,7 +437,7 @@ function ComputerPanel({
       </section>
 
       <div className={styles.inspectorFootnote}>
-        <LockKey size={15} aria-hidden="true" />
+        <LockKey size={16} aria-hidden="true" />
         <span>
           Sia’s own browser and computer actions can’t use password fields, sign-in screens, or
           security settings.
@@ -487,7 +485,7 @@ function DataPanel({
         <h2 className={styles.inspectorSectionTitle}>Data access</h2>
         <div className={styles.dataAccessList}>
           <div className={styles.dataAccessRow}>
-            <CloudIcon size={17} aria-hidden="true" />
+            <CloudIcon size={18} aria-hidden="true" />
             <div>
               <strong>Sia cloud</strong>
               <span>
@@ -499,7 +497,7 @@ function DataPanel({
             </button>
           </div>
           <div className={styles.dataAccessRow}>
-            <Database size={17} aria-hidden="true" />
+            <Database size={18} aria-hidden="true" />
             <div>
               <strong>Research capture</strong>
               <span>
@@ -525,7 +523,7 @@ function DataPanel({
       </section>
 
       <div className={styles.inspectorFootnote}>
-        <LockKey size={15} aria-hidden="true" />
+        <LockKey size={16} aria-hidden="true" />
         <span>
           Research and optional cloud settings remain separate from browser and computer grants.
         </span>

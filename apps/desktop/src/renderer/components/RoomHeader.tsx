@@ -57,7 +57,7 @@ export function RoomHeader({
             ? 'Waiting for your approval'
             : 'Waiting for your answer'
           : setup
-            ? 'getting set up'
+            ? 'Getting set up'
             : presenceLabel(state);
   return (
     <header className={companion.roomHeader} data-companion-room-header>
@@ -80,7 +80,7 @@ export function RoomHeader({
             <div className={companion.roomMeta}>
               {thread.goal ? (
                 <span title={thread.goal.text}>
-                  <Target size={13} aria-hidden="true" />
+                  <Target size={16} aria-hidden="true" />
                   {thread.goal.text}
                 </span>
               ) : null}
@@ -94,8 +94,8 @@ export function RoomHeader({
 }
 
 function presenceLabel(state: SiaPresenceState): string {
-  if (state === 'working') return 'working on your request';
-  if (state === 'waiting') return 'waiting for you';
-  if (state === 'error') return 'needs attention';
-  return 'ready';
+  if (state === 'working') return 'Working on your request';
+  if (state === 'waiting') return 'Waiting for you';
+  if (state === 'error') return 'Needs attention';
+  return 'Ready';
 }

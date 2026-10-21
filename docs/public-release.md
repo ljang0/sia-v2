@@ -1,62 +1,71 @@
 # Public distribution candidate
 
-## Decision
+## Current decision — October 21, 2026
 
-Sia `0.1.0-alpha.25` is an **internal release candidate**, not approved for public distribution.
-The branch now includes the [repository-wide continuation](./workflow-robustness.md#repository-wide-continuation)
-of the [October 12 source/dependency audit](./workflow-robustness.md#messaging-lifecycle-and-repository-audit).
-Those changes are included in the signed `1269001` candidate installed on October 12.
-The real-model report and Mac-originated iMessage action/control checks passed on that exact app;
-physical-handset, broader native-app and external-provider acceptance remain separate gates.
-The last signed Connections polish passed the complete local automated gate. That app and DMG
-passed signing, notarization, stapling and package verification. The preceding phone-approval and
-dialog-dismissal repairs also passed CI. The preceding signed
-phone-repair candidate passed a live background iMessage self-test: while another conversation stayed selected,
-it returned the exact requested answer in about five seconds. The earlier physical-phone failure
-was traced to a real integration bug: UI snapshots omitted background answers, so the relay sent
-**Sia › Done.** instead. A regression reproduced that failure before the repair.
+The owner selected a combined invited Mac pilot and native iPhone TestFlight release.
+Mac alpha.32 is the current candidate. **External pilot release is not yet complete.**
+[Release status](./release-status.md) lists the remaining gates; the older live records below
+apply only to their stated artifacts. The last published Mac pilot remains alpha.24.
 
-The repaired Mac-originated test was followed by a physical-phone request. Sia received it at
-16:35:46 UTC, generated the exact answer at 16:35:57 UTC, and the operator confirmed receipt of
-**Sia › SIA-PHONE-FIXED-OK** on the phone. This passes one physical-phone text round trip.
-On October 8, CUA in Mac Messages verified live self-addressed iMessage file actions, texted
-NO/YES, STATUS, stale-YES rejection, NEW, photo understanding and synthetic voice transcription on signed `2898c71`.
-Live testing found two further defects: STOP sent an extra “Done” and outgoing voice attachments
-could not be opened. The replacement signed `0d4b87f` passes both retests: STOP sends only
-**Sia › Stopped.** and leaves the requested file absent; the synthetic voice request returns
-**blue paper lantern** and an MP3 that was saved from Messages, decoded without errors and played
-to completion in QuickTime after temporary-source cleanup. A fresh file-action NO/YES test on
-that replacement also passed: NO left the file absent, separate YES replies allowed its write
-and read-back, and **SIA-FINAL-PHONE-ACTION-OK** appeared in Messages and matched independent bytes.
-A further UI defect marked cancelled proposed edits complete and offered Undo. Signed `cfd1a61`
-now passes that live retest: STOP leaves the file absent, the activity reports error, no Undo is
-offered, and the recorded outcome is cancelled. The LAN browser reconnects and shows Stopped.
-These Mac-originated checks do not establish handset-originated actions or handset receipt.
-No alpha.25 installer has been uploaded or published; the last published pilot release remains
-[`alpha.24`](./release-evidence.md).
+Mac alpha.30 and alpha.31 were signed/notarized and their upgrades preserved the existing
+profile. A real native simulator relay task completed with the correct fictional totals
+(83 orders, 6 refunds, 77 net). It exposed a missing generated-file control on streamed
+Codex replies. Alpha.32 adds completion-time result delivery and a regression test for the
+actual delta-only reply sequence. The complete local pilot gate passed: 1,318 desktop unit,
+45 Electron, 27 renderer, and 72 Chromium/WebKit phone checks. Four live Electron cases remain
+opt-in. Both [Mac CI](https://github.com/ljang0/sia-v2/actions/runs/39551680713) and
+[integrated CI](https://github.com/ljang0/sia-v2/actions/runs/39551713075) passed.
 
-The current signed candidate was built from `12690010b7d74d31abd1da711f51dec4f0c732f4` on macOS
-15.7.2 and installed into the persistent verification profile on October 12. Its app identity is
-`ai.sia.desktop`, signed by Developer ID team `DXYJ578DD4`.
+The universal alpha.32 app and DMG were signed, notarized, stapled, and verified from source
+`000d495439eecebe3609f22b1834da04bd02c1cf`. The upgrade retained the existing profile without a
+new Keychain prompt. On this exact artifact, the generated report preview showed 83/6/77 and
+Reveal in Finder selected the correct file. A write outside the connected-app workspace was
+correctly refused. After a full quit/relaunch, the earlier result control persisted. A fresh in-workspace copy task
+completed, produced `pilot-summary-alpha32.md`, and its preview showed the expected 83/6/77.
+Native Save UI and physical-device acceptance remain open; automated download tests do not
+replace those checks.
 
-| Artifact                           | SHA-256                                                            |       Bytes |
-| ---------------------------------- | ------------------------------------------------------------------ | ----------: |
-| `app.asar`                         | `a4545d6ce5d3277e703205aec9b33ad5277647989b3ddda0851f52b199872ea5` |  12,300,370 |
-| `Sia-0.1.0-alpha.25-universal.dmg` | `4db1787c8a131e55878fceb6659d519b29fb379c5257af7ec411331fe183efc0` | 267,351,819 |
-| `Sia-0.1.0-alpha.25-universal.zip` | `cda5184424a78cb3b4a52a4c68fec772c1a13d433f08e31402cdb27a067f223c` | 265,763,198 |
+The alpha.32 Finder rehearsal read the already-open fictional folder and reported the four
+filenames correctly, but did not complete Go to Folder: the shortcut had no confirmed dialog,
+and the Go-menu click was refused outside the target window. No files changed. This remains
+an incomplete native-computer acceptance gate. Native computer-use input was intermittently
+unavailable to the operator tool as well; do not count a successful accessibility read as a
+successful action.
 
-Apple accepted app submission `5d697e1a-ff79-43af-b12e-52ea20983882` and DMG submission
-`fabfea01-2d29-4843-8ed3-8e6c8e3fec2c`. The canonical `pnpm package:mac` passed strict nested
-signatures, notarization, stapling, Gatekeeper, universal architectures, bundled resources,
-license corpus and packaged MCP bridge verification. The separate copied app passed signature,
-staple and Gatekeeper checks again before launch.
+| Artifact                           | SHA-256                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `Sia-0.1.0-alpha.32-universal.dmg` | `752d09414b8cb004b04569166bc2f023990d2694e7102c167139928b3bc223ce` |
+| `Sia-0.1.0-alpha.32-universal.zip` | `f990a73b08dfc396b77fda5e3c50095cdefe8966b12f2702e89d4d66941e4080` |
 
-The durable operator evidence is in `release-verification-evidence/` in the original workspace:
-`release-1269001/` contains artifact hashes, signed packaging and deployment logs, rollback metadata,
-independent file checks and the current live results. Earlier `verification.json`, source bundles
-and `artifacts/polish-32a916c/` remain historical evidence. No credentials, private Messages archives or unrelated
-conversation screenshots belong in that evidence. Earlier artifact records remain in Git history
-and the preserved evidence directories.
+App Store Connect app `6825195609`, **Sia - Your Mac Assistant**, uses bundle `ai.sia.phone`.
+The external **Invited Pilot** group has no testers; contact details and Apple beta review
+remain incomplete. No tester invitations were sent. Push notifications remain unimplemented.
+
+Native build 31 from `55a7f58a4b75b8f6c2c233078009a3b7a9167d0d` adds the missing WebKit
+result-download handler and iOS save/share sheet, and reports Keychain save failures instead of
+silently continuing. Eight native tests passed, including byte-for-byte blob downloads and
+temporary-file cleanup plus isolated Keychain save/reload/update/revoke. A native UIKit test
+also verified that the real download handler presents the iOS share sheet and dismisses it on
+unpairing. This is automated simulator coverage, not a physical Save to Files walkthrough.
+The complete integrated `pnpm test:pilot` gate also passed after excluding generated Xcode
+products from source linting (same 1,318/45/27/72 counts above). The signed archive
+succeeded and App Store Connect accepted the upload. Build 31 finished processing and shows
+**Ready to Test** in **Pilot QA** (zero testers). A signed simulator retained its
+pairing after relaunch without a debug pairing link. The temporary October 21 test phone was
+then revoked: the Mac retained only its four pre-existing phones, and the simulator returned
+to native pairing without the task view, including after another relaunch. Physical-device acceptance remains open.
+
+Cloud ratings and account-deletion code from `bd32d980635b6cf894ae56c4bb2504cfadfaead7`
+were deployed to `sia-alpha`. Both Lambda hashes match, anonymous rating routes return 401,
+and all 18 alarms were OK after deployment. An authenticated in-app rating on a synthetic
+file task reached the aggregate report. Disposable-table verification covered atomic retries,
+rerating, and deleting one account's ratings without changing another account's contribution.
+The public privacy page now accurately describes optional feedback and separate research consent.
+
+PR #22 contains the Mac candidate and cloud fixes. PR #23 adds the native iPhone shell.
+Clean-recipient setup, physical iPhone acceptance, current-artifact voice/texting, support
+ownership and the recorded third-party redistribution permission remain open. Earlier
+successful rehearsals do not satisfy these current candidate gates.
 
 ## October 12 exact-candidate rehearsal
 

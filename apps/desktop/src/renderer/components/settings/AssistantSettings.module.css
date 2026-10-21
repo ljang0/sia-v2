@@ -1,5 +1,5 @@
 .page {
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
   color: var(--text-primary);
 }
@@ -15,7 +15,7 @@
 }
 .page h4 {
   margin: 0;
-  font-size: calc(16px * var(--text-scale));
+  font-size: var(--text-lg);
 }
 .page p {
   line-height: 1.55;
@@ -41,7 +41,7 @@
 .page select {
   width: 100%;
   min-width: 0;
-  min-height: 40px;
+  min-height: var(--row-min);
   box-sizing: border-box;
   padding: 10px 12px;
   border: 1px solid var(--border-control);
@@ -57,8 +57,8 @@
 .page button {
   cursor: pointer;
   font: inherit;
-  font-size: var(--text-sm);
-  min-height: 36px;
+  font-size: var(--text-md);
+  min-height: var(--target-min);
   padding: 8px 12px;
   border: 1px solid var(--border-control);
   border-radius: var(--radius-control);
@@ -106,7 +106,7 @@
   flex-shrink: 0;
 }
 .heading p {
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   margin: 0;
 }
 .card {
@@ -157,7 +157,7 @@
   color: var(--text-danger);
 }
 .note {
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
 }
 .page li {
   padding-bottom: 12px;
@@ -192,7 +192,7 @@
   border-color: var(--border-control);
 }
 .sections span {
-  font-size: var(--text-2xs);
+  font-size: var(--text-xs);
   background: var(--bg-hover);
   border-radius: 20px;
   padding: 2px 6px;

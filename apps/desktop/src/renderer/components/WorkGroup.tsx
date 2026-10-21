@@ -1,7 +1,8 @@
-import { CaretDown, CheckCircle, CircleNotch, WarningCircle } from '@phosphor-icons/react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { CaretDown, CheckCircle, WarningCircle } from '@phosphor-icons/react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { ActivityEvent } from '../types';
 import activityRow from './ActivityRow.module.css';
+import { AgentForm } from './AgentForm';
 import styles from './WorkGroup.module.css';
 
 interface WorkGroupProps {
@@ -26,6 +27,13 @@ export function WorkGroup({
   onToggle,
   renderStep,
 }: WorkGroupProps) {
+  // A run watched while it worked settles into its summary once; a reopened thread stays still.
+  const [previousLive, setPreviousLive] = useState(live);
+  const [settling, setSettling] = useState(false);
+  if (previousLive !== live) {
+    setPreviousLive(live);
+    setSettling(previousLive && !live);
+  }
   if (live || events.length < 2) {
     return <div className={styles.workGroupSteps}>{events.map(renderStep)}</div>;
   }
@@ -35,7 +43,11 @@ export function WorkGroup({
     endedAt ?? events.at(-1)!.timestamp,
   );
   return (
-    <div className={styles.workGroup} data-open={open ? 'true' : undefined}>
+    <div
+      className={styles.workGroup}
+      data-open={open ? 'true' : undefined}
+      data-settling={settling ? 'true' : undefined}
+    >
       <button
         type="button"
         className={styles.workGroupSummary}
@@ -43,9 +55,9 @@ export function WorkGroup({
         aria-expanded={open}
       >
         {problems ? (
-          <WarningCircle size={15} className={styles.workGroupProblemIcon} aria-hidden="true" />
+          <WarningCircle size={16} className={styles.workGroupProblemIcon} aria-hidden="true" />
         ) : (
-          <CheckCircle size={15} className={styles.workGroupDoneIcon} aria-hidden="true" />
+          <CheckCircle size={16} className={styles.workGroupDoneIcon} aria-hidden="true" />
         )}
         <span>
           {duration ? `Worked for ${duration}` : 'Worked on this'}
@@ -57,7 +69,7 @@ export function WorkGroup({
           </span>
         ) : null}
         <CaretDown
-          size={13}
+          size={16}
           className={open ? activityRow.caretExpanded : activityRow.caret}
           aria-hidden="true"
         />
@@ -77,6 +89,8 @@ interface WorkingStatusProps {
   plan?: PlanProgress | undefined;
   /** Steps this turn has finished; shown when there is no plan to count against. */
   finished?: number | undefined;
+  /** The working agent's identity, so its own form breathes beside the line. */
+  agentHue?: number | undefined;
 }
 
 export interface PlanProgress {
@@ -108,6 +122,7 @@ export function WorkingStatus({
   thinking,
   plan,
   finished = 0,
+  agentHue,
 }: WorkingStatusProps) {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -118,7 +133,7 @@ export function WorkingStatus({
   const label = !step && !writing && thinking ? thinking : workingLabel(Boolean(step), writing);
   const duration = since ? elapsed(since, new Date(now).toISOString()) : '';
   // A running step has its own spinner in its row, and a reply being written has its caret, so
-  // this line goes quiet then instead of adding a second moving indicator beside them.
+  // the presence only breathes then instead of sending rings beside them.
   const quiet = Boolean(step) || writing;
   return (
     <div
@@ -127,15 +142,34 @@ export function WorkingStatus({
       data-testid="turn-running"
       data-quiet={quiet || undefined}
     >
-      <CircleNotch size={15} className={styles.workingSpinner} aria-hidden="true" />
+      <span className={styles.workingPresence} aria-hidden="true">
+        <AgentForm
+          identity={agentHue}
+          state={quiet ? 'idle' : 'working'}
+          size="small"
+          className={styles.workingOrb}
+        />
+      </span>
       {/* Keyed by its words so a new phase fades in instead of snapping. */}
       <span key={label} className={styles.workingLabel}>
         {label}
       </span>
       {plan ? (
-        <span className={styles.workingElapsed}>{`Step ${plan.current} of ${plan.total}`}</span>
+        <span key={`plan-${plan.current}`} className={styles.workingCount}>
+          <span
+            className={styles.planTrack}
+            style={{ '--plan-progress': (plan.current - 1) / plan.total } as CSSProperties}
+            aria-hidden="true"
+          />
+          <span
+            className={styles.workingElapsed}
+          >{`Step ${plan.current} of ${plan.total}`}</span>
+        </span>
       ) : finished ? (
-        <span className={styles.workingElapsed}>
+        <span
+          key={`done-${finished}`}
+          className={`${styles.workingCount} ${styles.workingElapsed}`}
+        >
           {finished === 1 ? '1 step done' : `${finished} steps done`}
         </span>
       ) : null}

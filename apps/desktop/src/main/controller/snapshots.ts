@@ -17,6 +17,7 @@ type SnapshotsContext = Pick<
   | 'deps'
   | 'mac'
   | 'providers'
+  | 'ratings'
   | 'releaseAccessLocked'
   | 'revision'
   | 'settings'
@@ -102,6 +103,13 @@ export class Snapshots {
     };
   }
 
+  private activeRoute(): Pick<DesktopSnapshot, 'activeRoute'> | undefined {
+    const thread = this.ctx.state.threads.find(
+      ({ id }) => id === this.ctx.state.activeThreadId,
+    );
+    return thread ? { activeRoute: this.ctx.providers.routeSummary(thread) } : undefined;
+  }
+
   build(scoped: boolean): DesktopSnapshot {
     const identity = this.ctx.deps.identity.status();
     const cloud: DesktopSnapshot['cloud'] = {
@@ -171,18 +179,22 @@ export class Snapshots {
                 ({ threadId }) => threadId === this.ctx.state.activeThreadId,
               ),
             ),
+            ratings: this.ctx.state.activeThreadId
+              ? this.ctx.ratings.view(this.ctx.state.activeThreadId)
+              : {},
           }
         : {
             timeline: structuredClone(this.ctx.state.timeline),
             approvals: structuredClone(this.ctx.state.approvals),
+            ratings: this.ctx.ratings.view(),
           }),
       providers: this.ctx.providers.views.map((provider) => ({
         ...structuredClone(provider),
         ...(this.ctx.providers.usageLimits.has(provider.id)
           ? { limits: { ...this.ctx.providers.usageLimits.get(provider.id)! } }
           : {}),
-        ...(provider.id === 'codex' && this.ctx.providers.codexSetup
-          ? { setup: { ...this.ctx.providers.codexSetup } }
+        ...(this.ctx.providers.setupFor(provider)
+          ? { setup: { ...this.ctx.providers.setupFor(provider)! } }
           : {}),
       })),
       connections: structuredClone(this.ctx.state.connections).map((connection) =>
@@ -231,6 +243,7 @@ export class Snapshots {
       ...(this.ctx.state.activeThreadId
         ? { activeThreadId: this.ctx.state.activeThreadId }
         : {}),
+      ...(this.activeRoute() ?? {}),
       cloud,
       ...(this.ctx.deps.startupNotice
         ? { startupNotice: structuredClone(this.ctx.deps.startupNotice) }

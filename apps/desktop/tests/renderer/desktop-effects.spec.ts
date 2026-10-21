@@ -50,7 +50,7 @@ test('personal welcome opens existing work and finished replies retain their con
   await expect(recents).toBeVisible();
   await page.screenshot({ path: info.outputPath('personal-welcome.png') });
   await recents.getByRole('button', { name: /Weekly research update/ }).click();
-  await expect(page.getByRole('button', { name: /Stop current turn/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
   await expect(page.getByRole('region', { name: 'Task result' })).toHaveCount(0);
   const nav = page.getByRole('complementary', { name: 'Agent navigation' });
   await nav.getByRole('button', { name: 'Triage today’s inbox', exact: true }).click();
@@ -151,7 +151,6 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(page.locator('.dither-aurora-field canvas')).toBeVisible();
     await field.fill('Find my assignments for this week');
     await expect(send).toBeEnabled();
-    await expect(send.locator('.metal-surface')).toHaveAttribute('data-metal', 'ready');
     const end = await send.boundingBox();
     expect(end!.y + end!.height).toBeLessThan(900);
     await page.screenshot({ path: info.outputPath(`desktop-${colorScheme}.png`) });
@@ -162,7 +161,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
       .getByRole('main')
       .getByText('Find my assignments for this week', { exact: true });
     await expect(transcript).toHaveCount(1);
-    await page.getByRole('button', { name: 'Stop current turn' }).click();
+    await page.getByRole('button', { name: 'Stop', exact: true }).click();
     await expect(send).toBeVisible();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Voice', exact: true })).toBeVisible();
@@ -187,7 +186,7 @@ test('compact desktop keeps content reachable with reduced motion and no graphic
   expect(bounds!.y + bounds!.height).toBeLessThan(680);
   await page.screenshot({ path: info.outputPath('desktop-compact.png') });
   await field.press('Enter');
-  await expect(page.getByRole('button', { name: 'Stop current turn' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stop', exact: true })).toBeVisible();
 
   await page.emulateMedia({ forcedColors: 'active' });
   await page.getByTitle('New conversation', { exact: true }).first().click();
@@ -226,12 +225,22 @@ test('launcher retains native form submission, dismiss, and agent selection', as
   await page.getByRole('combobox', { name: 'Agent' }).selectOption('personal');
   await field.fill('Organize my downloads');
   const send = page.getByRole('button', { name: 'Send request' });
-  await expect(send.locator('.metal-surface')).toHaveAttribute('data-metal', 'ready');
+  await expect(send).toBeEnabled();
   expect(await page.locator('main').evaluate((el) => el.scrollHeight)).toBeLessThanOrEqual(208);
   await page.screenshot({ path: info.outputPath('launcher.png') });
   await send.click();
   await expect(field).toHaveValue('');
   await field.press('Escape');
+  // Escape plays the short exit first, then hides the window.
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { launcherProbe: { dismissals: number } }).launcherProbe
+            .dismissals,
+      ),
+    )
+    .toBe(1);
   const probe = await page.evaluate(
     () =>
       (
@@ -301,7 +310,7 @@ test('navigation stays stable, previews do not select, and the compact rail keep
   for (const width of [1280, 900]) {
     await nav.getByRole('searchbox', { name: 'Find a conversation' }).hover();
     await page.setViewportSize({ width, height: 760 });
-    await expect(nav).toHaveCSS('flex-basis', width === 900 ? '252px' : '272px');
+    await expect(nav).toHaveCSS('flex-basis', width === 900 ? '248px' : '288px');
     const title = renamed.getByText(longTitle, { exact: true });
     await expect(title).toHaveCSS('white-space', 'nowrap');
     expect((await title.boundingBox())!.width).toBeGreaterThan(
@@ -398,10 +407,10 @@ test('text size scales Sia and keeps primary actions on screen at 960x640', asyn
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await openAppearance(page);
   const body = page.locator('body');
-  await expect(body).toHaveCSS('font-size', '14px');
+  await expect(body).toHaveCSS('font-size', '15.5px');
   await page.getByRole('radio', { name: 'Larger', exact: true }).check();
   await expect(page.locator('html')).toHaveAttribute('data-text-size', 'larger');
-  await expect(body).toHaveCSS('font-size', '17.08px');
+  await expect(body).toHaveCSS('font-size', '18.91px');
   await page.getByRole('button', { name: 'Close settings', exact: true }).click();
   await page.getByRole('button', { name: 'New conversation', exact: true }).click();
   const send = page.getByRole('button', { name: 'Send message' });
@@ -409,7 +418,37 @@ test('text size scales Sia and keeps primary actions on screen at 960x640', asyn
   await page.keyboard.press('ControlOrMeta+,');
   await openAppearance(page);
   await page.getByRole('radio', { name: 'Default', exact: true }).check();
-  await expect(body).toHaveCSS('font-size', '14px');
+  await expect(body).toHaveCSS('font-size', '15.5px');
+});
+
+test('the new agent dialog keeps its actions visible at 1220x780 with Details open', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1220, height: 780 });
+  await page.goto('/#demo');
+  await page.getByRole('button', { name: 'Create agent', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'New agent' });
+  await dialog.getByText('Details', { exact: true }).click();
+  await expect(dialog.getByRole('combobox', { name: 'Model' })).toBeVisible();
+  const box = await dialog.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y + box!.height).toBeLessThanOrEqual(780);
+  for (const name of ['Create agent', 'Cancel']) {
+    const action = dialog.getByRole('button', { name, exact: true });
+    // In the window, and not clipped by the dialog's own scrolling body.
+    await expect(action).toBeInViewport({ ratio: 1 });
+    const actionBox = await action.boundingBox();
+    expect(actionBox!.y).toBeGreaterThanOrEqual(box!.y);
+    expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(box!.y + box!.height);
+  }
+  // The body scrolls under the pinned footer; the footer is still where it was.
+  await dialog.getByRole('button', { name: 'Create agent', exact: true }).hover();
+  await page.mouse.wheel(0, 2000);
+  await expect(
+    dialog.getByRole('button', { name: 'Create agent', exact: true }),
+  ).toBeInViewport({
+    ratio: 1,
+  });
 });
 
 test('appearance stops and restores decorative graphics across settings and conversation', async ({
@@ -433,15 +472,12 @@ test('appearance stops and restores decorative graphics across settings and conv
     'none',
   );
   await page.getByRole('textbox', { name: 'Message', exact: true }).fill('Keep this draft');
-  const surface = page.getByRole('button', { name: 'Send message' }).locator('.metal-surface');
-  await expect(surface.locator('canvas')).toHaveCount(0);
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
   await openAppearance(page);
   await expect(calm).toBeChecked();
   await expressive.check();
   await page.getByRole('button', { name: 'Close settings', exact: true }).click();
   await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'dither');
-  await expect(surface).toHaveAttribute('data-metal', 'ready');
   await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toHaveValue(
     'Keep this draft',
   );
@@ -514,3 +550,111 @@ test('navigation reveals a distant selected task without scrolling the app windo
   ).toEqual({ document: 0, body: 0 });
   await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
 });
+
+for (const viewport of [
+  { width: 1280, height: 900 },
+  { width: 960, height: 640 },
+]) {
+  test(`the Tools menu leaves a pending approval's choices uncovered at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await page.goto('/#demo');
+    const allow = page.getByRole('button', { name: 'Allow', exact: true });
+    await allow.scrollIntoViewIfNeeded();
+    // Measure first: an open menu hides the rest of the page from the accessibility tree.
+    const choices = [
+      (await allow.boundingBox())!,
+      (await page.getByRole('button', { name: "Don't allow" }).boundingBox())!,
+    ];
+    await page.getByRole('button', { name: /^Tools/ }).click();
+    const menu = page.getByRole('menu');
+    await expect(menu).toBeVisible();
+    const box = (await menu.boundingBox())!;
+    for (const target of choices) {
+      const overlaps =
+        box.x < target.x + target.width &&
+        target.x < box.x + box.width &&
+        box.y < target.y + target.height &&
+        target.y < box.y + box.height;
+      expect(overlaps).toBe(false);
+    }
+  });
+}
+
+test('sidebar and header controls meet the comfortable target size', async ({ page }) => {
+  await page.goto('/#demo');
+  const nav = page.getByRole('complementary', { name: 'Agent navigation' });
+  await expect(nav).toBeVisible();
+  // Layout size, not the painted box: hover-revealed actions rest slightly scaled down.
+  const size = (locator: ReturnType<Page['locator']>) =>
+    locator.evaluate((node: HTMLElement) => ({
+      width: node.offsetWidth,
+      height: node.offsetHeight,
+    }));
+  const targets = [
+    nav.getByRole('button', { name: 'Collapse sidebar' }),
+    nav.getByRole('button', { name: 'Create agent' }),
+    nav.getByRole('button', { name: 'Start a conversation with Research partner' }),
+    nav.getByRole('button', { name: 'Agent actions for Research partner' }),
+    nav.getByRole('button', { name: 'Conversation actions for Weekly research update' }),
+    nav.getByRole('searchbox', { name: 'Find a conversation' }),
+    page.getByRole('button', { name: 'Access', exact: true }),
+  ];
+  for (const target of targets) {
+    const { width, height } = await size(target);
+    expect(
+      Math.min(width, height),
+      await target.evaluate((node) => node.outerHTML.slice(0, 80)),
+    ).toBeGreaterThanOrEqual(36);
+  }
+});
+
+test('leaving an unused new conversation does not leave an empty row behind', async ({
+  page,
+}) => {
+  await page.goto('/#demo');
+  const nav = page.getByRole('complementary', { name: 'Agent navigation' });
+  const create = nav.locator('[aria-keyshortcuts="Meta+N"]');
+  // Rows for untitled conversations share the ⌘N button's name; count everything else.
+  const emptyRows = nav
+    .getByRole('button', { name: 'New conversation', exact: true })
+    .and(nav.locator(':not([aria-keyshortcuts])'));
+  await expect(
+    nav.getByRole('button', { name: 'Lisbon trip notes', exact: true }),
+  ).toBeVisible();
+  await expect(emptyRows).toHaveCount(0);
+  await create.click();
+  // The open conversation stays listed so people can see where they are.
+  await expect(emptyRows).toHaveCount(1);
+  await nav.getByRole('button', { name: 'Lisbon trip notes', exact: true }).click();
+  await expect(emptyRows).toHaveCount(0);
+  await create.click();
+  await nav.getByRole('button', { name: 'Triage today’s inbox', exact: true }).click();
+  await expect(emptyRows).toHaveCount(0);
+});
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`a working agent breathes with ${reducedMotion} motion`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion });
+    await page.goto('/#demo');
+    await page.getByTitle('New conversation', { exact: true }).first().click();
+    const message = page.getByRole('textbox', { name: 'Message', exact: true });
+    await message.fill('Summarise the open risks');
+    await message.press('Enter');
+    const working = page.getByTestId('turn-running');
+    await expect(working).toBeVisible();
+    const form = working.locator('[data-identity]');
+    await expect(form).toHaveAttribute('data-state', 'working');
+    const motion = await form.evaluate((element) => ({
+      breath: getComputedStyle(element).animationName,
+      ring: getComputedStyle(element.parentElement!, '::after').animationName,
+    }));
+    if (reducedMotion === 'reduce') {
+      expect(motion).toEqual({ breath: 'none', ring: 'none' });
+    } else {
+      expect(motion.breath).not.toBe('none');
+      expect(motion.ring).not.toBe('none');
+    }
+  });
+}

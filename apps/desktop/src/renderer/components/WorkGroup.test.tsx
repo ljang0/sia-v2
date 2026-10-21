@@ -81,7 +81,7 @@ describe('work groups', () => {
       />,
     );
     expect(screen.getByText('ls a')).toBeTruthy();
-    expect(screen.getByText('Running a command')).toBeTruthy();
+    expect(screen.getByText('Running a step on your Mac')).toBeTruthy();
     expect(screen.queryByRole('button', { name: /Worked for/ })).toBeNull();
   });
 
@@ -95,6 +95,35 @@ describe('work groups', () => {
     render(<WorkingStatus writing={false} thinking="Checking free slots" />);
     expect(screen.getByRole('status').textContent).toContain('Checking free slots');
     expect(screen.getByRole('status').textContent).not.toContain('Thinking');
+  });
+
+  it('shows the working agent breathing, and only breathing while a step moves', () => {
+    const { container, rerender } = render(<WorkingStatus writing={false} agentHue={2} />);
+    const form = () => container.querySelector('[data-identity]');
+    expect(form()?.getAttribute('data-identity')).toBe('2');
+    expect(form()?.getAttribute('data-state')).toBe('working');
+    expect(screen.getByRole('status').hasAttribute('data-quiet')).toBe(false);
+    rerender(
+      <WorkingStatus step={step('a', { status: 'running' })} writing={false} agentHue={2} />,
+    );
+    expect(form()?.getAttribute('data-state')).toBe('idle');
+    expect(screen.getByRole('status').hasAttribute('data-quiet')).toBe(true);
+  });
+
+  it('settles a run into its summary only when it finishes while watched', () => {
+    const props = {
+      events: [step('a'), step('b')],
+      open: false,
+      onToggle: () => undefined,
+      renderStep: (event: ActivityEvent) => <ActivityRow key={event.id} event={event} />,
+    };
+    const { container, rerender } = render(<WorkGroup {...props} live />);
+    expect(container.querySelector('[data-settling]')).toBeNull();
+    rerender(<WorkGroup {...props} live={false} />);
+    expect(container.querySelector('[data-settling="true"]')).not.toBeNull();
+    cleanup();
+    const reopened = render(<WorkGroup {...props} live={false} />);
+    expect(reopened.container.querySelector('[data-settling]')).toBeNull();
   });
 
   it('formats elapsed time', () => {
@@ -240,7 +269,7 @@ describe('image steps', () => {
     expect(screen.getByRole('button').textContent).toContain('Looked at the screen');
     fireEvent.click(screen.getByRole('button'));
     expect(container.textContent).not.toContain('/private/var');
-    expect(container.textContent).not.toContain('Ran a command');
+    expect(container.textContent).not.toContain('Ran a step on your Mac');
   });
 
   it('shows only the file name of a viewed image', () => {

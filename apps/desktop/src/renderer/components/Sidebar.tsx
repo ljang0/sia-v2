@@ -15,7 +15,7 @@ import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
 import styles from './Sidebar.module.css';
 import { focusComposer } from '../composerFocus';
-import { sidebarAgentOrder, sidebarThreadOrder } from '../shortcuts';
+import { listedThreads, sidebarAgentOrder } from '../shortcuts';
 import { AgentForm } from './AgentForm';
 import navigation from './navigation.module.css';
 import { TaskPreviewButton } from './TaskPreviewButton';
@@ -170,7 +170,7 @@ export function Sidebar({
     return sidebarAgentOrder(
       agents
         .map((agent) => {
-          const threads = sidebarThreadOrder(agent.threads).map((thread) =>
+          const threads = listedThreads(agent.threads, selectedThreadId).map((thread) =>
             thread.title === threadDisplayTitle(thread.title)
               ? thread
               : { ...thread, title: threadDisplayTitle(thread.title) },
@@ -192,7 +192,7 @@ export function Sidebar({
             agent.threads.length > 0,
         ),
     );
-  }, [agents, collapsed, query]);
+  }, [agents, collapsed, query, selectedThreadId]);
 
   if (collapsed) {
     return (
@@ -356,7 +356,7 @@ export function Sidebar({
           aria-label="Create agent"
           title="New agent"
         >
-          <Plus size={15} aria-hidden="true" />
+          <Plus size={18} aria-hidden="true" />
         </button>
       </div>
       <div
@@ -411,7 +411,7 @@ export function Sidebar({
                       aria-label={`Start a conversation with ${agent.name}`}
                       title="New conversation"
                     >
-                      <Plus size={14} aria-hidden="true" />
+                      <Plus size={16} aria-hidden="true" />
                     </button>
                     <AgentMenu
                       agent={agent}
@@ -565,7 +565,7 @@ export function Sidebar({
       <div className={`${styles.sidebarFooter} ${navigation.footer}`}>
         {onOpenQuickSwitcher ? (
           <button className={styles.settingsButton} type="button" onClick={onOpenQuickSwitcher}>
-            <MagnifyingGlass size={17} aria-hidden="true" />
+            <MagnifyingGlass size={18} aria-hidden="true" />
             <span>Search everything</span>
             <kbd className={styles.navShortcut}>⌘K</kbd>
           </button>
@@ -578,7 +578,7 @@ export function Sidebar({
             data-testid="activity-center-toggle"
             aria-current={activePage === 'activity' ? 'page' : undefined}
           >
-            <Pulse size={17} aria-hidden="true" />
+            <Pulse size={18} aria-hidden="true" />
             <span>Activity</span>
           </button>
         ) : null}
@@ -590,7 +590,7 @@ export function Sidebar({
             data-testid="scheduled-open"
             aria-current={activePage === 'scheduled' ? 'page' : undefined}
           >
-            <CalendarDots size={17} aria-hidden="true" />
+            <CalendarDots size={18} aria-hidden="true" />
             <span>Scheduled</span>
           </button>
         ) : null}
@@ -600,7 +600,7 @@ export function Sidebar({
           onClick={onOpenSettings}
           aria-current={activePage === 'settings' ? 'page' : undefined}
         >
-          <GearSix size={17} aria-hidden="true" />
+          <GearSix size={18} aria-hidden="true" />
           <span>Settings</span>
         </button>
       </div>
@@ -705,8 +705,11 @@ export function Sidebar({
                   data-testid="fork-isolation-checkbox"
                 />
                 <span>
-                  <strong>Isolated Git worktree</strong>
-                  <small>Recommended for parallel coding tasks.</small>
+                  <strong>Work on a separate copy of the files</strong>
+                  <small>
+                    Changes stay apart from the original. Good for running two coding tasks at
+                    once. (Uses a Git worktree.)
+                  </small>
                 </span>
               </label>
             ) : null}

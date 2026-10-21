@@ -18,8 +18,8 @@ describe('agent dialog', () => {
     fireEvent.click(screen.getByText('Details'));
 
     expect(screen.getByRole('combobox', { name: 'Model' })).toBeTruthy();
-    expect(screen.getByRole('option', { name: 'Included model · Included' })).toBeTruthy();
-    expect(screen.getByRole('option', { name: 'GPT-5.6 Sol · Codex plan' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'Included AI · Included' })).toBeTruthy();
+    expect(screen.getByRole('option', { name: 'GPT-5.6 Sol · ChatGPT plan' })).toBeTruthy();
     expect(screen.queryByRole('option', { name: /Claude/ })).toBeNull();
     expect(screen.queryByLabelText('Provider')).toBeNull();
     expect(screen.queryByText('Color')).toBeNull();
@@ -209,8 +209,8 @@ describe('agent dialog', () => {
       onOpenModelSettings,
     });
 
-    expect(screen.getByText('No usable model is connected.')).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: 'Open model settings' }));
+    expect(screen.getByText('No AI is connected yet.')).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Open AI settings' }));
     expect(onOpenModelSettings).toHaveBeenCalledOnce();
     expect(screen.queryByText(/not installed/i)).toBeNull();
   });

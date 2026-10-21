@@ -116,6 +116,41 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it('records why a scheduled run failed', async () => {
+    const runtime = {
+      // eslint-disable-next-line require-yield -- this run fails before producing events.
+      async *runTurn(): AsyncGenerator<never> {
+        throw new Error('Chrome closed before the check finished.');
+      },
+      dispose: vi.fn(async () => undefined),
+      cancel: vi.fn(async () => undefined),
+      respondToRequest: vi.fn(async () => undefined),
+    };
+    const { controller } = await createHarness({ fakeServices: false, runtime });
+    const agent = await controller.invoke('agents.save', {
+      name: 'Schedule failure',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const thread = await controller.invoke('threads.create', { agentId: agent.agentId });
+    const schedule = controller.createScheduleFromAction(thread.threadId, {
+      task: 'Record this check.',
+      cadence: 'daily',
+      firstRunAt: '2030-08-21T03:00:00.000Z',
+    });
+
+    await controller.invoke('schedules.runNow', { scheduleId: schedule.id });
+    await vi.waitFor(() => {
+      expect(controller.snapshot().schedules?.[0]?.lastRun).toMatchObject({
+        outcome: 'failed',
+        failureReason: 'Chrome closed before the check finished.',
+      });
+    });
+    await controller.shutdown();
+  });
+
   it('edits a schedule from the list and keeps weekday runs at the chosen local time', async () => {
     const controller = await createController();
     const agent = await controller.invoke('agents.save', {

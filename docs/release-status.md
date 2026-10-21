@@ -1,38 +1,59 @@
 # Release status
 
-The last published signed, notarized pilot build is `0.1.0-alpha.24` (tag `v0.1.0-alpha.24`). Its exact
-source, artifacts, and live-provider checks are in
-[`release-evidence.md`](./release-evidence.md).
-The dated operator handoff for that build, including its private download instructions, remains
-at the release tag.
+Updated October 21, 2026. The next controlled product-pilot candidate is
+`0.1.0-alpha.32` on `claude/demo-candidate` (PR #22). Source, CI, and signed packaging passed; live acceptance remains open;
+**do not describe it as ready or send invitations until the acceptance record is complete**.
+Alpha.30 and alpha.31 passed signing/notarization and upgrades retained the demo profile. Live file tasks
+found missing result controls on plain-text and streamed provider replies; alpha.32 addresses both paths.
+Native iPhone 0.1.0 (31) is **Ready to Test** in the internal **Pilot QA** TestFlight group
+(zero testers). It fixes native result downloads and pairing-save errors. Eight native tests,
+signed archive, upload and Apple processing passed. External beta review awaits contact details. The last published
+pilot remains alpha.24.
 
-Start here:
+## Pilot scope
 
-- [`public-release.md`](./public-release.md) — current alpha.25 candidate, verification and blockers.
-- [`cmu-pilot-runbook.md`](./cmu-pilot-runbook.md) — five-minute setup and safe pilot defaults.
-- [`manual-acceptance.md`](./manual-acceptance.md) — the remaining human acceptance pass.
-- [`release-notes.md`](./release-notes.md) — tester-facing notes for the next build.
+The owner selected a combined Mac pilot and native iPhone TestFlight release. The scope is a
+small named cohort with research sharing off, Codex as the initial provider, and the encrypted
+phone relay. PR #23 integrates the native iPhone shell with the current Mac candidate. No invitations or public download are authorized
+by this status file. Keep the recipient list and private distribution links outside Git.
 
-## Remaining before broader release
+## Current engineering work
 
-SES production email delivery is now configured on `sia-alpha` with the verified branded sender.
-The successful deployment retained existing sessions and their 30-day refresh lifetime. The operator received an email code and completed signup in an isolated signed candidate profile.
-A separate clean macOS user and recipient upgrade still need acceptance; see the current candidate record above.
+- Patched Vite to 7.3.7; the high-severity dependency gate now passes. One moderate advisory
+  remains in the optional development packaging logger `sprintf-js` (the registry still offers
+  only 1.1.3); it is not shipped as an app runtime dependency.
+- Task ratings now save their record and report totals atomically, including delivery retry and
+  competing edits. A private account reference supports deleting notes and report contributions.
+- Local result links in final replies now create validated result controls, including persistent
+  preview/open/reveal and phone download grants. Out-of-scope paths remain refused.
+- Source, deterministic desktop/phone, signing, cloud and exact-artifact live checks are being
+  recorded in the private operator evidence directory. Incomplete checks remain incomplete.
 
-These do not block a small named CMU product pilot with research collection off:
+## Acceptance before inviting testers
 
-1. Rotate the Meta credential and Apple app-specific password that were previously pasted into
-   chat, then update AWS Secrets Manager and the release Mac's Keychain profile.
-2. Name the pilot support/incident owner and keep the approved recipient list outside the
-   repository.
-3. Complete the human acceptance pass for email OTP, OpenAI OAuth, Google/Slack read-only access,
-   denial/cancel/reconnect, and the macOS permission prompts.
-4. Before public connector distribution, complete Google's verification requirements, two fresh
-   Google domains, two unrelated Slack workspaces, and separately approved synthetic write tests.
-5. Before research recruitment, complete every owner/signature in
-   [`research-release-signoff.md`](./research-release-signoff.md) and the deployed
-   research/alarm rehearsal in [`release.md`](./release.md).
+1. Source/CI and signed/notarized alpha.32 packaging passed; retain the prior signed artifacts.
+   The full local gate passed (1,318 desktop unit, 45 Electron, 27 renderer, 72 phone checks).
+   See the exact source and checksums in [public release](./public-release.md).
+2. Cloud ratings deployed successfully: both code hashes match, anonymous routes return 401,
+   and all 18 alarms are OK. An authenticated app rating on a synthetic task reached the report.
+3. Complete signed-app file work, native computer use, phone relay, voice and texting.
+   Alpha.32 result preview and Finder reveal passed. Native relay delivered a synthetic task;
+   a fresh post-restart file task and preview passed. Native Save UI and current voice/texting
+   remain open. The signed simulator
+   retained its pairing after relaunch. Revocation removed only the temporary test phone and
+   returned the simulator to pairing, including after relaunch. The Finder rehearsal read the
+   expected filenames but could not complete Go to Folder; current-artifact computer actions
+   remain unverified.
+4. Native iPhone tests, signed archive and TestFlight processing passed. Complete physical
+   iPhone acceptance (camera pairing, file Save, Wi-Fi/cellular reconnect and microphone), then
+   supply beta-review contacts and complete Apple review before external testing.
+5. Complete clean macOS-account signup/permissions and previous-release upgrade acceptance.
+6. Confirm a named support/incident owner, recipient list and redistribution permission for
+   third-party native sources whose license is not recorded in this repository.
 
-Do not put credentials, OAuth material, private download links, participant data, or local incident
-bundles in this repository. Superseded release records remain available from Git history and their
-release tags; they are intentionally not duplicated on `main`.
+Research enrollment, public connector distribution, preview-harness admission,
+APNs notifications, arbitrary user-added MCP connectors and always-on cloud execution are
+separate gates; they are not implied by this controlled product pilot.
+
+See [manual acceptance](./manual-acceptance.md), [pilot runbook](./cmu-pilot-runbook.md),
+[release notes](./release-notes.md), and [public release](./public-release.md).

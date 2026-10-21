@@ -78,12 +78,12 @@ export function activityLabel(tool: string | undefined, kind?: string): string {
   };
   if (tool && labels[tool]) return labels[tool];
   const kinds: Record<string, string> = {
-    command: 'Running a command',
+    command: 'Running a step on your Mac',
     file_change: 'Updating files',
     web_search: 'Searching the web',
     plan: 'Planning the next steps',
     subagent: 'Working with another agent',
-    compaction: 'Organizing conversation context',
+    compaction: 'Organizing the conversation',
     image: 'Viewing an image',
     review: 'Reviewing the work',
     browser: 'Working in the browser',
@@ -124,7 +124,7 @@ const PAST_TENSE: Record<string, string> = {
   Working: 'Worked',
 };
 
-/** The same label once the step is done: "Running a command" becomes "Ran a command". */
+/** The same label once the step is done: "Running a step on your Mac" becomes "Ran a step on your Mac". */
 export function completedActivityLabel(label: string): string {
   if (label === 'Getting ready') return 'Got ready';
   const [first, ...rest] = label.split(' ');

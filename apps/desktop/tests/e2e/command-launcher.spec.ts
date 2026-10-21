@@ -22,13 +22,13 @@ test('launcher uses an isolated bridge, opens from the menu, and dispatches to t
       path: 'test-results/conversation-clean.png',
       animations: 'disabled',
     });
-    await page.getByText('Model for this conversation', { exact: true }).click();
+    await page.getByText('AI for this conversation', { exact: true }).click();
     await expect(page.getByTestId('thread-model-select')).toBeVisible();
     await page.screenshot({
       path: 'test-results/conversation-agent-menu.png',
       animations: 'disabled',
     });
-    await page.getByText('Model for this conversation', { exact: true }).click();
+    await page.getByText('AI for this conversation', { exact: true }).click();
     await sia.application.evaluate(({ Menu }) => {
       const menu = Menu.getApplicationMenu()!;
       const item = menu.items[0]!.submenu!.items.find((item) => item.label === 'Ask Sia')!;
@@ -49,9 +49,7 @@ test('launcher uses an isolated bridge, opens from the menu, and dispatches to t
       animations: 'disabled',
     });
     await launcher.getByRole('textbox', { name: 'Your request' }).press('Enter');
-    await expect(
-      launcher.getByText(/This development turn used the deterministic local runtime/),
-    ).toBeVisible();
+    await expect(launcher.getByText(/This was a practice reply/)).toBeVisible();
     await expect(launcher.getByRole('button', { name: 'Open conversation' })).toBeVisible();
     const original = await launcher.evaluate(() => window.siaLauncher.state());
     await launcher.getByRole('textbox', { name: 'Your request' }).fill('Make that shorter');

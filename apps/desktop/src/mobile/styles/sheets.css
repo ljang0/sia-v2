@@ -5,8 +5,9 @@
   inset: 0;
   background: rgb(10 28 22 / 30%);
   backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
   z-index: 10;
-  animation: fade 0.2s ease both;
+  animation: fade var(--motion-surface) var(--ease-standard) both;
 }
 .phone-sheet {
   position: fixed;
@@ -14,22 +15,51 @@
   left: 50%;
   transform: translateX(-50%);
   width: min(100%, 600px);
-  max-height: calc(var(--phone-height, 100dvh) - 30px);
-  padding: 10px 23px calc(env(safe-area-inset-bottom) + 24px);
+  max-height: calc(var(--phone-height, 100dvh) - 30px - env(safe-area-inset-top));
+  padding: 10px max(23px, env(safe-area-inset-right)) calc(env(safe-area-inset-bottom) + 24px)
+    max(23px, env(safe-area-inset-left));
   overflow: auto;
+  overscroll-behavior: contain;
   background: var(--bg-canvas);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
+  border-bottom: 0;
   border-radius: 30px 30px 0 0;
   z-index: 11;
   box-shadow: var(--shadow-dialog);
-  animation: sheet-enter 240ms var(--phone-ease);
+  /* Rise like an iOS card: a soft spring on travel, opacity settled early so it never looks faded. */
+  animation: sheet-enter var(--motion-emphasis) var(--phone-spring) both;
 }
 .phone-sheet[data-state='closed'] {
-  animation: sheet-exit 140ms ease-in both;
+  animation: sheet-exit var(--motion-exit) var(--ease-exit) both;
 }
 .sheet-overlay[data-state='closed'] {
-  animation: fade 0.18s ease reverse both;
+  animation: fade var(--motion-exit) var(--ease-exit) reverse both;
+}
+/* Contents follow the card up by one beat each, capped like every phone list. */
+.phone-sheet > header,
+.sheet-actions > button,
+.device-card,
+.connection-facts > p,
+.phone-sheet > .connection-banner {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * min(var(--i, 1), 8));
+}
+.sheet-actions > button:nth-child(1),
+.device-card {
+  --i: 2;
+}
+.sheet-actions > button:nth-child(2),
+.connection-facts > p:nth-child(1) {
+  --i: 3;
+}
+.sheet-actions > button:nth-child(3),
+.connection-facts > p:nth-child(2) {
+  --i: 4;
+}
+.phone-sheet > .connection-banner {
+  --i: 5;
+  animation-name: settle;
 }
 .sheet-handle {
   width: 32px;
@@ -49,15 +79,15 @@
   min-width: 0;
 }
 .phone-sheet header h2 {
-  font: 500 29px/1.1 var(--font-brand);
-  letter-spacing: -0.045em;
+  font: 650 29px/1.1 var(--font-brand);
+  letter-spacing: -0.03em;
   margin: 0 0 10px;
   overflow-wrap: anywhere;
 }
 .phone-sheet header p {
   color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--phone-text-body);
+  line-height: 1.5;
   margin: 0;
 }
 .sheet-actions {
@@ -76,6 +106,19 @@
   background: var(--bg-raised);
   padding: 14px;
 }
+@media (hover: hover) {
+  .sheet-actions button:hover:not(:disabled) {
+    border-color: color-mix(in srgb, var(--bg-accent) 40%, var(--border-subtle));
+    background: color-mix(in srgb, var(--bg-accent) 6%, var(--bg-raised));
+  }
+}
+.sheet-actions button > svg:last-child {
+  color: var(--text-tertiary);
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+.sheet-actions button:active:not(:disabled) > svg:last-child {
+  transform: translate(var(--motion-nudge), calc(var(--motion-nudge) * -1));
+}
 .sheet-actions button > span {
   flex: 1;
 }
@@ -86,15 +129,15 @@
 .sheet-actions strong,
 .connection-facts strong {
   display: block;
-  font-size: 13px;
-  font-weight: 550;
+  font-size: var(--phone-text-body);
+  font-weight: 600;
 }
 .sheet-actions small,
 .connection-facts small {
   display: block;
-  font-size: 11px;
-  line-height: 1.6;
-  margin-top: 4px;
+  font-size: var(--phone-text-label);
+  line-height: 1.45;
+  margin-top: 3px;
   color: var(--text-secondary);
 }
 .device-card {
@@ -110,29 +153,33 @@
 .device-icon {
   padding: 10px;
   border-radius: 20px;
-  background: var(--shell-hover);
-  color: #b9d8c5;
+  background: var(--bg-raised);
+  color: var(--text-link);
 }
 .device-card strong {
-  font: 500 21px var(--font-brand);
+  font: 600 21px var(--font-brand);
 }
 .device-status {
   display: flex;
   align-items: center;
-  gap: 7px;
-  font-size: 11px;
+  gap: 8px;
+  font-size: var(--phone-text-label);
   color: var(--shell-dim);
 }
 .device-status.online i {
-  background: #a6d3b7;
+  background: var(--bg-accent);
+}
+.device-status:not(.online) i {
+  animation: breathe var(--phone-breath) ease-in-out infinite;
 }
 .connection-facts p {
   display: flex;
-  gap: 13px;
-  align-items: center;
+  gap: 14px;
+  align-items: flex-start;
   margin: 24px 4px 0;
 }
 .connection-facts svg {
   flex: none;
+  margin-top: 2px;
   color: var(--text-success);
 }

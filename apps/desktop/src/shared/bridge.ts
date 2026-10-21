@@ -11,6 +11,7 @@ import type {
   UpdateThreadConfigInput,
 } from './bridge/inputs.js';
 import type { ProviderId } from './bridge/providers.js';
+import type { SubmitRatingInput } from './bridge/ratings.js';
 import type {
   AdminInviteView,
   AdminResearchBatchView,
@@ -43,6 +44,7 @@ export * from './bridge/computer.js';
 export * from './bridge/connections.js';
 export * from './bridge/inputs.js';
 export * from './bridge/providers.js';
+export * from './bridge/ratings.js';
 export * from './bridge/research.js';
 export * from './bridge/schedules.js';
 export * from './bridge/snapshot.js';
@@ -141,6 +143,7 @@ export interface BridgeRequestMap {
   'settings.setOpenAtLogin': { enabled: boolean };
   'settings.setDeveloperTools': { enabled: boolean };
   'feedback.compose': { message: string; threadId?: string; includeDiagnostics: boolean };
+  'ratings.submit': SubmitRatingInput;
   'updates.check': undefined;
   'updates.openDownload': undefined;
   'computer.permissions': undefined;
@@ -281,6 +284,7 @@ export interface BridgeResultMap {
   'settings.setOpenAtLogin': DesktopSnapshot;
   'settings.setDeveloperTools': DesktopSnapshot;
   'feedback.compose': { opened: boolean };
+  'ratings.submit': DesktopSnapshot;
   'updates.check': UpdateView;
   'updates.openDownload': { opened: boolean };
   'computer.permissions': DesktopSnapshot;
@@ -497,6 +501,10 @@ export interface DesktopBridgeApi {
       threadId: string | undefined,
       includeDiagnostics: boolean,
     ): Promise<BridgeResultMap['feedback.compose']>;
+  };
+  ratings: {
+    /** Records the person's rating of a finished task; rating again replaces it. */
+    submit(input: SubmitRatingInput): Promise<DesktopSnapshot>;
   };
   updates: {
     check(): Promise<UpdateView>;

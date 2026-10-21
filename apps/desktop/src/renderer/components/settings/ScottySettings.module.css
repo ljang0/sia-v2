@@ -23,9 +23,8 @@
   display: flex;
   gap: 6px;
   align-items: center;
-  font-size: var(--text-2xs);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
-  letter-spacing: 0.08em;
 }
 .hero h3 {
   grid-column: 2;
@@ -65,7 +64,7 @@
   font-weight: 560;
 }
 .row p {
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   margin: 4px 0 0;
 }
@@ -87,12 +86,12 @@
 }
 .row button {
   white-space: nowrap;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 .note {
   max-width: 660px;
   color: var(--text-secondary);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   line-height: 1.65;
   margin-top: 15px;
 }

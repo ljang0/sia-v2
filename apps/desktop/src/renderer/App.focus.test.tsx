@@ -51,7 +51,7 @@ describe('focus after actions that remove the focused control', () => {
     await waitFor(() => expect(document.activeElement).toBe(card));
     expect(card.getAttribute('tabindex')).toBe('-1');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Allow' }));
     await waitFor(() => expect(document.activeElement).toBe(composer()));
   });
 
@@ -63,7 +63,7 @@ describe('focus after actions that remove the focused control', () => {
 
   it('returns to the composer after Stop and after removing a queued message', async () => {
     await renderApp(runningInbox);
-    const stop = await screen.findByRole('button', { name: 'Stop current turn' });
+    const stop = await screen.findByRole('button', { name: 'Stop' });
     const remove = screen.getByRole('button', { name: 'Remove queued message' });
     remove.focus();
     fireEvent.click(remove);
@@ -71,9 +71,7 @@ describe('focus after actions that remove the focused control', () => {
 
     stop.focus();
     fireEvent.click(stop);
-    await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'Stop current turn' })).toBeNull(),
-    );
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(composer()));
   });
 
@@ -115,7 +113,7 @@ describe('focus after actions that remove the focused control', () => {
   it('returns to the composer after archiving from the thread menu', async () => {
     await renderApp();
     // Settle the open thread's approval so its composer accepts focus.
-    fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Allow' }));
     await waitFor(() => expect(composer().hasAttribute('disabled')).toBe(false));
     fireEvent.pointerDown(
       screen.getByRole('button', { name: 'Conversation actions for Triage today’s inbox' }),
@@ -145,23 +143,21 @@ describe('focus after actions that remove the focused control', () => {
 describe('keyboard shortcuts', () => {
   it('stops the running task with Esc', async () => {
     await renderApp(runningInbox);
-    await screen.findByRole('button', { name: 'Stop current turn' });
+    await screen.findByRole('button', { name: 'Stop' });
     fireEvent.keyDown(window, { key: 'Escape' });
-    await waitFor(() =>
-      expect(screen.queryByRole('button', { name: 'Stop current turn' })).toBeNull(),
-    );
+    await waitFor(() => expect(screen.queryByRole('button', { name: 'Stop' })).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(composer()));
   });
 
   it('leaves the task running when Esc closes a dialog', async () => {
     await renderApp(runningInbox);
-    await screen.findByRole('button', { name: 'Stop current turn' });
+    await screen.findByRole('button', { name: 'Stop' });
     fireEvent.keyDown(window, { key: '/', metaKey: true });
     const dialog = await screen.findByRole('dialog', { name: 'Keyboard shortcuts' });
     expect(dialog.textContent).toContain('Stop the running task');
     fireEvent.keyDown(dialog, { key: 'Escape' });
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
-    expect(screen.getByRole('button', { name: 'Stop current turn' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Stop' })).toBeTruthy();
   });
 
   it('opens the nth sidebar conversation with ⌘1–9', async () => {

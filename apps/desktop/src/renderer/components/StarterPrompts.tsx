@@ -54,13 +54,13 @@ export function StarterPrompts({
         return (
           <button key={prompt} type="button" onClick={() => onSend(prompt)}>
             <span className={styles.starterIcon} aria-hidden="true">
-              <StarterIcon size={17} />
+              <StarterIcon size={18} />
             </span>
             <span className={styles.starterText}>
               <strong>{title}</strong>
               <span>{prompt}</span>
             </span>
-            <ArrowUpRight className={styles.starterArrow} size={14} aria-hidden="true" />
+            <ArrowUpRight className={styles.starterArrow} size={16} aria-hidden="true" />
           </button>
         );
       })}

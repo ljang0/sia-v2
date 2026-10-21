@@ -13,6 +13,7 @@ import { turnFinishedNotice } from './notification-copy.js';
 import { abortableDelay } from './async-utils.js';
 import { backgroundControlUnavailable } from './computer-access.js';
 import type { ControllerContext } from './context.js';
+import { resultPathsFromMarkdown } from './result-files.js';
 import { isStreamingDelta } from './runtime-events.js';
 import type { QueuedTurn } from './types.js';
 
@@ -27,6 +28,7 @@ type TurnRunnerContext = Pick<
   | 'computerAccess'
   | 'deps'
   | 'providers'
+  | 'ratings'
   | 'requireThread'
   | 'researchCapture'
   | 'runtime'
@@ -46,6 +48,7 @@ export class TurnRunner {
   constructor(private readonly ctx: TurnRunnerContext) {}
 
   async runTurn(turn: QueuedTurn, signal: AbortSignal): Promise<void> {
+    const startedAt = Date.now();
     let lease: TurnLease | undefined;
     let macTask: { request: string; result?: MacTaskResult } | undefined;
     let nativeVault: NotchVault | undefined;
@@ -94,7 +97,7 @@ export class TurnRunner {
         const assistantEventId = randomUUID();
         const assistantTimestamp = new Date().toISOString();
         const assistantText =
-          'I am ready. This development turn used the deterministic local runtime, so no provider account or connected-app data was accessed.';
+          'All set. This was a practice reply, so no AI service or connected app was used.';
         this.ctx.appendTimeline(turn.threadId, {
           id: assistantEventId,
           turnId: turn.id,
@@ -361,6 +364,36 @@ export class TurnRunner {
               taskResult.response += ` The result file could not be opened here. ${cause instanceof Error ? cause.message : 'Ask Sia to save the result again.'}`;
             }
           }
+          if (
+            !stoppedStatus &&
+            !taskResult?.output_file &&
+            ((event.type === 'message' &&
+              event.payload.role === 'assistant' &&
+              event.payload.phase !== 'commentary' &&
+              !event.payload.delta) ||
+              (event.type === 'completion' && event.payload.status === 'completed'))
+          ) {
+            const message = this.ctx.state.timeline.findLast(
+              (item) =>
+                item.threadId === thread.id &&
+                item.turnId === turn.id &&
+                item.kind === 'assistant',
+            );
+            if (message && !message.attachments?.length) {
+              // Connected-app Codex replies stream deltas without a final message event.
+              // At successful completion, inspect the assembled last reply as well.
+              const text = message.text ?? '';
+              const results = [];
+              for (const path of resultPathsFromMarkdown(text)) {
+                try {
+                  results.push(await this.ctx.attachments.grantResult(thread.id, path));
+                } catch {
+                  // A Markdown link cannot grant access beyond this thread's result roots.
+                }
+              }
+              if (results.length) message.attachments = results;
+            }
+          }
           if (stoppedStatus) {
             thread.status = stoppedStatus.status;
             if (stoppedStatus.queueReason) thread.queueReason = stoppedStatus.queueReason;
@@ -412,7 +445,14 @@ export class TurnRunner {
           status: 'failed',
           timestamp: new Date().toISOString(),
         });
-        this.markTurnFinished(thread, turn, 'failed', macTask);
+        this.markTurnFinished(
+          thread,
+          turn,
+          'failed',
+          macTask,
+          undefined,
+          error instanceof Error ? error.message : undefined,
+        );
       }
     } finally {
       await recordNative(
@@ -448,6 +488,16 @@ export class TurnRunner {
           }
         }
       }
+      this.ctx.ratings.recordFinishedTask(
+        turn,
+        signal.aborted
+          ? 'cancelled'
+          : this.ctx.state.threads.find(({ id }) => id === turn.threadId)?.status === 'failed'
+            ? 'failed'
+            : 'completed',
+        startedAt,
+        macTask !== undefined,
+      );
       this.ctx.approvals.revokeApprovalsForTurn(turn.threadId, turn.id);
       lease?.release();
       this.ctx.turns.releaseTurn(turn.threadId);
@@ -461,6 +511,7 @@ export class TurnRunner {
     outcome: 'complete' | 'failed',
     macTask?: { request: string; result?: MacTaskResult },
     taskResult?: MacTaskResult,
+    failureReason?: string,
   ): void {
     try {
       if (macTask)
@@ -486,6 +537,7 @@ export class TurnRunner {
     this.ctx.schedules.markScheduleRunFinished(
       turn,
       outcome === 'complete' ? 'completed' : 'failed',
+      failureReason ?? (taskResult?.success === false ? taskResult.response : undefined),
     );
     // Continue task resends the failed turn's files, whatever ended it (start error,
     // model error or a task that reported it could not finish).

@@ -21,7 +21,7 @@ import { ApprovalCard } from '../ApprovalCard';
 import { AttachmentChip } from '../ConversationAttachments';
 import { RowErrorBoundary } from '../ErrorBoundary';
 import { NoticeText } from '../PlainErrorText';
-import { ReplyFeedbackButtons, type ReplyRating } from '../ReplyFeedback';
+import { type RateTaskInput, type ReplyRating, TaskRatingButtons } from '../ReplyFeedback';
 import { ReplyReadyMark, ReplySurface } from '../ResultCard';
 import { SafeMarkdown } from '../SafeMarkdown';
 
@@ -39,7 +39,10 @@ interface EventViewProps {
   streaming?: boolean | undefined;
   justCompleted?: boolean | undefined;
   onToggleSpeech?: ((text: string) => Promise<void>) | undefined;
+  /** Opens the support feedback draft about a reply. */
   onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
+  /** Records a rating of the finished task this reply ends. */
+  onRateTask?: ((input: RateTaskInput) => Promise<void>) | undefined;
   /** Replaces the last message with new text and asks again. */
   onEditMessage?: ((text: string) => Promise<void>) | undefined;
   /** Asks the last message again for a new reply. */
@@ -56,6 +59,7 @@ export interface RowActions {
   previewAttachment(attachment: RendererAttachment): void;
   loadThumbnail(attachment: RendererAttachment): Promise<string | undefined>;
   rateReply(rating: ReplyRating, reply: string): void;
+  rateTask(input: RateTaskInput): Promise<void>;
   redo(text?: string): Promise<void>;
   resolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
 }
@@ -67,6 +71,7 @@ interface ConversationRowProps extends Omit<
   | 'onLoadThumbnail'
   | 'onResolveApproval'
   | 'onRateReply'
+  | 'onRateTask'
   | 'onEditMessage'
   | 'onTryAgain'
 > {
@@ -111,6 +116,7 @@ export const ConversationRow = memo(function ConversationRow({
         onPreviewAttachment={previewable ? actions.previewAttachment : undefined}
         onLoadThumbnail={previewable ? actions.loadThumbnail : undefined}
         onRateReply={rateable ? actions.rateReply : undefined}
+        onRateTask={rateable ? actions.rateTask : undefined}
         onEditMessage={editable ? (text) => actions.redo(text) : undefined}
         onTryAgain={retryable ? () => actions.redo() : undefined}
         onResolveApproval={actions.resolveApproval}
@@ -142,6 +148,7 @@ function EventViewContent({
   justCompleted,
   onToggleSpeech,
   onRateReply,
+  onRateTask,
   onEditMessage,
   onTryAgain,
   onPreviewAttachment,
@@ -176,7 +183,7 @@ function EventViewContent({
         className={`${primitives.notice} ${primitives[`notice_${event.tone}`]}`}
         role="status"
       >
-        <WarningCircle size={17} aria-hidden="true" />
+        <WarningCircle size={18} aria-hidden="true" />
         <div>
           <NoticeText
             title={event.title}
@@ -192,7 +199,7 @@ function EventViewContent({
   if (event.type === 'question') {
     return (
       <div className={primitives.notice} role="status">
-        <ChatCircle size={17} aria-hidden="true" />
+        <ChatCircle size={18} aria-hidden="true" />
         <div>
           <strong>{agentName} has a question</strong>
           <SafeMarkdown content={event.prompt} />
@@ -211,9 +218,9 @@ function EventViewContent({
     >
       <span className={styles.messageAvatar} aria-hidden="true">
         {event.role === 'user' ? (
-          <User size={14} weight="bold" />
+          <User size={16} />
         ) : (
-          <AgentForm identity={agentHue} size="small" />
+          <AgentForm identity={agentHue} state={streaming ? 'working' : 'idle'} size="small" />
         )}
       </span>
       <header>
@@ -231,7 +238,7 @@ function EventViewContent({
             title="Edit message"
             data-testid="message-edit"
           >
-            <PencilSimple size={14} aria-hidden="true" />
+            <PencilSimple size={16} aria-hidden="true" />
           </button>
         ) : null}
         {event.role === 'assistant' && onTryAgain && !streaming ? (
@@ -244,7 +251,7 @@ function EventViewContent({
             title="Ask again for a new reply"
             data-testid="message-try-again"
           >
-            <ArrowClockwise size={14} aria-hidden="true" />
+            <ArrowClockwise size={16} aria-hidden="true" />
           </button>
         ) : null}
         {event.role === 'assistant' && onToggleSpeech && !streaming ? (
@@ -263,16 +270,22 @@ function EventViewContent({
             data-testid="message-read-aloud"
           >
             {speechPhase === 'loading' ? (
-              <SpinnerGap className={primitives.spin} size={14} aria-hidden="true" />
+              <SpinnerGap className={primitives.spin} size={16} aria-hidden="true" />
             ) : speechPhase === 'playing' ? (
-              <StopCircle size={14} weight="fill" aria-hidden="true" />
+              <StopCircle size={16} weight="fill" aria-hidden="true" />
             ) : (
-              <SpeakerHigh size={14} aria-hidden="true" />
+              <SpeakerHigh size={16} aria-hidden="true" />
             )}
           </button>
         ) : null}
-        {event.role === 'assistant' && onRateReply && !streaming ? (
-          <ReplyFeedbackButtons onRate={(rating) => onRateReply(rating, event.content)} />
+        {event.role === 'assistant' && event.taskRating && onRateTask && !streaming ? (
+          <TaskRatingButtons
+            state={event.taskRating}
+            onRate={onRateTask}
+            onSendFeedback={
+              onRateReply ? (rating) => onRateReply(rating, event.content) : undefined
+            }
+          />
         ) : null}
       </header>
       <div
@@ -393,9 +406,9 @@ function CopyMessageButton({ content }: { content: string }) {
       data-copied={copied ? 'true' : undefined}
     >
       {copied ? (
-        <Check size={14} weight="bold" className={styles.copiedCheck} aria-hidden="true" />
+        <Check size={16} weight="bold" className={styles.copiedCheck} aria-hidden="true" />
       ) : (
-        <Copy size={14} aria-hidden="true" />
+        <Copy size={16} aria-hidden="true" />
       )}
       {copied ? (
         <span className={styles.copiedTip} aria-hidden="true">

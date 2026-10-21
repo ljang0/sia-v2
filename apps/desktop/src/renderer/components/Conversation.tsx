@@ -22,7 +22,7 @@ import { QueuedMessages } from './QueuedMessages';
 import { ConversationOutline, hasConversationOutline } from './ConversationOutline';
 import { ThreadErrorText } from './PlainErrorText';
 import { usageWarningText } from '../plainErrors';
-import type { ReplyRating } from './ReplyFeedback';
+import type { RateTaskInput, ReplyRating } from './ReplyFeedback';
 import { TurnChangesBar, turnChangeSummaries, type TurnChangeActions } from './TurnChanges';
 import { DitherAurora as Aurora } from './effects/DitherAurora';
 import { ConversationFind } from './conversation/ConversationFind';
@@ -86,8 +86,10 @@ interface ConversationProps {
   onResolveApproval(approvalId: string, decision: ApprovalDecision): Promise<void>;
   /** Undo changes: where the files a reply changed stand, and putting them back or forward. */
   turnChanges?: TurnChangeActions | undefined;
-  /** Thumbs up or down on a reply opens a feedback draft about it. */
+  /** "Send feedback to the Sia team" from a rating opens a feedback draft about the reply. */
   onRateReply?: ((rating: ReplyRating, reply: string) => void) | undefined;
+  /** Thumbs on a finished task's final reply record a rating of that task. */
+  onRateTask?: ((input: RateTaskInput) => Promise<void>) | undefined;
   onCreateThread?: (() => void) | undefined;
   onCreateAgent?: (() => void) | undefined;
   onOpenApps?: (() => void) | undefined;
@@ -137,6 +139,7 @@ export function Conversation({
   onResolveApproval,
   turnChanges,
   onRateReply,
+  onRateTask,
   onCreateThread,
   onCreateAgent,
   onOpenApps,
@@ -348,6 +351,7 @@ export function Conversation({
         return result.kind === 'image' ? result.dataUrl : undefined;
       },
       rateReply: (rating, reply) => onRateReply?.(rating, reply),
+      rateTask: (input) => onRateTask?.(input) ?? Promise.resolve(),
       redo: (text) => onRedo?.(text) ?? Promise.resolve(),
       resolveApproval: async (approvalId, decision) => {
         setBusyApprovalId(approvalId);
@@ -372,6 +376,7 @@ export function Conversation({
       loadThumbnail: (attachment) =>
         latestRowActions.current?.loadThumbnail(attachment) ?? Promise.resolve(undefined),
       rateReply: (rating, reply) => latestRowActions.current?.rateReply(rating, reply),
+      rateTask: (input) => latestRowActions.current?.rateTask(input) ?? Promise.resolve(),
       redo: (text) => latestRowActions.current?.redo(text) ?? Promise.resolve(),
       resolveApproval: (approvalId, decision) =>
         latestRowActions.current?.resolveApproval(approvalId, decision) ?? Promise.resolve(),
@@ -397,6 +402,12 @@ export function Conversation({
   const openedEventIds = useMemo(
     () => new Set((thread?.events ?? []).map(({ id }) => id)),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot the rows present when the thread opened.
+    [thread?.id],
+  );
+  // Likewise for the banners: a failure or queue that appears while the thread is open settles in.
+  const openedState = useMemo(
+    () => ({ error: thread?.error, status: thread?.status }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- snapshot the state the thread opened with.
     [thread?.id],
   );
   if (loading) return <ConversationSkeleton />;
@@ -515,7 +526,7 @@ export function Conversation({
         completed={event.id === resultId}
         speakable={Boolean(voiceEnabled && onSpeak)}
         previewable={Boolean(onPreviewAttachment)}
-        rateable={Boolean(onRateReply)}
+        rateable={Boolean(onRateTask)}
         editable={event.id === editableEventId}
         retryable={event.id === tryAgainEventId}
       />
@@ -569,13 +580,16 @@ export function Conversation({
       >
         <div className={styles.conversationColumn} ref={columnRef}>
           {queued ? (
-            <div className={styles.queueBanner} role="status">
-              <Clock size={17} aria-hidden="true" />
+            <div
+              className={styles.queueBanner}
+              role="status"
+              data-entering={openedState.status !== 'queued' ? 'true' : undefined}
+            >
+              <Clock size={18} aria-hidden="true" />
+              {/* One plain notice: the reason already says what it waits for and when it starts. */}
               <div>
-                <strong>Queued</strong>
-                <span>
-                  {thread.queueReason ?? 'This turn is waiting for a local resource.'}
-                </span>
+                <strong>{thread.queueReason ?? 'Waiting to start'}</strong>
+                {thread.queueReason ? null : <span>Sia starts this as soon as it can.</span>}
               </div>
             </div>
           ) : null}
@@ -623,6 +637,7 @@ export function Conversation({
                   thinking={thread.thinking}
                   plan={currentPlanProgress}
                   finished={finishedSteps}
+                  agentHue={agentHue}
                 />
               ) : null}
               {browserRecovery}
@@ -632,6 +647,7 @@ export function Conversation({
             <div
               className={styles.errorBanner}
               role="alert"
+              data-entering={thread.error !== openedState.error ? 'true' : undefined}
               data-testid="interrupted-turn-banner"
             >
               <WarningCircle size={18} aria-hidden="true" />
@@ -649,7 +665,7 @@ export function Conversation({
                 onClick={() => void onRetry()}
                 data-testid="interrupted-turn-retry"
               >
-                <ArrowClockwise size={15} aria-hidden="true" />
+                <ArrowClockwise size={16} aria-hidden="true" />
                 Continue task
               </button>
             </div>
@@ -666,7 +682,7 @@ export function Conversation({
               onClick={jumpToLatest}
               data-attention={waitingOnPerson(thread) ? 'true' : undefined}
             >
-              <ArrowDown size={14} aria-hidden="true" />
+              <ArrowDown size={16} aria-hidden="true" />
               {waitingOnPerson(thread)?.label ?? 'Jump to latest'}
             </button>
           ) : null}
@@ -700,11 +716,12 @@ export function Conversation({
 
       {usageWarning ? (
         <p className={styles.usageWarning} role="status" data-testid="usage-warning">
-          <WarningCircle size={14} aria-hidden="true" />
+          <WarningCircle size={16} aria-hidden="true" />
           {usageWarning}
         </p>
       ) : null}
       <QueuedMessages
+        key={`queue:${thread.id}`}
         messages={thread.queuedMessages ?? []}
         agentName={agentName}
         onRemove={onRemoveQueued}

@@ -8,10 +8,11 @@ import type {
   ProviderUsageLimitView,
   ProviderUsageView,
   ProviderView,
+  ThreadView,
 } from '../../shared/bridge.js';
 import { providerPlan } from '../providers/provider-probe.js';
 import type { ControllerContext } from './context.js';
-import { modelRouteKey } from './execution-routes.js';
+import { legacyResolvedExecutionTarget, modelRouteKey } from './execution-routes.js';
 
 /** The parts of the controller context ProviderAccess uses. */
 type ProviderAccessContext = Pick<
@@ -68,21 +69,21 @@ export class ProviderAccess {
         status: 'ready',
         model: 'gpt-5.6-sol',
         version: '0.147.0',
-        account: 'Deterministic test runtime',
-        detail: 'Deterministic local development runtime.',
-        billing: 'No provider account is used in fake-services mode.',
+        account: 'Practice mode',
+        detail: 'Practice replies for testing Sia.',
+        billing: 'Nothing is billed in practice mode.',
         models: [
           {
             id: 'gpt-5.6-sol',
             label: 'GPT-5.6 Sol',
-            description: 'Deterministic test model.',
+            description: 'Practice model.',
             reasoningEfforts: ['low', 'medium', 'high', 'xhigh'],
             defaultReasoningEffort: 'high',
           },
           {
             id: 'gpt-5.6-terra',
             label: 'GPT-5.6 Terra',
-            description: 'Deterministic alternate test model.',
+            description: 'Second practice model.',
             reasoningEfforts: ['low', 'medium', 'high'],
             defaultReasoningEffort: 'medium',
           },
@@ -116,12 +117,13 @@ export class ProviderAccess {
       model: harnesses[0]!.models[0]!.id,
       detail: harnesses.map(({ name, disclosure }) => `${name}: ${disclosure}`).join(' '),
       billing: 'Provided by the model lab for testing.',
-      models: harnesses.flatMap(({ name, models }) =>
+      models: harnesses.flatMap(({ id, name, models }) =>
         models.map((model) => ({
           id: model.id,
           label: model.label,
           description: `Runs in ${name}’s own harness.`,
           reasoningEfforts: [],
+          lab: { id, name },
         })),
       ),
     };
@@ -312,44 +314,49 @@ export class ProviderAccess {
       if (provider.status === 'needs_login') {
         throw new Error('Sign in to Sia to use included models.');
       }
-      throw new Error('Included models are already part of your Sia account.');
+      const harness = this.views.find(({ id }) => id === 'codex')?.status;
+      if (!needsManagedInstall(provider.status))
+        throw new Error('Included models are already part of your Sia account.');
+      if (!harness || !needsManagedInstall(harness))
+        throw new Error('Sia’s AI engine is unavailable in this build. Check again later.');
+      // Included models run through the Codex App Server harness, so finishing their setup
+      // installs it. No ChatGPT account is involved, so no sign-in continues after restart.
+      this.codexSetupPending = true;
+      try {
+        await this.installManagedCodexAndRestart({
+          installing:
+            harness === 'incompatible'
+              ? 'Updating Sia’s AI engine…'
+              : 'Installing Sia’s AI engine…',
+          restarting: 'Restarting Sia to finish setup.',
+          forwardProgress: false,
+          continueChatGptSignIn: false,
+        });
+        return { opened: true, snapshot: this.ctx.resultSnapshot() };
+      } catch (error) {
+        this.setCodexSetup('error', 'Setup did not finish. Choose Try again to start over.');
+        throw error;
+      } finally {
+        if (this.codexSetup?.phase !== 'restarting') this.codexSetupPending = false;
+        this.ctx.emit();
+      }
     }
-    const installation =
-      provider.status === 'needs_install' || provider.status === 'incompatible';
+    const installation = needsManagedInstall(provider.status);
     if (providerId === 'codex') {
       if (provider.status === 'ready')
         return { opened: false, snapshot: this.ctx.resultSnapshot() };
       this.codexSetupPending = true;
       try {
         if (installation) {
-          if (
-            !this.ctx.deps.installCodex ||
-            !this.ctx.deps.restartApp ||
-            this.ctx.deps.fakeServices
-          )
-            throw new Error('Automatic Codex setup is unavailable in this build.');
-          this.requireSafeCodexRestart();
-          this.setCodexSetup(
-            'installing',
-            provider.status === 'incompatible'
-              ? 'Updating Codex for Sia…'
-              : 'Downloading and installing Codex…',
-          );
-          await this.ctx.deps.installCodex((message) =>
-            this.setCodexSetup('installing', message),
-          );
-          this.requireSafeCodexRestart();
-          // Only this explicit setup action can authorize sign-in after restart.
-          // No credential, login URL or token is persisted in the continuation.
-          this.ctx.deps.repository.put('setup', 'codex-login', {
-            expiresAt: Date.now() + 15 * 60_000,
+          await this.installManagedCodexAndRestart({
+            installing:
+              provider.status === 'incompatible'
+                ? 'Updating Codex for Sia…'
+                : 'Downloading and installing Codex…',
+            restarting: 'Restarting Sia. ChatGPT sign-in will continue automatically.',
+            forwardProgress: true,
+            continueChatGptSignIn: true,
           });
-          this.ctx.commit();
-          this.setCodexSetup(
-            'restarting',
-            'Restarting Sia. ChatGPT sign-in will continue automatically.',
-          );
-          this.ctx.deps.restartApp();
           return { opened: true, snapshot: this.ctx.resultSnapshot() };
         }
         if (!this.ctx.runtime)
@@ -422,6 +429,44 @@ export class ProviderAccess {
     return this.ctx.resultSnapshot();
   }
 
+  /**
+   * Installs (or updates) Sia's verified managed Codex runtime, then restarts Sia so the new
+   * harness is picked up. Only the ChatGPT setup action asks for sign-in to continue after the
+   * restart; no credential, login URL or token is persisted in that continuation.
+   */
+  private async installManagedCodexAndRestart(options: {
+    installing: string;
+    restarting: string;
+    forwardProgress: boolean;
+    continueChatGptSignIn: boolean;
+  }): Promise<void> {
+    if (!this.ctx.deps.installCodex || !this.ctx.deps.restartApp || this.ctx.deps.fakeServices)
+      throw new Error('Automatic Codex setup is unavailable in this build.');
+    this.requireSafeCodexRestart();
+    this.setCodexSetup('installing', options.installing);
+    await this.ctx.deps.installCodex((message) => {
+      if (options.forwardProgress) this.setCodexSetup('installing', message);
+    });
+    this.requireSafeCodexRestart();
+    if (options.continueChatGptSignIn) {
+      this.ctx.deps.repository.put('setup', 'codex-login', {
+        expiresAt: Date.now() + 15 * 60_000,
+      });
+      this.ctx.commit();
+    }
+    this.setCodexSetup('restarting', options.restarting);
+    this.ctx.deps.restartApp();
+  }
+
+  /** Install progress shows on every provider that is waiting for the managed Codex runtime. */
+  setupFor(provider: ProviderView): ProviderView['setup'] {
+    if (!this.codexSetup) return undefined;
+    if (provider.id === 'codex') return this.codexSetup;
+    return provider.id === 'meta' && needsManagedInstall(provider.status)
+      ? this.codexSetup
+      : undefined;
+  }
+
   private setCodexSetup(
     phase: NonNullable<ProviderView['setup']>['phase'],
     message: string,
@@ -448,7 +493,7 @@ export class ProviderAccess {
     if (status !== 'needs_login') {
       this.setCodexSetup(
         'error',
-        'Codex could not finish updating. Choose Set up Codex to try again.',
+        'The ChatGPT helper could not finish updating. Choose Connect ChatGPT to try again.',
       );
       return;
     }
@@ -613,6 +658,36 @@ export class ProviderAccess {
     );
   }
 
+  /**
+   * The lab a rating is filed under: the hosted catalog's lab for an included model, otherwise
+   * the provider itself (for example Codex on the person's own plan).
+   */
+  labFor(providerId: ProviderId, model: string): { id: string; name: string } {
+    const provider = this.views.find(({ id }) => id === providerId);
+    const lab = provider?.models?.find(({ id }) => id === model)?.lab;
+    return lab ? { ...lab } : { id: providerId, name: provider?.label ?? providerId };
+  }
+
+  /** The engine's display name, from the signed lab manifest or the harness registry. */
+  harnessName(harnessId: string): string {
+    return (
+      this.ctx.deps.labHarnesses.find(({ id }) => id === harnessId)?.name ??
+      this.hostedHarnessRegistry().get(harnessId)?.name ??
+      harnessId
+    );
+  }
+
+  /** What the conversation header shows, so the person knows what they are rating. */
+  routeSummary(thread: ThreadView): { lab: string; model: string; engine: string } {
+    const target = thread.resolvedExecutionTarget ?? legacyResolvedExecutionTarget(thread);
+    const provider = this.views.find(({ id }) => id === target.provider);
+    return {
+      lab: this.labFor(target.provider, target.model).name,
+      model: provider?.models?.find(({ id }) => id === target.model)?.label ?? target.model,
+      engine: this.harnessName(target.harnessId),
+    };
+  }
+
   providerReadinessError(providerId: ProviderId, model?: string): string | undefined {
     const provider = this.views.find(({ id }) => id === providerId);
     if (!provider) return 'Provider status is unavailable. Check again before starting.';
@@ -686,4 +761,8 @@ export class ProviderAccess {
       left.provider.localeCompare(right.provider),
     );
   }
+}
+
+function needsManagedInstall(status: ProviderView['status']): boolean {
+  return status === 'needs_install' || status === 'incompatible';
 }

@@ -22,7 +22,7 @@ import primitives from '../styles/primitives.module.css';
 import styles from './Composer.module.css';
 import { SiaPresence, type SiaPresenceState } from './SiaPresence';
 import { VoiceWave } from './VoiceWave';
-import { LiquidMetalButton } from './effects/liquid-metal-button';
+import { ActionButton } from './ActionButton';
 import { useVoiceCapture } from './composer/useVoiceCapture';
 
 interface ComposerAttachment {
@@ -102,6 +102,8 @@ export function Composer({
   // Which sent message ↑/↓ is showing, counted back from the newest; unset while typing.
   const recall = useRef<number | undefined>(undefined);
   const [sending, setSending] = useState(false);
+  // Counts sent messages so the send arrow can play its launch once per send.
+  const [launches, setLaunches] = useState(0);
   // Stopping takes a round trip; one click shows it is underway and cannot be sent twice.
   const [stopping, setStopping] = useState(false);
   const textArea = useRef<HTMLTextAreaElement>(null);
@@ -110,12 +112,20 @@ export function Composer({
   const draftChangeHandler = useRef(onDraftChange);
   draftChangeHandler.current = onDraftChange;
 
-  // Size the box to its text, including a multi-line draft restored when the thread opens.
+  // Size the box to its text, including a multi-line draft restored when the thread opens. A
+  // change of height starts from the previous height so the box grows and shrinks smoothly
+  // (the CSS transition), instead of jumping a whole line.
   useLayoutEffect(() => {
     const input = textArea.current;
     if (!input) return;
+    const previous = input.style.height;
     input.style.height = 'auto';
-    input.style.height = `${Math.min(input.scrollHeight, 168)}px`;
+    const next = `${Math.min(input.scrollHeight, 168)}px`;
+    if (previous && previous !== next) {
+      input.style.height = previous;
+      void input.offsetHeight;
+    }
+    input.style.height = next;
   }, [value]);
 
   useEffect(
@@ -202,6 +212,7 @@ export function Composer({
         attachments.map((attachment) => attachment.id),
       );
       recall.current = undefined;
+      setLaunches((count) => count + 1);
       setValue('');
       persistDraftNow('');
     } catch {
@@ -282,6 +293,35 @@ export function Composer({
     }
   };
 
+  const contextLabel = voiceConversation
+    ? voiceError
+      ? 'Voice stopped'
+      : voicePhase === 'starting'
+        ? 'Voice · starting microphone…'
+        : voicePhase === 'transcribing'
+          ? 'Voice · transcribing…'
+          : running || !voiceCanListen
+            ? 'Voice · waiting…'
+            : voicePhase === 'recording'
+              ? 'Voice · listening…'
+              : 'Voice · ready'
+    : voicePhase === 'starting'
+      ? 'Starting microphone…'
+      : voicePhase === 'recording'
+        ? 'Listening · click stop to finish'
+        : voicePhase === 'transcribing'
+          ? 'Transcribing…'
+          : presence === 'working'
+            ? `${queued ? 'Queued' : 'Working'} · ${executionLabel ?? 'On this Mac'}`
+            : presence === 'waiting'
+              ? 'Waiting for you'
+              : presence === 'complete'
+                ? 'Done'
+                : presence === 'error'
+                  ? 'Needs attention'
+                  : presence === 'speaking'
+                    ? 'Speaking…'
+                    : (executionLabel ?? 'On this Mac');
   return (
     <div className={styles.composerArea} data-companion-composer>
       <div
@@ -296,9 +336,9 @@ export function Composer({
             {attachments.map((attachment) => (
               <span className={styles.attachmentChip} key={attachment.id}>
                 {attachment.kind === 'image' ? (
-                  <Image size={14} aria-hidden="true" />
+                  <Image size={16} aria-hidden="true" />
                 ) : (
-                  <File size={14} aria-hidden="true" />
+                  <File size={16} aria-hidden="true" />
                 )}
                 <button
                   type="button"
@@ -319,7 +359,7 @@ export function Composer({
                     aria-label={`Remove ${attachment.name}`}
                     disabled={disabled || sending}
                   >
-                    <X size={12} aria-hidden="true" />
+                    <X size={14} aria-hidden="true" />
                   </button>
                 ) : null}
               </span>
@@ -351,10 +391,10 @@ export function Composer({
                 title={
                   acceptingAttachments
                     ? 'Add files or images'
-                    : 'Attachments are unavailable for this model'
+                    : "This assistant can't open files or images"
                 }
               >
-                <Paperclip size={15} aria-hidden="true" />
+                <Paperclip size={16} aria-hidden="true" />
               </button>
             ) : null}
             {voiceEnabled && onTranscribe ? (
@@ -399,11 +439,11 @@ export function Composer({
                   data-testid="composer-voice-input"
                 >
                   {voicePhase === 'transcribing' && !voiceConversation ? (
-                    <SpinnerGap className={primitives.spin} size={15} aria-hidden="true" />
+                    <SpinnerGap className={primitives.spin} size={16} aria-hidden="true" />
                   ) : voicePhase === 'recording' ? (
-                    <Stop size={15} weight="fill" aria-hidden="true" />
+                    <Stop size={16} weight="fill" aria-hidden="true" />
                   ) : (
-                    <Microphone size={15} weight="fill" aria-hidden="true" />
+                    <Microphone size={16} weight="fill" aria-hidden="true" />
                   )}
                 </button>
                 {onVoiceConversationChange ? (
@@ -425,7 +465,7 @@ export function Composer({
                     title={voiceConversation ? 'End voice conversation' : 'Voice conversation'}
                     data-testid="composer-voice-conversation"
                   >
-                    <Waveform size={15} weight="bold" aria-hidden="true" />
+                    <Waveform size={16} weight="bold" aria-hidden="true" />
                   </button>
                 ) : null}
               </>
@@ -440,41 +480,20 @@ export function Composer({
               }
               audioLevel={voiceLevel}
             />
-            {voicePhase === 'recording' ? <VoiceWave level={voiceLevel} /> : null}
+            {voicePhase === 'recording' || voicePhase === 'transcribing' ? (
+              <VoiceWave
+                level={voiceLevel}
+                phase={voicePhase === 'transcribing' ? 'processing' : 'listening'}
+              />
+            ) : null}
             <span className={styles.composerContext} role="status">
-              {voiceConversation
-                ? voiceError
-                  ? 'Voice stopped'
-                  : voicePhase === 'starting'
-                    ? 'Voice · starting microphone…'
-                    : voicePhase === 'transcribing'
-                      ? 'Voice · transcribing…'
-                      : running || !voiceCanListen
-                        ? 'Voice · waiting…'
-                        : voicePhase === 'recording'
-                          ? 'Voice · listening…'
-                          : 'Voice · ready'
-                : voicePhase === 'starting'
-                  ? 'Starting microphone…'
-                  : voicePhase === 'recording'
-                    ? 'Listening · click stop to finish'
-                    : voicePhase === 'transcribing'
-                      ? 'Transcribing…'
-                      : presence === 'working'
-                        ? `${queued ? 'Queued' : 'Working'} · ${executionLabel ?? 'Local'}`
-                        : presence === 'waiting'
-                          ? 'Waiting for you'
-                          : presence === 'complete'
-                            ? 'Done'
-                            : presence === 'error'
-                              ? 'Needs attention'
-                              : presence === 'speaking'
-                                ? 'Speaking…'
-                                : (executionLabel ?? 'Local')}
+              <span key={contextLabel} className={styles.composerContextWord}>
+                {contextLabel}
+              </span>
             </span>
           </div>
           {stoppable ? (
-            <LiquidMetalButton
+            <ActionButton
               type="button"
               size="compact"
               className={styles.composerAction}
@@ -483,25 +502,30 @@ export function Composer({
                 void Promise.resolve(onStop()).finally(() => setStopping(false));
               }}
               disabled={stopping}
-              aria-label="Stop current turn"
             >
-              <Stop weight="fill" size={13} aria-hidden="true" />
+              <Stop weight="fill" size={16} aria-hidden="true" />
               {stopping ? 'Stopping…' : 'Stop'}
-            </LiquidMetalButton>
+            </ActionButton>
           ) : null}
-          <LiquidMetalButton
+          <ActionButton
             type="button"
             size="compact"
             viewMode="icon"
-            tone="sage"
+            tone="accent"
             onClick={() => void submit()}
             disabled={disabled || (!value.trim() && attachments.length === 0) || sending}
             aria-label={running ? 'Queue follow-up message' : 'Send message'}
             title={running ? 'Queue follow-up' : undefined}
             data-testid="composer-send"
           >
-            <ArrowUp weight="bold" size={16} aria-hidden="true" />
-          </LiquidMetalButton>
+            <ArrowUp
+              key={launches}
+              weight="bold"
+              size={16}
+              className={launches ? 'action-button-launch' : undefined}
+              aria-hidden="true"
+            />
+          </ActionButton>
         </div>
       </div>
       {voiceError ? (

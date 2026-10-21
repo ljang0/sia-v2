@@ -553,10 +553,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   pointer input. Without WebGL, or after initialization failure or graphics context loss, a gently
   moving CSS fallback remains; returning pages retry the renderer. On the desktop it animates only
   on the welcome scene while the window is focused; conversations keep the static CSS veils.
-  Main action buttons adapt Joly UI's Liquid Metal Button with a lazily loaded Paper Shaders
-  effect, capped at 30 fps and 16,000 pixels per button. Hidden, offscreen, disabled and reduced-motion
-  states stop continuous rendering; disposal releases the graphics context. Button actions remain
-  ordinary native buttons and use the same remote command routes even when graphics are unavailable.
+  Main action buttons are plain native buttons (`ActionButton`) with a solid accent or neutral
+  fill and no graphics context; they use the same remote command routes on every device.
   The phone shell follows visual viewport height and vertical offset on both resize and scroll;
   keyboard mode eases the welcome content and navigation out of the way without changing composer
   layout or resizing the wave field. Collapsing controls become inert immediately; the decorative
@@ -578,7 +576,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   The guide waits for observed grants before advancing and never treats a request returning as consent.
   Passive focus/poll checks do not replay prompts. A persisted `permissionSetup` records the app
   choice, skipped optional rows, and whether an authorized pass should resume after the one
-  **Relaunch Sia** (offered only when a short-lived child process reads a grant the running app
+  **Reopen Sia** (offered only when a short-lived child process reads a grant the running app
   cannot see yet); pausing prevents
   further steps even if an outstanding native request completes. Accessibility and Screen Recording
   are requested separately so one Settings pane cannot hide the other. Protected macOS approval

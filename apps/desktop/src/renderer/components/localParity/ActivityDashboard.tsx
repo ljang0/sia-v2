@@ -134,7 +134,7 @@ export function ActivityDashboard({ activities, onOpenThread }: ActivityDashboar
                 <span>{activity.detail}</span>
               </span>
               <time dateTime={activity.updatedAt}>{formatRelative(activity.updatedAt)}</time>
-              <ArrowSquareOut size={14} aria-hidden="true" />
+              <ArrowSquareOut size={16} aria-hidden="true" />
             </button>
           ))
         ) : (

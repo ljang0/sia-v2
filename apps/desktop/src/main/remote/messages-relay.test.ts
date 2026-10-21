@@ -32,6 +32,7 @@ function harness(
     transcribe?: (path: string) => Promise<string>;
     send?: (to: string, text: string) => Promise<void>;
     sendFile?: (to: string, path: string) => Promise<void>;
+    sentRecently?: (text: string) => boolean;
     scopedEvents?: boolean;
     records?: Map<string, unknown>;
   } = {},
@@ -75,6 +76,7 @@ function harness(
       return { turnId, snapshot };
     }
     if (method === 'approvals.resolve') return snapshot;
+    if (method === 'ratings.submit') return snapshot;
     if (method === 'attachments.drop') {
       return {
         attachments: (input.paths as unknown as string[]).map((path, index) => ({
@@ -130,6 +132,7 @@ function harness(
         await options.sendFile?.(to, path);
         files.push({ to, name: path.split('/').at(-1)! });
       },
+      ...(options.sentRecently ? { sentRecently: options.sentRecently } : {}),
     },
     ackAfterMs: 5000,
     transcribe:
@@ -447,6 +450,42 @@ describe('MessagesRelay', () => {
     ]);
   });
 
+  it('rates the task that just finished from a thumbs or good/bad reply', async () => {
+    const h = harness();
+    await h.ready();
+    h.text(101, 'Book the dentist');
+    await h.relay.poll();
+    h.finish('thread-1', 'Booked for Tuesday.');
+    await h.relay.flush();
+    const turnId = h.snapshot.timeline.findLast((item) => item.kind === 'user')!.turnId!;
+    h.snapshot.ratings = { [turnId]: {} };
+    h.text(102, '👍🏽');
+    await h.relay.poll();
+    expect(h.invoke).toHaveBeenCalledWith('ratings.submit', {
+      threadId: 'thread-1',
+      turnId,
+      rating: 'good',
+    });
+    h.text(103, 'Bad');
+    await h.relay.poll();
+    expect(h.invoke).toHaveBeenLastCalledWith('ratings.submit', {
+      threadId: 'thread-1',
+      turnId,
+      rating: 'bad',
+    });
+    await h.relay.flush();
+    expect(h.sent.at(-1)!.text).toBe(`${REPLY_PREFIX}Thanks, saved your rating.`);
+    // Without a finished, rateable task, "good" is an ordinary message.
+    h.snapshot.ratings = {};
+    h.text(104, 'good');
+    await h.relay.poll();
+    expect(h.invoke).toHaveBeenLastCalledWith('threads.send', {
+      threadId: 'thread-1',
+      text: 'good',
+      fromPhone: 'own_device',
+    });
+  });
+
   it('ignores untrusted senders, history before enabling, and Sia’s own replies', async () => {
     const h = harness();
     await h.ready();
@@ -464,6 +503,20 @@ describe('MessagesRelay', () => {
     h.text(102, 'Remind me what I asked yesterday', ME, false);
     await h.relay.poll();
     expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(1);
+  });
+
+  it('does not read a text an agent sent to your own number as a new request', async () => {
+    const agentText = 'Hi from Sia. Texting is set up.';
+    const h = harness({ sentRecently: (text) => text === agentText });
+    await h.ready();
+    h.text(101, agentText, ME, true);
+    h.text(102, agentText, ME, false);
+    await h.relay.poll();
+    expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(0);
+    h.text(103, 'What is in my Reports folder?', ME, false);
+    await h.relay.poll();
+    expect(h.invoke.mock.calls.filter(([m]) => m === 'threads.send')).toHaveLength(1);
+    h.relay.dispose();
   });
 
   it('does not turn native attributed reply copies or metadata into a new task', async () => {

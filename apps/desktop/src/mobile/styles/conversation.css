@@ -15,25 +15,22 @@
 }
 .conversation-heading strong {
   display: block;
-  font: 550 17px var(--font-brand);
+  font: 600 calc(18px * var(--text-scale, 1)) var(--font-brand);
   overflow-wrap: anywhere;
 }
 .conversation-heading small {
   display: block;
-  font-size: 10px;
-  color: var(--text-tertiary);
+  font-size: var(--phone-text-meta);
+  color: var(--text-secondary);
 }
+/* The logo is already an app-icon tile, so the avatar is just the logo at a fixed size. */
 .assistant-avatar {
   display: grid;
   place-items: center;
   width: 38px;
   height: 38px;
-  background: var(--bg-selected);
-  border-radius: 14px;
+  font-size: 38px;
   flex: none;
-}
-.assistant-avatar > span {
-  font-size: 28px;
 }
 .turns {
   padding: 22px 22px 12px;
@@ -41,14 +38,33 @@
 .remote-turn {
   margin-bottom: 30px;
   scroll-margin-top: 16px;
-  animation: arrive 0.4s var(--phone-ease);
+}
+/* Sending: your words land first, from where your thumb was, then Sia answers a beat later. */
+.remote-turn > .user-message {
+  transform-origin: 100% 100%;
+  animation: rise-pop var(--motion-emphasis) var(--phone-spring) both;
+}
+.remote-turn > .assistant-heading,
+.remote-turn > .task-steps,
+.remote-turn > .thinking-dots {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+.remote-turn > .result-file {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+}
+.remote-turn > .result-file:nth-of-type(2) {
+  animation-delay: var(--motion-stagger);
+}
+.remote-turn > .result-file:nth-of-type(n + 3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
 }
 .user-message {
   background: var(--bg-selected);
   border-radius: 19px 19px 5px 19px;
   padding: 13px 17px;
-  font-size: 14px;
-  line-height: 1.6;
+  font-size: var(--phone-text-body);
+  line-height: 1.5;
   width: fit-content;
   max-width: calc(100% - 28px);
   margin: 0 0 24px auto;
@@ -66,7 +82,7 @@
   height: 23px;
 }
 .assistant-heading strong {
-  font: 560 17px var(--font-brand);
+  font: 600 17px var(--font-brand);
   overflow-wrap: anywhere;
 }
 .assistant-heading .turn-status {
@@ -77,8 +93,31 @@
   gap: 5px;
   align-items: center;
   color: var(--text-secondary);
-  font-size: 10px;
+  font-size: var(--phone-text-meta);
+  font-weight: 550;
   white-space: nowrap;
+  animation: settle var(--motion-surface) var(--ease-out-soft) both;
+}
+/* Each live state has its own landing: working breathes, finished pops its check once,
+   and the states that need the person settle in plainly. */
+.turn-status[data-status='done'] svg {
+  animation: pop var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: var(--motion-stagger);
+}
+.turn-status[data-status='working'] .working-dot {
+  animation: breathe var(--phone-breath) ease-in-out infinite;
+}
+.turn-status[data-status='waiting'],
+.turn-status[data-status='error'] {
+  padding: 4px 10px;
+  border-radius: 20px;
+  margin-block: -4px;
+}
+.turn-status[data-status='waiting'] {
+  background: color-mix(in srgb, var(--text-warning) 12%, transparent);
+}
+.turn-status[data-status='error'] {
+  background: var(--surface-danger);
 }
 .turn-status[data-status='done'],
 .turn-status[data-status='working'] {
@@ -92,15 +131,15 @@
 }
 .status-disc,
 .working-dot {
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   display: inline-block;
   background: currentColor;
 }
 .remote-response {
-  font-size: 14px;
-  line-height: 1.75;
+  font-size: var(--phone-text-body);
+  line-height: 1.6;
   overflow-wrap: anywhere;
 }
 .remote-response p {
@@ -121,7 +160,7 @@
   padding: 12px;
   background: var(--bg-subtle);
   border-radius: 10px;
-  font-size: 12px;
+  font-size: var(--phone-text-meta);
 }
 .remote-response h1,
 .remote-response h2,
@@ -130,21 +169,93 @@
   line-height: 1.2;
 }
 .task-steps {
-  color: var(--text-tertiary);
-  font-size: 11px;
+  color: var(--text-secondary);
+  font-size: var(--phone-text-label);
   margin: 4px 0 12px;
   background: var(--bg-subtle);
   border-radius: 12px;
 }
 .task-steps summary {
   cursor: pointer;
-  padding: 14px 12px;
-  min-height: 44px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  min-height: var(--phone-target);
+  list-style: none;
+}
+/* A themed caret replaces the browser's triangle and turns when the steps open. */
+.task-steps summary::-webkit-details-marker {
+  display: none;
+}
+.steps-caret {
+  flex: none;
+  color: var(--text-tertiary);
+  transition: transform var(--motion-standard) var(--ease-out-soft);
+}
+.task-steps[open] .steps-caret {
+  transform: rotate(90deg);
+}
+/* A new step slides in under the last one; the text itself is never animated per token. */
+.step-line {
+  display: inline-block;
+  animation: arrive var(--motion-surface) var(--ease-out-soft) both;
+}
+/* While the task works, its current step carries the same slow light sweep as on the Mac. */
+.task-steps[data-live] .step-line {
+  background: linear-gradient(
+      90deg,
+      currentColor 0%,
+      currentColor 38%,
+      color-mix(in srgb, currentColor 40%, transparent) 50%,
+      currentColor 62%,
+      currentColor 100%
+    )
+    0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation:
+    arrive var(--motion-surface) var(--ease-out-soft) both,
+    step-sweep var(--motion-sweep) linear infinite;
+}
+@keyframes step-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+/* A reply still arriving grows block by block: each new paragraph or list item fades up once. */
+.remote-response[data-streaming] > *,
+.remote-response[data-streaming] > :is(ul, ol) > li {
+  animation: stream-reveal var(--motion-surface) var(--ease-out-soft) both;
+}
+@keyframes stream-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-reveal));
+  }
+}
+@media (prefers-reduced-motion: reduce), (forced-colors: active) {
+  .task-steps[data-live] .step-line {
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    animation: none;
+  }
+  .remote-response[data-streaming] > *,
+  .remote-response[data-streaming] > :is(ul, ol) > li {
+    animation: none;
+  }
+}
+.task-steps[open] ol {
+  animation: settle var(--motion-surface) var(--ease-out-soft) both;
 }
 .task-steps ol {
   margin: 0;
-  padding: 0 18px 14px 30px;
-  line-height: 1.9;
+  padding: 0 18px 14px 32px;
+  line-height: 1.6;
 }
 .result-file {
   display: flex;
@@ -157,23 +268,39 @@
   padding: 17px 14px;
   text-decoration: none;
   margin: 16px 0;
-  font-size: 12px;
+  min-height: var(--phone-row);
+  font-size: var(--phone-text-body);
 }
 .result-file svg {
   flex: none;
   color: var(--text-success);
+}
+@media (hover: hover) {
+  .result-file:hover {
+    border-color: color-mix(in srgb, var(--aurora-emerald) 50%, var(--border-subtle));
+  }
+}
+.result-file {
+  transition:
+    border-color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-surface) var(--phone-spring);
+}
+.result-file:active {
+  transform: scale(var(--motion-pop-scale));
+  transition-duration: var(--motion-exit);
 }
 .result-file span:first-of-type {
   overflow-wrap: anywhere;
 }
 .result-file span:last-child {
   margin-left: auto;
-  color: var(--text-tertiary);
-  font-size: 10px;
+  color: var(--text-secondary);
+  font-size: var(--phone-text-label);
 }
 .connection-banner,
 .waiting-note {
-  font-size: 12px;
+  font-size: var(--phone-text-label);
+  line-height: 1.45;
   padding: 12px 18px;
   background: var(--surface-info);
   color: var(--text-secondary);
@@ -182,35 +309,53 @@
 .waiting-note {
   border-radius: 12px;
   margin-top: 15px;
+  line-height: 1.5;
+  animation: settle var(--motion-surface) var(--ease-out-soft) both;
+}
+/* Approval is a safety surface: sober, warm, and plainly marked; no bounce. */
+.waiting-note[data-kind='approval'] {
+  background: color-mix(in srgb, var(--text-warning) 9%, var(--bg-raised));
+  border: 1px solid color-mix(in srgb, var(--text-warning) 28%, transparent);
+  color: var(--text-primary);
+}
+.connection-banner {
+  animation: settle var(--motion-surface) var(--ease-out-soft) both;
 }
 .remote-error,
 .task-error {
   color: var(--text-danger);
   background: var(--surface-danger);
   border-radius: 12px;
-  padding: 10px 12px;
-  font-size: 12px;
+  padding: 10px 6px 10px 14px;
+  font-size: var(--phone-text-label);
+  line-height: 1.45;
   margin: 0 0 12px;
   display: flex;
   align-items: center;
   overflow-wrap: anywhere;
+  animation: settle var(--motion-surface) var(--ease-out-soft) both;
 }
 .remote-error .icon {
   margin-left: auto;
 }
 .live-task-line {
+  animation: arrive var(--motion-surface) var(--ease-out-soft) both;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 2px 8px;
   padding: 0 3px 10px;
-  font-size: 10px;
-  color: var(--text-secondary);
+  font-size: var(--phone-text-label);
+  font-weight: 550;
+  color: var(--text-primary);
   flex-wrap: wrap;
 }
+/* The reassurance sits under the status, lined up with its words, instead of squeezing beside it. */
 .live-task-line > span:last-child {
-  margin-left: auto;
-  font-size: 9px;
-  color: var(--text-tertiary);
+  flex-basis: 100%;
+  padding-left: 16px;
+  font-size: var(--phone-text-meta);
+  font-weight: 400;
+  color: var(--text-secondary);
 }
 /* A phone on the encrypted relay can answer the step itself. */
 .live-task-line > span.approval-actions {
@@ -233,13 +378,16 @@
   color: var(--bg-canvas);
 }
 .activity-light {
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--text-success);
 }
+.activity-light {
+  transition: background-color var(--motion-standard) var(--ease-standard);
+}
 .activity-light.working {
-  animation: breathe 2s ease-in-out infinite;
+  animation: breathe var(--phone-breath) ease-in-out infinite;
 }
 /* Paused on the person: the same warm tone as the reply's "Needs you". */
 .activity-light.waiting {
@@ -247,7 +395,7 @@
 }
 .jump-latest {
   position: absolute;
-  top: -40px;
+  top: -52px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -258,11 +406,19 @@
   border-radius: 25px;
   border: 1px solid var(--border-subtle);
   background: var(--bg-raised);
-  font-size: 11px;
+  font-size: var(--phone-text-label);
+  white-space: nowrap;
   box-shadow: var(--shadow-raised);
+  animation: jump-arrive var(--motion-emphasis) var(--phone-spring) both;
+}
+@keyframes jump-arrive {
+  from {
+    opacity: 0;
+    transform: translate(-50%, var(--motion-rise)) scale(var(--motion-pop-scale));
+  }
 }
 .jump-latest:active:not(:disabled) {
-  transform: translateX(-50%) scale(0.97);
+  transform: translateX(-50%) scale(var(--motion-pop-scale));
 }
 .thinking-dots {
   display: flex;
@@ -272,17 +428,57 @@
 .thinking-dots i {
   display: inline-block;
   background: var(--text-success);
-  width: 5px;
-  height: 5px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  animation: breathe 1.4s ease-in-out infinite;
+  animation: thinking var(--motion-spin) var(--ease-standard) infinite;
 }
 .thinking-dots i:nth-child(2) {
-  animation-delay: 0.15s;
+  animation-delay: calc(var(--motion-spin) * 0.15);
 }
 .thinking-dots i:nth-child(3) {
-  animation-delay: 0.3s;
+  animation-delay: calc(var(--motion-spin) * 0.3);
+}
+/* A soft wave instead of a blink: each dot lifts as it brightens. */
+@keyframes thinking {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(calc(var(--motion-nudge) * -1));
+  }
 }
 .spin {
-  animation: spin 1s linear infinite;
+  animation: spin var(--motion-spin) linear infinite;
+}
+/* Rating a finished task: thumb-sized targets and a calm confirmation. */
+.turn-rating {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--text-secondary);
+  font-size: var(--phone-text-label);
+}
+.turn-rating span {
+  margin-right: auto;
+}
+.turn-rating button {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.turn-rating button[aria-pressed='true'] {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
 }

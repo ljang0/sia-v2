@@ -59,7 +59,7 @@ test('first run creates an agent, starts a thread, and completes a deterministic
     ).toBeVisible();
     await expect(
       page.getByText(
-        'I am ready. This development turn used the deterministic local runtime, so no provider account or connected-app data was accessed.',
+        'All set. This was a practice reply, so no AI service or connected app was used.',
         { exact: true },
       ),
     ).toBeVisible();

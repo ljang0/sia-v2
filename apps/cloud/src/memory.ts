@@ -1,3 +1,4 @@
+import { ratingCounters, ratingUpdate } from './rating-counters.js';
 import { createHash } from 'node:crypto';
 
 import type {
@@ -65,6 +66,9 @@ import type {
   VoiceCatalogEntry,
   VoiceProvider,
   VoiceTokenQuotaPolicy,
+  RatingAggregate,
+  RatingRepository,
+  StoredTaskRating,
 } from './ports.js';
 
 export class SystemClock implements Clock {
@@ -872,5 +876,69 @@ export class MemoryRemoteRelayStore implements RemoteRelayStore {
     for (const [deviceId, device] of this.devices) {
       if (device.userId === userId) this.devices.delete(deviceId);
     }
+  }
+}
+
+/** In-memory ratings for tests and local runs. */
+export class MemoryRatings implements RatingRepository {
+  readonly ratings = new Map<string, StoredTaskRating>();
+  private readonly owners = new Map<string, string>();
+  readonly aggregates = new Map<string, RatingAggregate>();
+  private readonly limits = new Map<string, number>();
+
+  async consumeRatingLimit(
+    userId: string,
+    windowStart: number,
+    _expiresAt: number,
+    limit: number,
+  ): Promise<boolean> {
+    const recordKey = key(userId, String(windowStart));
+    const next = (this.limits.get(recordKey) ?? 0) + 1;
+    this.limits.set(recordKey, next);
+    return next <= limit;
+  }
+
+  async writeRating(userId: string, rating: StoredTaskRating): Promise<void> {
+    const recordKey = key(rating.labId, rating.day, rating.model, rating.harnessId, rating.id);
+    const { key: aggregateKey, deltas } = ratingUpdate(rating, this.ratings.get(recordKey));
+    const aggregateId = key(rating.labId, rating.day, rating.model, rating.harnessId);
+    const aggregate = structuredClone(
+      this.aggregates.get(aggregateId) ?? {
+        ...aggregateKey,
+        counters: {},
+      },
+    );
+    for (const [name, value] of Object.entries(deltas))
+      aggregate.counters[name] = (aggregate.counters[name] ?? 0) + value;
+    this.ratings.set(recordKey, structuredClone(rating));
+    this.owners.set(recordKey, userId);
+    this.aggregates.set(aggregateId, aggregate);
+  }
+
+  async deleteUserRatings(userId: string): Promise<void> {
+    for (const [recordKey, owner] of this.owners) {
+      if (owner !== userId) continue;
+      const rating = this.ratings.get(recordKey);
+      if (rating) {
+        const aggregate = this.aggregates.get(
+          key(rating.labId, rating.day, rating.model, rating.harnessId),
+        );
+        if (aggregate)
+          for (const [name, value] of Object.entries(ratingCounters(rating.record)))
+            aggregate.counters[name] = (aggregate.counters[name] ?? 0) - value;
+      }
+      this.ratings.delete(recordKey);
+      this.owners.delete(recordKey);
+    }
+  }
+
+  async listRatingAggregates(
+    labId: string,
+    fromDay: string,
+    toDay: string,
+  ): Promise<RatingAggregate[]> {
+    return [...this.aggregates.values()]
+      .filter((row) => row.labId === labId && row.day >= fromDay && row.day <= toDay)
+      .map((row) => structuredClone(row));
   }
 }

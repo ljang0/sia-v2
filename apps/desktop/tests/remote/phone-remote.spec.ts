@@ -200,7 +200,17 @@ test('phone layout, send, immediate completion, persistence and result download'
   const download = page.waitForEvent('download');
   await page.getByRole('link', { name: /report.txt/ }).click();
   expect((await download).suggestedFilename()).toBe('report.txt');
+  // The steps disclosure uses Sia's caret, not the browser triangle, and turns when opened.
+  const steps = page.locator('.task-steps').last();
+  const caret = steps.locator('summary .steps-caret');
+  await expect(caret).toBeVisible();
+  expect(
+    await steps.locator('summary').evaluate((node) => getComputedStyle(node).display),
+  ).toBe('flex');
   await page.screenshot({ path: testInfo.outputPath('phone-conversation.png') });
+  await steps.locator('summary').click();
+  await expect(steps.locator('ol')).toBeVisible();
+  await expect(caret).toHaveCSS('transform', /matrix/);
   expect(errors).toEqual([]);
 });
 
@@ -244,14 +254,16 @@ test('Home Screen and phone branding load the supplied logo through the paired l
   for (const route of ['', 'graph']) {
     await page.goto(new URL(route, remote.url).href);
     await expect(page).toHaveTitle('Sia');
+    // One logo on screen: the welcome hero carries it there; other views use the header.
+    const shown = route ? '.phone-brand' : '.hero-presence';
+    const logo = page.locator(`${shown} .sia-logo`);
+    await expect(logo).toBeVisible();
+    await expect
+      .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
+      .toBe(256);
+    await expect(page.locator('.sia-logo:visible')).toHaveCount(1);
     if (!route) {
-      for (const location of ['.phone-brand', '.hero-presence']) {
-        const logo = page.locator(`${location} .sia-logo`);
-        await expect(logo).toBeVisible();
-        await expect
-          .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
-          .toBe(256);
-      }
+      await expect(page.locator('.phone-brand .sia-logo')).toBeHidden();
       await page.screenshot({ path: info.outputPath('phone-logo.png') });
     }
     await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute(
@@ -302,7 +314,7 @@ test('lost acknowledgement is retryable without duplicating the command', async 
   });
   await page.getByRole('textbox').fill('A quick answer with a dropped connection');
   await page.getByRole('button', { name: 'Send message' }).click();
-  await expect(page.getByRole('alert')).toContainText('safely retry');
+  await expect(page.getByRole('alert')).toContainText('try again safely');
   await expect(page.getByRole('textbox')).toHaveValue(
     'A quick answer with a dropped connection',
   );
@@ -361,7 +373,9 @@ test('revoked pairing shows a useful reconnect message and removes old task cont
     await route.fulfill({ response });
   });
   await expect(
-    page.getByText('Remote unavailable. Scan the current QR code in Sia on your Mac.'),
+    page.getByText(
+      'This phone isn’t linked to Sia anymore. On your Mac, open Sia and scan the new QR code with your phone camera.',
+    ),
   ).toBeVisible();
   await page.getByRole('textbox').fill('Do not send');
   await expect(page.getByRole('button', { name: 'Send message' })).toBeDisabled();
@@ -392,7 +406,7 @@ test('keeps the composer usable on compact phones, landscape and dark appearance
   const surface = await page
     .locator('.phone-shell')
     .evaluate((node) => getComputedStyle(node).backgroundColor);
-  expect(surface).toBe('rgb(25, 30, 27)');
+  expect(surface).toBe('rgb(19, 20, 22)');
 });
 
 test('suggestions stay editable and drafts survive navigation', async ({ page, remote }) => {
@@ -472,7 +486,7 @@ test('connection sheet traps focus, closes with Escape and restores focus', asyn
   await page.getByRole('button', { name: 'Connection details' }).click();
   const panel = page.getByRole('dialog', { name: 'Your Mac, connected.' });
   await expect(panel).toBeVisible();
-  await expect(panel.getByText('Confirm actions on your Mac')).toBeVisible();
+  await expect(panel.getByText('Your Mac asks first')).toBeVisible();
   await expect(panel.getByText('Keep Sia open and your Mac awake.')).toBeVisible();
   await panel.getByRole('button', { name: 'Close panel' }).press('Tab');
   await expect(panel.getByRole('button', { name: 'Close panel' })).toBeFocused();
@@ -559,6 +573,53 @@ test('reduced motion keeps the home screen still without disabling navigation', 
   await expect(page.getByRole('heading', { name: 'A little less to do.' })).toBeVisible();
 });
 
+test('arrivals stagger and spring, and reduced motion removes travel and stagger', async ({
+  page,
+  remote,
+}) => {
+  const read = (selector: string) =>
+    page.locator(selector).evaluate((node) => {
+      const style = getComputedStyle(node);
+      return {
+        name: style.animationName,
+        duration: parseFloat(style.animationDuration),
+        delay: parseFloat(style.animationDelay),
+      };
+    });
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  const secondIdea = await read('.idea-card:nth-child(2)');
+  expect(secondIdea.name).toBe('arrive');
+  expect(secondIdea.delay).toBeGreaterThan(await read('.hero-art').then((art) => art.delay));
+  await page.getByRole('button', { name: 'More options' }).click();
+  await expect(page.getByRole('dialog', { name: 'Make yourself at home.' })).toBeVisible();
+  const sheet = await read('.phone-sheet');
+  expect(sheet.name).toBe('sheet-enter');
+  expect(sheet.duration).toBeGreaterThan(0.3);
+  expect((await read('.sheet-actions > button:nth-child(3)')).delay).toBeGreaterThan(0);
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+
+  await page.getByRole('textbox').fill('A quick answer');
+  await page.getByRole('button', { name: 'Send message' }).click();
+  await expect(page.getByText('Finished', { exact: true })).toBeVisible();
+  // The finished state pops its check once; waiting and approval only settle.
+  expect((await read('.remote-turn .turn-status[data-status="done"] svg')).name).toBe('pop');
+  expect((await read('.remote-turn > .user-message')).name).toBe('rise-pop');
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.getByRole('button', { name: 'More options' }).click();
+  await expect(page.getByRole('dialog', { name: 'Make yourself at home.' })).toBeVisible();
+  expect((await read('.phone-sheet')).duration).toBeLessThanOrEqual(0.001);
+  expect((await read('.sheet-actions > button:nth-child(3)')).delay).toBe(0);
+  expect(
+    await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--motion-rise').trim(),
+    ),
+  ).toBe('0px');
+});
+
 test('starter cards remain fully reachable above the composer on shorter phones', async ({
   page,
   remote,
@@ -591,7 +652,10 @@ test('revoking access also removes cached memories from the phone', async ({
   await page.route('**/state', (route) =>
     route.fulfill({
       status: 404,
-      json: { error: 'Remote unavailable. Scan the current QR code in Sia on your Mac.' },
+      json: {
+        error:
+          'This phone isn’t linked to Sia anymore. On your Mac, open Sia and scan the new QR code with your phone camera.',
+      },
     }),
   );
   await expect(page.getByText('Reconnect to your Mac to see your memories.')).toBeVisible();
@@ -676,8 +740,6 @@ test('a failure already explained in the reply is shown once and still needs att
   await expect(page.getByText('Needs attention', { exact: true })).toBeVisible();
   await expect(page.getByText(detail, { exact: true })).toHaveCount(1);
 });
-
-type AuroraProbe = Window & { auroraProbe: { frames: number; pixels: number } };
 
 test('phone Dither moves, pauses offscreen, and respects reduced motion', async ({
   page,
@@ -764,7 +826,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
         .getByRole('button', { name: view, exact: true })
         .click();
       await expect(aurora).toBeVisible();
-      await expect(aurora).toHaveCSS('opacity', view === 'Chat' ? '1' : '0.72');
+      await expect(aurora).toHaveCSS('opacity', view === 'Chat' ? '1' : '0.45');
       const clip = { x: 0, y: 80, width: 390, height: 240 };
       const painted = await page.screenshot({ clip, animations: 'disabled' });
       await aurora.evaluate((element) => {
@@ -943,7 +1005,7 @@ test('typing eases the welcome layout while preserving the Dither aurora and com
   await expect(page.getByRole('heading', { name: 'Your Mac, within reach.' })).toBeInViewport({
     ratio: 1,
   });
-  await expect(page.locator('.phone-aurora .dither-aurora-field')).toHaveCSS('opacity', '0.47');
+  await expect(page.locator('.phone-aurora .dither-aurora-field')).toHaveCSS('opacity', '0.26');
   await expect(page.locator('.phone-aurora')).toHaveAttribute('data-paused', 'false');
   await expect(page.locator('.welcome-suggestions')).toHaveAttribute('inert', '');
   await expect(page.getByRole('button', { name: /Plan my week/ })).toHaveCount(0);
@@ -966,12 +1028,12 @@ test('typing eases the welcome layout while preserving the Dither aurora and com
   expect(remote.sends).toHaveLength(0);
 });
 
-test('headline and composer colors drift slowly, pause offscreen, and respect reduced motion', async ({
+test('the headline color drifts slowly, pause offscreen, and respect reduced motion', async ({
   page,
   remote,
 }) => {
   await page.goto(remote.url);
-  const surfaces = page.locator('.hero-copy h1 span, .remote-composer');
+  const surfaces = page.locator('.hero-copy h1 span');
   const colors = () =>
     surfaces.evaluateAll((nodes) =>
       nodes.map((node) => getComputedStyle(node).backgroundPosition),
@@ -1027,48 +1089,14 @@ test('pinch zoom is not treated as the phone keyboard opening', async ({ page, r
   await expect(page.getByRole('navigation')).toBeVisible();
 });
 
-test('liquid metal buttons animate, pause, keep disabled actions inert, and submit once', async ({
+test('primary buttons keep disabled actions inert and submit once', async ({
   page,
   remote,
 }) => {
-  await page.addInitScript(() => {
-    const draw = WebGL2RenderingContext.prototype.drawArrays;
-    (window as unknown as AuroraProbe).auroraProbe = { frames: 0, pixels: 0 };
-    WebGL2RenderingContext.prototype.drawArrays = function (mode, first, count) {
-      draw.call(this, mode, first, count);
-      (window as unknown as AuroraProbe).auroraProbe.frames++;
-    };
-  });
-  const frames = () =>
-    page.evaluate(() => (window as unknown as AuroraProbe).auroraProbe.frames);
   await page.goto(remote.url);
   const send = page.getByRole('button', { name: 'Send message' });
   await expect(send).toBeDisabled();
   await expect(send.locator('canvas')).toHaveCount(0);
-  const metal = page
-    .getByRole('button', { name: 'Connection details' })
-    .locator('.metal-surface');
-  await expect(metal).toHaveAttribute('data-metal', 'ready');
-  const first = await frames();
-  await expect.poll(frames).toBeGreaterThan(first);
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'hidden', { configurable: true, value: true });
-    document.dispatchEvent(new Event('visibilitychange'));
-  });
-  await page.waitForTimeout(100);
-  const hidden = await frames();
-  await page.waitForTimeout(200);
-  expect(await frames()).toBe(hidden);
-  await page.evaluate(() => {
-    Object.defineProperty(document, 'hidden', { configurable: true, value: false });
-    document.dispatchEvent(new Event('visibilitychange'));
-  });
-  await expect.poll(frames).toBeGreaterThan(hidden);
-  await page.emulateMedia({ reducedMotion: 'reduce' });
-  await page.waitForTimeout(100);
-  const still = await frames();
-  await page.waitForTimeout(200);
-  expect(await frames()).toBe(still);
   await page.getByRole('textbox').fill('A quick answer');
   await send.press('Enter');
   await expect(page.getByText('Finished', { exact: true })).toBeVisible();
@@ -1076,7 +1104,7 @@ test('liquid metal buttons animate, pause, keep disabled actions inert, and subm
   await expect(send).toBeDisabled();
 });
 
-test('metal fallback stays usable without WebGL2', async ({ page, remote }) => {
+test('the phone stays usable without WebGL2', async ({ page, remote }) => {
   await page.addInitScript(() => {
     const getContext = HTMLCanvasElement.prototype.getContext;
     Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
@@ -1086,11 +1114,56 @@ test('metal fallback stays usable without WebGL2', async ({ page, remote }) => {
     });
   });
   await page.goto(remote.url);
-  await expect(
-    page.getByRole('button', { name: 'Connection details' }).locator('.metal-surface'),
-  ).toHaveAttribute('data-metal', 'fallback');
+  await expect(page.getByRole('button', { name: 'Connection details' })).toBeVisible();
   await page.getByRole('textbox').fill('A quick answer');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Finished', { exact: true })).toBeVisible();
   expect(remote.sends).toEqual(['A quick answer']);
+});
+
+test('dark appearance keeps welcome labels, tabs, and the connection pill readable', async ({
+  page,
+  remote,
+}, testInfo) => {
+  // Reduced motion settles arrivals and colour transitions, so this measures the resting state.
+  await page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
+  await page.goto(remote.url);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible();
+  // Measure each label against the solid surface it sits on (the token behind its gradient).
+  const ratios = await page.evaluate(() => {
+    const rgb = (value: string) => {
+      const probe = document.createElement('i');
+      probe.style.color = value;
+      document.body.append(probe);
+      const parts = getComputedStyle(probe)
+        .color.match(/[\d.]+/g)!
+        .map(Number);
+      probe.remove();
+      return parts.slice(0, 3);
+    };
+    const luminance = (channels: number[]) => {
+      const [r, g, b] = channels.map((channel) => {
+        const c = channel / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const ratio = (fg: number[], bg: number[]) => {
+      const [hi, lo] = [luminance(fg), luminance(bg)].sort((a, b) => b - a);
+      return (hi! + 0.05) / (lo! + 0.05);
+    };
+    const root = getComputedStyle(document.documentElement);
+    const token = (name: string) => rgb(root.getPropertyValue(name).trim());
+    const color = (selector: string) =>
+      rgb(getComputedStyle(document.querySelector(selector)!).color);
+    return {
+      ideaTitle: ratio(color('.idea-card strong'), token('--bg-raised')),
+      moreIdeas: ratio(color('.ideas-heading button'), token('--bg-canvas')),
+      tabLabel: ratio(color('.phone-nav button:not([aria-current])'), token('--bg-canvas')),
+      currentTab: ratio(color('.phone-nav [aria-current]'), token('--bg-canvas')),
+      pill: ratio(color('.connection-pill'), rgb('#2b3b33')),
+    };
+  });
+  for (const value of Object.values(ratios)) expect(value).toBeGreaterThanOrEqual(4.5);
+  await page.screenshot({ path: testInfo.outputPath('phone-dark-settled.png') });
 });

@@ -4,10 +4,10 @@ import {
   CheckCircle,
   CursorClick,
   LockKey,
+  Lightning,
   Microphone,
   Moon,
   PlugsConnected,
-  Sparkle,
   type Icon,
 } from '@phosphor-icons/react';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -18,8 +18,10 @@ import { STARTER_INSTRUCTIONS } from '../welcome';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { SetupConnections } from './OnboardingConnections';
 import { SetupMacAccess } from './SetupMacAccess';
+import { SiaLogo } from './SiaLogo';
 import { ProvidersSettings } from './settings/ProvidersSettings';
 import buttons from '../styles/buttons.module.css';
+import layout from '../styles/layout.module.css';
 import styles from './Onboarding.module.css';
 import { errorMessage } from '../plainErrors';
 
@@ -43,8 +45,8 @@ const INCLUDED: readonly { icon: Icon; title: string; detail: string }[] = [
   },
   {
     icon: Microphone,
-    title: 'Microphone and Fn dictation',
-    detail: 'Hold Fn and talk instead of typing.',
+    title: 'Talk instead of typing',
+    detail: 'Hold the Fn key and speak. Uses your microphone.',
   },
   {
     icon: LockKey,
@@ -82,7 +84,7 @@ function SetupProgress({ stage, connected }: { stage: number; connected: boolean
           aria-current={index === stage ? 'step' : undefined}
         >
           <span className={styles.progressMark} aria-hidden="true">
-            {index < stage ? <Check size={11} weight="bold" /> : index + 1}
+            {index < stage ? <Check size={14} weight="bold" /> : index + 1}
           </span>
           <span>{label}</span>
         </li>
@@ -262,7 +264,7 @@ export function Onboarding({
       <section className={styles.stage}>
         <div className={styles.topline}>
           <div className={styles.brand} aria-hidden="true">
-            <Sparkle size={22} weight="fill" /> sia
+            <SiaLogo /> Sia
           </div>
           <SetupProgress stage={starting ? 0 : done ? 2 : 1} connected={connectedSetup} />
         </div>
@@ -273,7 +275,12 @@ export function Onboarding({
               <CheckCircle size={30} weight="fill" />
             </span>
           ) : null}
-          <h1 ref={title} tabIndex={-1}>
+          <h1
+            ref={title}
+            tabIndex={-1}
+            data-done={done || undefined}
+            className={done ? layout.gradientHeading : undefined}
+          >
             {starting
               ? 'Let’s set up Sia.'
               : connectedSetup
@@ -282,14 +289,14 @@ export function Onboarding({
                   ? 'You’re all set.'
                   : 'Give Sia access to your Mac.'}
           </h1>
-          <p className={styles.intro}>
+          <p className={styles.intro} data-done={done || undefined}>
             {starting
               ? 'A few quick steps, then Sia can help with everyday tasks in the apps you already use.'
               : connectedSetup
                 ? 'Choose the accounts you want Sia to use. You can also start chatting now and connect them later. No Mac permissions are needed.'
                 : done
                   ? 'Sia is ready to help. Connect more apps below, or jump right in.'
-                  : 'One guided pass through Mac access, voice, and your everyday apps. macOS asks you to approve each permission. You can pause and keep chatting anytime.'}
+                  : 'Sia walks you through each permission, one at a time. You approve each one in macOS. You can pause and keep chatting anytime.'}
           </p>
           {starting ? (
             <>
@@ -319,49 +326,49 @@ export function Onboarding({
                   />
                 </div>
               ) : null}
-              <div className={styles.modeSummary}>
+              {/* Owner decision: Sia acts without per-step approval by default. Say so plainly,
+                  with a one-click way to opt into confirmations before setup starts. */}
+              <section className={styles.modeSummary} aria-labelledby="setup-autonomy-title">
                 <span className={styles.includedIcon} aria-hidden="true">
-                  {confirmActions ? (
-                    <ChatsCircle size={18} />
-                  ) : setupRoute === 'mac-bypass' ? (
-                    <Moon size={18} />
-                  ) : (
-                    <PlugsConnected size={18} />
-                  )}
+                  {confirmActions ? <ChatsCircle size={18} /> : <Lightning size={18} />}
                 </span>
-                <p>
-                  <strong>
+                <div>
+                  <h2 id="setup-autonomy-title">
+                    {confirmActions ? 'Sia asks you first' : 'Sia acts on its own'}
+                  </h2>
+                  <p>
                     {confirmActions
-                      ? 'Asks before it acts'
-                      : setupRoute === 'mac-bypass'
-                        ? 'Works quietly in the background'
-                        : 'Works in your connected apps'}
-                  </strong>
-                  <span>
-                    {setupRoute === 'mac-bypass'
-                      ? confirmActions
-                        ? 'Sia starts in the background and asks before actions. If an app needs your screen, Sia pauses for you.'
-                        : 'Sia starts in the background without asking before each step. If an app needs your screen, Sia pauses for you. Change access in Settings → Computer.'
-                      : confirmActions
-                        ? 'Sia asks before taking actions in connected apps.'
-                        : 'Sia takes actions in connected apps without asking each time. You can turn on confirmations in Settings → Computer.'}
-                  </span>
-                </p>
-                <button
-                  type="button"
-                  className={styles.link}
-                  disabled={busy || connecting}
-                  onClick={() => {
-                    const details = customize.current;
-                    if (!details) return;
-                    details.open = true;
-                    details.scrollIntoView?.({ block: 'nearest' });
-                    details.querySelector<HTMLInputElement>('input:checked')?.focus();
-                  }}
-                >
-                  Change
-                </button>
-              </div>
+                      ? 'Before Sia sends a message, changes a file, or clicks anything, it shows you and waits for your OK.'
+                      : connectedSetup
+                        ? 'For example, it can send a Slack message or create a Gmail draft without asking you first.'
+                        : 'For example, it can send an email, move a file, or click through a website without asking you first.'}
+                  </p>
+                  <div className={styles.modeActions}>
+                    <button
+                      type="button"
+                      className={buttons.secondaryButton}
+                      disabled={busy || connecting}
+                      onClick={() => setConfirmActions((value) => !value)}
+                    >
+                      {confirmActions ? 'Let Sia act on its own' : 'Ask me first instead'}
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.link}
+                      disabled={busy || connecting}
+                      onClick={() => {
+                        const details = customize.current;
+                        if (!details) return;
+                        details.open = true;
+                        details.scrollIntoView?.({ block: 'nearest' });
+                        details.querySelector<HTMLInputElement>('input:checked')?.focus();
+                      }}
+                    >
+                      More choices
+                    </button>
+                  </div>
+                </div>
+              </section>
               {aiReady ? (
                 <div className={styles.actions}>
                   <button
@@ -375,9 +382,7 @@ export function Onboarding({
                   </button>
                 </div>
               ) : (
-                <p className={styles.note}>
-                  Connect AI access above, then continue to permissions. No terminal is needed.
-                </p>
+                <p className={styles.note}>Connect an AI service above to continue.</p>
               )}
               <details ref={customize} className={styles.details}>
                 <summary>Customize setup</summary>
@@ -473,7 +478,7 @@ export function Onboarding({
           ) : (
             <>
               {connectedSetup ? null : restarting ? (
-                <p role="status">Relaunching Sia…</p>
+                <p role="status">Reopening Sia…</p>
               ) : (
                 <SetupMacAccess
                   snapshot={snapshot}
@@ -568,16 +573,29 @@ export function Onboarding({
 }
 
 /** A calm, one-time note that setup finished; it steps aside on its own. */
-function SetupDoneToast({ onDone }: { onDone(): void }) {
+export function SetupDoneToast({ onDone }: { onDone(): void }) {
   const done = useRef(onDone);
   done.current = onDone;
+  const [leaving, setLeaving] = useState(false);
   useEffect(() => {
-    const timer = window.setTimeout(() => done.current(), 6000);
-    return () => window.clearTimeout(timer);
+    const leave = window.setTimeout(() => setLeaving(true), 6000);
+    // Removes the note even when a hidden window suppresses the exit animation's end event.
+    const remove = window.setTimeout(() => done.current(), 6400);
+    return () => {
+      window.clearTimeout(leave);
+      window.clearTimeout(remove);
+    };
   }, []);
   return (
-    <div className={styles.doneToast} role="status">
-      <CheckCircle size={18} weight="fill" aria-hidden="true" />
+    <div
+      className={styles.doneToast}
+      role="status"
+      data-leaving={leaving || undefined}
+      onAnimationEnd={(event) => {
+        if (leaving && event.target === event.currentTarget) done.current();
+      }}
+    >
+      <CheckCircle size={22} weight="fill" aria-hidden="true" />
       <span>
         <strong>You’re all set.</strong> Ask Sia anything, or try a suggestion below.
       </span>

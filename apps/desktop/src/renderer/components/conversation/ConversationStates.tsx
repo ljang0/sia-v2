@@ -2,11 +2,12 @@ import layout from '../../styles/layout.module.css';
 import buttons from '../../styles/buttons.module.css';
 import type { ThreadSummary } from '../../types';
 import { timeGreeting } from '../../welcome';
+import primitives from '../../styles/primitives.module.css';
 import styles from '../Conversation.module.css';
 import { AgentForm } from '../AgentForm';
 import { WelcomeRecents } from '../WelcomeRecents';
 import { DitherAurora as Aurora } from '../effects/DitherAurora';
-import { LiquidMetalButton } from '../effects/liquid-metal-button';
+import { ActionButton } from '../ActionButton';
 
 interface ConversationWelcomeProps {
   agentName?: string | undefined;
@@ -44,16 +45,16 @@ export function ConversationWelcome({
             ? recentThreads.length
               ? 'Pick up a recent conversation, or start with something you want off your list.'
               : 'Start with something you want off your list.'
-            : 'Give it a name and one short instruction. Sia chooses a model, color, and private folder.'}
+            : 'Give it a name and say what it should help with. Sia sets up the rest.'}
         </p>
         {onCreateThread ? (
-          <LiquidMetalButton tone="sage" onClick={onCreateThread}>
+          <ActionButton tone="accent" onClick={onCreateThread}>
             New conversation
-          </LiquidMetalButton>
+          </ActionButton>
         ) : onCreateAgent ? (
-          <LiquidMetalButton tone="sage" onClick={onCreateAgent}>
+          <ActionButton tone="accent" onClick={onCreateAgent}>
             Create your first agent
-          </LiquidMetalButton>
+          </ActionButton>
         ) : null}
         {onOpenApps ? (
           <button
@@ -75,13 +76,15 @@ export function ConversationSkeleton() {
     <main className={layout.mainPane} aria-label="Loading conversation" aria-busy="true">
       <div className={styles.threadScroll}>
         <div className={styles.conversationColumn}>
-          <div className={styles.skeletonMessage} />
-          <div className={`${styles.skeletonMessage} ${styles.skeletonShort}`} />
-          <div className={styles.skeletonActivity} />
-          <div className={styles.skeletonMessage} />
+          <div className={`${primitives.skeleton} ${styles.skeletonMessage}`} />
+          <div
+            className={`${primitives.skeleton} ${styles.skeletonMessage} ${styles.skeletonShort}`}
+          />
+          <div className={`${primitives.skeleton} ${styles.skeletonActivity}`} />
+          <div className={`${primitives.skeleton} ${styles.skeletonMessage}`} />
         </div>
       </div>
-      <div className={styles.skeletonComposer} />
+      <div className={`${primitives.skeleton} ${styles.skeletonComposer}`} />
     </main>
   );
 }

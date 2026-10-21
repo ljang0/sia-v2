@@ -41,7 +41,9 @@ test('core surfaces retain the visual-system and motion contract', async () => {
     // The bridge can report the completed turn before React has committed the
     // corresponding event list. Wait for a released, event-derived control so
     // every visual baseline captures the same post-turn UI.
-    await expect(sia.page.getByRole('button', { name: 'Thread outline' })).toBeVisible();
+    await expect(
+      sia.page.getByRole('button', { name: 'Overview of this conversation' }),
+    ).toBeVisible();
     await expect(sia.page.locator('[data-sia-presence]')).toHaveAttribute('data-state', 'idle');
 
     const visualSystem = await sia.page.evaluate(() => {
@@ -60,7 +62,6 @@ test('core surfaces retain the visual-system and motion contract', async () => {
         .map((element) => element.getAttribute('aria-label') ?? element.className)
         .filter((value) => typeof value === 'string');
       return {
-        displayFontLoaded: document.fonts.check("700 28px 'Bricolage Grotesque'"),
         colors: {
           canvas: root.getPropertyValue('--bg-canvas').trim(),
           shell: root.getPropertyValue('--shell-bg').trim(),
@@ -74,11 +75,10 @@ test('core surfaces retain the visual-system and motion contract', async () => {
       };
     });
 
-    expect(visualSystem.displayFontLoaded).toBe(true);
     expect(visualSystem.colors).toEqual({
-      canvas: '#f4f6f2',
-      shell: '#173a34',
-      accent: '#33453e',
+      canvas: '#fcfcfd',
+      shell: '#f4f4f5',
+      accent: '#07855b',
     });
     expect(visualSystem.transitionedControls).toBeGreaterThan(
       visualSystem.visibleControls * 0.7,
@@ -96,7 +96,7 @@ test('core surfaces retain the visual-system and motion contract', async () => {
     await expect(sia.page).toHaveScreenshot('workspace-light.png', stableScreenshot);
 
     await sia.page.keyboard.press('Meta+K');
-    const switcher = sia.page.getByRole('dialog', { name: 'Move through Sia' });
+    const switcher = sia.page.getByRole('dialog', { name: 'Search everything' });
     await expect(switcher).toBeVisible();
     const switcherSearch = switcher.getByRole('combobox', {
       name: 'Search conversations and actions',

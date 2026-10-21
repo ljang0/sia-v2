@@ -105,8 +105,8 @@
 }
 
 .agentEditButton {
-  width: 32px;
-  height: 32px;
+  width: var(--target-min);
+  height: var(--target-min);
 }
 
 .agentEditButton:hover {
@@ -116,7 +116,28 @@
 
 .agentEditButton:active,
 .settingsButton:active {
-  transform: scale(0.985);
+  transform: translateY(calc(var(--motion-nudge) / 3))
+    scale(calc(1 - (1 - var(--motion-pop-scale)) / 2));
+  transition-duration: var(--motion-fast);
+}
+
+/* Footer destinations: the icon leans in on hover and the current page holds a hue mark. */
+.settingsButton > svg {
+  transition: transform var(--motion-standard) var(--ease-spring);
+}
+
+.settingsButton:hover > svg {
+  transform: scale(calc(2 - var(--motion-pop-scale))) rotate(-6deg);
+}
+
+.settingsButton[aria-current='page'] > svg {
+  animation: footerLand var(--motion-emphasis) var(--ease-spring) backwards;
+}
+
+@keyframes footerLand {
+  from {
+    transform: scale(var(--motion-pop-scale)) rotate(-12deg);
+  }
 }
 
 .collapsedAgents {
@@ -135,6 +156,51 @@
   opacity: 0.78;
 }
 
+/* Collapsing deals the agents down the rail one step apart, capped at eight. */
+.collapsedAgents > * {
+  animation: railDeal var(--motion-emphasis) var(--ease-spring) backwards;
+}
+
+.collapsedAgents > :nth-child(2) {
+  animation-delay: var(--motion-stagger);
+}
+
+.collapsedAgents > :nth-child(3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+
+.collapsedAgents > :nth-child(4) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+
+.collapsedAgents > :nth-child(5) {
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+
+.collapsedAgents > :nth-child(6) {
+  animation-delay: calc(var(--motion-stagger) * 5);
+}
+
+.collapsedAgents > :nth-child(7) {
+  animation-delay: calc(var(--motion-stagger) * 6);
+}
+
+.collapsedAgents > :nth-child(n + 8) {
+  animation-delay: calc(var(--motion-stagger) * 7);
+}
+
+@keyframes railDeal {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-rise) * -1)) scale(var(--motion-pop-scale));
+  }
+}
+
+.sidebarCollapsed button.agentAvatar:active {
+  transform: scale(var(--motion-pop-scale));
+  transition-duration: var(--motion-fast);
+}
+
 .sidebarScroll {
   min-height: 0;
   flex: 1;
@@ -145,14 +211,13 @@
 
 .sidebarSectionHeader {
   display: flex;
-  height: 32px;
+  min-height: var(--target-min);
   align-items: center;
   justify-content: space-between;
   padding: 0 5px 0 10px;
   color: var(--shell-muted);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   font-weight: var(--weight-semibold);
-  letter-spacing: 0.025em;
 }
 
 .agentAvatar {
@@ -197,8 +262,9 @@ button.agentAvatar {
   width: 32px;
   height: 32px;
   transition:
+    box-shadow var(--motion-surface) var(--ease-out-soft),
     opacity var(--motion-fast) var(--ease-standard),
-    transform var(--motion-fast) var(--ease-standard);
+    transform var(--motion-standard) var(--ease-spring);
 }
 
 .agentAvatarSelected {
@@ -218,7 +284,7 @@ button.agentAvatar {
 }
 
 .agentAvatar[data-presence='working']::after {
-  animation: agentPresencePulse 2s var(--ease-standard) infinite;
+  animation: agentPresencePulse calc(var(--motion-spin) * 2) var(--ease-standard) infinite;
 }
 
 .agentAvatar[data-presence='waiting']::after {
@@ -254,11 +320,11 @@ button.agentAvatar {
 .newThreadInline {
   display: flex;
   min-width: 0;
-  min-height: 42px;
+  min-height: var(--row-min);
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 5px 8px 5px 11px;
+  padding: 6px 8px 6px 12px;
   border: 0;
   border-radius: var(--radius-tight);
   background: transparent;
@@ -284,12 +350,21 @@ button.agentAvatar {
 }
 
 .threadRowSelected .threadSelectButton::before {
-  width: 2px;
-  height: 12px;
+  width: 3px;
+  height: 16px;
   flex: none;
   border-radius: 1px;
   background: color-mix(in srgb, var(--agent-color) 64%, var(--shell-text));
   content: '';
+  animation: selectionLand var(--motion-emphasis) var(--ease-spring) backwards;
+}
+
+/* The selection mark grows from the row's centre when a conversation is chosen. */
+@keyframes selectionLand {
+  from {
+    opacity: 0;
+    transform: scaleY(0);
+  }
 }
 
 .threadRow {
@@ -301,11 +376,11 @@ button.agentAvatar {
 .threadSelectButton {
   display: flex;
   min-width: 0;
-  min-height: 42px;
+  min-height: var(--row-min);
   flex: 1;
   align-items: center;
   gap: 8px;
-  padding: 5px 3px 5px 10px;
+  padding: 6px 4px 6px 12px;
   border: 0;
   background: transparent;
   color: inherit;
@@ -330,8 +405,8 @@ button.agentAvatar {
 
 .threadMenuButton {
   display: inline-flex;
-  width: 27px;
-  height: 27px;
+  width: var(--target-min);
+  height: var(--target-min);
   flex: none;
   align-items: center;
   justify-content: center;
@@ -341,7 +416,7 @@ button.agentAvatar {
   color: inherit;
   cursor: pointer;
   opacity: 0;
-  transform: scale(0.96);
+  transform: scale(var(--motion-pop-scale));
   transition:
     background-color var(--motion-fast) var(--ease-standard),
     color var(--motion-fast) var(--ease-standard),
@@ -363,7 +438,8 @@ button.agentAvatar {
 }
 
 .threadMenuButton:active {
-  transform: scale(0.92);
+  transform: scale(calc(var(--motion-pop-scale) - (1 - var(--motion-pop-scale))));
+  transition-duration: var(--motion-fast);
 }
 
 .threadMenuItemText {
@@ -384,16 +460,16 @@ button.agentAvatar {
 .threadRenameForm {
   display: flex;
   min-width: 0;
-  min-height: 34px;
+  min-height: var(--row-min);
   align-items: center;
-  gap: 5px;
+  gap: 6px;
 }
 
 .threadRenameForm input {
   min-width: 0;
-  height: 30px;
+  height: var(--target-min);
   flex: 1;
-  padding: 0 7px;
+  padding: 0 10px;
   border: 1px solid color-mix(in srgb, var(--border-strong) 64%, var(--border-subtle));
   border-radius: var(--radius-tight);
   background: var(--bg-field);
@@ -402,8 +478,8 @@ button.agentAvatar {
 }
 
 .threadRenameSave {
-  height: 28px;
-  padding: 0 7px;
+  height: var(--target-min);
+  padding: 0 10px;
   border: 0;
   border-radius: var(--radius-tight);
   background: var(--bg-accent);
@@ -422,7 +498,7 @@ button.agentAvatar {
 }
 
 .threadRenameSave:active:not(:disabled) {
-  transform: scale(0.985);
+  transform: scale(calc(1 - (1 - var(--motion-pop-scale)) / 2));
 }
 
 .threadRenameSave:disabled {
@@ -450,10 +526,10 @@ button.agentAvatar {
 .settingsButton {
   display: flex;
   width: 100%;
-  min-height: 34px;
+  min-height: var(--target-min);
   align-items: center;
-  gap: 10px;
-  padding: 0 10px;
+  gap: 12px;
+  padding: 0 12px;
   border: 0;
   border-radius: var(--radius-tight);
   background: transparent;
@@ -468,12 +544,12 @@ button.agentAvatar {
 
 .navShortcut {
   margin-left: auto;
-  padding: 1px 5px;
+  padding: 1px 6px;
   border: 1px solid color-mix(in srgb, var(--shell-line) 78%, transparent);
   border-radius: var(--radius-tight);
   color: var(--shell-muted);
   font-family: var(--font-mono);
-  font-size: var(--text-2xs);
+  font-size: var(--text-xs);
   font-weight: var(--weight-medium);
 }
 
@@ -489,7 +565,7 @@ button.agentAvatar {
 .wordmark {
   color: var(--shell-text);
   font-size: var(--display-md);
-  letter-spacing: -0.045em;
+  letter-spacing: -0.03em;
 }
 
 .sidebarScroll {
@@ -497,9 +573,8 @@ button.agentAvatar {
 }
 
 .sidebarSectionHeader {
-  color: var(--shell-muted);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  color: var(--shell-dim);
+  font-weight: 600;
 }
 
 .agentAvatar,
@@ -516,24 +591,12 @@ button.agentAvatar {
 }
 
 .threadRowSelected {
-  background: color-mix(in srgb, var(--agent-color) 14%, var(--shell-selected));
+  background: var(--shell-selected);
 }
 
 .sidebarFooter {
   border-top-color: color-mix(in srgb, var(--shell-line) 72%, transparent);
   background: var(--shell-bg-deep);
-}
-
-@media (max-width: 920px) {
-  .sidebar {
-    flex-basis: 224px;
-  }
-}
-
-@media (max-width: 780px) {
-  .sidebar {
-    flex-basis: 168px;
-  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -547,9 +610,17 @@ button.agentAvatar {
   }
 
   .sidebar > *,
-  .sidebarCollapsed > * {
+  .sidebarCollapsed > *,
+  .collapsedAgents > *,
+  .threadRowSelected .threadSelectButton::before,
+  .settingsButton[aria-current='page'] > svg {
     animation: none;
   }
+}
+
+:global([data-appearance='calm']) .collapsedAgents > *,
+:global([data-appearance='calm']) .threadRowSelected .threadSelectButton::before {
+  animation: none;
 }
 
 @media (forced-colors: active) {

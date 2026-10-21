@@ -49,11 +49,11 @@
           <p class="eyebrow">Participant policy</p>
           <h1>Privacy policy</h1>
           <p class="legal-summary">
-            This policy explains the raw research data Sia records, the choices available to
-            you, and how to export or delete your data.
+            This policy explains Sia account information, optional task feedback and research
+            sharing, and how to export or delete your data.
           </p>
           <div class="legal-meta">
-            <span>Effective August 23, 2026</span
+            <span>Updated October 21, 2026</span
             ><span>Consent version: alpha-research-v3-raw</span>
           </div>
         </div>
@@ -61,10 +61,10 @@
       <article class="legal-body">
         <div class="container">
           <div class="notice">
-            <strong>Research alpha notice.</strong> Adults can create an account with their
-            email. Signing in enrolls the account in the research release after the current
-            consent is accepted. You can instead continue locally without an account or cloud
-            research upload. Do not use research mode for material you do not agree to share.
+            <strong>Private pilot notice.</strong> The distributed app requires email sign-in.
+            Research sharing is off unless you separately accept the research consent in
+            Settings → Privacy. Joining the product pilot does not enroll you in research. Do
+            not use research sharing for material you do not agree to share.
           </div>
           <section class="legal-section">
             <h2>1. Who we are</h2>
@@ -89,11 +89,13 @@
               When you sign in, review the current consent, and join the research release,
               eligible task activity is uploaded to our encrypted research archive.
             </p>
-            <h3>Local mode</h3>
+            <h3>Using Sia without research sharing</h3>
             <p>
-              You may continue locally without signing in. Local-only records are not eligible
-              for later cloud upload. You can also stop new research capture by turning capture
-              off where available or by signing out.
+              You can use the signed-in app with research sharing off. Pause new research
+              capture in Settings → Privacy. Pausing does not delete records already shared or
+              cancel eligible uploads already queued. Local-only research records are not
+              eligible for later cloud upload. Your chosen AI provider still processes the tasks
+              you send it.
             </p>
             <h3>Connected apps</h3>
             <p>
@@ -137,6 +139,16 @@
             <p>
               Raw task-visible strings and images can contain private information, confidential
               material, or secrets. The research archive is not an anonymized dataset.
+            </p>
+            <h3>Optional task feedback</h3>
+            <p>
+              When you rate a task, Sia sends your thumbs-up or thumbs-down choice, selected
+              reasons, and any optional note you choose to send. It also sends the task's model,
+              engine, outcome, duration, and step count. Ratings do not include the conversation
+              text or workspace files. Please leave private details out of feedback notes. A
+              private account reference lets us delete your feedback when you delete your
+              account. Administrators can view daily totals by model and engine; those reports
+              do not include individual notes. Feedback is separate from research sharing.
             </p>
             <h3>Operational information</h3>
             <p>
@@ -246,6 +258,11 @@
             <h2>8. Retention</h2>
             <ul>
               <li><strong>Cloud research content:</strong> objects expire after 90 days.</li>
+              <li>
+                <strong>Optional task feedback:</strong> cloud ratings and daily totals expire
+                after 400 days. Account deletion removes your stored notes and subtracts your
+                ratings from the totals.
+              </li>
               <li>
                 <strong>Research access audit metadata:</strong> immutable access metadata is
                 retained for 365 days and expires after 400 days.

@@ -11,6 +11,7 @@ import type {
 import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
 import styles from './AgentDialog.module.css';
+import { AgentIdentityPreview } from './AgentIdentity';
 import { modelChoices, firstReadyModel } from '../agentModels';
 import { voiceOptionLabel } from '../voiceReadiness';
 import { errorMessage } from '../plainErrors';
@@ -137,7 +138,7 @@ export function AgentDialog({
       (choice) => choice.provider === draft.provider && choice.model === draft.model,
     );
     if (!selected?.ready) {
-      setError('Choose an available model before saving.');
+      setError('Choose an available AI before saving.');
       return;
     }
 
@@ -195,38 +196,42 @@ export function AgentDialog({
           </div>
 
           <form className={styles.agentForm} onSubmit={(event) => void submit(event)}>
-            <label className={dialogs.field} htmlFor={`${formId}-name`}>
-              <span>Name</span>
-              <input
-                id={`${formId}-name`}
-                value={draft.name}
-                onChange={(event) => update('name', event.target.value)}
-                placeholder="Example: Trip planner"
-                autoFocus
-                required
-                aria-invalid={error === 'Give this agent a name.'}
-              />
-            </label>
-
-            <div className={dialogs.field}>
-              <label htmlFor={`${formId}-instructions`}>Instructions</label>
-              <textarea
-                id={`${formId}-instructions`}
-                value={draft.instructions}
-                onChange={(event) => update('instructions', event.target.value)}
-                rows={3}
-                placeholder="Example: Help me compare sources. Ask before changing files or sending anything."
-                aria-required="true"
-                aria-invalid={error === 'Add a short instruction for this agent.'}
-              />
+            <div className={styles.identityRow}>
+              <AgentIdentityPreview identity={draft.hue} name={draft.name} />
+              <div className={styles.identityFields}>
+                <label className={dialogs.field} htmlFor={`${formId}-name`}>
+                  <span>Name</span>
+                  <input
+                    id={`${formId}-name`}
+                    value={draft.name}
+                    onChange={(event) => update('name', event.target.value)}
+                    placeholder="Example: Trip planner"
+                    autoFocus
+                    required
+                    aria-invalid={error === 'Give this agent a name.'}
+                  />
+                </label>
+                <div className={dialogs.field}>
+                  <label htmlFor={`${formId}-instructions`}>Instructions</label>
+                  <textarea
+                    id={`${formId}-instructions`}
+                    value={draft.instructions}
+                    onChange={(event) => update('instructions', event.target.value)}
+                    rows={3}
+                    placeholder="Example: Help me compare sources. Ask before changing files or sending anything."
+                    aria-required="true"
+                    aria-invalid={error === 'Add a short instruction for this agent.'}
+                  />
+                </div>
+              </div>
             </div>
 
             {readyChoices.length === 0 || !selectedChoice?.ready ? (
               <div className={styles.modelSetupNotice} role="status">
                 <span>
                   {readyChoices.length === 0
-                    ? 'No usable model is connected.'
-                    : 'This agent’s model is unavailable. Choose another under Details.'}
+                    ? 'No AI is connected yet.'
+                    : 'This agent’s AI isn’t available. Choose another under Details.'}
                 </span>
                 {onOpenModelSettings ? (
                   <button
@@ -234,7 +239,7 @@ export function AgentDialog({
                     className={buttons.textButton}
                     onClick={onOpenModelSettings}
                   >
-                    Open model settings
+                    Open AI settings
                   </button>
                 ) : null}
               </div>
@@ -245,7 +250,7 @@ export function AgentDialog({
                 <span>Details</span>
                 <small>
                   {/* Engine and folder names are details for people who open this. */}
-                  {draft.workspace ? workspaceName(draft.workspace) : 'Model and folder'}
+                  {draft.workspace ? workspaceName(draft.workspace) : 'AI and folder'}
                 </small>
               </summary>
               <div className={styles.agentAdvancedBody}>
@@ -272,7 +277,7 @@ export function AgentDialog({
                     }}
                   >
                     {choices.length === 0 ? (
-                      <option value={selectionValue}>No model ready</option>
+                      <option value={selectionValue}>No AI ready</option>
                     ) : null}
                     {choices.map((choice) => (
                       <option
@@ -335,7 +340,7 @@ export function AgentDialog({
                           setError(
                             cause instanceof Error
                               ? cause.message
-                              : 'The workspace picker could not be opened.',
+                              : 'The folder picker could not be opened.',
                           );
                         }
                       }}
@@ -376,7 +381,7 @@ export function AgentDialog({
             ) : null}
             {error ? <p className={styles.formError}>{error}</p> : null}
 
-            <div className={dialogs.dialogActions}>
+            <div className={`${dialogs.dialogActions} ${styles.agentActions}`}>
               {agent && onDelete ? (
                 confirmingDelete ? (
                   <button

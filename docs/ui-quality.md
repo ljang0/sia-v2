@@ -1,8 +1,10 @@
 # UI quality gate
 
-Sia's visual idea is simple and specific: **an agent is a living room for work.** A deep evergreen
-dock holds distinct agent identities; the selected agent opens a clean mineral workspace beside it. The
-product should feel expressive and companionable without becoming mascot-like. Safety, consent,
+Sia's visual idea is simple and specific: **an agent is a living room for work.** A quiet sidebar
+holds distinct agent identities; the selected agent opens a clean, neutral workspace beside it. The
+look is a polished native Mac app: neutral surfaces, one emerald accent from the Sia mark, SF Pro
+type, hairline edges, and soft layered shadows. The product should feel expressive and companionable
+without becoming mascot-like. Safety, consent,
 and legal surfaces remain sober. Sia is not an AI dashboard and not a chat template.
 
 ## Everyday use
@@ -31,8 +33,8 @@ Switching desktop views or phone tabs uses a short fade and vertical ease on the
 Navigation is immediate, drafts retain their normal persistence, and incoming task updates do not
 restart the transition. Reduce Motion and desktop Calm disable this movement.
 
-Desktop startup begins with a dark evergreen wordmark, then eases the background into a soft shape
-on the left beside “Loading Sia.” It follows the actual initial load: there is no minimum wait,
+Desktop startup begins with a large wordmark on the canvas color, then eases the background into a
+sidebar-colored shape on the left beside “Loading Sia.” It follows the actual initial load: there is no minimum wait,
 the ready workspace is immediately usable, and the decorative curtain clears in 240 ms or less.
 It never replays for ordinary navigation, the Fn flow, or the launcher. Reduce Motion uses a still
 loading state; Calm dismisses it immediately when the saved appearance becomes available. Startup
@@ -40,7 +42,9 @@ errors replace the animation with the existing reconnect action. For local visua
 supports `?startup-delay=2200#demo`; this delay is unavailable in production.
 
 Desktop navigation and phone branding share the supplied mint-gradient **S** logo. The sidebar,
-phone header, welcome screen, favicon, and iOS Home Screen icon all load the same bundled PNG.
+setup welcome, sign-in, phone header, phone welcome, favicon, and iOS Home Screen icon all load the
+same bundled PNG. Only one logo is on screen at a time: the phone welcome hero carries it, so the
+header keeps an empty slot there.
 The original image is preserved, and the Home Screen name remains **Sia**.
 An existing iOS Home Screen shortcut may need to be removed and added again to refresh its cached icon.
 
@@ -73,7 +77,9 @@ mounted; Reduce Motion keeps a still gradient.
 The desktop sidebar keeps New conversation and filtering above the scrolling task list. Pinned
 agents come first, followed by names; changing selection never reorders groups. Within a group,
 conversations pinned from the row menu (Pin / Unpin) come first with a small pin, then the rest by
-recency; ⌘1–9 and the ⌘K Pinned section follow the same order. Conversations saved before pinning
+recency; ⌘1–9 and the ⌘K Pinned section follow the same order. A new conversation with no message, draft, or pin is
+listed only while it is open, so leaving it never leaves an empty row behind; ⌘1–9 and ⌘K use
+the same list. Conversations saved before pinning
 existed start unpinned, and a duplicate starts unpinned. Conversation titles
 stay on one line with ellipsis, in evenly sized rows. Working, waiting, unread, and draft cues remain
 visible; the full title, draft or latest reply, and update time live in the hover or keyboard-focus
@@ -82,7 +88,7 @@ dismiss the preview. Work that finishes in the open conversation while Sia is on
 once; if Sia was hidden or minimized, it is read when the window shows again. The collapsed
 rail retains new conversation, search, agents, new agent, Activity, and Settings.
 
-Agent navigation uses flat groups and rotating disclosure chevrons in Sia’s evergreen palette.
+Agent navigation uses flat groups and rotating disclosure chevrons on the neutral sidebar.
 The sidebar is 272px wide (252px in compact windows), with full-width conversation rows and no
 nested card borders or repeated conversation icons. Only the current conversation has a persistent
 selection fill. Agent actions appear on hover or keyboard focus; touch pointers keep them visible.
@@ -103,34 +109,136 @@ restore the launcher; they do not discard the request or start another turn.
 
 ## The room rule
 
-- **The dock** (`--shell-*` tokens) is the evergreen agent navigation: agents, contextual threads,
-  Activity / Settings. It is the same family in light and dark appearance. The selected agent
-  remains on the shell with a quiet selected surface and a two-pixel identity marker; it never
-  cuts a light card shape into navigation.
-- **The room** (`.workspace`, `--bg-*` tokens) is the mineral-white, faint sage-neutral space of the agent whose thread is open
-  (or the selected agent when no thread is). It carries `data-identity` so `--agent-color`
-  resolves to that agent's muted hue (`--hue-0..3`: ochre, terracotta, slate blue, sage — chosen in the agent
+- **The sidebar** (`--shell-*` tokens) is the agent navigation: agents, contextual threads,
+  Activity / Settings. In light appearance it is a soft grey panel (`#f4f4f5`) beside a near-white
+  canvas, like a macOS source list; in dark appearance it is the deepest graphite layer. Selection
+  is a neutral fill; the identity hue appears only in the agent's avatar, never as a wash.
+- **The room** (`.workspace`, `--bg-*` tokens) is the neutral space of the agent whose thread is
+  open (or the selected agent when no thread is). It carries `data-identity` so `--agent-color`
+  resolves to that agent's hue (`--hue-0..3`: slate blue, coral, sky, green — chosen in the agent
   dialog's Color swatches; a new agent's default follows its name via `agentIdentity`). Each slot
-  now also selects an abstract living form. The persisted value remains `hue`; this is a visual
-  reinterpretation, not a data migration. The identity appears in the dock, room header,
-  conversation, presence, streaming caret, empty state, and approvals. Never use it to make the
-  person's consequential controls look pre-approved.
-- **The person's controls** are ink: `--bg-accent` compact buttons and deliberate outlines on
-  dialogs, secondary buttons, and approval cards. The composer uses a quieter one-pixel boundary
-  with a green focus ring. Links and success are the shell's green (`--text-link`).
-- **Type**: Bricolage Grotesque (`--font-display`, bundled OFL variable latin subset) for names,
-  headings, the wordmark, metrics, and dialog titles — with `font-variation-settings: 'opsz'` set
-  per size. The system sans (`--font-sans`) carries body copy, controls, labels and nav.
-  `src/renderer/uiPolicy.test.ts` checks the face is on names/headings and off controls/body copy,
-  that every hue slot is defined, and that the room maps every identity slot to a hue.
+  also selects an abstract living form. The persisted value remains `hue`. The identity appears in
+  the sidebar avatar, room header, conversation, presence, streaming caret, empty state, and
+  approvals. Never use it to make the person's consequential controls look pre-approved.
+- **Color**: surfaces carry no tint. Light: canvas `#fcfcfd`, raised `#ffffff`, sidebar `#f4f4f5`,
+  text `#18181b` / `#4b4b53` / `#5f5f68`. Dark: canvas `#131416`, raised `#1a1b1e`, sidebar
+  `#0e0f11`, text `#ededef` / `#b4b4bc` / `#9a9aa3`. The one brand accent is emerald (`#07855b`
+  light, `#34d399` dark) and is reserved for primary actions, focus, selection, links, and live
+  status. Success, warning, and danger have their own semantic tokens. Every text token keeps
+  4.5:1 on every surface it sits on; `uiPolicy.test.ts` checks this.
+- **Controls**: primary buttons are a solid accent fill with a hairline darker edge and a faint top
+  highlight; secondary buttons are a white (graphite in dark) control with a hairline border.
+  `ActionButton` is the shared native button for the composer, launcher, and phone; there is no
+  WebGL button effect. The composer is a raised surface with a hairline border and an accent focus
+  ring.
+- **Type**: the macOS system face throughout. `--font-display` / `--font-brand` are SF Pro Display
+  for names, headings, the wordmark, metrics, and dialog titles, with `--tracking-display`
+  (-0.022em); `--font-sans` (SF Pro Text) carries body copy, controls, labels, and navigation.
+  Nothing is bundled. `src/renderer/uiPolicy.test.ts` checks the display face is on names and
+  headings and off controls and body copy, that every hue slot is defined, and that the room maps
+  every identity slot to a hue.
+- **Icons**: Phosphor only, regular weight. `fill` is kept for media and status glyphs (stop, play,
+  record, status dots) and `bold` only for small checks, send arrows, and the more menu. Sizes
+  follow 14 / 16 / 18 / 20 / 22 / 24px. The Sia logo is one asset (`SiaLogo`), always shown as its
+  own near-black app-icon tile, never inside another tile.
+
+## Comfortable reading
+
+On 2026-10-14 Lawrence reported that the layout and type felt too small, dense, and not
+user-friendly. Sia is for everyday consumers, so comfort wins over density:
+
+- Ordinary interface text is `--text-sm` (14px); body copy and replies are `--text-md` or larger.
+  Nothing a person needs to read is below `--text-2xs` (11.5px), and that size is only for
+  secondary metadata such as timestamps and shortcut hints.
+- No small letter-spaced all-caps labels. Section and status labels use sentence case at readable
+  sizes; hierarchy comes from size, weight, and spacing rather than tracking.
+- Interactive controls are at least `--target-min` (36px) tall; list and settings rows at least
+  `--row-min` (44px). Icons use `--icon-sm`/`--icon-md`/`--icon-lg` (16/18/22px).
+- Give content room: generous padding between groups, comfortable line height (≥1.45 for body
+  copy), and content columns that use the window rather than a narrow strip in a large empty pane.
+- Everything must still fit at the supported 960×640 window and at the Larger text size.
+- The same applies to the phone remote: thumb-sized targets (at least 44px), readable body text
+  (at least 16px, which also stops iOS zooming fields), and no dense metadata rows.
+- Wording is for people who have never used a developer tool: plain words on every main path,
+  short action-first labels, and technical detail (model IDs, API terms, harness names) behind a
+  Details or Advanced disclosure. Keep a precise macOS permission name only where people will see
+  it in System Settings, with a plain explanation beside it.
+
+## Motion language
+
+On 2026-10-14 Lawrence asked for a dedicated UI/UX and animation pass across every workflow because
+the product still felt stale. The motion dial moves from 3 to 6. Motion should make Sia feel alive and
+responsive, never slower: navigation and input stay immediate, and animation explains cause and
+effect (what appeared, what moved, what finished, what needs attention).
+
+- Arrivals use `--ease-spring` or `--ease-out-soft` over `--motion-standard`..`--motion-emphasis`, travel
+  at most `--motion-rise`, and may start from `--motion-pop-scale`. Exits use `--ease-exit` over
+  `--motion-exit` and are always quicker than the matching arrival.
+- Lists and groups that appear together stagger by `--motion-stagger`, capped at eight items.
+- Live state (working, waiting, approval needed, reply ready, voice) gets a distinct, recognisable
+  transition; streamed tokens still do not animate per token.
+- Hover and press feedback stays at `--motion-fast`; pressed controls may settle by `--motion-nudge`.
+- Animate only `transform`, `opacity`, `filter`, `clip-path`, and colour. Never animate layout
+  properties on large surfaces, and never block input on an animation.
+- Reduced Motion collapses durations, travel, scale, and stagger through the tokens. Calm keeps short
+  fades but removes travel, springs, and stagger. Safety, consent, and legal surfaces stay sober:
+  they may fade and settle, but do not bounce or celebrate.
+- Status signals have one gesture each, wherever they appear (dock, Scotty, launcher, phone): finished
+  or unread pops once, working breathes or sends a slow ring, waiting for the person pops then
+  breathes, and a problem only fades and settles. Status text is keyed by status so a change lands
+  visibly, while streamed progress inside one status does not replay it.
+- Completion moments (Reply ready, setup's "You're all set") play only on the live state change,
+  never when a finished thread or screen is reopened, and never loop. Setup permission rows settle
+  only when they turn ready while shown.
+- Permission and consent surfaces (approval cards, the Access panel, alert dialogs) arrive with
+  `--ease-out-soft`, never `--ease-spring`; an approval card may add one brief wash of the agent hue.
+  The phone remote never approves; its approval note stays a sober surface pointing to the Mac.
+- The room's hue (`--agent-color`) is a registered colour, so switching agents cross-fades the room
+  over `--motion-emphasis` instead of snapping.
+- Tab rails share one highlight that glides by animating `clip-path` only
+  (`settings/useNavIndicator.ts`); never animate a tab's width or position.
+- Press depth, press stretch, and check rotation derive from `--motion-pop-scale` and
+  `--motion-nudge`, so Calm and Reduced Motion keep the colour change and drop the movement.
+  Danger and disabled buttons never lift or bounce.
+- One-shot arrivals on hoverable controls use `animation-fill-mode: backwards`, and elements that
+  already run their own animation enter by transition plus `@starting-style`, so an entrance never
+  holds `transform` against hover or overrides an ambient loop.
+- Larger blocks that arrive together (welcome sections) may stagger by twice `--motion-stagger`.
+- Dismissal stays instant for dialogs, menus, and the quick switcher: hidden windows can pause
+  `animationend` indefinitely, and the renderer suite requires dismissed surfaces to close without
+  waiting. The Inspector and Scotty/launcher exits run on timers instead.
+- Windows that are shown and hidden rather than remounted (Scotty's tray, the ⌘E launcher) replay
+  their arrival on show with `floatingMotion.summon` and play `dismissMotion` before a self-initiated
+  hide; hiding because focus left stays instant. Always-on surfaces play one beat per state change
+  and then rest; only the working indicator loops. Every renderer window imports `tokens.css`
+  through `main.tsx`.
+- Live microphone state is a steady tint plus a radiating ring; the composer's wave follows the
+  voice level while listening and shows a travelling pulse while transcribing. Reduced Motion keeps
+  the ring as a static outline.
+- The startup curtain breathes after it settles and lifts away on ready within the 240 ms budget.
+- A working agent shows its own form, not a bare spinner: on the live status line it breathes over
+  `--motion-breathe` and sends a ring every `--motion-ring`; while a step row or the reply caret
+  already moves, the ring stops and the form only breathes. The step in progress (desktop and phone)
+  and the live label carry one light sweep per `--motion-sweep`. A watched run settles into its
+  "Worked for" summary with one check pop; reopened runs stay still.
+- Streamed replies reveal per block, never per token: each new paragraph, list item, or code block
+  fades up `--motion-reveal` once. A reply's tools arrive in a short stagger only on the live finish.
+- Loading areas use the shared `primitives.skeleton` (a still block with a soft light sweep that
+  waits a beat before showing) instead of a lone spinner or a wrong placeholder state.
+- Menus grow from the corner Radix reports and unfold their items in a capped stagger. Focus rings
+  tighten onto their control over `--motion-standard` at zero specificity, so a control's own
+  animation always wins. The message field eases to its new height; the send arrow lifts away on
+  each send.
+- The welcome light drifts on `--motion-ambient` only while the welcome scene is focused. In dark
+  mode the dither grid stays quieter so it never reads as noise behind text.
 
 ## Locked dials
 
-Variance 5, motion 3, density 4. One deep-green dock, one mineral-neutral room surface system, four agent
-forms with one job, ink for controls, Phosphor icons, system sans for the interface, one bundled
-identity/display face, and a four-step radius rule: `--radius-tight` 6px for chips/menus, `--radius-control`
-10px for controls and rows, `--radius-surface` 14px for the few contained surfaces that need an
-edge, `--radius-dialog` 20px for floating dialogs, `--radius-round` only for true circles, and a
+Variance 5, motion 6, density 3. One quiet neutral sidebar, one neutral room surface system, four
+agent forms with one job, one emerald accent for controls and status, Phosphor icons, and the SF Pro
+system faces, with a four-step radius rule: `--radius-tight` 6px for chips/menus, `--radius-control`
+8px for controls and rows, `--radius-surface` 12px for cards and the few contained surfaces that
+need an edge, `--radius-dialog` 16px for floating dialogs and the composer, `--radius-round` only for true circles, and a
 square workspace edge (`--radius-room: 0`). Type uses the `--text-*` / `--display-*` scale and the
 `--weight-*` weights; do not introduce literal sizes, weights, or radii in the style modules.
 
@@ -153,12 +261,12 @@ use whitespace and a hairline divider before adding another box.
 - Active agent, provider/model, workspace, local/cloud status, and research-capture state are always understandable — the room's hue and the topbar dot must agree with the sidebar.
 - Loading, empty, error, offline, queued, denied, cancelled, and recovery states exist.
 - Every consequential approval names the operation, target, data leaving the Mac, focus behavior, and reversibility, under the requesting agent's hue band.
-- Full keyboard operation, visible focus, correct labels, minimum 32px targets, and WCAG 2.2 AA contrast (`uiPolicy.test.ts` computes tertiary-text and strong-border contrast for both appearances).
+- Full keyboard operation, visible focus, correct labels, minimum 36px targets (`--target-min`), and WCAG 2.2 AA contrast (`uiPolicy.test.ts` computes tertiary-text and strong-border contrast for both appearances).
 - Light, dark, high-contrast, increased-text, and reduced-motion modes are verified.
 - Interactive rows and buttons give quiet hover feedback with `background-color`/`color`
   transitions at `--motion-fast`. Feedback is 140ms, standard motion 190ms, and surfaces 240ms.
-  Empty states and avatars do not rotate, bob, or breathe; motion is reserved for live presence,
-  progress, state transitions, and overlays. Streamed tokens do not animate.
+  Empty states and avatars do not idle-loop; motion is reserved for arrivals, live presence,
+  progress, state transitions, and overlays (see Motion language). Streamed tokens do not animate.
 - No generic AI gradients, glass, decorative status dots, card grids, nested cards, mascot faces,
   canvas, GenUI, or visualization affordance. A restrained monochrome grain and broad ambient
   color mixing are permitted when they make the room feel tactile without reducing contrast.
@@ -180,11 +288,11 @@ profiles; no provider turn or personal account is involved. Phone layouts have a
 
 ## New-user setup
 
-| Before                                                      | After                                                                                          | Why                                                  |
-| ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
-| Install/update then a separate sign-in action after restart | Set up Codex resumes browser sign-in once after restart, with visible stage and retry feedback | No terminal or second setup action                   |
-| Disabled Set up Sia button while no model is ready          | Resolve AI access first, then show Set up Sia                                                  | One actionable next step                             |
-| Core permission statuses hidden with optional apps          | Core checklist always visible; everyday apps expandable                                        | See missing access and recovery guidance immediately |
+| Before                                                      | After                                                                                             | Why                                                  |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| Install/update then a separate sign-in action after restart | Connect ChatGPT resumes browser sign-in once after restart, with visible stage and retry feedback | No terminal or second setup action                   |
+| Disabled Set up Sia button while no model is ready          | Resolve AI access first, then show Set up Sia                                                     | One actionable next step                             |
+| Core permission statuses hidden with optional apps          | Core checklist always visible; everyday apps expandable                                           | See missing access and recovery guidance immediately |
 
 One permission action requests only missing access. macOS owns approval dialogs; returning to Sia
 checks status without repeating prompts. Interrupted or denied access does not erase allowed grants.

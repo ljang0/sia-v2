@@ -175,7 +175,7 @@ export function ResearchArchiveSettings({
     >
       <section className={styles.archiveInvitePanel} aria-labelledby="archive-invite-title">
         <div className={styles.archiveInviteCopy}>
-          <EnvelopeSimple size={19} aria-hidden="true" />
+          <EnvelopeSimple size={18} aria-hidden="true" />
           <div>
             <strong id="archive-invite-title">Invite a participant</strong>
             <p>
@@ -210,7 +210,7 @@ export function ResearchArchiveSettings({
               (inviteLimit > 0 && invites.length >= inviteLimit)
             }
           >
-            <PaperPlaneTilt size={15} aria-hidden="true" />
+            <PaperPlaneTilt size={16} aria-hidden="true" />
             {inviting ? 'Sending…' : 'Send invitation'}
           </button>
         </form>
@@ -244,7 +244,7 @@ export function ResearchArchiveSettings({
           onClick={() => void refreshParticipants()}
           disabled={Boolean(loading)}
         >
-          <ArrowClockwise size={14} aria-hidden="true" />
+          <ArrowClockwise size={16} aria-hidden="true" />
           Refresh
         </button>
       </div>

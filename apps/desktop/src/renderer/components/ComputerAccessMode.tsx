@@ -96,9 +96,9 @@ export function ComputerAccessMode({
       <p className={settings.settingsNote}>
         {computer.accessMode === 'mac'
           ? computer.backgroundControl
-            ? 'Sia works in the background so you can keep using your Mac. Saved native scripts need On my screen. Changes apply to your next task.'
-            : 'Sia can control apps and files. With bypass enabled, native commands have full Mac access. Changes apply to your next task.'
-          : 'Connect a browser or service in Connections. Mac app control requires Use my Mac.'}
+            ? 'Sia works in the background so you can keep using your Mac. Saved Mac scripts need On my screen. Changes apply to your next task.'
+            : 'Sia can control your apps and files. With Act without asking on, Sia’s Mac commands have full access to your Mac. Changes apply to your next task.'
+          : 'Connect your accounts in Connections. To let Sia use the apps on your Mac, choose Use my Mac.'}
       </p>
     </div>
   );

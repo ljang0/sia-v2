@@ -68,7 +68,7 @@ export function VoiceSettings({
       title="Voice"
       description={
         nativeVoice
-          ? 'Hear replies with the voices installed on your Mac. Supported dictation is processed on this Mac.'
+          ? 'Hear replies in the voices built into your Mac. Where your Mac supports it, what you say is turned into text on this Mac.'
           : 'Dictate a message or hear a reply. Voice audio goes to ElevenLabs only when you use a voice control.'
       }
     >
@@ -82,12 +82,12 @@ export function VoiceSettings({
         <div className={styles.voiceConnected}>
           <div className={styles.voiceStatusLine}>
             <span className={styles.voiceMark} aria-hidden="true">
-              <SpeakerHigh size={18} />
+              <SpeakerHigh size={20} />
             </span>
             <div>
               <strong>{nativeVoice ? 'Read aloud ready' : 'ElevenLabs voice ready'}</strong>
               <span>
-                <CheckCircle size={13} aria-hidden="true" />
+                <CheckCircle size={16} aria-hidden="true" />
                 {voice.selectedVoiceName ?? 'Voice ready'}
               </span>
             </div>
@@ -123,7 +123,7 @@ export function VoiceSettings({
                 disabled={Boolean(pending)}
                 onClick={() => void run('refresh', onRefresh)}
               >
-                <ArrowClockwise size={14} aria-hidden="true" />
+                <ArrowClockwise size={16} aria-hidden="true" />
                 {pending === 'refresh' ? 'Refreshing…' : 'Refresh voices'}
               </button>
               <button
@@ -147,7 +147,8 @@ export function VoiceSettings({
               {nativeVoice ? 'Use your Mac’s built-in voice' : 'Use ElevenLabs voice'}
             </strong>
             <p>
-              {voice.detail ?? 'Sign in to use dictation and read aloud. No API key is needed.'}
+              {voice.detail ??
+                'Sign in to talk to Sia and hear replies. Nothing else to set up.'}
             </p>
             <button
               type="button"
@@ -159,7 +160,7 @@ export function VoiceSettings({
             </button>
             <p className={styles.voicePrivacyNote}>
               {nativeVoice
-                ? 'Read aloud needs no microphone permission, cloud account, or API key. Dictation requires separate Speech Recognition permission and an available on-device recognizer.'
+                ? 'Read aloud works right away. Talking to Sia also needs the Speech Recognition permission in System Settings, and speech support on this Mac.'
                 : 'Audio is sent only when you dictate, hold Fn, or choose Read aloud. You can turn voice off at any time.'}
             </p>
           </div>
@@ -198,7 +199,7 @@ export function VoiceSettings({
             </label>
             <label className={settings.voicePreference}>
               <span>
-                <strong>Speak Fn replies</strong>
+                <strong>Read Fn replies out loud</strong>
                 <small>
                   Hear a brief result without opening Sia. Hold Fn or press Escape to stop it.
                 </small>
@@ -242,9 +243,7 @@ export function VoiceSettings({
               recording is not used.
             </p>
             {pushToTalk.detail ? <p role="status">{pushToTalk.detail}</p> : null}
-            {!pushToTalk.available ? (
-              <p>Fn push-to-talk is available in the macOS app.</p>
-            ) : null}
+            {!pushToTalk.available ? <p>Hold Fn to talk works in the Mac app.</p> : null}
           </div>
         </div>
       ) : null}

@@ -26,7 +26,7 @@ export interface WindowSize {
  * curtain for the system appearance, so a light-mode Mac does not flash dark at launch.
  */
 export function windowBackgroundColor(dark: boolean): string {
-  return dark ? '#0d1915' : '#f4f6f2';
+  return dark ? '#131416' : '#fcfcfd';
 }
 
 /** Visible pixels a restored window must keep on screen so it can still be dragged back. */

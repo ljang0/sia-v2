@@ -12,11 +12,28 @@
 
 .byokForm small {
   color: var(--text-tertiary);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 
 .byokError {
   margin: 8px 0 0;
   color: var(--text-danger);
   font-size: var(--text-sm);
+}
+
+.providerDetails {
+  margin-top: 4px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.providerDetails > summary {
+  display: inline-flex;
+  min-height: var(--target-min);
+  align-items: center;
+  cursor: pointer;
+}
+
+.providerDetails > p {
+  margin: 0 0 4px;
 }

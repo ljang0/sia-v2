@@ -4,9 +4,9 @@
   padding-bottom: 16px;
 }
 .recents h3 {
-  margin: 0 0 8px;
+  margin: 0 0 10px;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
 }
 .list {
@@ -19,11 +19,11 @@
 .list button {
   display: grid;
   min-width: 0;
-  min-height: 52px;
-  grid-template-columns: 8px minmax(0, 1fr) auto 14px;
+  min-height: 64px;
+  grid-template-columns: 8px minmax(0, 1fr) auto var(--icon-sm);
   align-items: center;
-  gap: 12px;
-  padding: 8px 14px;
+  gap: 14px;
+  padding: 10px 16px;
   border: 0;
   background: transparent;
   color: var(--text-primary);
@@ -31,6 +31,26 @@
   text-align: left;
   cursor: pointer;
   transition: background-color var(--motion-fast) var(--ease-standard);
+  /* Rows follow the block in, one stagger step apart (index set per row, capped at eight). */
+  --i: 0;
+  animation: recentDeal var(--motion-emphasis) var(--ease-spring) backwards;
+  animation-delay: calc((6 + min(var(--i), 7)) * var(--motion-stagger) * 2);
+}
+@keyframes recentDeal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-nudge));
+  }
+}
+.list button > * {
+  transition: transform var(--motion-standard) var(--ease-spring);
+}
+.list button:active > * {
+  transform: scale(calc(1 - (1 - var(--motion-pop-scale)) / 2));
+  transition-duration: var(--motion-fast);
+}
+.list button:hover .dot {
+  transform: scale(calc(1 + (1 - var(--motion-pop-scale)) * 8));
 }
 .list button + button {
   border-top: 1px solid var(--border-subtle);
@@ -71,7 +91,7 @@
 .copy {
   display: grid;
   min-width: 0;
-  gap: 1px;
+  gap: 3px;
 }
 .copy strong,
 .preview {
@@ -80,23 +100,25 @@
   white-space: nowrap;
 }
 .copy strong {
-  font-size: var(--text-md);
+  font-size: var(--text-base);
   font-weight: var(--weight-semibold);
+  line-height: 1.35;
 }
 .preview {
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
+  line-height: 1.4;
 }
 .meta {
   display: flex;
   align-items: center;
   gap: 8px;
   color: var(--text-tertiary);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
   white-space: nowrap;
 }
 .status {
-  padding: 2px 7px;
+  padding: 3px 9px;
   border-radius: 999px;
   background: var(--bg-subtle);
   color: var(--text-secondary);
@@ -125,8 +147,12 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .list button,
+  .list button > *,
   .arrow {
     transition: none;
+  }
+  .list button {
+    animation: none;
   }
   .arrow {
     transform: none;
@@ -134,6 +160,9 @@
   [data-status] .dot {
     animation: none;
   }
+}
+:global([data-appearance='calm']) .list button {
+  animation: none;
 }
 @media (forced-colors: active) {
   .dot {

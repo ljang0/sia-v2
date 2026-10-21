@@ -1,0 +1,91 @@
+/* Entrance choreography for the Activity page (app/ActivityPage.tsx). The sections and their rows
+   belong to localParity components; this page only sequences how they arrive. */
+
+/* Sections rise in order: your agents' work, search, then archived conversations. */
+.enter > * {
+  animation: activityRise var(--motion-emphasis) var(--ease-out-soft) backwards;
+}
+
+.enter > :nth-child(2) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+
+.enter > :nth-child(n + 3) {
+  animation-delay: calc(var(--motion-stagger) * 6);
+}
+
+/* Counts settle in with a small pop, then the rows follow one by one (capped at eight). A row that
+   appears later, for example after switching the filter to All, rises in the same way. */
+.enter [data-status] > strong {
+  display: inline-block;
+  animation: activityPop var(--motion-emphasis) var(--ease-spring) backwards;
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+
+.enter [data-testid='background-task-row'] {
+  animation: activityRise var(--motion-emphasis) var(--ease-out-soft) backwards;
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+
+.enter [data-testid='background-task-row']:nth-child(2) {
+  animation-delay: calc(var(--motion-stagger) * 4);
+}
+
+.enter [data-testid='background-task-row']:nth-child(3) {
+  animation-delay: calc(var(--motion-stagger) * 5);
+}
+
+.enter [data-testid='background-task-row']:nth-child(4) {
+  animation-delay: calc(var(--motion-stagger) * 6);
+}
+
+.enter [data-testid='background-task-row']:nth-child(5) {
+  animation-delay: calc(var(--motion-stagger) * 7);
+}
+
+.enter [data-testid='background-task-row']:nth-child(6) {
+  animation-delay: calc(var(--motion-stagger) * 8);
+}
+
+.enter [data-testid='background-task-row']:nth-child(7) {
+  animation-delay: calc(var(--motion-stagger) * 9);
+}
+
+.enter [data-testid='background-task-row']:nth-child(n + 8) {
+  animation-delay: calc(var(--motion-stagger) * 10);
+}
+
+/* The filter's segments settle when pressed. */
+.enter [aria-label='Activity filter'] button {
+  transition:
+    background-color var(--motion-standard) var(--ease-out-soft),
+    color var(--motion-fast) var(--ease-standard),
+    box-shadow var(--motion-standard) var(--ease-out-soft),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.enter [aria-label='Activity filter'] button:active {
+  transform: scale(var(--motion-pop-scale));
+}
+
+@keyframes activityRise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise));
+  }
+}
+
+@keyframes activityPop {
+  from {
+    opacity: 0;
+    transform: scale(var(--motion-pop-scale));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .enter > *,
+  .enter [data-status] > strong,
+  .enter [data-testid='background-task-row'] {
+    animation: none;
+  }
+}

@@ -30,7 +30,7 @@
   font-family: var(--font-display);
   font-size: var(--display-lg);
   font-weight: var(--weight-semibold);
-  letter-spacing: -0.035em;
+  letter-spacing: -0.025em;
 }
 
 .auditHeader p {

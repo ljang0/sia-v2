@@ -224,6 +224,9 @@ const api: DesktopBridgeApi = {
         includeDiagnostics,
       }),
   },
+  ratings: {
+    submit: (input) => invoke('ratings.submit', input),
+  },
   updates: {
     check: () => invoke('updates.check', undefined),
     openDownload: () => invoke('updates.openDownload', undefined),

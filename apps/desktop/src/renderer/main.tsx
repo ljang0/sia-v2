@@ -1,6 +1,8 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AppErrorBoundary } from './components/ErrorBoundary';
+// Every window (main, Scotty, launcher) shares Sia's design tokens.
+import './tokens.css';
 
 const root = document.getElementById('root');
 

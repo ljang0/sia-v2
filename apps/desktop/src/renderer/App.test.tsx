@@ -41,14 +41,14 @@ describe('app privacy routing', () => {
     await screen.findByRole('button', { name: 'Access' });
 
     fireEvent.keyDown(window, { key: 'k', metaKey: true });
-    expect(await screen.findByRole('dialog', { name: 'Move through Sia' })).toBeTruthy();
+    expect(await screen.findByRole('dialog', { name: 'Search everything' })).toBeTruthy();
 
     const search = screen.getByRole('combobox', { name: 'Search conversations and actions' });
     fireEvent.change(search, { target: { value: 'archived' } });
     fireEvent.click(screen.getByRole('option', { name: /Open archived conversations/ }));
 
     expect(await screen.findByRole('region', { name: 'Archived' })).toBeTruthy();
-    expect(screen.queryByRole('dialog', { name: 'Move through Sia' })).toBeNull();
+    expect(screen.queryByRole('dialog', { name: 'Search everything' })).toBeNull();
   });
 
   it('opens the selected launcher conversation even when Settings is already open', async () => {
@@ -78,7 +78,7 @@ describe('app privacy routing', () => {
     const snapshot = structuredClone(demoSnapshot);
     for (const provider of snapshot.providers) provider.models = [];
     const { unmount } = render(<App api={createDemoRendererApi(snapshot)} />);
-    fireEvent.click(await screen.findByText('Model for this conversation'));
+    fireEvent.click(await screen.findByText('AI for this conversation'));
     const model = screen.getByRole('combobox', { name: 'Model' }) as HTMLSelectElement;
     expect(model.selectedOptions[0]?.textContent).not.toMatch(/^[a-z0-9.-]+$/);
     expect(screen.queryByText('Workspace')).toBeNull();
@@ -87,7 +87,7 @@ describe('app privacy routing', () => {
     const developer = structuredClone(snapshot);
     developer.preferences.developerTools = true;
     render(<App api={createDemoRendererApi(developer)} />);
-    fireEvent.click(await screen.findByText('Model for this conversation'));
+    fireEvent.click(await screen.findByText('AI for this conversation'));
     expect(screen.getByText('Workspace')).toBeTruthy();
   });
 
@@ -106,7 +106,7 @@ describe('app privacy routing', () => {
     thread.model = 'gpt-6-astra';
     const api = createDemoRendererApi(snapshot);
     render(<App api={api} />);
-    fireEvent.click(await screen.findByText('Model for this conversation'));
+    fireEvent.click(await screen.findByText('AI for this conversation'));
     const model = screen.getByRole('combobox', { name: 'Model' }) as HTMLSelectElement;
     expect(model.value).toBe('gpt-6-astra');
     expect(model.selectedOptions[0]?.textContent).toContain('(unavailable)');
@@ -254,7 +254,7 @@ describe('app privacy routing', () => {
     expect(archive).toBeTruthy();
     expect(screen.getByText('Previous release notes')).toBeTruthy();
     // Activity is a full page, like Settings: the conversation header steps aside.
-    expect(screen.queryByText('Model for this conversation')).toBeNull();
+    expect(screen.queryByText('AI for this conversation')).toBeNull();
     expect(screen.queryByRole('button', { name: 'Access' })).toBeNull();
   });
 
@@ -530,8 +530,8 @@ describe('app privacy routing', () => {
     render(<App api={createDemoRendererApi(snapshot)} />);
 
     expect(screen.queryByRole('status', { name: 'Cloud offline' })).toBeNull();
-    expect(await screen.findByText('Sia cloud is offline.')).toBeTruthy();
-    expect(screen.getByText(/Local work is still available/)).toBeTruthy();
+    expect(await screen.findByText('Sia’s online service isn’t responding.')).toBeTruthy();
+    expect(screen.getByText(/keep working on this Mac/)).toBeTruthy();
   });
 
   it('shows a fatal bridge event before bootstrap completes and recovers on retry', async () => {

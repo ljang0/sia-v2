@@ -37,7 +37,7 @@ describe('local parity renderer contracts', () => {
       />,
     );
 
-    fireEvent.click(screen.getByText('Model for this conversation'));
+    fireEvent.click(screen.getByText('AI for this conversation'));
     fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), {
       target: { value: 'gpt-5.4' },
     });
@@ -230,6 +230,38 @@ describe('local parity renderer contracts', () => {
     expect(onDelete).toHaveBeenCalledWith('schedule-1');
   });
 
+  it('says why the last scheduled run failed, in sentence case', () => {
+    const failed = {
+      id: 'run-3',
+      startedAt: '2026-08-15T09:00:00.000Z',
+      finishedAt: '2026-08-15T09:01:00.000Z',
+      outcome: 'failed' as const,
+      failureReason: 'Chrome was closed before the summary finished.',
+    };
+    render(
+      <ScheduleControls
+        schedules={[
+          {
+            id: 'schedule-1',
+            label: 'Morning summary',
+            prompt: 'Summarize updates',
+            cadence: 'daily',
+            nextRunAt: '2026-08-16T09:00:00.000Z',
+            enabled: true,
+            runCount: 1,
+            lastRun: failed,
+            runHistory: [failed],
+          },
+        ]}
+        onCreate={vi.fn()}
+        onSetEnabled={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+    expect(screen.getByText(/Last failed/)).toBeTruthy();
+    expect(screen.getByText('Chrome was closed before the summary finished.')).toBeTruthy();
+  });
+
   it('shows the latest schedule outcome and an expandable bounded run history', () => {
     render(
       <ScheduleControls
@@ -260,6 +292,7 @@ describe('local parity renderer contracts', () => {
                 startedAt: '2026-08-14T09:00:00.000Z',
                 finishedAt: '2026-08-14T09:01:00.000Z',
                 outcome: 'failed',
+                failureReason: 'Chrome was closed before the summary finished.',
               },
             ],
           },
@@ -271,7 +304,8 @@ describe('local parity renderer contracts', () => {
     );
 
     expect(screen.getByTestId('schedule-next-run').textContent).toContain('Next');
-    expect(screen.getByText(/Last Completed/)).toBeTruthy();
+    expect(screen.getByText(/Last completed/)).toBeTruthy();
+    expect(screen.queryByText(/Last Completed/)).toBeNull();
     fireEvent.click(
       screen.getByRole('button', { name: 'Show run history for Morning summary' }),
     );
@@ -279,6 +313,7 @@ describe('local parity renderer contracts', () => {
     const history = screen.getByRole('list', { name: 'Run history for Morning summary' });
     expect(history.textContent).toContain('Completed');
     expect(history.textContent).toContain('Failed');
+    expect(history.textContent).toContain('Chrome was closed before the summary finished.');
     expect(
       screen
         .getByRole('button', { name: 'Hide run history for Morning summary' })

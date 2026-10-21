@@ -56,7 +56,7 @@ export class AppErrorBoundary extends Component<AppBoundaryProps, AppBoundarySta
     return (
       <div className={styles.fatalState} role="alert" data-testid="app-error-boundary">
         <span className={styles.fatalIcon} aria-hidden="true">
-          <WarningCircle size={24} weight="duotone" />
+          <WarningCircle size={26} />
         </span>
         <h1>Something went wrong</h1>
         <p>
@@ -155,7 +155,7 @@ export class RowErrorBoundary extends Component<
     if (!this.state.failed) return this.props.children;
     return (
       <div className={primitives.notice} role="status" data-testid="row-error-boundary">
-        <WarningCircle size={17} aria-hidden="true" />
+        <WarningCircle size={18} aria-hidden="true" />
         <div>
           <strong>This message couldn’t be shown</strong>
           <p>The rest of the conversation is unaffected.</p>

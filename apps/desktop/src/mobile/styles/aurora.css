@@ -16,7 +16,7 @@
   pointer-events: none;
   z-index: 0;
   opacity: 1;
-  transition: opacity 400ms ease;
+  transition: opacity var(--motion-emphasis) var(--ease-standard);
   contain: paint;
   mask-image: linear-gradient(#000 40%, transparent 100%);
   -webkit-mask-image: linear-gradient(#000 40%, transparent 100%);
@@ -26,62 +26,42 @@
   opacity: 0.6;
 }
 .phone-aurora .dither-aurora-field {
-  opacity: 0.47;
+  opacity: 0.26;
 }
+/* On a dark canvas the dither grid reads as noise, so it stays quieter there. */
 @media (prefers-color-scheme: dark) {
   .phone-aurora .dither-aurora-field {
-    opacity: 0.55;
+    opacity: 0.12;
   }
 }
 .phone-shell[data-scene='workspace'] .phone-aurora {
-  opacity: 0.72;
-}
-.remote-composer {
-  border-color: transparent;
-  background:
-    linear-gradient(
-        115deg,
-        color-mix(in srgb, var(--aurora-emerald) 7%, var(--bg-raised)),
-        var(--bg-raised) 30%,
-        color-mix(in srgb, var(--aurora-cyan) 7%, var(--bg-raised)) 60%,
-        color-mix(in srgb, var(--aurora-violet) 9%, var(--bg-raised))
-      )
-      padding-box,
-    linear-gradient(
-        115deg,
-        color-mix(in srgb, var(--aurora-emerald) 65%, var(--border-subtle)),
-        color-mix(in srgb, var(--aurora-cyan) 55%, var(--border-subtle)) 32%,
-        color-mix(in srgb, var(--aurora-violet) 60%, var(--border-subtle)) 64%,
-        color-mix(in srgb, var(--aurora-emerald) 65%, var(--border-subtle))
-      )
-      border-box;
-  background-size: 260% 100%;
-  animation: gradient-drift 22s ease-in-out infinite alternate;
+  opacity: 0.45;
 }
 .remote-composer:focus-within,
 .remote-composer.listening {
-  border-color: transparent;
   box-shadow:
     0 0 0 3px var(--focus-halo),
-    0 4px 20px color-mix(in srgb, var(--aurora-emerald) 10%, transparent);
+    var(--shadow-composer);
 }
-.phone-nav [aria-current] .nav-icon {
-  animation: nav-arrive 240ms var(--phone-ease);
+/* The selected tab's pill grows out from the icon, the way an iOS segmented control lands. */
+.phone-nav [aria-current] .nav-icon::before {
+  animation: nav-arrive var(--motion-emphasis) var(--phone-spring) both;
+}
+.phone-nav [aria-current] .nav-icon svg {
+  animation: rise-pop var(--motion-surface) var(--phone-spring);
 }
 @media (hover: hover) {
   .idea-card:hover,
   .task-card:hover {
-    transform: translateY(-2px);
-    border-color: color-mix(in srgb, var(--aurora-emerald) 60%, var(--border-subtle));
-    box-shadow: 0 6px 18px rgb(23 58 52 / 7%);
+    transform: translateY(calc(var(--motion-nudge) * -1));
+    border-color: color-mix(in srgb, var(--bg-accent) 35%, var(--border-subtle));
+    box-shadow: var(--shadow-float);
   }
 }
 @keyframes nav-arrive {
   from {
-    transform: scale(0.87);
-  }
-  to {
-    transform: scale(1);
+    opacity: 0;
+    transform: scaleX(calc(1 - (1 - var(--motion-pop-scale)) * 12.5));
   }
 }
 @keyframes gradient-drift {
@@ -94,18 +74,34 @@
 }
 /* Reuse the wave field's visibility/reduced-motion lifecycle for CSS decoration. */
 .phone-shell:has(.phone-aurora[data-paused='true']) .hero-copy h1 span,
-.phone-shell:has(.phone-aurora[data-paused='true']) .remote-composer,
 .phone-shell:has(.phone-aurora[data-paused='true']) .hero-presence {
   animation-play-state: paused;
 }
+/* Shared phone keyframes. Travel and scale read the motion tokens, so Reduced Motion and Calm
+   flatten every arrival to a plain fade without touching the components. */
 @keyframes arrive {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(var(--motion-rise));
   }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+}
+@keyframes rise-pop {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise)) scale(var(--motion-pop-scale));
+  }
+}
+/* Sober surfaces (approval, errors, offline): fade and settle by a nudge, never bounce. */
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-nudge) * -1));
+  }
+}
+@keyframes pop {
+  from {
+    opacity: 0;
+    transform: scale(calc(1 - (1 - var(--motion-pop-scale)) * 10));
   }
 }
 @keyframes fade {
@@ -134,12 +130,12 @@
 @keyframes sheet-enter {
   from {
     opacity: 0;
-    transform: translate(-50%, 40px);
+    transform: translate(-50%, var(--phone-sheet-rise));
   }
 }
 @keyframes sheet-exit {
   to {
     opacity: 0;
-    transform: translate(-50%, 40px);
+    transform: translate(-50%, var(--phone-sheet-rise));
   }
 }

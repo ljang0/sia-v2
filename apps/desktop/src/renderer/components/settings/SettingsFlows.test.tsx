@@ -151,7 +151,7 @@ describe('cloud account settings', () => {
     fireEvent.click(screen.getByText('Account', { selector: 'span' }));
     expect(screen.getByText(/^Signed in as lawrence@example\.com\./)).toBeTruthy();
     expect(screen.getByText('Available for this account')).toBeTruthy();
-    expect(screen.getByText(/workspace administrator may need to approve/i)).toBeTruthy();
+    expect(screen.getByText(/your company may need to approve them/i)).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Sign out' })).toBeTruthy();
     expect(
       (screen.getByRole('button', { name: 'Connect selected apps' }) as HTMLButtonElement)
@@ -261,7 +261,7 @@ describe('cloud account settings', () => {
     expect(screen.getByText(/Google starts read-only/i)).toBeTruthy();
     expect(
       screen.getByRole('checkbox', { name: /Google Workspace/ }).closest('label')?.textContent,
-    ).toContain('Read access.');
+    ).toContain('Read only.');
     fireEvent.click(screen.getByRole('checkbox', { name: /Slack/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Connect selected apps' }));
     await waitFor(() => expect(onConnectSelected).toHaveBeenCalledWith(['google']));
@@ -523,7 +523,7 @@ describe('research consent settings', () => {
       />,
     );
 
-    expect(screen.getByText('Not enabled')).toBeTruthy();
+    expect(screen.getByText('Off')).toBeTruthy();
     expect(screen.getByText(/Anything the task can observe may be included raw/)).toBeTruthy();
     expect(screen.queryByText(/always excluded|withdraw consent/i)).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: 'Review & enable' }));
@@ -552,6 +552,8 @@ describe('research consent settings', () => {
       />,
     );
     expect(screen.queryByText('Recording')).toBeNull();
+    expect(screen.getByText('Research participation')).toBeTruthy();
+    expect(screen.getByText('Off')).toBeTruthy();
     expect(
       (screen.getByRole('button', { name: 'Review & enable' }) as HTMLButtonElement).disabled,
     ).toBe(false);
@@ -576,9 +578,11 @@ describe('research consent settings', () => {
   });
 
   it('keeps research capture optional while an account is signed in', () => {
+    const snapshot = structuredClone(demoSnapshot);
+    snapshot.research = { ...snapshot.research, consented: true, capture: 'recording' };
     render(
       <PrivacySettings
-        snapshot={structuredClone(demoSnapshot)}
+        snapshot={snapshot}
         onSetCapturePaused={vi.fn()}
         onExport={vi.fn()}
         onDelete={vi.fn()}
@@ -611,11 +615,9 @@ describe('computer access settings', () => {
 
     expect(screen.getByText(/whether actions need your confirmation/i)).toBeTruthy();
     expect(
-      screen
-        .getByRole('switch', { name: 'Bypass action approvals' })
-        .getAttribute('aria-checked'),
+      screen.getByRole('switch', { name: 'Act without asking' }).getAttribute('aria-checked'),
     ).toBe('false');
-    fireEvent.click(screen.getByText('Diagnostics'));
+    fireEvent.click(screen.getByText('Details for troubleshooting'));
     expect(
       screen
         .getByRole('switch', { name: 'Keep a full local log' })
@@ -679,13 +681,13 @@ describe('computer access settings', () => {
         onRevealTrajectories={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Act without asking' }));
     expect(
       screen.getByRole('alertdialog', { name: 'Let Sia act without asking?' }),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Keep asking me' }));
     expect(onSetComputerTrust).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Act without asking' }));
     fireEvent.click(screen.getByRole('button', { name: 'Act without asking' }));
     await waitFor(() => expect(onSetComputerTrust).toHaveBeenCalledWith('auto'));
   });
@@ -712,13 +714,11 @@ describe('computer access settings', () => {
       />,
     );
     expect(
-      screen
-        .getByRole('switch', { name: 'Bypass action approvals' })
-        .getAttribute('aria-checked'),
+      screen.getByRole('switch', { name: 'Act without asking' }).getAttribute('aria-checked'),
     ).toBe('true');
-    fireEvent.click(screen.getByRole('switch', { name: 'Bypass action approvals' }));
+    fireEvent.click(screen.getByRole('switch', { name: 'Act without asking' }));
     await waitFor(() => expect(onSetComputerTrust).toHaveBeenCalledWith('ask'));
-    fireEvent.click(screen.getByText('Diagnostics'));
+    fireEvent.click(screen.getByText('Details for troubleshooting'));
     await waitFor(() =>
       expect(
         (screen.getByRole('switch', { name: 'Keep a full local log' }) as HTMLButtonElement)
@@ -854,7 +854,7 @@ it('sets up computer, voice and missing app access through one settings action',
     redraw();
   });
   expect(macSetupApi.requestComputerPermissions).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: 'Grant all' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
   await waitFor(() => expect(macSetupApi.configureVoice).toHaveBeenCalledOnce());
   await waitFor(() => expect(macSetupApi.configurePushToTalk).toHaveBeenCalledOnce());
   await waitFor(() => expect(screen.getByText('Mac access is ready.')).toBeTruthy());

@@ -3,16 +3,24 @@
 .page-heading {
   padding: 23px 24px 18px;
   flex: none;
-  animation: arrive 0.4s var(--phone-ease);
+}
+.page-heading > * {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+}
+.page-heading > :nth-child(2) {
+  animation-delay: var(--motion-stagger);
+}
+.page-heading > :nth-child(n + 3) {
+  animation-delay: calc(var(--motion-stagger) * 2);
 }
 .page-heading h1 {
-  font: 500 clamp(31px, 8vw, 40px)/1.1 var(--font-brand);
-  letter-spacing: -0.055em;
-  margin: 12px 0 9px;
+  font: 650 clamp(31px, 8vw, 40px)/1.1 var(--font-brand);
+  letter-spacing: -0.03em;
+  margin: 10px 0 10px;
 }
 .page-heading p {
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--phone-text-body);
+  line-height: 1.5;
   color: var(--text-secondary);
   margin: 0;
 }
@@ -31,9 +39,13 @@
   border-radius: 30px;
   background: none;
   border: 1px solid var(--border-subtle);
-  padding: 0 15px;
-  min-height: 44px;
-  font-size: 12px;
+  padding: 0 16px;
+  min-height: var(--phone-target);
+  font-size: var(--phone-text-label);
+}
+.activity-filters {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * 3);
 }
 .activity-filters [aria-pressed='true'] {
   background: var(--shell-bg);
@@ -63,18 +75,35 @@
   background: var(--bg-raised);
   text-align: left;
   min-width: 0;
-  animation: arrive 0.4s var(--phone-ease);
+  /* Cards deal in from the top one beat apart, capped at eight so long histories stay quick. */
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * min(var(--i, 0), 8));
+}
+/* A live task carries a quiet emerald edge so it reads as in motion at a glance. */
+.task-card[data-status='working'] {
+  border-color: color-mix(in srgb, var(--aurora-emerald) 45%, var(--border-subtle));
+}
+.task-card[data-status='waiting'] {
+  border-color: color-mix(in srgb, var(--text-warning) 40%, var(--border-subtle));
+}
+.task-card-top > svg {
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+@media (hover: hover) {
+  .task-card:hover .task-card-top > svg {
+    transform: translate(var(--motion-nudge), calc(var(--motion-nudge) * -1));
+  }
 }
 .task-card-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
 }
 .task-card h2 {
-  font: 520 20px/1.25 var(--font-brand);
+  font: 600 20px/1.25 var(--font-brand);
   letter-spacing: -0.03em;
-  margin: 18px 0 8px;
+  margin: 14px 0 8px;
   display: -webkit-box;
   -webkit-line-clamp: 3;
   -webkit-box-orient: vertical;
@@ -89,20 +118,22 @@
   overflow-wrap: anywhere;
   color: var(--text-secondary);
   margin: 0;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: var(--phone-text-label);
+  line-height: 1.5;
 }
 .task-file-count {
   display: inline-flex;
   gap: 6px;
   align-items: center;
   margin-top: 15px;
-  padding: 6px 9px;
-  border-radius: 8px;
-  font-size: 10px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  font-size: var(--phone-text-meta);
   background: var(--bg-subtle);
 }
 .activity-empty {
+  animation: arrive var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * 4);
   text-align: center;
   padding: 50px 36px 30px;
   max-width: 400px;
@@ -118,16 +149,24 @@
   place-items: center;
   border-radius: 26px;
   transform: rotate(-6deg);
+  animation: empty-tilt var(--motion-emphasis) var(--phone-spring) both;
+  animation-delay: calc(var(--motion-stagger) * 6);
+}
+@keyframes empty-tilt {
+  from {
+    opacity: 0;
+    transform: rotate(0deg) scale(var(--motion-pop-scale));
+  }
 }
 .activity-empty h2 {
-  font: 500 27px/1.12 var(--font-brand);
-  letter-spacing: -0.04em;
+  font: 650 27px/1.12 var(--font-brand);
+  letter-spacing: -0.025em;
   margin: 24px 0 12px;
 }
 .activity-empty p {
   color: var(--text-secondary);
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: var(--phone-text-body);
+  line-height: 1.5;
 }
 .text-action {
   background: var(--shell-bg);
@@ -138,7 +177,7 @@
   border: 0;
   padding: 13px 20px;
   border-radius: 30px;
-  min-height: 48px;
-  font-size: 12px;
+  min-height: var(--phone-row);
+  font-size: var(--phone-text-body);
   margin-top: 15px;
 }

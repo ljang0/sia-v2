@@ -11,7 +11,7 @@ send from an existing personal draft. If focus moves unexpectedly, stop and re-e
 target before any more input.
 
 Record the result in the private pilot log with the exact Sia version and artifact hash under
-test. The source is `0.1.0-alpha.25`; the signed `0.1.0-alpha.25` candidate and its hashes are recorded in
+test. The source is `0.1.0-alpha.32`; the next signed candidate and its hashes must be recorded in
 [`public-release.md`](./public-release.md). The last published pilot artifact remains
 `0.1.0-alpha.24`, recorded in [`release-evidence.md`](./release-evidence.md).
 
@@ -21,8 +21,8 @@ From a clean checkout:
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm check
-pnpm test:e2e
+pnpm audit:dependencies
+pnpm test:pilot
 pnpm package:mac:dir
 ```
 
@@ -36,7 +36,7 @@ SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1 pnpm test:e2e:real:no-turn
 Run Chrome probing only with a dedicated visible test window and a unique
 `SIA_REAL_BROWSER_WINDOW_MATCH` value.
 
-## Integrated alpha.25 acceptance
+## Integrated alpha.32 and native iPhone acceptance
 
 Use one exact candidate for all four workstreams. Record its commit, app.asar SHA-256, bundle
 identifier, signing team, macOS version, test time, observed result, and evidence location.
@@ -81,13 +81,15 @@ Complete physical voice, lock/sleep, and clean-user checks below before public d
 ## New-user setup and Keychain continuity
 
 On a clean macOS test account, use the exact signed release artifact and an unlocked login
-Keychain. **Set up Codex** must install or update the managed version, resume official browser
+Keychain. **Connect ChatGPT** must install or update the managed version, resume official browser
 sign-in after any restart, and show **Connected** without terminal commands or a manual download.
 On a slow connection, downloaded megabytes must advance beyond two minutes without aborting; a stalled
 connection must offer an actionable retry and preserve the previous runtime.
 While Sia shows **Waiting for sign-in…**, press **Cancel** once (or leave the browser tab closed) and
 verify **Try again** starts a fresh sign-in in Sia; ordinary launches must not reopen it.
-**Grant all** must show individual statuses, skip granted access, and refresh after returning
+With the managed version missing and no ChatGPT account, Included AI's **Finish setup** must install
+it and restart Sia without opening ChatGPT sign-in.
+**Allow all** must show individual statuses, skip granted access, and refresh after returning
 from System Settings without a restart. The tester completes any macOS approval dialogs.
 
 Check both a fresh install and an upgrade from the previous signed release. Create a disposable
@@ -257,7 +259,7 @@ The source gate is `pnpm check`; the desktop GUI suite is separate and must not 
 - [ ] If Included Meta is shown, run one short read-only prompt and one tool-capability smoke. If it
       is unavailable, confirm the UI explains the state and Codex remains usable.
 - [ ] Open **Settings → Computer**. Grant only the requested macOS permission, turn on confirmations
-      (turn off **Bypass action approvals**), and confirm host-side changes ask before running.
+      (turn off **Act without asking**), and confirm host-side changes ask before running.
       Secure fields, authentication windows, password managers, Keychain, terminals, and Sia itself
       must remain unavailable as generic computer targets.
 - [ ] Create one schedule of each kind. Confirm a one-time schedule stops after one run and a
@@ -330,12 +332,12 @@ Research recruitment is a separate release. It requires every approval in
   no subsequent permissions open. Chat remains available with the access already granted.
 - At Screen Recording, choose **Later** in macOS’s quit prompt. Within a few seconds the row must
   read **Reopen Sia** (real-Mac check of the fresh-process probe). Finish or skip the remaining
-  voice/app and optional Full Disk Access steps before one final **Relaunch Sia** action appears.
+  voice/app and optional Full Disk Access steps before one final **Reopen Sia** action appears.
   Relaunch: setup must reopen on Mac access, retain grants and skips, and finish without requesting
   already completed permissions again. Also pause before the last step and verify resume.
 - Skip **Talk with Fn** and one app. Finish setup, then start a task that needs the skipped app and
   confirm macOS asks once, in its own words.
-- Repeat from **Settings → Computer → Grant all**. Verify unavailable apps and existing grants are
+- Repeat from **Settings → Computer → Allow all**. Verify unavailable apps and existing grants are
   skipped. For Screen Recording changes, quit and reopen Sia when the row says **Reopen Sia**.
 - Launch while another app is foreground. The secure-workspace explanation must appear before
   any Keychain wait, with instructions for bringing Sia’s native prompt forward. Confirm no

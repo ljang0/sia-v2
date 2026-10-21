@@ -1,6 +1,6 @@
 .threadControls {
   display: flex;
-  height: 32px;
+  height: var(--target-min);
   align-items: center;
   gap: 4px;
   padding: 0 8px;
@@ -130,7 +130,7 @@
 .workspaceDetails {
   color: var(--text-secondary);
   overflow-wrap: anywhere;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 
 .workspaceDetails summary {
@@ -141,4 +141,13 @@
   outline: 2px solid var(--border-strong);
   outline-offset: 3px;
   border-radius: 3px;
+}
+
+/* Names the lab, model, and engine, so people know what they are rating. */
+.threadRoute {
+  max-width: 280px;
+  overflow: hidden;
+  color: var(--text-primary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

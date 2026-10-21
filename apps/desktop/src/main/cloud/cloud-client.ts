@@ -1,3 +1,4 @@
+import type { TaskRatingRecord } from '@sia/protocol/ratings';
 import { randomUUID } from 'node:crypto';
 import { hostedCatalogSchema, type HostedCatalog } from '@sia/protocol';
 
@@ -462,6 +463,14 @@ export class CloudClient implements MetaTransport {
         connectionId: remoteConnectionId,
         replacementConnectionId,
       }),
+    });
+  }
+
+  /** Sends one task rating (route and counters only; see @sia/protocol/ratings). */
+  async submitTaskRating(record: TaskRatingRecord): Promise<void> {
+    await this.#request<unknown>('/v1/ratings', {
+      method: 'POST',
+      body: JSON.stringify(record),
     });
   }
 

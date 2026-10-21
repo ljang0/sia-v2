@@ -171,23 +171,6 @@ for (const [group, names] of Object.entries(requiredPackageGroups)) {
   }
 }
 
-const bundledFontAssets = [
-  {
-    key: 'font:Bricolage Grotesque (variable, latin subset)',
-    declaredLicense: 'OFL-1.1',
-    repository: 'https://github.com/ateliertriay/bricolage',
-    licenseFile: 'bricolage-grotesque-OFL.txt',
-  },
-];
-
-const fontSections = [];
-for (const font of bundledFontAssets) {
-  const text = (await readFile(join(licenseSourcesRoot, font.licenseFile), 'utf8')).trimEnd();
-  fontSections.push(
-    `${'='.repeat(80)}\nBUNDLED FONT: ${font.key}\nDECLARED LICENSE: ${font.declaredLicense}\nSOURCE: ${font.repository}\n${'-'.repeat(80)}\n--- SIA-SUPPLIED-${font.licenseFile} ---\n${text}`,
-  );
-}
-
 const ditherLicense = (
   await readFile(
     join(
@@ -231,7 +214,6 @@ const document = [
   'Electron and Chromium license files are copied separately without modification.',
   '',
   ...sections,
-  ...fontSections,
   ...bundledComponentSections,
   '',
 ].join('\n');

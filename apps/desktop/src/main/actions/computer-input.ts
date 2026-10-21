@@ -304,6 +304,18 @@ export class ComputerInput {
       native.outcome === 'stale' ||
       native.outcome === 'needs_foreground'
     ) {
+      // A dialog, sheet or panel that opened after the last inventory takes key focus, so
+      // input aimed at the window behind it cannot be delivered. Point at the new window.
+      if (this.ctx.macBrowserAccess()) {
+        const opened = await this.newWindows(binding, knownWindows, request).catch(() => []);
+        if (opened.length)
+          return {
+            outcome: 'stale',
+            summary:
+              'A dialog or sheet is now in front of this window, so input went nowhere. Inspect a new_window and act there; do not repeat the action on this window.',
+            data: { new_windows: opened, previous_window_id: binding.id },
+          };
+      }
       return native;
     }
     let after: ActionExecutionResult;
@@ -312,32 +324,17 @@ export class ComputerInput {
       // that the application has processed the input yet. Never replay input here.
       if (this.ctx.macBrowserAccess()) {
         await delay(350, undefined, { signal: request.context.signal });
-        const current = await this.ctx.callCua(request, 'list_windows', { pid: binding.pid });
-        const created = new Set(
-          findRecordArray(current, 'windows')
-            .filter((window) => positiveInteger(window.pid, MAX_PID) === binding.pid)
-            .map((window) => positiveInteger(window.window_id ?? window.id, MAX_WINDOW_ID))
-            .filter((id): id is number => id !== undefined && !knownWindows.has(id)),
-        );
-        if (created.size) {
-          const inventory = await this.inventory.list(request);
-          const newWindows = (
-            (asRecord(inventory.data)?.windows ?? []) as Record<string, unknown>[]
-          ).filter((window) => {
-            const grant = this.ctx.computer.windows.get(String(window.window_id));
-            return grant?.appId === binding.appId && created.has(grant.windowId);
-          });
-          if (newWindows.length)
-            return {
-              outcome: 'accepted_unverified',
-              summary: `${native.summary} New windows appeared. Inspect a new_window before continuing; the previous snapshot belongs to the original window. Do not repeat the action that opened it.`,
-              data: {
-                observation_pending: true,
-                new_windows: newWindows,
-                previous_window_id: binding.id,
-              },
-            };
-        }
+        const newWindows = await this.newWindows(binding, knownWindows, request);
+        if (newWindows.length)
+          return {
+            outcome: 'accepted_unverified',
+            summary: `${native.summary} New windows appeared. Inspect a new_window before continuing; the previous snapshot belongs to the original window. Do not repeat the action that opened it.`,
+            data: {
+              observation_pending: true,
+              new_windows: newWindows,
+              previous_window_id: binding.id,
+            },
+          };
       }
       after = this.ctx.macBrowserAccess()
         ? await this.observation.captureSettledWindow(binding, request)
@@ -385,5 +382,28 @@ export class ComputerInput {
             : 'Fresh window state is available, but the requested semantic effect was not proven.',
       }),
     };
+  }
+
+  /** Granted windows of the same app that were not known before this action. */
+  private async newWindows(
+    binding: { pid: number; appId: string },
+    knownWindows: Set<number>,
+    request: ValidatedActionInvocation,
+  ): Promise<Record<string, unknown>[]> {
+    const current = await this.ctx.callCua(request, 'list_windows', { pid: binding.pid });
+    const created = new Set(
+      findRecordArray(current, 'windows')
+        .filter((window) => positiveInteger(window.pid, MAX_PID) === binding.pid)
+        .map((window) => positiveInteger(window.window_id ?? window.id, MAX_WINDOW_ID))
+        .filter((id): id is number => id !== undefined && !knownWindows.has(id)),
+    );
+    if (!created.size) return [];
+    const inventory = await this.inventory.list(request);
+    return ((asRecord(inventory.data)?.windows ?? []) as Record<string, unknown>[]).filter(
+      (window) => {
+        const grant = this.ctx.computer.windows.get(String(window.window_id));
+        return grant?.appId === binding.appId && created.has(grant.windowId);
+      },
+    );
   }
 }

@@ -59,7 +59,7 @@ export function TextSiaSettings({
     <div className={`${phone.card} ${phone.textCard}`}>
       <div className={phone.intro}>
         <span className={phone.mark}>
-          <ChatCircleText size={25} />
+          <ChatCircleText size={24} />
         </span>
         <div>
           <h3>Text Sia from anywhere</h3>
@@ -89,7 +89,7 @@ export function TextSiaSettings({
               disabled={pending}
               onClick={() => void run({ operation: 'untrust', handle: contact.handle })}
             >
-              <X size={13} />
+              <X size={16} />
             </button>
           </li>
         ))}
@@ -180,9 +180,9 @@ export function TextSiaSettings({
       {state && <BotChannelsSettings state={state} pending={pending} run={run} />}
       {state && <TrustedPeopleSettings state={state} pending={pending} run={run} />}
       <p className={phone.note}>
-        Only iMessages from your numbers reach Sia. Anything that changes your Mac or accounts
-        waits for your OK, one step at a time, even when bypass is on. Text STOP to cancel or
-        NEW to start over. Sia must stay open and your Mac awake.
+        Your own numbers follow your approval setting in Settings → Computer. With bypass on,
+        their requests run without per-step approvals. Trusted people always need your OK. Text
+        STOP to cancel or NEW to start over. Sia must stay open and your Mac awake.
       </p>
     </div>
   );

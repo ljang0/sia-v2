@@ -11,6 +11,7 @@ import type { MessagesRelayApi } from '../../../shared/messages-relay';
 import { SettingsSectionHeader, InlineSettingsError } from './SettingsShared';
 import { TextSiaSettings } from './TextSiaSettings';
 import buttons from '../../styles/buttons.module.css';
+import primitives from '../../styles/primitives.module.css';
 import phone from './PhoneRemoteSettings.module.css';
 import { errorMessage } from '../../plainErrors';
 
@@ -78,6 +79,8 @@ export function PhoneRemoteSettings({
     }
   };
   const relay = state?.relay;
+  // Until the first status arrives, placeholders hold the card's shape instead of showing "Off".
+  const loading = !state && !error;
   return (
     <SettingsSectionHeader
       title="Phone remote"
@@ -91,18 +94,27 @@ export function PhoneRemoteSettings({
       <div className={phone.card}>
         <div className={phone.intro}>
           <span className={phone.mark}>
-            <DeviceMobile size={25} />
+            <DeviceMobile size={24} />
           </span>
           <div>
             <h3>Take Sia with you</h3>
             <p>Send a request from your phone. Your Mac does the work.</p>
           </div>
-          <span className={state?.running ? phone.live : phone.off}>
-            <i />
-            {state?.running ? 'Ready' : state?.enabled ? 'Waiting' : 'Off'}
-          </span>
+          {loading ? (
+            <span className={`${primitives.skeleton} ${phone.statusSkeleton}`} />
+          ) : (
+            <span className={state?.running ? phone.live : phone.off}>
+              <i />
+              {state?.running ? 'Ready' : state?.enabled ? 'Waiting' : 'Off'}
+            </span>
+          )}
         </div>
-        {!state?.enabled ? (
+        {loading ? (
+          <div className={phone.loading} role="status" aria-label="Checking phone remote">
+            <span className={`${primitives.skeleton} ${phone.lineSkeleton}`} />
+            <span className={`${primitives.skeleton} ${phone.buttonSkeleton}`} />
+          </div>
+        ) : !state?.enabled ? (
           <>
             <label className={phone.agent}>
               Assistant
@@ -197,7 +209,7 @@ export function PhoneRemoteSettings({
                 </div>
               )}
               <div className={phone.steps}>
-                <span className={phone.eyebrow}>ONE SCAN. YOU’RE IN.</span>
+                <span className={phone.eyebrow}>One scan and you’re in.</span>
                 <h3>Meet Sia on your phone.</h3>
                 <ol>
                   <li>Connect your phone to the same Wi-Fi as this Mac.</li>
@@ -220,7 +232,7 @@ export function PhoneRemoteSettings({
                       );
                   }}
                 >
-                  {copied ? <Check size={15} /> : <Copy size={15} />}
+                  {copied ? <Check size={16} /> : <Copy size={16} />}
                   {copied ? 'Copied' : 'Copy private link'}
                 </button>
               </div>
@@ -232,7 +244,7 @@ export function PhoneRemoteSettings({
                 disabled={pending}
                 onClick={() => void run('rotate')}
               >
-                <ArrowClockwise size={15} />
+                <ArrowClockwise size={16} />
                 Create a new link
               </button>
               <button
@@ -251,8 +263,8 @@ export function PhoneRemoteSettings({
         <div className={phone.footnotes}>
           <p>
             <strong>The same Sia, with you in charge.</strong> Phone requests use this
-            assistant’s model and Mac access. Each step a phone request takes asks for your OK
-            here on the Mac, one at a time.
+            assistant’s model and Mac access. Your paired phones follow Settings → Computer:
+            bypass runs without per-step approvals; confirmations ask before each action.
           </p>
           <p>
             <strong>Encrypted end to end.</strong> Your phone and this Mac share a key from the

@@ -18,9 +18,8 @@ const styles = moduleFiles.map(read).join('\n');
 const companion = read('companion.module.css');
 const tokens = read('tokens.css');
 const aurora = read('components/effects/aurora.css');
-const metal = read('components/effects/liquid-metal-button.css');
 const startup = read('components/startup.module.css');
-const css = `${tokens}\n${styles}\n${companion}\n${aurora}\n${metal}`;
+const css = `${tokens}\n${styles}\n${companion}\n${aurora}`;
 // The first rule matching `pattern` in any style module, wherever the rule lives.
 const find = (pattern: RegExp) =>
   moduleFiles.map((file) => read(file).match(pattern)?.[0]).find(Boolean);
@@ -50,7 +49,7 @@ describe('text size', () => {
     }
     expect(bare).toEqual([]);
     expect(tokens).toMatch(/--text-scale: 1;/);
-    expect(tokens).toMatch(/--text-sm: calc\(12px \* var\(--text-scale\)\);/);
+    expect(tokens).toMatch(/--text-sm: calc\(14px \* var\(--text-scale\)\);/);
   });
 });
 
@@ -64,7 +63,7 @@ describe('renderer accessibility CSS policy', () => {
 
   it('gives the startup curtain a light variant that matches the first window paint', () => {
     expect(startup).toMatch(
-      /prefers-color-scheme: light\)[\s\S]*\.startup \{\s*background: #f4f6f2;/,
+      /prefers-color-scheme: light\)[\s\S]*\.startup \{\s*background: #fcfcfd;/,
     );
   });
 
@@ -101,8 +100,13 @@ describe('renderer accessibility CSS policy', () => {
   });
 
   it('defines every CSS custom property it uses', () => {
-    // Components set these per element (ScottySprite, VoiceWave).
-    const inline = ['--sprite-size', '--sprite-row', '--voice-level'];
+    // Components set these per element (ScottySprite, VoiceWave); Radix sets a menu's origin.
+    const inline = [
+      '--sprite-size',
+      '--sprite-row',
+      '--voice-level',
+      '--radix-dropdown-menu-content-transform-origin',
+    ];
     const definitions = new Set([
       ...inline,
       ...[...css.matchAll(/(--[\w-]+)\s*:/g)].map((match) => match[1]),
@@ -130,6 +134,9 @@ describe('renderer accessibility CSS policy', () => {
       '.composer',
       // Text shimmer on the working status, like Codex and Claude; still under reduced motion.
       '.workingLabel',
+      // The same shimmer on the step in progress, and the light passing over a loading block.
+      '.activity_running .activityLabel',
+      '.skeleton::after',
     ]);
     for (const file of moduleFiles) {
       if (effectModules.has(file)) continue;
@@ -148,12 +155,11 @@ describe('renderer accessibility CSS policy', () => {
     }
   });
 
-  it('uses the brand face for identity and keeps it off controls and body copy', () => {
-    expect(tokens).toMatch(/--font-brand:\s*'Bricolage Grotesque',\s*'SF Pro Display'/);
-    expect(tokens).toMatch(/--font-display:\s*'Bricolage Grotesque',\s*'SF Pro Display'/);
-    expect(tokens).toMatch(
-      /@font-face\s*{[^}]*font-family:\s*'Bricolage Grotesque'[^}]*format\('woff2'\)/,
-    );
+  it('uses the system display face for identity and keeps it off controls and body copy', () => {
+    // Native SF Pro throughout: Display for names and headings, Text for controls and reading.
+    expect(tokens).toMatch(/--font-brand:\s*'SF Pro Display'/);
+    expect(tokens).toMatch(/--font-display:\s*'SF Pro Display'/);
+    expect(tokens).not.toContain('@font-face');
 
     // Controls, form fields, and body copy never borrow the display face.
     const controlRules = [
@@ -170,7 +176,7 @@ describe('renderer accessibility CSS policy', () => {
       expect(block).not.toContain('var(--font-display)');
     }
 
-    // Agent names and headings share the expressive display face with the wordmark.
+    // Agent names and headings share the display face with the wordmark.
     const rules = [...styles.matchAll(/([^{}]+){([^}]*)}/g)].map((match) => ({
       selectors: match[1]!.split(',').map((part) => part.trim()),
       body: match[2]!,

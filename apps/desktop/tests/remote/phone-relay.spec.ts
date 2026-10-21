@@ -110,6 +110,7 @@ const test = base.extend<{
     sends: string[];
     frames: string[];
     resolved: { approvalId: string; decision: string }[];
+    service: PhoneRemote;
   };
 }>({
   relayed: async ({}, use) => {
@@ -224,7 +225,7 @@ const test = base.extend<{
       .toBe(true);
     await service.configure({ operation: 'pair' });
     try {
-      await use({ pairingUrl, sends, frames: relay.frames, resolved });
+      await use({ pairingUrl, sends, frames: relay.frames, resolved, service });
     } finally {
       service.dispose();
       relay.server.close();
@@ -271,8 +272,27 @@ test('the paired phone approves the exact step its task is waiting on', async ({
   await page.getByRole('textbox').fill('Send the report, this needs approval');
   await page.getByRole('button', { name: 'Send message' }).click();
   await expect(page.getByText('Sia asks: Send the weekly report to Alex')).toBeVisible();
-  await page.getByRole('button', { name: 'Approve', exact: true }).click();
+  await page.getByRole('button', { name: 'Allow', exact: true }).click();
   await expect(page.getByText('Approved from the phone and done.')).toBeVisible();
   expect(relayed.resolved).toEqual([{ approvalId: expect.any(String), decision: 'approve' }]);
   expect(relayed.frames.join('\n')).not.toContain('weekly report');
+});
+
+test('a second phone can pair while the first one is connected', async ({ page, relayed }) => {
+  test.slow();
+  await page.goto(relayed.pairingUrl);
+  await expect(page.getByRole('status', { name: 'Connected to your Mac' })).toBeVisible({
+    timeout: 15_000,
+  });
+  // The first phone's code is gone once it connects.
+  await expect
+    .poll(
+      async () => (await relayed.service.configure({ operation: 'status' })).relay?.pairingQr,
+    )
+    .toBeUndefined();
+  // A new code stays on screen even though another phone is online.
+  await relayed.service.configure({ operation: 'pair' });
+  const status = await relayed.service.configure({ operation: 'status' });
+  expect(status.relay?.devices.some(({ online }) => online)).toBe(true);
+  expect(status.relay?.pairingQr).toMatch(/^data:image\/png;base64,/);
 });

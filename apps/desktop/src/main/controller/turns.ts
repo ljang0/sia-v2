@@ -214,11 +214,11 @@ export class Turns {
       }
     } else if (this.running.size >= 4) {
       thread.status = 'queued';
-      thread.queueReason = 'Four local tasks are already running.';
+      thread.queueReason = 'Sia is already doing four tasks. This starts when one finishes.';
       this.queued.push(queued);
     } else if (this.workspaceLeases.has(thread.workspace)) {
       thread.status = 'queued';
-      thread.queueReason = 'Waiting for another task to release this workspace.';
+      thread.queueReason = 'Starts after another task in the same folder finishes.';
       this.queued.push(queued);
       // A person's message goes ahead of a memory review that holds the agent's workspace;
       // the review runs again on a later idle pass.
@@ -362,11 +362,11 @@ export class Turns {
       held ? this.queued.unshift(turn) : this.queued.push(turn);
     if (this.running.size >= 4) {
       thread.status = 'queued';
-      thread.queueReason = 'Four local tasks are already running.';
+      thread.queueReason = 'Sia is already doing four tasks. This starts when one finishes.';
       enqueue(retry);
     } else if (this.workspaceLeases.has(thread.workspace)) {
       thread.status = 'queued';
-      thread.queueReason = 'Waiting for another task to release this workspace.';
+      thread.queueReason = 'Starts after another task in the same folder finishes.';
       enqueue(retry);
     } else {
       this.startTurn(retry);
@@ -667,7 +667,7 @@ export class Turns {
         ? this.ctx.mac.unavailable === 'locked'
           ? 'Waiting for your Mac to unlock.'
           : 'Waiting for your Mac to wake.'
-        : 'Waiting for another task to release this workspace.';
+        : 'Starts after another task in the same folder finishes.';
   }
 
   drainQueue(): void {

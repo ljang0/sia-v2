@@ -1,13 +1,20 @@
 import * as Dialog from '@radix-ui/react-dialog';
 import { ChatCircle, File, LinkSimple, MagnifyingGlass, X } from '@phosphor-icons/react';
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import companion from '../companion.module.css';
 import type { AgentSummary, TranscriptSearchResult } from '../types';
 import buttons from '../styles/buttons.module.css';
 import dialogs from '../styles/dialogs.module.css';
 import primitives from '../styles/primitives.module.css';
 import { AgentForm } from './AgentForm';
-import { sidebarAgentOrder, sidebarThreadOrder } from '../shortcuts';
+import { listedThreads, sidebarAgentOrder } from '../shortcuts';
 
 export interface QuickSwitcherAction {
   id: string;
@@ -126,7 +133,7 @@ export function QuickSwitcher({
     }));
     // Sidebar order, so equally good matches list as the sidebar does (pinned first).
     const threadEntries: ThreadSwitcherEntry[] = sidebarAgentOrder(agents).flatMap((agent) =>
-      sidebarThreadOrder(agent.threads).map((thread) => ({
+      listedThreads(agent.threads, selectedThreadId).map((thread) => ({
         kind: 'thread' as const,
         id: `thread-${thread.id}`,
         label: thread.title,
@@ -232,7 +239,7 @@ export function QuickSwitcher({
             handedOffFocus.current = false;
           }}
         >
-          <Dialog.Title>Move through Sia</Dialog.Title>
+          <Dialog.Title>Search everything</Dialog.Title>
           <Dialog.Description className={primitives.visuallyHidden}>
             Search conversations, agents, and common actions.
           </Dialog.Description>
@@ -240,9 +247,9 @@ export function QuickSwitcher({
             <button
               type="button"
               className={`${buttons.iconButton} ${companion.quickSwitcherClose}`}
-              aria-label="Close quick switcher"
+              aria-label="Close search"
             >
-              <X size={17} aria-hidden="true" />
+              <X size={18} aria-hidden="true" />
             </button>
           </Dialog.Close>
           <label className={companion.quickSwitcherSearch}>
@@ -285,6 +292,7 @@ export function QuickSwitcher({
             className={companion.quickSwitcherResults}
             role="listbox"
             aria-label="Sia destinations"
+            data-typed={query ? true : undefined}
           >
             {sections.map((section) => {
               const rows = section.entries.map((entry) => {
@@ -297,6 +305,7 @@ export function QuickSwitcher({
                     key={entry.id}
                     aria-selected={index === highlighted}
                     className={companion.quickSwitcherRow}
+                    style={{ '--row': index } as CSSProperties}
                     onPointerMove={() => setHighlighted(index)}
                     onClick={() => activate(entry)}
                   >
@@ -304,14 +313,14 @@ export function QuickSwitcher({
                       {entry.kind === 'agent' ? (
                         <AgentForm identity={entry.hue} size="small" />
                       ) : entry.kind === 'thread' ? (
-                        <ChatCircle size={17} />
+                        <ChatCircle size={18} />
                       ) : entry.kind === 'resource' ? (
                         entry.resourceKind === 'file' ? (
-                          <File size={17} />
+                          <File size={18} />
                         ) : entry.resourceKind === 'link' ? (
-                          <LinkSimple size={17} />
+                          <LinkSimple size={18} />
                         ) : (
-                          <MagnifyingGlass size={17} />
+                          <MagnifyingGlass size={18} />
                         )
                       ) : (
                         entry.icon
@@ -350,9 +359,9 @@ export function QuickSwitcher({
             ) : null}
           </div>
           <footer>
-            <span>↑↓ move</span>
-            <span>↵ open</span>
-            <span>esc close</span>
+            <span>↑ ↓ to choose</span>
+            <span>Return to open</span>
+            <span>Esc to close</span>
           </footer>
         </Dialog.Content>
       </Dialog.Portal>

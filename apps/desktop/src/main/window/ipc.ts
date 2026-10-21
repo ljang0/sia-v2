@@ -7,6 +7,11 @@ import { z } from 'zod';
 import { TEXT_SIZES, THEMES } from '../../shared/display.js';
 import { CONNECTION_IDS } from '../../shared/bridge/connections.js';
 import { PROVIDER_IDS } from '../../shared/bridge/providers.js';
+import {
+  RATING_COMMENT_MAX_CHARS,
+  RATING_REASONS,
+  TASK_RATINGS,
+} from '../../shared/bridge/ratings.js';
 import { assistantLibraryCommand } from '../../shared/assistant-library.js';
 import { MAX_EVERY_HOURS, SCHEDULE_CADENCES } from '../../shared/schedule-cadence.js';
 
@@ -298,6 +303,15 @@ const inputSchemas = {
       message: z.string().trim().min(1).max(10_000),
       threadId: identifier.optional(),
       includeDiagnostics: z.boolean(),
+    })
+    .strict(),
+  'ratings.submit': z
+    .object({
+      threadId: identifier,
+      turnId: identifier,
+      rating: z.enum(TASK_RATINGS),
+      reasons: z.array(z.enum(RATING_REASONS)).max(RATING_REASONS.length).optional(),
+      comment: z.string().max(RATING_COMMENT_MAX_CHARS).optional(),
     })
     .strict(),
   'updates.check': z.undefined(),

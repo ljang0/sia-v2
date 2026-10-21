@@ -312,7 +312,10 @@ function renderLines(lines: readonly string[]): ReactNode[] {
   ));
 }
 
-const LINK_TARGET = '\\((?:[^()\\s]|\\([^()\\s]*\\))+\\)';
+// CommonMark destinations: bare (balanced parentheses, no spaces) or `<...>`, which may contain
+// spaces, as file paths often do.
+const LINK_TARGET =
+  '\\((?:<[^<>\\n]+>|(?:[^()\\s<]|\\([^()\\s]*\\))(?:[^()\\s]|\\([^()\\s]*\\))*)\\)';
 const INLINE_TOKEN = new RegExp(
   [
     '`[^`\\n]+`',
@@ -345,7 +348,8 @@ function renderInline(value: string): ReactNode[] {
     } else if (source.startsWith('![') || source.startsWith('[')) {
       // Remote images are never loaded; an image is offered as a link to its source.
       const link = source.match(/^!?\[([^\]]*)\]\((.+)\)$/);
-      output.push(externalLink(safeHref(link?.[2]), link?.[1] || link?.[2] || source, key));
+      const destination = link?.[2]?.replace(/^<(.*)>$/, '$1');
+      output.push(externalLink(safeHref(destination), link?.[1] || destination || source, key));
     } else if (source.startsWith('<')) {
       const url = source.slice(1, -1);
       output.push(externalLink(safeHref(url), url, key));

@@ -33,13 +33,15 @@ export function ProvidersSettings({
 }) {
   const [pending, setPending] = useState<ProviderId>();
   const [error, setError] = useState<string>();
-  const setup = providers.find(({ id }) => id === 'codex')?.setup;
+  // One engine install serves every choice that runs on it, so its progress blocks them all.
+  const setup = providers.find((provider) => provider.setup)?.setup;
   const setupBusy = Boolean(setup && setup.phase !== 'error');
   const busy = Boolean(pending) || setupBusy;
   const providerStates = providers.map(({ id, status }) => `${id}:${status}`).join(',');
   useEffect(() => {
     setError(undefined);
   }, [providerStates]);
+  const byok = providers.find(({ id }) => id === 'byok');
   const visibleProviders = RELEASE_PROVIDERS.flatMap((providerId) => {
     const provider = providers.find((candidate) => candidate.id === providerId);
     return provider ? [provider] : [];
@@ -64,7 +66,7 @@ export function ProvidersSettings({
   return (
     <SettingsSectionHeader
       title="AI access"
-      description="This is what powers your agents. Use the model included with your Sia account, or connect your ChatGPT plan — Sia installs and updates everything for you."
+      description="The AI that does the work for your agents. Use the one that comes with your Sia account, or connect your ChatGPT plan. Sia installs and updates everything for you."
     >
       <InlineSettingsError
         message={error ?? (setup?.phase === 'error' ? setup.message : undefined)}
@@ -92,6 +94,14 @@ export function ProvidersSettings({
               ) : (
                 <p>{providerDescription(provider)}</p>
               )}
+              {provider.id === 'codex' &&
+              (provider.status === 'needs-install' || provider.status === 'incompatible') ? (
+                // The technical name stays available for people who want it, off the main path.
+                <details className={styles.providerDetails}>
+                  <summary>Details</summary>
+                  <p>Sia installs OpenAI’s Codex app, which connects to your ChatGPT plan.</p>
+                </details>
+              ) : null}
               {provider.limits && provider.status === 'ready' ? (
                 <p className={styles.providerUsage}>
                   Plan usage: {usageLeftText(provider.limits)}
@@ -107,24 +117,6 @@ export function ProvidersSettings({
               >
                 Sign in
               </button>
-            ) : provider.id === 'meta' &&
-              (provider.status === 'needs-install' || provider.status === 'incompatible') ? (
-              visibleProviders.some(({ id }) => id === 'codex') ? null : (
-                <button
-                  type="button"
-                  className={buttons.primaryButton}
-                  disabled={busy}
-                  onClick={() =>
-                    void run(
-                      provider,
-                      () => onOpenProviderSetup('codex'),
-                      'Codex harness setup could not be opened.',
-                    )
-                  }
-                >
-                  {pending === provider.id ? pendingAction(provider) : 'Set up Codex'}
-                </button>
-              )
             ) : provider.status === 'ready' ||
               provider.status === 'disabled' ? null : provider.status === 'unavailable' ? (
               <button
@@ -169,7 +161,7 @@ export function ProvidersSettings({
                   )
                 }
               >
-                {pending === provider.id || (provider.id === 'codex' && setupBusy)
+                {pending === provider.id || (provider.setup && provider.setup.phase !== 'error')
                   ? pendingAction(provider)
                   : provider.setup?.phase === 'error'
                     ? 'Try again'
@@ -178,9 +170,19 @@ export function ProvidersSettings({
             )}
           </div>
         ))}
-        {onSaveApiKey && onClearApiKey && providers.some(({ id }) => id === 'byok') ? (
+      </div>
+      {onSaveApiKey && onClearApiKey && byok ? (
+        // Bringing your own key is for people who already have one, so it stays out of the way.
+        <details
+          className={settings.settingsDisclosure}
+          open={byok.status === 'ready' || undefined}
+        >
+          <summary>
+            <span>Advanced</span>
+            <small>Use your own key from an AI company</small>
+          </summary>
           <ByokSettings
-            provider={providers.find(({ id }) => id === 'byok')}
+            provider={byok}
             codexMissing={providers.some(
               ({ id, status }) =>
                 id === 'codex' && (status === 'needs-install' || status === 'incompatible'),
@@ -188,23 +190,29 @@ export function ProvidersSettings({
             onSave={onSaveApiKey}
             onClear={onClearApiKey}
           />
-        ) : null}
-      </div>
+        </details>
+      ) : null}
     </SettingsSectionHeader>
   );
 }
 
 function providerName(provider: ProviderSetup): string {
-  if (provider.id === 'meta') return 'Included model';
-  if (provider.id === 'codex') return 'Codex plan';
+  if (provider.id === 'meta') return 'Included AI';
+  if (provider.id === 'codex') return 'ChatGPT plan';
   return provider.name;
 }
 
 function providerDescription(provider: ProviderSetup): string {
+  // Included AI runs on the same engine as the ChatGPT plan, but needs no ChatGPT account.
+  if (
+    provider.id === 'meta' &&
+    (provider.status === 'needs-install' || provider.status === 'incompatible')
+  )
+    return 'Sia needs to finish setting up its AI engine. One click installs it and restarts Sia.';
   if (provider.status === 'needs-install' || provider.status === 'incompatible')
     return provider.status === 'incompatible'
-      ? 'One button updates Codex, restarts Sia, and continues to ChatGPT sign-in. No terminal needed.'
-      : 'One button downloads Codex, restarts Sia, and continues to ChatGPT sign-in. No terminal needed.';
+      ? 'Connect your ChatGPT plan. One click updates ChatGPT support, restarts Sia, and opens ChatGPT sign-in.'
+      : 'Connect your ChatGPT plan. One click sets it up, restarts Sia, and opens ChatGPT sign-in.';
   if (provider.id === 'meta') {
     const labs = [
       ...new Set(
@@ -218,8 +226,8 @@ function providerDescription(provider: ProviderSetup): string {
   }
   if (provider.id === 'codex')
     return provider.status === 'needs-login'
-      ? 'Sign in with ChatGPT in your browser. Sia checks the connection automatically.'
-      : 'Uses the Codex access in your ChatGPT plan.';
+      ? 'Sign in to ChatGPT in your browser. Sia checks the connection for you.'
+      : 'Uses your ChatGPT subscription.';
   if (provider.id === 'claude')
     return 'Use the Claude plan already connected to this computer.';
   return provider.description;
@@ -227,18 +235,19 @@ function providerDescription(provider: ProviderSetup): string {
 
 /** Plain, brand-neutral marks: a gift for the included model, a plug for a connected plan. */
 function ProviderIcon({ provider }: { provider: ProviderId }) {
-  if (provider === 'meta') return <Gift size={17} />;
-  if (provider === 'codex') return <Plug size={17} />;
-  return <Sparkle size={17} />;
+  if (provider === 'meta') return <Gift size={20} />;
+  if (provider === 'codex') return <Plug size={20} />;
+  return <Sparkle size={20} />;
 }
 
 function setupAction(provider: ProviderSetup): string {
+  if (provider.id === 'meta') return 'Finish setup';
   if (
     provider.id === 'codex' ||
     provider.status === 'needs-install' ||
     provider.status === 'incompatible'
   )
-    return 'Set up Codex';
+    return 'Connect ChatGPT';
   return 'Connect';
 }
 
@@ -269,7 +278,7 @@ function ProviderStatusLabel({ provider }: { provider: ProviderSetup }) {
         : providerStatusLabel(provider);
   return (
     <span className={`${settings.stateLabel} ${settings[`state_${provider.status}`]}`}>
-      {provider.status === 'ready' ? <CheckCircle size={14} aria-hidden="true" /> : null}
+      {provider.status === 'ready' ? <CheckCircle size={16} aria-hidden="true" /> : null}
       {label}
     </span>
   );

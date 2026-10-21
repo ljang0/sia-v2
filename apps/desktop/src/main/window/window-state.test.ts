@@ -67,7 +67,7 @@ describe('window placement', () => {
 
 describe('launch background', () => {
   it('matches the system appearance so light mode does not flash dark', () => {
-    expect(windowBackgroundColor(false)).toBe('#f4f6f2');
-    expect(windowBackgroundColor(true)).toBe('#0d1915');
+    expect(windowBackgroundColor(false)).toBe('#fcfcfd');
+    expect(windowBackgroundColor(true)).toBe('#131416');
   });
 });

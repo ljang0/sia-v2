@@ -42,7 +42,7 @@ lint, quality, type, unit, deterministic desktop E2E, renderer, and Chromium/Web
   action, or Settings → Computer). Onboarding's initial selection is Use my Mac with bypass. Use my
   Mac works in the background by default (window control through the bundled Cua driver); On my
   screen is the explicit alternative. Use confirmations for supervised pilot testing. Approval
-  cards offer Approve, Allow for this task (equivalent requests until that task ends), and Don't
+  cards offer Allow, Allow for this task (equivalent requests until that task ends), and Don't
   allow. Phone turns from the owner's own devices (an encrypted-relay phone, the owner's texting
   numbers, linked bot accounts) follow the same Computer setting, so bypass applies to them by
   default (owner decision, October 14, 2026), and an encrypted-relay phone may approve the exact

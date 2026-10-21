@@ -76,25 +76,25 @@ export function ComputerSettings({
           <ShieldCheck size={20} aria-hidden="true" />
           <div>
             <div className={settings.rowTitleLine}>
-              <strong>Bypass action approvals</strong>
+              <strong>Act without asking</strong>
               {trusted ? <span className={settings.stateLabel}>Enabled</span> : null}
             </div>
             <p>
               {trusted
-                ? 'On — Sia can click, type, send, post, upload, and schedule without asking for each action.'
-                : 'Off — changes pause for confirmation. Searches, reads, and verification continue automatically.'}{' '}
+                ? 'On. Sia clicks, types, sends, posts, uploads, and schedules without asking you each time.'
+                : 'Off. Sia asks you before it changes anything. Searching, reading, and checking its work never need a yes.'}{' '}
               {snapshot.computer.accessMode === 'mac'
                 ? snapshot.computer.backgroundControl
                   ? 'Your foreground recovery choice still applies.'
-                  : 'Native commands have full local access. macOS permissions still apply.'
-                : 'macOS permissions and protected fields still apply.'}
+                  : 'Commands Sia runs can reach everything on this Mac. Your Mac’s privacy permissions still apply.'
+                : 'Your Mac’s privacy permissions still apply, and protected fields stay off-limits.'}
             </p>
           </div>
           <button
             type="button"
             role="switch"
             aria-checked={trusted}
-            aria-label="Bypass action approvals"
+            aria-label="Act without asking"
             className={buttons.secondaryButton}
             disabled={busy}
             onClick={() =>
@@ -140,7 +140,7 @@ export function ComputerSettings({
       )}
       <details className={settings.settingsDisclosure}>
         <summary>
-          <span>Diagnostics</span>
+          <span>Details for troubleshooting</span>
         </summary>
         <div className={settings.accessGroup}>
           <div className={styles.accessRow}>
@@ -149,8 +149,8 @@ export function ComputerSettings({
               <strong>Keep a full local log</strong>
               <p>
                 {snapshot.computer.trajectoryLog
-                  ? 'Eligible requests, replies, actions, approvals, and screenshots are saved on this Mac, per thread, for up to 90 days or 128 MB. Google Workspace connector turns are excluded.'
-                  : 'Off — nothing beyond the thread transcript is kept.'}
+                  ? 'Most requests, replies, actions, approvals, and screenshots are saved on this Mac for each conversation, for up to 90 days or 128 MB. Anything that uses Google Workspace is left out.'
+                  : 'Off. Only the conversation itself is kept.'}
                 {snapshot.computer.trajectoryDirectory ? (
                   <>
                     {' '}

@@ -54,7 +54,7 @@ describe('Composer attachments', () => {
 
     const button = screen.getByRole('button', { name: 'Add files or images' });
     expect((button as HTMLButtonElement).disabled).toBe(true);
-    expect(button.getAttribute('title')).toBe('Attachments are unavailable for this model');
+    expect(button.getAttribute('title')).toBe("This assistant can't open files or images");
   });
 
   it('attaches a pasted screenshot or long text, even while a task runs, and leaves short text alone', async () => {

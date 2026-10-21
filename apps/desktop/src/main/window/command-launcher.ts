@@ -45,7 +45,7 @@ export function createCommandLauncher(
     // Larger text sizes get a taller panel so the prompt and its answer still fit.
     const scale = TEXT_SCALE[next.textSize ?? 'default'];
     const height = Math.min(
-      Math.round((next.task ? (next.task.response.length > 700 ? 440 : 340) : 208) * scale),
+      Math.round((next.task ? (next.task.response.length > 700 ? 500 : 400) : 208) * scale),
       area.height - 40,
     );
     if (window.getSize()[1] !== height) window.setSize(560, height);

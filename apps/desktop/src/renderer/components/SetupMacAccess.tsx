@@ -40,7 +40,7 @@ const STATE_LABEL: Record<AccessState, string> = {
   needed: 'Needs you',
   closed: 'Open to check',
   denied: 'Turned off',
-  relaunch: 'Reopen Sia',
+  relaunch: 'Reopen to finish',
   unavailable: 'Unavailable',
   error: 'Could not check',
 };
@@ -85,7 +85,7 @@ export function macAccessRows(
       name: 'Control your Mac',
       why: 'Lets Sia click and type in apps for you.',
       guide:
-        'In Accessibility, turn on Sia. If macOS asks, enter your password in its own dialog.',
+        'In System Settings, open Accessibility and turn on Sia. If macOS asks for your password, enter it in the macOS window.',
       optional: false,
       state: core('accessibility'),
       guided: true,
@@ -96,8 +96,8 @@ export function macAccessRows(
       name: 'See your screen',
       why: 'Lets Sia see the app it is working in.',
       guide: options.canRelaunch
-        ? 'In Screen & System Audio Recording, turn on Sia. If macOS offers to quit, choose Later — Sia shows one Relaunch button when it’s needed.'
-        : 'In Screen & System Audio Recording, turn on Sia. Quit and reopen Sia if macOS asks you to.',
+        ? 'In System Settings, open Screen & System Audio Recording and turn on Sia. If macOS offers to quit Sia, choose Later. Sia shows a Reopen button when it’s needed.'
+        : 'In System Settings, open Screen & System Audio Recording and turn on Sia. If macOS asks, quit and reopen Sia.',
       optional: false,
       state: core('screenRecording'),
       guided: true,
@@ -107,9 +107,9 @@ export function macAccessRows(
       ? {
           id: 'voice',
           name: 'Talk with Fn',
-          why: 'Hold Fn and speak instead of typing. Uses the microphone and Speech Recognition.',
+          why: 'Hold the Fn key and speak instead of typing. Uses your microphone.',
           guide:
-            'Allow the microphone and any Speech Recognition prompt. Setup does not record your voice.',
+            'Choose Allow for the microphone and for Speech Recognition if macOS asks. Setup does not record your voice.',
           // Voice also needs a voice service, which can be briefly unavailable; it never blocks.
           optional: true,
           state: dictationReady(snapshot.voice) ? 'ready' : 'needed',
@@ -141,9 +141,9 @@ export function macAccessRows(
       why: detail,
       guide:
         state === 'closed'
-          ? `Open ${name} so macOS can check its existing access. If permission is needed, macOS will ask you to allow it.`
+          ? `Open ${name} so macOS can check it. If macOS asks, choose Allow.`
           : state === 'denied'
-            ? `In Automation, expand Sia and turn on ${name}.`
+            ? `In System Settings, open Automation, find Sia, and turn on ${name}.`
             : `Choose Allow when macOS asks if Sia can control ${name}.`,
       optional: false,
       state,
@@ -156,9 +156,9 @@ export function macAccessRows(
     rows.push({
       id: 'messages_history',
       name: 'Read Messages history',
-      why: 'Lets Sia find earlier texts. In Full Disk Access, add Sia and turn it on.',
+      why: 'Lets Sia find earlier texts. macOS calls this “Full Disk Access”.',
       guide:
-        'In Full Disk Access, turn on Sia. If it is not listed, use + to add Sia from Applications.',
+        'In System Settings, open Full Disk Access and turn on Sia. If Sia isn’t listed, click + and choose Sia from Applications.',
       optional: false,
       state: messages === 'ready' ? 'ready' : 'needed',
       guided: true,
@@ -207,6 +207,8 @@ export function SetupMacAccess({
   const [skipped, setSkipped] = useState<readonly string[]>(initialSkipped ?? []);
   const [asked, setAsked] = useState<readonly string[]>([]);
   const requested = useRef(new Set<string>());
+  // Rows seen waiting in this view; only these play the settle when they turn ready.
+  const waited = useRef(new Set<string>());
   const requesting = useRef(false);
   const refreshing = useRef(false);
   const generation = useRef(0);
@@ -341,7 +343,7 @@ export function SetupMacAccess({
   const relaunchNow = () => {
     pause();
     void onRestart?.([...skipped]).catch((cause: unknown) =>
-      setError(errorMessage(cause, 'Sia could not relaunch. Try again.')),
+      setError(errorMessage(cause, 'Sia could not reopen. Try again.')),
     );
   };
   const requestRow = async (row: AccessRow) => {
@@ -379,8 +381,15 @@ export function SetupMacAccess({
         : row.state === 'denied' || !row.guided
           ? 'Open Settings'
           : 'Allow';
+    if (row.state !== 'ready') waited.current.add(row.id);
     return (
-      <li className={styles.permission} key={row.id} data-state={row.state}>
+      <li
+        className={styles.permission}
+        key={row.id}
+        data-state={row.state}
+        data-settled={(row.state === 'ready' && waited.current.has(row.id)) || undefined}
+        data-current={(active && current?.id === row.id) || undefined}
+      >
         <div>
           <strong>{row.name}</strong>
           <p>{row.why}</p>
@@ -388,7 +397,7 @@ export function SetupMacAccess({
         <span className={styles.permissionEnd}>
           <span className={row.state === 'ready' ? styles.ready : styles.status}>
             {row.state === 'ready' ? (
-              <Check size={11} weight="bold" aria-hidden="true" />
+              <Check size={14} weight="bold" aria-hidden="true" />
             ) : null}
             {STATE_LABEL[row.state]}
           </span>
@@ -409,44 +418,49 @@ export function SetupMacAccess({
   };
 
   return (
-    <section aria-label="Guided Mac permissions">
+    <section className={styles.accessSection} aria-label="Guided Mac permissions">
       {!compact && <h3>Set up Mac access in one go</h3>}
       <p className={styles.accessSummary} role="status">
-        <strong>
+        <strong key={readyCount} data-ready={(requiredReady && !current) || undefined}>
           {requiredReady && !current
             ? 'Mac access is ready.'
             : `${readyCount} of ${shown.length} permissions ready`}
         </strong>
         <span>
-          Grant all goes through each one and moves on when macOS says it’s on. You approve
-          macOS dialogs; your password stays with macOS.
+          Allow all walks you through each one and moves on once it’s on. You approve every
+          macOS prompt, and your password stays with macOS.
         </span>
         {shown.some((row) => row.state === 'closed') && (
-          <span>Closed apps need to open before macOS can check their existing access.</span>
+          <span>Some apps need to be open before macOS can check them.</span>
         )}
-        <span className={styles.meter} aria-hidden="true">
+        <span
+          className={styles.meter}
+          aria-hidden="true"
+          data-full={readyCount === shown.length || undefined}
+        >
           <span
-            style={{ width: `${shown.length ? (readyCount / shown.length) * 100 : 100}%` }}
+            style={{ transform: `scaleX(${shown.length ? readyCount / shown.length : 1})` }}
           />
         </span>
       </p>
       {relaunch.length && (!active || !current) ? (
         <div className={styles.permissionGuide} role="alert">
-          <h3>Relaunch Sia to finish</h3>
+          <h3>Reopen Sia to finish</h3>
           <p>
             {relaunch.map((row) => row.name).join(' and ')} {relaunch.length > 1 ? 'are' : 'is'}{' '}
             turned on. macOS applies it after Sia reopens.
-            {onRestart ? ' Setup picks up right here.' : ' Quit and reopen Sia.'}
+            {onRestart ? ' Setup picks up right here.' : ' Quit Sia, then open it again.'}
           </p>
           {onRestart ? (
             <button className={buttons.primaryButton} disabled={disabled} onClick={relaunchNow}>
-              Relaunch Sia
+              Reopen Sia
             </button>
           ) : null}
         </div>
       ) : null}
       {active && current && (
-        <div className={styles.permissionGuide}>
+        // Keyed so each step of the pass arrives on its own instead of swapping text in place.
+        <div className={styles.permissionGuide} key={current.id}>
           <span className={styles.eyebrow}>
             Step {walk.indexOf(current) + 1} of {walk.length}
             {current.optional ? ' · Optional' : ''}
@@ -481,7 +495,7 @@ export function SetupMacAccess({
             ) : null}
             {maybeStale && (!current.optional || current.id === 'messages_history') && (
               <button className={styles.link} disabled={pending} onClick={relaunchNow}>
-                Turned it on? Relaunch Sia
+                Turned it on? Reopen Sia
               </button>
             )}
             <button
@@ -502,12 +516,12 @@ export function SetupMacAccess({
           disabled={disabled || busy}
           onClick={start}
         >
-          Grant all
+          Allow all
         </button>
       )}
       {!active && !relaunch.length && maybeStale && (
         <button className={styles.link} disabled={disabled || busy} onClick={relaunchNow}>
-          Turned it on? Relaunch Sia
+          Turned it on? Reopen Sia
         </button>
       )}
       {error && (
@@ -520,7 +534,7 @@ export function SetupMacAccess({
       </ul>
       {rows.some((row) => row.optional) ? (
         <>
-          <p className={styles.groupLabel}>Optional — skip anything you won’t use</p>
+          <p className={styles.groupLabel}>Optional: skip anything you won’t use</p>
           <ul className={styles.accessList} aria-label="Optional permissions">
             {rows.filter((row) => row.optional).map(renderRow)}
           </ul>

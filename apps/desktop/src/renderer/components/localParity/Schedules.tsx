@@ -29,6 +29,7 @@ import {
   type ScheduleCadence,
 } from './scheduleText';
 import { shortDateTime } from '../../format';
+import { plainError } from '../../plainErrors';
 import {
   blankValues,
   ScheduleForm,
@@ -134,7 +135,7 @@ function ScheduleRow({
 
   return (
     <article className={styles.scheduleRow} data-testid="schedule-row">
-      <CalendarDots className={styles.scheduleRowIcon} size={17} aria-hidden="true" />
+      <CalendarDots className={styles.scheduleRowIcon} size={18} aria-hidden="true" />
       <div className={styles.scheduleSummary}>
         {onOpen ? (
           <button
@@ -144,7 +145,7 @@ function ScheduleRow({
             title="Open conversation"
           >
             <strong>{schedule.label}</strong>
-            <ArrowSquareOut size={13} aria-hidden="true" />
+            <ArrowSquareOut size={16} aria-hidden="true" />
           </button>
         ) : (
           <strong>{schedule.label}</strong>
@@ -152,11 +153,11 @@ function ScheduleRow({
         {context ? <span className={styles.scheduleContext}>{context}</span> : null}
         <div className={styles.scheduleMeta}>
           <span data-testid="schedule-cadence">
-            <Repeat size={12} aria-hidden="true" />
+            <Repeat size={14} aria-hidden="true" />
             {describeCadence(schedule)}
           </span>
           <span data-testid="schedule-next-run">
-            <Clock size={12} aria-hidden="true" />
+            <Clock size={14} aria-hidden="true" />
             {scheduleNextLabel(schedule)}
           </span>
           {schedule.cadence === 'once' ? null : (
@@ -170,7 +171,7 @@ function ScheduleRow({
         <div className={styles.scheduleOutcomeSummary}>
           {schedule.lastRun ? (
             <span className={styles.scheduleOutcome} data-outcome={schedule.lastRun.outcome}>
-              Last {scheduleOutcomeLabel(schedule.lastRun.outcome)} ·{' '}
+              {lastRunLabel(schedule.lastRun.outcome)} ·{' '}
               <time dateTime={scheduleRunTimestamp(schedule.lastRun)}>
                 {shortDateTime(scheduleRunTimestamp(schedule.lastRun))}
               </time>
@@ -178,6 +179,11 @@ function ScheduleRow({
           ) : (
             <span>Not run yet</span>
           )}
+          {schedule.lastRun?.outcome === 'failed' && schedule.lastRun.failureReason ? (
+            <p className={styles.scheduleFailure}>
+              {failureText(schedule.lastRun.failureReason)}
+            </p>
+          ) : null}
           {runs.length ? (
             <button
               type="button"
@@ -187,7 +193,7 @@ function ScheduleRow({
               onClick={() => setHistoryExpanded((value) => !value)}
             >
               {runs.length} recent
-              <CaretDown size={12} weight="bold" aria-hidden="true" />
+              <CaretDown size={14} aria-hidden="true" />
             </button>
           ) : null}
         </div>
@@ -225,7 +231,7 @@ function ScheduleRow({
             aria-label={`Edit ${schedule.label}`}
             title="Edit"
           >
-            <PencilSimple size={14} aria-hidden="true" />
+            <PencilSimple size={16} aria-hidden="true" />
           </button>
         ) : null}
         <button
@@ -243,7 +249,7 @@ function ScheduleRow({
           aria-label={`Delete ${schedule.label}`}
           title="Delete"
         >
-          <Trash size={14} aria-hidden="true" />
+          <Trash size={16} aria-hidden="true" />
         </button>
       </div>
       {historyExpanded ? (
@@ -256,6 +262,9 @@ function ScheduleRow({
               <time dateTime={scheduleRunTimestamp(run)}>
                 {shortDateTime(scheduleRunTimestamp(run))}
               </time>
+              {run.outcome === 'failed' && run.failureReason ? (
+                <span className={styles.scheduleFailure}>{failureText(run.failureReason)}</span>
+              ) : null}
             </li>
           ))}
         </ol>
@@ -319,9 +328,9 @@ export function ScheduleControls({
           data-testid="schedule-create"
         >
           {expanded ? (
-            <X size={14} aria-hidden="true" />
+            <X size={16} aria-hidden="true" />
           ) : (
-            <Plus size={14} aria-hidden="true" />
+            <Plus size={16} aria-hidden="true" />
           )}
           {expanded ? 'Cancel' : 'New schedule'}
         </button>
@@ -373,7 +382,7 @@ export function ScheduleControls({
                   disabled={busy}
                   onClick={() => openForm(valuesFromDraft(idea.draft(new Date())))}
                 >
-                  <Lightbulb size={14} aria-hidden="true" />
+                  <Lightbulb size={16} aria-hidden="true" />
                   {idea.label}
                 </button>
               ))}
@@ -537,7 +546,7 @@ export function ScheduledPage({
           onClick={onClose}
           aria-label="Close scheduled"
         >
-          <X size={17} aria-hidden="true" />
+          <X size={18} aria-hidden="true" />
         </button>
       </header>
       <div className={styles.scheduledPageContent}>
@@ -552,7 +561,7 @@ export function ScheduledPage({
           }}
           aria-expanded={creating}
         >
-          <Plus size={14} aria-hidden="true" /> New schedule
+          <Plus size={16} aria-hidden="true" /> New schedule
         </button>
         {creating ? (
           <section aria-label="New schedule">
@@ -678,6 +687,17 @@ function scheduleNextLabel(schedule: ScheduleItem): string {
   if (schedule.cadence === 'once' && (schedule.runCount ?? 0) > 0) return 'Finished';
   if (scheduleFinished(schedule)) return 'Run limit reached';
   return 'Paused';
+}
+
+/** Sentence case: "Last completed", "Last failed". */
+function lastRunLabel(outcome: ScheduleRun['outcome']): string {
+  if (outcome === 'started') return 'Running now';
+  return `Last ${outcome}`;
+}
+
+/** Provider failures read as one plain sentence; anything else keeps its own words. */
+function failureText(reason: string): string {
+  return plainError(reason)?.message ?? reason;
 }
 
 function scheduleOutcomeLabel(outcome: ScheduleRun['outcome']): string {

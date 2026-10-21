@@ -12,7 +12,7 @@ const RELEASE_PROVIDER_ORDER: ProviderId[] = ['codex', 'meta', 'byok', 'lab'];
 /** How the picker says who pays for a model, per provider. */
 const ACCESS_LABEL: Partial<Record<ProviderId, string>> = {
   meta: 'Included',
-  codex: 'Codex plan',
+  codex: 'ChatGPT plan',
   byok: 'Your API key',
   lab: 'Lab test',
 };
@@ -68,7 +68,7 @@ export function modelChoices(
 
 /** A model's display name when the provider catalog does not supply one. */
 export function friendlyModelName(provider: ProviderId, model: string): string {
-  if (provider === 'meta') return 'Included model';
+  if (provider === 'meta') return 'Included AI';
   if (model === 'gpt-5.6-sol') return 'GPT-5.6 Sol';
   if (model === 'sonnet') return 'Sonnet';
   return model

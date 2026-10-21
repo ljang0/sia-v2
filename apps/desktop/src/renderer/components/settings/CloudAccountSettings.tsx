@@ -285,7 +285,7 @@ export function CloudAccountSettings({
             disabled={Boolean(pending)}
             onClick={() => void run('sign-out', onSignOutCloud, 'Sia could not reset sign-in.')}
           >
-            <ArrowLeft size={14} aria-hidden="true" />
+            <ArrowLeft size={16} aria-hidden="true" />
             Use another email
           </button>
         </form>
@@ -334,7 +334,7 @@ function AdminMfaSetup({
   if (enabled) {
     return (
       <div className={styles.adminSecurityReady} role="status">
-        <LockKey size={17} weight="fill" aria-hidden="true" />
+        <LockKey size={18} weight="fill" aria-hidden="true" />
         <div>
           <strong>Admin access secured</strong>
           <p>Research archive requests require this authenticator.</p>

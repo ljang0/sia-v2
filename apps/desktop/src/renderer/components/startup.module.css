@@ -1,21 +1,28 @@
 .startup {
+  --startup-settle: calc(var(--motion-emphasis) * 3);
+  --startup-breath: calc(var(--motion-emphasis) * 8);
   position: fixed;
   z-index: var(--layer-dialog);
   inset: 0;
   overflow: hidden;
   isolation: isolate;
-  background: #0d1915;
-  color: #e8f2e9;
+  background: #131416;
+  color: #26272b;
   pointer-events: none;
   contain: layout paint;
 }
 .blob {
   position: absolute;
   inset: -30%;
-  background: #173a34;
+  background: #0e0f11;
   border-radius: 0;
   transform-origin: left center;
-  animation: settleLeft 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  /* Settles once, then breathes slowly so a long first load never looks frozen. The breath uses
+     the separate scale property so it composes with the settle instead of restarting it. */
+  animation:
+    settleLeft var(--startup-settle) var(--ease-out-soft) both,
+    blobBreathe var(--startup-breath) var(--ease-standard) var(--startup-settle) infinite
+      alternate;
 }
 .brand {
   position: absolute;
@@ -23,8 +30,8 @@
   display: grid;
   place-items: center;
   font: 650 clamp(72px, 10vw, 128px)/1 var(--font-brand);
-  letter-spacing: -0.07em;
-  animation: brandDrift 1000ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  letter-spacing: -0.045em;
+  animation: brandDrift var(--startup-settle) var(--ease-out-soft) both;
 }
 .loading {
   position: absolute;
@@ -34,13 +41,14 @@
   justify-content: center;
   gap: 12px;
   font-size: 17px;
-  color: #a8c1b8;
-  animation: loadingEnter 650ms 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  color: #9a9aa3;
+  animation: loadingEnter calc(var(--motion-emphasis) * 1.7) var(--ease-out-soft)
+    var(--motion-surface) both;
 }
 .wordmark {
-  color: #e8f2e9;
+  color: #ededef;
   font: 650 42px/1 var(--font-brand);
-  letter-spacing: -0.07em;
+  letter-spacing: -0.045em;
 }
 /* Three dots take turns, the same calm rhythm as a reply that is on its way. */
 .pulse {
@@ -52,17 +60,31 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #9fd3b5;
-  animation: breathe 1200ms ease-in-out infinite;
+  background: #34d399;
+  animation: breathe calc(var(--motion-spin) * 1.2) var(--ease-standard) infinite;
 }
 .pulse i:nth-child(2) {
-  animation-delay: 160ms;
+  animation-delay: calc(var(--motion-spin) * 0.16);
 }
 .pulse i:nth-child(3) {
-  animation-delay: 320ms;
+  animation-delay: calc(var(--motion-spin) * 0.32);
 }
+/* Ready: the words lift away and the shape slips left while the curtain fades, all inside the
+   240 ms budget, so the workspace underneath is revealed rather than swapped in. */
 .startup[data-ready='true'] {
-  animation: revealApp 220ms ease-out both;
+  animation: revealApp var(--motion-surface) var(--ease-exit) both;
+}
+.startup[data-ready='true'] .loading {
+  /* Listed after the entrance so the exit starts from wherever the entrance had reached. */
+  animation:
+    loadingEnter calc(var(--motion-emphasis) * 1.7) var(--ease-out-soft) var(--motion-surface)
+      both,
+    loadingLeave var(--motion-surface) var(--ease-exit) both;
+}
+.startup[data-ready='true'] .blob {
+  animation:
+    settleLeft var(--startup-settle) var(--ease-out-soft) both,
+    blobRetreat var(--motion-surface) var(--ease-exit) both;
 }
 @keyframes settleLeft {
   0%,
@@ -106,9 +128,27 @@
   0%,
   100% {
     opacity: 0.35;
+    transform: translateY(0);
   }
   50% {
     opacity: 1;
+    transform: translateY(calc(var(--motion-nudge) * -0.7));
+  }
+}
+@keyframes blobBreathe {
+  to {
+    scale: 1.015 1;
+  }
+}
+@keyframes blobRetreat {
+  to {
+    translate: -6% 0;
+  }
+}
+@keyframes loadingLeave {
+  to {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-rise) * -1));
   }
 }
 @keyframes revealApp {
@@ -117,6 +157,8 @@
   }
 }
 .startup[data-appearance='calm'] .blob,
+.startup[data-appearance='calm'][data-ready='true'] .blob,
+.startup[data-appearance='calm'][data-ready='true'] .loading,
 .startup[data-appearance='calm'] .brand,
 .startup[data-appearance='calm'] .loading,
 .startup[data-appearance='calm'] .pulse i {
@@ -133,7 +175,10 @@
   .blob,
   .brand,
   .loading,
-  .pulse i {
+  .pulse i,
+  .startup[data-ready='true'],
+  .startup[data-ready='true'] .blob,
+  .startup[data-ready='true'] .loading {
     animation: none;
   }
   .brand {
@@ -143,20 +188,24 @@
     inset: 0;
   }
 }
-/* Light Macs: the curtain matches the light workspace (and the window's first paint), and only
-   the sidebar-colored blob stays dark. */
+/* Light Macs: the curtain matches the light workspace (and the window's first paint), and the
+   sidebar-colored blob settles into the light sidebar. */
 @media (prefers-color-scheme: light) {
   .startup {
-    background: #f4f6f2;
+    background: #fcfcfd;
+    color: #e6e6e9;
+  }
+  .blob {
+    background: #f4f4f5;
   }
   .loading {
-    color: #52625b;
+    color: #5f5f68;
   }
   .wordmark {
-    color: #173a34;
+    color: #18181b;
   }
   .pulse i {
-    background: #2f7a58;
+    background: #07855b;
   }
 }
 @media (forced-colors: active) {

@@ -337,6 +337,82 @@ describe('DesktopActionBackend computer boundary', () => {
     expect(cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(1);
   });
 
+  it('points at a sheet that took focus when a key is refused on the window behind it', async () => {
+    let sheetListed = false;
+    let hotkeyDone = false;
+    let listsAfterHotkey = 0;
+    const cua = fakeCua(async (tool) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 7, name: 'Finder', bundle_id: 'com.apple.finder' }] };
+      if (tool === 'list_windows') {
+        // The sheet slides in after the post-action check, as Go to Folder does.
+        if (hotkeyDone && ++listsAfterHotkey > 1) sheetListed = true;
+        return {
+          windows: [
+            { pid: 7, window_id: 70, title: 'Recents', app_name: 'Finder' },
+            ...(sheetListed
+              ? [{ pid: 7, window_id: 71, title: 'Go to Folder', app_name: 'Finder' }]
+              : []),
+          ],
+        };
+      }
+      if (tool === 'get_window_state')
+        return {
+          snapshot_id: 'native-7',
+          elements: [{ element_index: 0, role: 'AXTextField', value: '' }],
+        };
+      if (tool === 'hotkey') {
+        hotkeyDone = true;
+        return { effect: 'unverifiable', delivery: { mode: 'foreground' } };
+      }
+      if (tool === 'press_key')
+        return {
+          effect: 'refused',
+          delivery: { mode: 'foreground' },
+          escalation: { target: 'foreground', reason: 'delivery_failed' },
+        };
+      throw new Error(`Unexpected ${tool}`);
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    const target = await grantedComputerTarget(backend);
+    const first = await backend.invoke(
+      request('computer_snapshot', { app_id: target.appId, window_id: target.windowId }),
+    );
+    const opened = await backend.invoke(
+      request('computer_action', {
+        app_id: target.appId,
+        window_id: target.windowId,
+        snapshot_id: dataRecord(first.data).snapshot_id,
+        action: 'key',
+        value: 'g',
+        delivery: 'foreground',
+        modifiers: ['cmd', 'shift'],
+      }),
+    );
+    expect(opened.outcome).toBe('accepted_unverified');
+    const result = await backend.invoke(
+      request('computer_action', {
+        app_id: target.appId,
+        window_id: target.windowId,
+        snapshot_id: dataRecord(opened.data).snapshot_id,
+        action: 'key',
+        value: 'return',
+        delivery: 'foreground',
+      }),
+    );
+    expect(result.outcome).toBe('stale');
+    expect(result.summary).toContain('dialog or sheet');
+    const next = (dataRecord(result.data).new_windows as Record<string, unknown>[])[0]!;
+    expect(next.title).toBe('Go to Folder');
+    expect(next.window_id).not.toBe(target.windowId);
+    // The refused key is never replayed.
+    expect(cua.call.mock.calls.filter(([tool]) => tool === 'press_key')).toHaveLength(1);
+  });
+
   it('reads pixels on demand only from an unprotected granted snapshot', async () => {
     const readImageText = vi.fn(async () => 'Instructor: Example Person');
     let protectedControl = false;

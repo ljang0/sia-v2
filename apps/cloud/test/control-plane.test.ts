@@ -12,6 +12,7 @@ import {
   MemoryDeletionQueue,
   MemoryIdentity,
   MemoryQuota,
+  MemoryRatings,
   MemoryRemoteRelayStore,
   MemoryReleaseManifests,
   MemoryResearchObjects,
@@ -1403,8 +1404,13 @@ describe('invites and deletion', () => {
       expiresAt: 123456,
       tokenMintLimit: 20,
     });
+    const removedRatingUsers: string[] = [];
+    fixture.ratings.deleteUserRatings = async (userId) => {
+      removedRatingUsers.push(userId);
+    };
     const requested = await fixture.services.research.requestDeletion(user, 'account');
     await fixture.services.deletionWorker.process(user.subject, requested.id, 'account');
+    assert.deepEqual(removedRatingUsers, [user.subject]);
     assert.equal(fixture.connector.statuses.get('connection-1')?.status, 'disconnected');
     assert.equal(fixture.state.connectionRecords.size, 0);
     assert.equal(fixture.identity.users.has(user.subject), false);
@@ -1809,6 +1815,7 @@ function makeFixture(
   const audit = new MemoryAudit();
   const voiceProvider = new MemoryVoiceProvider();
   const quota = new MemoryQuota();
+  const ratings = new MemoryRatings();
   const remoteDevices = new MemoryRemoteRelayStore();
   const clock = new FixedClock(new Date('2026-08-13T00:00:00.000Z'));
   const metaConfig: MetaConfig = overrides.metaConfig ?? {
@@ -1853,6 +1860,7 @@ function makeFixture(
     metaProvider: new EchoMetaProvider(),
     voiceProvider,
     quota,
+    ratings,
     remoteDevices,
     audit,
     config: {
@@ -1882,6 +1890,7 @@ function makeFixture(
     audit,
     voiceProvider,
     quota,
+    ratings,
     remoteDevices,
     clock,
     services: createServices(deps),

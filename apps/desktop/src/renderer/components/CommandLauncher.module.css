@@ -1,17 +1,21 @@
+/* The launcher window loads tokens.css for the shared vocabulary; its own panel paints the room. */
+:global(body):has(.launcher) {
+  background: transparent;
+}
 .launcher {
   position: relative;
   isolation: isolate;
-  --panel: #f8f9f8;
-  --ink: #252c29;
-  --muted: #758079;
-  --line: #252c2912;
+  --panel: #ffffff;
+  --ink: #18181b;
+  --muted: #5f5f68;
+  --line: #18181b14;
+  --edge: #dcdce0;
   box-sizing: border-box;
   height: 100vh;
   padding: 16px 20px;
   background:
     linear-gradient(var(--panel), var(--panel)) padding-box,
-    linear-gradient(115deg, var(--aurora-emerald), var(--aurora-cyan), var(--aurora-violet))
-      border-box;
+    linear-gradient(var(--edge), var(--edge)) border-box;
   color: var(--ink);
   font:
     var(--text-md) -apple-system,
@@ -29,12 +33,16 @@
   inset: 0;
   overflow: hidden;
   contain: paint;
-  opacity: 0.32;
+  opacity: 0.18;
   mask-image: linear-gradient(#000, transparent 100%);
-  transition: opacity 400ms var(--ease-out-soft);
+  transition: opacity var(--motion-emphasis) var(--ease-out-soft);
 }
 .launcher:focus-within .aurora {
   opacity: 0.48;
+}
+/* A request worth sending lifts the room a little further. */
+.launcher:has(form[data-ready='true']) .aurora {
+  opacity: 0.6;
 }
 .launcher header,
 .launcher footer {
@@ -43,18 +51,17 @@
   gap: 10px;
 }
 .launcher header {
-  min-height: 24px;
+  min-height: var(--target-min);
   -webkit-app-region: drag;
 }
 .launcher header strong {
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   font-weight: 600;
-  letter-spacing: 0.02em;
 }
 .mark {
   width: 12px;
   height: 12px;
-  border: 3px solid #547b65;
+  border: 3px solid var(--bg-accent);
   border-radius: 50%;
   box-sizing: border-box;
 }
@@ -73,13 +80,15 @@
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  padding: 5px;
+  min-width: var(--target-min);
+  min-height: var(--target-min);
+  padding: 0 8px;
 }
 .launcher button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: 6px;
 }
 .launcher button:not([data-size]):hover {
   background: var(--line);
@@ -91,7 +100,7 @@
 }
 .launcher button:focus-visible,
 .launcher select:focus-visible {
-  outline: 2px solid #769d86;
+  outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
 }
 .launcher form {
@@ -121,17 +130,17 @@
   opacity: 0.6;
 }
 .launcher footer {
-  min-height: 30px;
+  min-height: var(--target-min);
 }
 .launcher footer select {
-  max-width: 160px;
+  max-width: 180px;
   padding-left: 0;
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
 }
 .agentName {
   color: var(--muted);
-  font-size: var(--text-xs);
-  max-width: 160px;
+  font-size: var(--text-sm);
+  max-width: 180px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -139,12 +148,20 @@
 .keyboardHint {
   margin-left: auto;
   color: var(--muted);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  transition: color var(--motion-fast) var(--ease-standard);
+}
+form[data-ready='true'] .keyboardHint {
+  color: var(--ink);
 }
 .result {
+  flex: 0 1 auto;
   min-height: 0;
-  margin-top: 12px;
-  padding: 12px 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
+  padding: 4px 0 6px;
   border-bottom: 1px solid var(--line);
 }
 .taskHeading,
@@ -163,27 +180,31 @@
   color: var(--ink);
 }
 .progress {
+  color: var(--muted);
+  font-size: var(--text-sm);
+  margin: 0 0 10px;
+}
+.statusLine {
   display: flex;
   align-items: center;
-  gap: 6px;
-  color: var(--muted);
-  font-size: var(--text-xs);
-  margin: 6px 0 12px;
+  gap: 8px;
 }
 .statusDot {
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: #749581;
+  background: var(--bg-accent);
   flex: none;
 }
 .progress[data-status='waiting'] .statusDot {
-  background: #bb904a;
+  background: var(--text-warning);
 }
 .progress[data-status='error'] .statusDot {
-  background: #b55555;
+  background: var(--text-danger);
 }
 .response {
+  flex: 0 1 auto;
+  min-height: calc(var(--text-base) * 1.65);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   max-height: 180px;
@@ -195,23 +216,33 @@
 .response small {
   display: block;
   color: var(--muted);
-  font-size: var(--text-xs);
+  font-size: var(--text-sm);
+  line-height: 1.45;
   margin-bottom: 8px;
 }
-.taskActions button {
-  font-size: var(--text-xs);
-  padding: 4px 0;
+.taskHeading,
+.taskActions,
+.launcher header,
+.launcher form {
+  flex: none;
 }
-.taskActions button + button {
+.taskActions button {
+  font-size: var(--text-sm);
+}
+.taskActions button:first-child {
+  margin-left: -8px;
+}
+.taskActions button:last-child {
   margin-left: auto;
+  margin-right: -8px;
 }
 .result + form textarea {
-  height: 66px;
+  height: calc(var(--text-xl) * 1.45 + 20px);
   font-size: var(--text-xl);
-  padding-top: 14px;
+  padding: 12px 0 8px;
 }
 .error {
-  color: #a54444;
+  color: var(--text-danger);
   font-size: var(--text-sm);
   line-height: 1.45;
   margin: 10px 0 0;
@@ -220,52 +251,99 @@
   margin: auto 0;
   color: var(--muted);
 }
+.empty p {
+  font-size: var(--text-base);
+  line-height: 1.45;
+  margin: 0 0 6px;
+}
 .empty button {
   color: var(--ink);
-  padding-left: 0;
+  margin-left: -8px;
 }
 @media (prefers-color-scheme: dark) {
   .launcher {
-    --panel: #202422;
-    --ink: #e4e9e6;
-    --muted: #929d96;
-    --line: #ffffff12;
+    --panel: #1a1b1e;
+    --ink: #ededef;
+    --muted: #9a9aa3;
+    --line: #ffffff14;
+    --edge: #34363b;
   }
   .launcher select option {
     background: var(--panel);
-  }
-  .error {
-    color: #e7a0a0;
   }
 }
 @media (prefers-reduced-motion: no-preference) {
   .launcher button:not([data-size]) {
     transition:
-      background 120ms ease,
-      color 120ms ease;
+      background var(--motion-fast) var(--ease-standard),
+      color var(--motion-fast) var(--ease-standard),
+      transform var(--motion-fast) var(--ease-standard);
   }
+  .launcher button:not([data-size]):active:not(:disabled) {
+    transform: translateY(calc(var(--motion-nudge) / 3));
+  }
+  /* Handoff: the sent request rises out of the field into a running task, then its status and
+     actions follow one beat apart. */
   .result {
-    animation: enter 140ms ease-out;
+    animation: launcher-fade var(--motion-standard) var(--ease-out-soft) both;
   }
-  /* A running request breathes like the main window's working avatar; calm stays still. */
+  .result .taskHeading {
+    animation: launcher-rise var(--motion-emphasis) var(--ease-spring) both;
+  }
+  .result .statusLine {
+    animation: launcher-fade var(--motion-standard) var(--ease-out-soft) var(--motion-stagger)
+      both;
+  }
+  .result .taskActions {
+    animation: launcher-fade var(--motion-standard) var(--ease-out-soft)
+      calc(var(--motion-stagger) * 2) both;
+  }
+  .result .response {
+    animation: launcher-fade var(--motion-surface) var(--ease-out-soft) both;
+  }
+  /* Each state has its own mark: running breathes, finished lands, waiting settles soberly. */
   .launcher:not([data-appearance='calm']) .progress[data-status='running'] .statusDot {
-    animation: working 2s var(--ease-standard) infinite;
+    animation: launcher-working 2s var(--ease-standard) infinite;
   }
-  @keyframes working {
-    50% {
-      box-shadow: 0 0 0 4px #74958138;
-      transform: scale(0.84);
-    }
+  .progress[data-status='idle'] .statusDot {
+    animation: launcher-land var(--motion-emphasis) var(--ease-spring) both;
   }
-  @keyframes enter {
-    from {
-      opacity: 0;
-      transform: translateY(3px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
+  .progress[data-status='waiting'] .statusDot {
+    animation: launcher-settle var(--motion-emphasis) var(--ease-out-soft) both;
+  }
+}
+@keyframes launcher-working {
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--bg-accent) 22%, transparent);
+    transform: scale(0.84);
+  }
+}
+@keyframes launcher-rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-rise)) scale(var(--motion-pop-scale));
+  }
+}
+@keyframes launcher-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes launcher-land {
+  from {
+    transform: scale(0);
+  }
+  60% {
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--bg-accent) 20%, transparent);
+  }
+}
+@keyframes launcher-settle {
+  from {
+    opacity: 0;
+    box-shadow: 0 0 0 6px transparent;
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--text-warning) 25%, transparent);
   }
 }
 @media (prefers-reduced-motion: reduce) {

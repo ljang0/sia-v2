@@ -1,4 +1,4 @@
-import { WifiSlash } from '@phosphor-icons/react';
+import { WifiHigh, WifiSlash } from '@phosphor-icons/react';
 import { useEffect, useRef, useState } from 'react';
 import type { MessageEvent, RendererAttachment } from './types';
 import styles from './components/AppStates.module.css';
@@ -19,10 +19,44 @@ export function useOnline(): boolean {
   return online;
 }
 
+/** How long “Back online” stays after the connection returns. */
+export const BACK_ONLINE_MS = 2400;
+
+/**
+ * The offline banner while the Mac is offline, then a brief “Back online” confirmation so the
+ * banner does not simply vanish. Nothing shows on a launch that starts online.
+ */
+export function ConnectionBanner({ online }: { online: boolean }) {
+  const [backOnline, setBackOnline] = useState(false);
+  const wasOffline = useRef(!online);
+  useEffect(() => {
+    if (!online) {
+      wasOffline.current = true;
+      setBackOnline(false);
+      return;
+    }
+    if (!wasOffline.current) return;
+    wasOffline.current = false;
+    setBackOnline(true);
+    const timer = window.setTimeout(() => setBackOnline(false), BACK_ONLINE_MS);
+    return () => window.clearTimeout(timer);
+  }, [online]);
+  if (!online) return <OfflineBanner />;
+  if (!backOnline) return null;
+  return (
+    <div className={styles.onlineBanner} role="status" data-testid="online-banner">
+      <WifiHigh size={18} aria-hidden="true" />
+      <span>
+        <strong>Back online</strong> — sending anything that was waiting.
+      </span>
+    </div>
+  );
+}
+
 export function OfflineBanner() {
   return (
     <div className={styles.offlineBanner} role="status" data-testid="offline-banner">
-      <WifiSlash size={16} aria-hidden="true" />
+      <WifiSlash size={18} aria-hidden="true" />
       <span>
         <strong>You’re offline</strong> — Sia will send when you’re back.
       </span>

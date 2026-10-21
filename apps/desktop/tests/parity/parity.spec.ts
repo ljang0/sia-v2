@@ -108,7 +108,7 @@ test('model and reasoning controls belong to one thread and survive reload', asy
   const harness = await launchParityFixture('threadConfiguration');
   try {
     await createAgentAndThread(harness.page);
-    await harness.page.getByText('Model for this conversation', { exact: true }).click();
+    await harness.page.getByText('AI for this conversation', { exact: true }).click();
     await harness.page
       .getByTestId(parityContract.threadConfiguration.testIds[0])
       .selectOption('gpt-5.6-terra');
@@ -118,7 +118,7 @@ test('model and reasoning controls belong to one thread and survive reload', asy
 
     await harness.page.reload();
     await expect.poll(() => harness.page.evaluate(() => Boolean(window.sia))).toBe(true);
-    await harness.page.getByText('Model for this conversation', { exact: true }).click();
+    await harness.page.getByText('AI for this conversation', { exact: true }).click();
     await expect(
       harness.page.getByTestId(parityContract.threadConfiguration.testIds[0]),
     ).toHaveValue('gpt-5.6-terra');
@@ -140,7 +140,7 @@ test('archive, transcript search, and fork preserve source context', async ({}, 
     await harness.page.getByRole('textbox', { name: 'Message' }).fill(`Remember ${token}.`);
     await harness.page.getByRole('textbox', { name: 'Message' }).press('Enter');
     await expect(
-      harness.page.getByLabel('Conversation').getByText(/deterministic local runtime/i),
+      harness.page.getByLabel('Conversation').getByText(/practice reply/i),
     ).toBeVisible();
 
     await harness.page.getByTestId(parityContract.threadLibrary.testIds[0]).click();
@@ -236,7 +236,7 @@ test('an interrupted turn is recovered without duplicating its user message', as
     await expect(recoveredPrompt).toHaveCount(1);
     await recovered.page.getByTestId(parityContract.interruptedTurnRecovery.testIds[2]).click();
     await expect(recoveredPrompt).toHaveCount(1);
-    await expect(recovered.page.getByText(/deterministic local runtime/i)).toBeVisible();
+    await expect(recovered.page.getByText(/practice reply/i)).toBeVisible();
     expect(recovered.rendererErrors).toEqual([]);
   } finally {
     await recovered?.close({ removeTestRoot: false });

@@ -1,12 +1,3 @@
-@keyframes auroraDrift {
-  from {
-    background-position: 0% 50%;
-  }
-  to {
-    background-position: 100% 50%;
-  }
-}
-
 .composerArea {
   width: min(100%, calc(var(--composer-max) + 64px));
   margin: 0 auto;
@@ -38,6 +29,8 @@
   width: 100%;
   max-height: 168px;
   resize: none;
+  /* The field grows with its text over a short ease rather than jumping a line at a time. */
+  transition: height var(--motion-fast) var(--ease-out-soft);
   padding: 7px 8px 11px;
   border: 0;
   background: transparent;
@@ -63,28 +56,48 @@
 .composerControls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
 }
 
 .composerContext {
   min-width: 0;
   flex: 1;
   overflow: hidden;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   font-size: var(--text-sm);
-  letter-spacing: 0.005em;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .composerAction {
   gap: 6px;
+  animation: composerActionIn var(--motion-standard) var(--ease-out-soft) backwards;
+}
+
+@keyframes composerActionIn {
+  from {
+    opacity: 0;
+    transform: scale(var(--motion-pop-scale));
+  }
+}
+
+/* The status words under the field change with the turn; each new phrase rises into place. */
+.composerContextWord {
+  display: inline-block;
+  animation: composerContextIn var(--motion-surface) var(--ease-out-soft) both;
+}
+
+@keyframes composerContextIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-nudge));
+  }
 }
 
 .composerError {
-  margin: 5px 0 0;
+  margin: 8px 0 0;
   color: var(--text-secondary);
-  font-size: var(--text-sm);
+  font-size: var(--text-md);
   text-align: center;
 }
 
@@ -99,11 +112,11 @@
   display: inline-flex;
   min-width: 0;
   max-width: 280px;
-  animation: attachmentChipIn 220ms var(--ease-out-soft) both;
-  height: 28px;
+  animation: attachmentChipIn var(--motion-emphasis) var(--ease-spring) both;
+  height: var(--target-min);
   align-items: center;
-  gap: 6px;
-  padding: 0 5px 0 8px;
+  gap: 8px;
+  padding: 0 4px 0 10px;
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-control);
   background: var(--bg-subtle);
@@ -114,7 +127,7 @@
 @keyframes attachmentChipIn {
   from {
     opacity: 0;
-    transform: scale(0.94);
+    transform: translateY(var(--motion-nudge)) scale(var(--motion-pop-scale));
   }
 }
 
@@ -135,20 +148,26 @@
 .composerAttachButton,
 .composerVoiceButton {
   display: inline-flex;
-  width: 24px;
-  height: 24px;
+  width: var(--target-min);
+  height: var(--target-min);
   flex: none;
   align-items: center;
   justify-content: center;
   padding: 0;
   border: 0;
-  border-radius: var(--radius-tight);
+  border-radius: var(--radius-control);
   background: transparent;
-  color: var(--text-tertiary);
+  color: var(--text-secondary);
   cursor: pointer;
   transition:
     background-color var(--motion-fast) var(--ease-standard),
-    color var(--motion-fast) var(--ease-standard);
+    color var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.composerAttachButton:active:not(:disabled),
+.composerVoiceButton:active:not(:disabled) {
+  transform: scale(var(--motion-pop-scale));
 }
 
 .attachmentChip button:hover,
@@ -165,15 +184,41 @@
   opacity: 0.4;
 }
 
+.composerVoiceButton {
+  position: relative;
+}
+
+/* Inside a chip the remove button stays inside the chip's own target. */
+.attachmentChip button {
+  width: 28px;
+  height: 28px;
+}
+
+/* Listening: the button holds steady in the danger tint while a soft ring keeps radiating from
+   it, so the live microphone is unmistakable without the control itself blinking. */
 .composerVoiceRecording {
   background: var(--surface-danger);
   color: var(--text-danger);
-  animation: voicePulse 1.4s var(--ease-standard) infinite;
 }
 
-@keyframes voicePulse {
-  50% {
-    opacity: 0.58;
+.composerVoiceRecording::after {
+  position: absolute;
+  inset: 0;
+  border: 1.5px solid color-mix(in srgb, var(--text-danger) 55%, transparent);
+  border-radius: inherit;
+  content: '';
+  pointer-events: none;
+  animation: voiceRing calc(var(--motion-spin) * 1.6) var(--ease-out-soft) infinite;
+}
+
+@keyframes voiceRing {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.6);
   }
 }
 
@@ -182,13 +227,25 @@
   min-width: 0;
   flex: 1;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .attachmentChip {
+  .attachmentChip,
+  .composerAction,
+  .composerContextWord {
     animation: none;
   }
+
+  /* Reduced motion keeps the ring as a still outline so listening stays visible. */
+  .composerVoiceRecording::after {
+    animation: none;
+    opacity: 1;
+  }
+}
+
+[data-appearance='calm'] .composerVoiceRecording::after {
+  animation: none;
 }
 
 .attachmentChip .attachmentPreviewButton {
@@ -223,58 +280,29 @@
 }
 
 .composer {
-  padding: 10px 12px 9px;
-  border-color: transparent;
+  padding: 12px 14px 10px;
+  border-color: var(--border-control);
   border-radius: var(--radius-dialog);
-  background:
-    linear-gradient(
-        115deg,
-        color-mix(in srgb, var(--aurora-emerald) 5%, var(--bg-raised)),
-        var(--bg-raised) 35%,
-        color-mix(in srgb, var(--aurora-cyan) 5%, var(--bg-raised)) 65%,
-        color-mix(in srgb, var(--aurora-violet) 6%, var(--bg-raised))
-      )
-      padding-box,
-    linear-gradient(
-        110deg,
-        color-mix(in srgb, var(--aurora-emerald) 45%, var(--border-subtle)),
-        color-mix(in srgb, var(--aurora-cyan) 40%, var(--border-subtle)) 32%,
-        color-mix(in srgb, var(--aurora-violet) 45%, var(--border-subtle)) 64%,
-        color-mix(in srgb, var(--aurora-emerald) 45%, var(--border-subtle))
-      )
-      border-box;
-  background-size: 260% 100%;
-  animation: auroraDrift 22s ease-in-out infinite alternate;
-  box-shadow:
-    0 8px 28px color-mix(in srgb, var(--aurora-emerald) 6%, transparent),
-    var(--shadow-composer);
   transition:
-    box-shadow 360ms var(--ease-out-soft),
-    border-color 360ms ease;
+    box-shadow var(--motion-standard) var(--ease-standard),
+    border-color var(--motion-standard) var(--ease-standard);
 }
 
 .composer:focus-within {
-  border-color: transparent;
+  border-color: color-mix(in srgb, var(--focus-ring) 70%, var(--border-control));
   box-shadow:
-    0 0 0 2px color-mix(in srgb, var(--aurora-emerald) 16%, transparent),
-    0 10px 36px color-mix(in srgb, var(--aurora-cyan) 10%, transparent),
+    0 0 0 3px var(--focus-halo),
     var(--shadow-composer);
 }
 
-.composer.composerDisabled {
-  animation-play-state: paused;
-}
-
 .composer textarea {
-  min-height: 38px;
+  min-height: 44px;
   padding-top: 6px;
   font-size: var(--text-lg);
+  line-height: 1.5;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .composer {
-    animation: none;
-  }
   .composer {
     transition: none;
   }

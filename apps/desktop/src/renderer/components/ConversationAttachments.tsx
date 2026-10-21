@@ -54,9 +54,9 @@ export function AttachmentChip({
       {thumbnail ? (
         <img className={styles.attachmentThumbnail} src={thumbnail} alt="" />
       ) : attachment.kind === 'image' ? (
-        <ImageSquare size={13} aria-hidden="true" />
+        <ImageSquare size={16} aria-hidden="true" />
       ) : (
-        <FolderSimple size={13} aria-hidden="true" />
+        <FolderSimple size={16} aria-hidden="true" />
       )}
       {attachment.name}
     </button>
