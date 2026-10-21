@@ -16,6 +16,8 @@ interface SelectOption {
 
 interface ThreadModelControlsProps {
   workspace?: string | undefined;
+  /** Lab, model, and engine that run this conversation, e.g. "Meta · Llama 5 · Codex". */
+  route?: { lab: string; model: string; engine: string } | undefined;
   modelId: string;
   reasoningId: string;
   models: readonly SelectOption[];
@@ -27,6 +29,7 @@ interface ThreadModelControlsProps {
 
 export function ThreadModelControls({
   workspace,
+  route,
   modelId,
   reasoningId,
   models,
@@ -63,7 +66,13 @@ export function ThreadModelControls({
   return (
     <details ref={menu} className={styles.agentSettingsMenu}>
       <summary>
-        AI for this conversation <CaretDown size={16} aria-hidden="true" />
+        <span>AI for this conversation</span>
+        {route ? (
+          <span className={styles.threadRoute} data-testid="thread-route">
+            {routeLabel(route)}
+          </span>
+        ) : null}
+        <CaretDown size={16} aria-hidden="true" />
       </summary>
       <section className={styles.threadControls} aria-label="AI for this conversation">
         <label>
@@ -123,6 +132,12 @@ export function ThreadModelControls({
       </section>
     </details>
   );
+}
+
+/** "Claude · Arena · Claude Code": lab, then model and engine when they add something. */
+export function routeLabel(route: { lab: string; model: string; engine: string }): string {
+  const parts = [route.lab, route.model, route.engine];
+  return parts.filter((part, index) => part && parts.indexOf(part) === index).join(' · ');
 }
 
 interface GoalControlsProps {

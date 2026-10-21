@@ -381,7 +381,7 @@ export function AgentDialog({
             ) : null}
             {error ? <p className={styles.formError}>{error}</p> : null}
 
-            <div className={dialogs.dialogActions}>
+            <div className={`${dialogs.dialogActions} ${styles.agentActions}`}>
               {agent && onDelete ? (
                 confirmingDelete ? (
                   <button

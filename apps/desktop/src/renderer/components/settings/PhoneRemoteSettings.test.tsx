@@ -189,3 +189,19 @@ it('pairs and removes phones over the encrypted relay without Wi-Fi link control
   await waitFor(() => expect(api).toHaveBeenCalledWith({ operation: 'revoke', deviceId }));
   await waitFor(() => expect(screen.queryByRole('list', { name: 'Paired phones' })).toBeNull());
 });
+
+it('holds the card with placeholders until the first status arrives', async () => {
+  let resolve: (value: Settings) => void = () => undefined;
+  const api = vi.fn<PhoneRemoteApi>(
+    () =>
+      new Promise<Settings>((done) => {
+        resolve = done;
+      }),
+  );
+  render(<PhoneRemoteSettings api={api} agents={[]} providers={[]} />);
+  expect(screen.getByRole('status', { name: 'Checking phone remote' })).toBeTruthy();
+  expect(screen.queryByText('Off')).toBeNull();
+  resolve({ enabled: false, running: false, detail: 'Ready to pair.' });
+  expect(await screen.findByText('Off')).toBeTruthy();
+  expect(screen.queryByRole('status', { name: 'Checking phone remote' })).toBeNull();
+});

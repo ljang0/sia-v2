@@ -413,13 +413,6 @@
   margin-top: 13px;
 }
 
-.skeletonMessage,
-.skeletonActivity,
-.skeletonComposer {
-  background: var(--bg-subtle);
-  animation: skeleton calc(var(--motion-spin) * 1.4) var(--ease-standard) infinite alternate;
-}
-
 .skeletonMessage {
   width: 76%;
   height: 74px;
@@ -448,15 +441,6 @@
   border-radius: var(--radius-surface);
 }
 
-@keyframes skeleton {
-  from {
-    opacity: 0.45;
-  }
-  to {
-    opacity: 0.82;
-  }
-}
-
 /* The caret follows the last text written, including the last item of a list or quote. */
 .streamingContent > :is(p, h1, h2, h3, h4, h5, h6):last-child::after,
 .streamingContent > :is(ul, ol):last-child > li:last-child::after,
@@ -474,6 +458,46 @@
 
 .messageSettled {
   animation: responseSettle var(--motion-emphasis) var(--ease-out-soft) both;
+}
+
+/* A reply being written grows block by block: each new paragraph, list item, or code block
+   fades up into place once as it appears, while text inside a block streams without motion.
+   Blocks keep their identity across chunks, so a block never replays. */
+.streamingContent > *,
+.streamingContent > :is(ul, ol) > li {
+  animation: streamBlockIn var(--motion-surface) var(--ease-out-soft) both;
+}
+
+@keyframes streamBlockIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-reveal));
+  }
+}
+
+/* When the reply finishes, its tools (copy, read aloud, rate) arrive one after another instead of
+   all snapping in at once. Only on the live finish, never when a finished thread reopens. */
+.messageSettled > header > :not(span, time) {
+  animation: replyToolIn var(--motion-surface) var(--ease-out-soft) backwards;
+}
+
+.messageSettled > header > :nth-child(4) {
+  animation-delay: var(--motion-stagger);
+}
+
+.messageSettled > header > :nth-child(5) {
+  animation-delay: calc(var(--motion-stagger) * 2);
+}
+
+.messageSettled > header > :nth-child(n + 6) {
+  animation-delay: calc(var(--motion-stagger) * 3);
+}
+
+@keyframes replyToolIn {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-reveal)) scale(var(--motion-pop-scale));
+  }
 }
 
 @keyframes responseCursor {
@@ -887,10 +911,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .skeletonMessage,
-  .skeletonActivity,
-  .skeletonComposer,
   .messageSettled,
+  .streamingContent > *,
+  .streamingContent > :is(ul, ol) > li,
+  .messageSettled > header > :not(span, time),
   .streamingContent > :is(p, h1, h2, h3, h4, h5, h6):last-child::after,
   .streamingContent > :is(ul, ol):last-child > li:last-child::after,
   .streamingContent > blockquote:last-child > :last-child::after {
@@ -934,4 +958,154 @@
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+/* Rating a finished task: thumbs, a calm "Thanks, saved.", and an optional "Tell us more". */
+.taskRating {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.taskRating .messageActionButton[data-chosen='true'] {
+  color: var(--text-primary);
+  opacity: 1;
+}
+
+.taskRatingStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: 4px;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  animation: taskRatingArrive var(--motion-standard) var(--ease-out-soft) backwards;
+}
+
+.taskRatingMore {
+  min-height: var(--target-min);
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-tight);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.taskRatingMore:hover,
+.taskRatingMore:focus-visible {
+  color: var(--text-primary);
+}
+
+.taskRatingPopover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 30;
+  display: grid;
+  width: 340px;
+  max-width: calc(100vw - 48px);
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-surface);
+  background: var(--bg-raised);
+  box-shadow: var(--shadow-menu);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  text-align: left;
+  animation: taskRatingArrive var(--motion-standard) var(--ease-out-soft) backwards;
+}
+
+.taskRatingPopover h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-semibold);
+}
+
+.taskRatingReasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.taskRatingReason {
+  min-height: var(--target-min);
+  padding: 0 14px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-round);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.taskRatingReason[aria-pressed='true'] {
+  border-color: var(--border-strong);
+  background: var(--bg-subtle);
+  font-weight: var(--weight-semibold);
+}
+
+.taskRatingComment {
+  display: grid;
+  gap: 6px;
+}
+
+.taskRatingComment textarea {
+  width: 100%;
+  min-height: 72px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  font: inherit;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+.taskRatingComment small,
+.taskRatingPrivacy {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.taskRatingQuote {
+  margin: 0;
+  padding: 10px 12px;
+  border-left: 3px solid var(--border-strong);
+  background: var(--bg-subtle);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.taskRatingActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.taskRatingActions .taskRatingMore {
+  margin-right: auto;
+  padding-left: 0;
+}
+
+.taskRatingError {
+  margin: 0;
+  color: var(--text-danger);
+}
+
+@keyframes taskRatingArrive {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-nudge, 2px));
+  }
 }

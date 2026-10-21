@@ -1,6 +1,6 @@
 # CMU pilot runbook
 
-This runbook is for the controlled `0.1.0-alpha.25` CMU pilot. It keeps the first session short,
+This runbook is for the controlled `0.1.0-alpha.30` CMU pilot. It keeps the first session short,
 safe, and easy to support. It is not approval for public distribution or a research launch.
 
 ## Five-minute first session
@@ -17,7 +17,9 @@ safe, and easy to support. It is not approval for public distribution or a resea
    Ask before changing files or sending anything.” Sia chooses its color and private folder.
 5. Start with a read-only task. Confirm that Sia shows progress and the completed result in the
    same thread.
-6. Add Google Workspace, Slack, Chrome, or macOS computer access only when the test requires it.
+6. Add optional Google Workspace, Slack or Chrome connections only when the test requires them.
+   Use my Mac requires its complete permission walkthrough; choose Connected apps only if the
+   test does not need local computer control.
 
 ## Recommended pilot settings
 

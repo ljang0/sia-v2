@@ -98,4 +98,29 @@ describe('SafeMarkdown', () => {
     expect(screen.getByRole('checkbox', { checked: true })).toBeTruthy();
     expect(screen.getByText('Old plan').tagName).toBe('DEL');
   });
+
+  it('accepts angle-bracket link destinations, including file paths with spaces', () => {
+    const { container } = render(
+      <SafeMarkdown
+        content={[
+          'Created [q3-summary.md](</Users/lawrencejang/Documents/Sia Demo/q3-summary.md>)',
+          'Read [the guide](<https://example.com/a guide>) and [plain](/tmp/plain.md).',
+          'Ignore [bad](<javascript:alert(1)>) too.',
+        ].join('\n')}
+      />,
+    );
+
+    expect(container.textContent).not.toContain('](');
+    expect(container.textContent).not.toContain('Sia Demo');
+    // Local paths get the same inert label as any other non-HTTPS destination.
+    const file = screen.getByText('q3-summary.md');
+    expect(file.tagName).toBe('SPAN');
+    expect(screen.queryByRole('link', { name: 'q3-summary.md' })).toBeNull();
+    expect(screen.getByText('plain').tagName).toBe('SPAN');
+    expect(screen.getByRole('link', { name: 'the guide' }).getAttribute('href')).toBe(
+      'https://example.com/a%20guide',
+    );
+    expect(screen.queryByRole('link', { name: 'bad' })).toBeNull();
+    expect(screen.getByText('bad').tagName).toBe('SPAN');
+  });
 });

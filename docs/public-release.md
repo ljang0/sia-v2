@@ -1,62 +1,24 @@
 # Public distribution candidate
 
-## Decision
+## Current decision — October 21, 2026
 
-Sia `0.1.0-alpha.25` is an **internal release candidate**, not approved for public distribution.
-The branch now includes the [repository-wide continuation](./workflow-robustness.md#repository-wide-continuation)
-of the [October 12 source/dependency audit](./workflow-robustness.md#messaging-lifecycle-and-repository-audit).
-Those changes are included in the signed `1269001` candidate installed on October 12.
-The real-model report and Mac-originated iMessage action/control checks passed on that exact app;
-physical-handset, broader native-app and external-provider acceptance remain separate gates.
-The last signed Connections polish passed the complete local automated gate. That app and DMG
-passed signing, notarization, stapling and package verification. The preceding phone-approval and
-dialog-dismissal repairs also passed CI. The preceding signed
-phone-repair candidate passed a live background iMessage self-test: while another conversation stayed selected,
-it returned the exact requested answer in about five seconds. The earlier physical-phone failure
-was traced to a real integration bug: UI snapshots omitted background answers, so the relay sent
-**Sia › Done.** instead. A regression reproduced that failure before the repair.
+Alpha.30 is being prepared for a controlled, invited Mac product pilot with research sharing off.
+It is not yet approved for public distribution. [Release status](./release-status.md) is the
+current checklist; [manual acceptance](./manual-acceptance.md) defines exact-artifact evidence.
 
-The repaired Mac-originated test was followed by a physical-phone request. Sia received it at
-16:35:46 UTC, generated the exact answer at 16:35:57 UTC, and the operator confirmed receipt of
-**Sia › SIA-PHONE-FIXED-OK** on the phone. This passes one physical-phone text round trip.
-On October 8, CUA in Mac Messages verified live self-addressed iMessage file actions, texted
-NO/YES, STATUS, stale-YES rejection, NEW, photo understanding and synthetic voice transcription on signed `2898c71`.
-Live testing found two further defects: STOP sent an extra “Done” and outgoing voice attachments
-could not be opened. The replacement signed `0d4b87f` passes both retests: STOP sends only
-**Sia › Stopped.** and leaves the requested file absent; the synthetic voice request returns
-**blue paper lantern** and an MP3 that was saved from Messages, decoded without errors and played
-to completion in QuickTime after temporary-source cleanup. A fresh file-action NO/YES test on
-that replacement also passed: NO left the file absent, separate YES replies allowed its write
-and read-back, and **SIA-FINAL-PHONE-ACTION-OK** appeared in Messages and matched independent bytes.
-A further UI defect marked cancelled proposed edits complete and offered Undo. Signed `cfd1a61`
-now passes that live retest: STOP leaves the file absent, the activity reports error, no Undo is
-offered, and the recorded outcome is cancelled. The LAN browser reconnects and shows Stopped.
-These Mac-originated checks do not establish handset-originated actions or handset receipt.
-No alpha.25 installer has been uploaded or published; the last published pilot release remains
-[`alpha.24`](./release-evidence.md).
+Alpha.29 (`9d7034b`) is installed in the verification app and has signed/notarized app and DMG
+build evidence. Its saved pilot gate passed 1,315 desktop unit tests, 45 Electron tests, 27 renderer
+tests and 72 phone tests. The live Finder task completed with retries; a native simulator phone
+request received its result. Audible voice, fresh alpha.29 texting and clean-recipient acceptance
+were not established by those logs.
 
-The current signed candidate was built from `12690010b7d74d31abd1da711f51dec4f0c732f4` on macOS
-15.7.2 and installed into the persistent verification profile on October 12. Its app identity is
-`ai.sia.desktop`, signed by Developer ID team `DXYJ578DD4`.
+PR #22 contains the UI refresh, ratings and dialog recovery. Alpha.30 adds the patched Vite
+version and reliable cloud rating storage/deletion. PR #23 contains the native iPhone shell;
+TestFlight and push notifications remain separate. The last published pilot artifact remains
+alpha.24; no newer installer has been published during this preparation.
 
-| Artifact                           | SHA-256                                                            |       Bytes |
-| ---------------------------------- | ------------------------------------------------------------------ | ----------: |
-| `app.asar`                         | `a4545d6ce5d3277e703205aec9b33ad5277647989b3ddda0851f52b199872ea5` |  12,300,370 |
-| `Sia-0.1.0-alpha.25-universal.dmg` | `4db1787c8a131e55878fceb6659d519b29fb379c5257af7ec411331fe183efc0` | 267,351,819 |
-| `Sia-0.1.0-alpha.25-universal.zip` | `cda5184424a78cb3b4a52a4c68fec772c1a13d433f08e31402cdb27a067f223c` | 265,763,198 |
-
-Apple accepted app submission `5d697e1a-ff79-43af-b12e-52ea20983882` and DMG submission
-`fabfea01-2d29-4843-8ed3-8e6c8e3fec2c`. The canonical `pnpm package:mac` passed strict nested
-signatures, notarization, stapling, Gatekeeper, universal architectures, bundled resources,
-license corpus and packaged MCP bridge verification. The separate copied app passed signature,
-staple and Gatekeeper checks again before launch.
-
-The durable operator evidence is in `release-verification-evidence/` in the original workspace:
-`release-1269001/` contains artifact hashes, signed packaging and deployment logs, rollback metadata,
-independent file checks and the current live results. Earlier `verification.json`, source bundles
-and `artifacts/polish-32a916c/` remain historical evidence. No credentials, private Messages archives or unrelated
-conversation screenshots belong in that evidence. Earlier artifact records remain in Git history
-and the preserved evidence directories.
+The prior source and live records below are historical evidence for their stated versions.
+They are not acceptance of alpha.30.
 
 ## October 12 exact-candidate rehearsal
 

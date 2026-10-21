@@ -23,6 +23,9 @@ the operator steps that make it live. Configuration details live in
   sponsor credit (`creditTokenLimit`, `availableUntil`). A daily report breaks it down by model and
   harness under `PK = LAB#<catalogId>` in the control table. The picker and composer name the
   funding lab (for example "Claude · Arena").
+- **Ratings.** After each finished task the person can rate it (pick and rate,
+  [`arena-ratings.md`](./arena-ratings.md)). Ratings roll up per day, model, and engine under the
+  same `PK = LAB#<catalogId>` and are read with the admin-only `GET /v1/admin/ratings`.
 
 ## Make it live (operator)
 
@@ -32,6 +35,8 @@ Each step is a separate, reviewed action. Nothing here has been deployed.
    - the `MetaFunction`, `ControlFunction`, and `DeletionFunction` code (deletion now also
      removes paired phones)
    - the new `/v1/messages` and `/v1/chat/completions` routes on the REST API
+   - the new `POST /v1/ratings` and `GET /v1/admin/ratings` routes on the REST API (both on
+     `ControlFunction`; no new table, index, or permission)
    - optionally `EnablePhoneRelay`
 
    Review it against the live stack as `docs/release.md` requires; do not deploy the template
@@ -53,6 +58,10 @@ Each step is a separate, reviewed action. Nothing here has been deployed.
 5. **Rehearse.** For one sponsor model, run the same fictional task in each engine. Confirm in the
    lab report that each run is attributed to its harness. Record results with their exact
    source, artifact hash, and date.
+6. **Ratings report.** Rate each rehearsal task with the thumbs, then, signed in as an admin with
+   an authenticator, call `GET /v1/admin/ratings?lab=<catalogId>&from=YYYY-MM-DD&to=YYYY-MM-DD`
+   and confirm one row per day, model, and engine with the expected good, bad, reasons, and
+   outcomes. Share only that report with the sponsor; it holds no account or conversation data.
 
 ## Not yet done
 

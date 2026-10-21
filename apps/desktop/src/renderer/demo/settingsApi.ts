@@ -318,6 +318,17 @@ export function demoSettingsApi({ mutate }: DemoApiContext) {
         current.preferences.developerTools = enabled;
       });
     },
+    async rateTask({ turnId, rating, reasons }) {
+      mutate((current) => {
+        for (const event of current.activeThread?.events ?? [])
+          if (event.type === 'message' && event.taskRating?.turnId === turnId)
+            event.taskRating = {
+              turnId,
+              rating,
+              ...(reasons?.length ? { reasons: [...reasons] } : {}),
+            };
+      });
+    },
     async composeFeedback() {},
     async checkForUpdates() {
       mutate((current) => {

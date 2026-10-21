@@ -1554,6 +1554,24 @@ Resources:
                 httpMethod: POST
                 credentials: !GetAtt ApiGatewayInvokeRole.Arn
                 uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/ratings:
+            post:
+              responses:
+                '201': { description: Task rating recorded }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
+          /v1/admin/ratings:
+            get:
+              responses:
+                '200': { description: Daily rating counts per lab, model, and engine }
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST
+                credentials: !GetAtt ApiGatewayInvokeRole.Arn
+                uri: !Sub arn:${AWS::Partition}:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ControlFunction.Arn}/invocations
           /v1/admin/invites:
             x-amazon-apigateway-any-method:
               responses:

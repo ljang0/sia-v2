@@ -279,9 +279,29 @@ export class MessagesService {
     }, 60_000).unref();
   }
 
+  /** Texts this Mac sent recently, so their self-chat copies are not read as new requests. */
+  #recentSends: { text: string; at: number }[] = [];
+
+  /**
+   * Whether this exact text was sent from Sia in the last ten minutes, by any part of Sia (a
+   * texted reply or an agent's send). When a person texts their own number, Messages records
+   * Sia's sends in the same chat the person writes in.
+   */
+  sentRecently(text: string, now = Date.now()): boolean {
+    const trimmed = text.trim();
+    return this.#recentSends.some(
+      (sent) => sent.text === trimmed && now - sent.at < 10 * 60_000,
+    );
+  }
+
   /** Sends through the Messages app; the exact text and recipient were already approved. */
   async send(recipient: string, text: string): Promise<void> {
     if (this.#platform !== 'darwin') throw new Error('Messages is available on macOS only.');
+    const now = Date.now();
+    this.#recentSends = [
+      ...this.#recentSends.filter((sent) => now - sent.at < 10 * 60_000).slice(-49),
+      { text: text.trim(), at: now },
+    ];
     const script = [
       'on run argv',
       '  tell application "Messages"',

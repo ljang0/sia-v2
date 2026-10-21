@@ -43,6 +43,13 @@ const approveSchema = z
     decision: z.enum(['approve', 'deny']),
   })
   .strict();
+const rateSchema = z
+  .object({
+    session: z.string().max(100),
+    id: z.string().min(1).max(100),
+    rating: z.enum(['good', 'bad']),
+  })
+  .strict();
 /** One phone request after its transport has authenticated it. */
 export interface RemoteCall {
   method: 'GET' | 'POST';
@@ -126,7 +133,7 @@ export class PhoneRemote {
   #requests = new Map<string, { input: string; task: Promise<unknown> }>();
   #failedAuth = new Map<string, { count: number; reset: number }>();
   readonly #cloud: CloudRemote | undefined;
-  #pairingQr: { qr: string; expires: number } | undefined;
+  #pairingQr: { qr: string; deviceId: string; expires: number } | undefined;
   constructor(deps: Dependencies) {
     this.#deps = deps;
     const saved = deps.repository.get<Config>('phone-remote', 'settings');
@@ -178,9 +185,13 @@ export class PhoneRemote {
         this.#stop();
       } else if (command.operation === 'pair') {
         if (!this.#cloud) throw new Error('Phone access over the internet is not available.');
-        const { url } = await this.#cloud.pair();
+        const { url, deviceId } = await this.#cloud.pair();
         // The pairing URL holds the phone's credential and key: show it only as a QR code.
-        this.#pairingQr = { qr: await this.#deps.qr(url), expires: Date.now() + 5 * 60_000 };
+        this.#pairingQr = {
+          qr: await this.#deps.qr(url),
+          deviceId,
+          expires: Date.now() + 5 * 60_000,
+        };
       } else if (command.operation === 'revoke') {
         this.#cloud?.revoke(command.deviceId);
       }
@@ -215,8 +226,13 @@ export class PhoneRemote {
         if (this.#pairingQr && this.#pairingQr.expires < Date.now())
           this.#pairingQr = undefined;
         const devices = this.#cloud.devices();
-        // Once the new phone connects, its one-time pairing code is no longer needed.
-        if (this.#pairingQr && devices.some((device) => device.online))
+        // Once the new phone connects, its one-time pairing code is no longer needed. Other
+        // phones that are already connected must not hide it.
+        const pairing = this.#pairingQr;
+        if (
+          pairing &&
+          devices.some((device) => device.deviceId === pairing.deviceId && device.online)
+        )
           this.#pairingQr = undefined;
         return {
           enabled: this.#config.enabled,
@@ -620,6 +636,25 @@ export class PhoneRemote {
         await this.#deps.controller.invoke('approvals.resolve', {
           approvalId: input.approvalId,
           decision: input.decision,
+        });
+        return { status: 200, json: { ok: true } };
+      } else if (call.method === 'POST' && route === 'rate') {
+        // Ratings come only from the owner's encrypted phone, for a finished task it can see.
+        if (call.origin !== 'own_device')
+          throw new RemoteError('Rate this task in Sia on your Mac.');
+        const input = rateSchema.parse(call.body);
+        const state = this.#state();
+        const turn = state.turns.find((entry) => entry.id === input.id);
+        const threadId = state.session?.split(':')[0];
+        const turnId = this.#deps.controller
+          .snapshot()
+          .timeline.find((item) => item.id === input.id && item.threadId === threadId)?.turnId;
+        if (input.session !== state.session || !turn?.rateable || !threadId || !turnId)
+          throw new RemoteError('This task changed. Review it and try again.');
+        await this.#deps.controller.invoke('ratings.submit', {
+          threadId,
+          turnId,
+          rating: input.rating,
         });
         return { status: 200, json: { ok: true } };
       } else if (call.method === 'POST' && ['command', 'cancel', 'clear'].includes(route)) {

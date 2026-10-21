@@ -142,6 +142,10 @@ describe('MessagesService', () => {
     const [script, argv] = runOsascript.mock.calls[0]!;
     expect(script).toContain('service type = iMessage');
     expect(argv).toEqual(['+15551234567', 'On my way']);
+    // Remembered briefly, so a self-chat copy of this send is not read as a new request.
+    expect(service.sentRecently(' On my way ')).toBe(true);
+    expect(service.sentRecently('On my way', Date.now() + 11 * 60_000)).toBe(false);
+    expect(service.sentRecently('Something else')).toBe(false);
   });
 
   it('reads new one-to-one iMessages after a cursor and skips SMS, groups and reactions', () => {

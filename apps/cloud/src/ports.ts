@@ -8,6 +8,7 @@ import type {
   ToolName,
   VoiceTokenType,
 } from './contracts.js';
+import type { TaskRatingRecord } from '@sia/protocol/ratings';
 import type { ComposioToolName, LegacyGoogleAppId } from './contracts.js';
 
 export interface Clock {
@@ -578,4 +579,52 @@ export interface ConnectionPusher {
 /** Verifies a Cognito ID token presented by a Mac in its first relay frame. */
 export interface IdTokenVerifier {
   verify(idToken: string): Promise<{ subject: string }>;
+}
+
+/**
+ * A task rating as the cloud keeps it (docs/arena-ratings.md). It holds no account id: `id` is a
+ * one-way hash of the account and the Mac's random turn id, so a re-rating replaces the earlier
+ * one without the record pointing back at the person.
+ */
+export interface StoredTaskRating {
+  id: string;
+  labId: string;
+  day: string;
+  model: string;
+  harnessId: string;
+  record: Omit<TaskRatingRecord, 'threadId' | 'turnId'>;
+  receivedAt: string;
+}
+
+export interface RatingAggregateKey {
+  labId: string;
+  labName: string;
+  provider: TaskRatingRecord['route']['provider'];
+  day: string;
+  model: string;
+  harnessId: string;
+}
+
+/** Daily counters per lab, model, and engine. Counter names come from `ratingCounters`. */
+export interface RatingAggregate extends RatingAggregateKey {
+  counters: Record<string, number>;
+}
+
+export interface RatingRepository {
+  /** Counts one rating against the account's window; false once the limit is passed. */
+  consumeRatingLimit(
+    userId: string,
+    windowStart: number,
+    expiresAt: number,
+    limit: number,
+  ): Promise<boolean>;
+  /** Atomically replaces a rating and adjusts its daily counters; retries cannot double count. */
+  writeRating(userId: string, rating: StoredTaskRating, expiresAt: number): Promise<void>;
+  /** Removes this account's ratings, optional notes, and contributions to reports. */
+  deleteUserRatings(userId: string): Promise<void>;
+  listRatingAggregates(
+    labId: string,
+    fromDay: string,
+    toDay: string,
+  ): Promise<RatingAggregate[]>;
 }

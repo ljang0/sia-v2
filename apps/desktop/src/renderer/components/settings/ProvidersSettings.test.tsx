@@ -178,7 +178,7 @@ describe('AI access settings', () => {
     await waitFor(() => expect(onOpenProviderSetup).toHaveBeenCalledWith('codex'));
   });
 
-  it('offers one Codex setup button when both access choices need its installation', () => {
+  it('keeps ChatGPT wording off Included AI when both need the AI engine installed', () => {
     renderSettings({
       providers: demoSnapshot.providers.map((provider) => ({
         ...provider,
@@ -186,6 +186,70 @@ describe('AI access settings', () => {
       })),
     });
     expect(screen.getAllByRole('button', { name: 'Connect ChatGPT' })).toHaveLength(1);
+    expect(screen.getAllByRole('button', { name: 'Finish setup' })).toHaveLength(1);
+    expect(screen.getAllByText(/^Connect your ChatGPT plan\./)).toHaveLength(1);
+  });
+
+  it.each(['needs-install', 'incompatible'] as const)(
+    'finishes Included AI setup without a ChatGPT account (%s)',
+    async (status) => {
+      let fail!: (error: Error) => void;
+      const onOpenProviderSetup = vi.fn(
+        () =>
+          new Promise<void>((_resolve, reject) => {
+            fail = reject;
+          }),
+      );
+      renderSettings({
+        providers: demoSnapshot.providers.map((provider) =>
+          provider.id === 'meta' ? { ...provider, status } : provider,
+        ),
+        onOpenProviderSetup,
+      });
+      expect(
+        screen.getByText(
+          'Sia needs to finish setting up its AI engine. One click installs it and restarts Sia.',
+        ),
+      ).toBeTruthy();
+      expect(screen.queryByRole('button', { name: 'Connect ChatGPT' })).toBeNull();
+      fireEvent.click(screen.getByRole('button', { name: 'Finish setup' }));
+      expect(onOpenProviderSetup).toHaveBeenCalledWith('meta');
+      expect(
+        (
+          screen.getByRole('button', {
+            name: status === 'needs-install' ? 'Installing…' : 'Updating…',
+          }) as HTMLButtonElement
+        ).disabled,
+      ).toBe(true);
+      fail(new Error('Download could not be verified. Try again.'));
+      await waitFor(() =>
+        expect(screen.getByText('Download could not be verified. Try again.')).toBeTruthy(),
+      );
+      expect(
+        (screen.getByRole('button', { name: 'Finish setup' }) as HTMLButtonElement).disabled,
+      ).toBe(false);
+    },
+  );
+
+  it('shows Included AI install progress from the shared engine setup', () => {
+    renderSettings({
+      providers: demoSnapshot.providers.map((provider) =>
+        provider.id === 'meta'
+          ? {
+              ...provider,
+              status: 'needs-install' as const,
+              setup: {
+                phase: 'restarting' as const,
+                message: 'Restarting Sia to finish setup.',
+              },
+            }
+          : provider,
+      ),
+    });
+    expect(screen.getByRole('status').textContent).toBe('Restarting Sia to finish setup.');
+    expect(
+      (screen.getByRole('button', { name: 'Restarting…' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 
   it('routes included-model access to Sia sign-in', () => {

@@ -201,6 +201,54 @@
   display: inline-block;
   animation: arrive var(--motion-surface) var(--ease-out-soft) both;
 }
+/* While the task works, its current step carries the same slow light sweep as on the Mac. */
+.task-steps[data-live] .step-line {
+  background: linear-gradient(
+      90deg,
+      currentColor 0%,
+      currentColor 38%,
+      color-mix(in srgb, currentColor 40%, transparent) 50%,
+      currentColor 62%,
+      currentColor 100%
+    )
+    0 0 / 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation:
+    arrive var(--motion-surface) var(--ease-out-soft) both,
+    step-sweep var(--motion-sweep) linear infinite;
+}
+@keyframes step-sweep {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: 0% 0;
+  }
+}
+/* A reply still arriving grows block by block: each new paragraph or list item fades up once. */
+.remote-response[data-streaming] > *,
+.remote-response[data-streaming] > :is(ul, ol) > li {
+  animation: stream-reveal var(--motion-surface) var(--ease-out-soft) both;
+}
+@keyframes stream-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(var(--motion-reveal));
+  }
+}
+@media (prefers-reduced-motion: reduce), (forced-colors: active) {
+  .task-steps[data-live] .step-line {
+    background: none;
+    -webkit-text-fill-color: currentColor;
+    animation: none;
+  }
+  .remote-response[data-streaming] > *,
+  .remote-response[data-streaming] > :is(ul, ol) > li {
+    animation: none;
+  }
+}
 .task-steps[open] ol {
   animation: settle var(--motion-surface) var(--ease-out-soft) both;
 }
@@ -406,4 +454,31 @@
 }
 .spin {
   animation: spin var(--motion-spin) linear infinite;
+}
+/* Rating a finished task: thumb-sized targets and a calm confirmation. */
+.turn-rating {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+  color: var(--text-secondary);
+  font-size: var(--phone-text-label);
+}
+.turn-rating span {
+  margin-right: auto;
+}
+.turn-rating button {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+}
+.turn-rating button[aria-pressed='true'] {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
 }

@@ -102,6 +102,8 @@ export function Composer({
   // Which sent message ↑/↓ is showing, counted back from the newest; unset while typing.
   const recall = useRef<number | undefined>(undefined);
   const [sending, setSending] = useState(false);
+  // Counts sent messages so the send arrow can play its launch once per send.
+  const [launches, setLaunches] = useState(0);
   // Stopping takes a round trip; one click shows it is underway and cannot be sent twice.
   const [stopping, setStopping] = useState(false);
   const textArea = useRef<HTMLTextAreaElement>(null);
@@ -110,12 +112,20 @@ export function Composer({
   const draftChangeHandler = useRef(onDraftChange);
   draftChangeHandler.current = onDraftChange;
 
-  // Size the box to its text, including a multi-line draft restored when the thread opens.
+  // Size the box to its text, including a multi-line draft restored when the thread opens. A
+  // change of height starts from the previous height so the box grows and shrinks smoothly
+  // (the CSS transition), instead of jumping a whole line.
   useLayoutEffect(() => {
     const input = textArea.current;
     if (!input) return;
+    const previous = input.style.height;
     input.style.height = 'auto';
-    input.style.height = `${Math.min(input.scrollHeight, 168)}px`;
+    const next = `${Math.min(input.scrollHeight, 168)}px`;
+    if (previous && previous !== next) {
+      input.style.height = previous;
+      void input.offsetHeight;
+    }
+    input.style.height = next;
   }, [value]);
 
   useEffect(
@@ -202,6 +212,7 @@ export function Composer({
         attachments.map((attachment) => attachment.id),
       );
       recall.current = undefined;
+      setLaunches((count) => count + 1);
       setValue('');
       persistDraftNow('');
     } catch {
@@ -507,7 +518,13 @@ export function Composer({
             title={running ? 'Queue follow-up' : undefined}
             data-testid="composer-send"
           >
-            <ArrowUp weight="bold" size={16} aria-hidden="true" />
+            <ArrowUp
+              key={launches}
+              weight="bold"
+              size={16}
+              className={launches ? 'action-button-launch' : undefined}
+              aria-hidden="true"
+            />
           </ActionButton>
         </div>
       </div>

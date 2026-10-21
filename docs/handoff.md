@@ -1,36 +1,20 @@
 # Sia development handoff
 
-Updated October 12, 2026. The integrated alpha.25 candidate is on
-`codex/release-verification`; [public-release.md](./public-release.md) records its input commits,
-verification results, and release gates.
+Updated October 21, 2026. The current pilot preparation is alpha.30 on
+`claude/demo-candidate` (PR #22), based on the signed/notarized alpha.29 demo.
+The separate native iPhone shell is PR #23. Both are draft; main is unchanged.
 
-## Current state
+Start with [release status](./release-status.md) for current scope and incomplete gates.
+The installed alpha.29 app has a verified Finder dialog task and a native simulator phone task.
+A fresh voice token is not proof of audible playback or microphone capture. Earlier physical
+phone/text checks do not establish every path on the next artifact.
 
-The release-verification branch combines PRs #17, #18, and #19 with the public-release audit
-branch and six previously unpublished local-main commits. Source merge conflicts are resolved.
-The latest code and dependency fixes, regression evidence and verification scope are in
-[workflow robustness](./workflow-robustness.md#messaging-lifecycle-and-repository-audit).
-Local development and CI now share `pnpm test:pilot`, including renderer and Chromium/WebKit
-phone checks. CI separately checks high/critical dependency advisories.
-The installed Arena demo remains signed source `32a916c`; the newer audit changes need a new
-signed candidate before live acceptance. [demo.md](./demo.md) records the actual October 9
-rehearsal. Main has not been changed by this integration pass.
+The alpha.30 pass patches the Vite dependency advisory and fixes ratings write atomicity and
+account deletion. Fresh checks and packaging are in progress. The pilot is a product trial with
+research collection off, not a research release or a claim of full Cowork/Instinct parity.
 
-**Public distribution remains blocked.** The combined candidate still needs signed/notarized
-packaging and acceptance on that exact artifact: clean signup and permissions, authenticated
-upgrade, live connector consent, and real phone/bot round trips. The prior signed internal alpha.25
-candidate predates these workstreams. `/Applications/Sia.app` on the verification Mac is alpha.14.
-Computer Use works in the current Codex session. The integrated source opened with real services
-and an isolated encrypted profile in the existing signed Sia Development runtime. Six permissions
-are allowed; System Events, Safari, Calendar, and Reminders Automation still need grants. Keychain
-opened successfully. Global Codex `0.154.0` is incompatible; the app's managed runtime setup awaits
-operator confirmation. No grants were changed or real model tasks/messages sent. These existing
-development grants do not establish clean-user or signed-release acceptance.
-
-The original audit results and demonstrations below are historical evidence. They prove analysis
-and drafting with fictional inputs, not live bookings, cancellations, account-wide source coverage,
-or reminders running while Sia is closed. Current release decisions belong in
-[public-release.md](./public-release.md).
+The evidence below predates this candidate. It is retained as context and must not override
+[release status](./release-status.md) or establish acceptance of a newer artifact.
 
 ## Product direction
 
@@ -90,8 +74,8 @@ are intentional compatibility/evaluation paths, not additional release choices. 
   now requires all supported Mac permissions, including Messages Full Disk Access; Connected apps
   only needs none. Calendar, Tasks, and Outlook connectors remain disabled.
 - Production defaults to **Use my Mac**, background operation, and **bypass** for per-action
-  confirmations. Supervised testing explicitly selected **Ask before each action**. Phone actions
-  always require a separate approval; an enabled text channel can bind YES/NO to one pending action. Do not infer production confirmation behavior from the demo.
+  confirmations. Supervised testing explicitly selected **Ask before each action**. Owner-device phone actions follow the Computer confirmation setting; trusted people's Sia
+  and plain-HTTP Wi-Fi requests require separate approval; an enabled text channel can bind YES/NO to one pending action. Do not infer production confirmation behavior from the demo.
 - Sia-hosted tools block protected authentication and credential surfaces. Native shell/file tools
   follow the provider's sandbox/approval boundary; prompt instructions are not OS enforcement.
 - Mac permissions are guided together, but macOS still requires individual grants. “All in one
@@ -226,9 +210,40 @@ The older 4:17 narrated video remains on disk but is superseded as the main prev
    - **Evidence.** In `release-verification-evidence/release-claude-876164c`.
 
    Still open:
-   - Pairing a physical phone in Settings → Phone remote and running the relay acceptance checks.
+   - The rest of the relay acceptance checks (revocation, stale key, load).
    - Arena's lab entry and a signed `previewHarnesses` manifest
      ([arena-model-harness.md](./arena-model-harness.md)).
+
+8. **Visual refresh, alpha.27, and real-device checks.** October 15–16, 2026:
+   - **Build.** Signed alpha.27 built from `e656e9e` on `claude/release-ui-merge`, which adds:
+     - the visual refresh
+     - research capture pausing, instead of blocking chat, when another account signs in
+
+     Notarized (submission `a6f02d0e-a1e9-4c23-a9ad-5979b8cceec4`), stapled, accepted by
+     Gatekeeper, and installed as the verification app. alpha.26 is backed up under
+     `Sia Verification Backups/e656e9e`.
+
+   - **Observed on alpha.27.**
+     - Connect ChatGPT installed Sia's pinned Codex; ChatGPT plan and Included AI then showed
+       Ready.
+     - A Demo agent read three fictional files in `~/Documents/Sia Demo/Reports` and wrote
+       `q3-summary.md` in 28 seconds.
+     - The owner paired a physical iPhone over the relay and ran a task from it. The reply
+       appeared on the Mac.
+     - Texting through Messages was turned on for the owner's number. An agent texted that
+       number, and Sia replied by text.
+   - **Bugs found and fixed after alpha.27** (not yet in a build):
+     - Markdown links whose destination is in angle brackets rendered as raw text.
+     - Included AI had no setup path without ChatGPT.
+     - The New agent dialog's buttons were clipped at short window heights.
+     - An agent's own text to the owner's number was read back as a new request.
+     - A new pairing code was hidden whenever another phone was connected.
+   - **Native iPhone app.** Branch `claude/ios-app`, `apps/ios`
+     ([decision](./phone-native-app.md)).
+     - Builds and passes its unit tests.
+     - In the simulator it loaded the bundled phone screens and reached the live relay.
+     - A full paired task from the app is not yet run; it needs a build with the pairing-code
+       fix.
 
 After those gates, publish the accepted installer/update artifacts through the documented release
 commands and verify a recipient download. No alpha.25 installer was published during this work.

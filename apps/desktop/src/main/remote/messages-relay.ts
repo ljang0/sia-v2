@@ -160,7 +160,8 @@ interface Dependencies {
     'snapshot' | 'invoke' | 'remoteAccessAllowed' | 'subscribe' | 'readGeneratedResult'
   >;
   repository: RecordRepository;
-  messages: Pick<MessagesService, 'status' | 'latestRowId' | 'inbound' | 'send' | 'sendFile'>;
+  messages: Pick<MessagesService, 'status' | 'latestRowId' | 'inbound' | 'send' | 'sendFile'> &
+    Partial<Pick<MessagesService, 'sentRecently'>>;
   /** Turns a voice note into text; absent when this build has no transcription. */
   transcribe?: (path: string) => Promise<string>;
   /** Speaks a reply to an audio file; absent when this build has no voice. */
@@ -758,7 +759,13 @@ export class MessagesRelay {
       message.text.trim(),
       ...message.attachments.map((path) => basename(path)),
     ].join('\n');
-    if (text.startsWith(REPLY_PREFIX.trim()) || this.#sent.includes(text)) return undefined;
+    if (
+      text.startsWith(REPLY_PREFIX.trim()) ||
+      this.#sent.includes(text) ||
+      // Something Sia itself sent, such as an agent texting this number on request.
+      this.#deps.messages.sentRecently?.(text)
+    )
+      return undefined;
     const now = this.#now();
     this.#recent = this.#recent.filter((entry) => now - entry.at < 60000);
     // Pair only opposite-direction copies of a self-message. Suppressing every identical
@@ -856,6 +863,33 @@ export class MessagesRelay {
     }
     if (command === 'help' || command === '?') {
       this.#reply(handle, HELP);
+      return;
+    }
+    // A thumbs or "good"/"bad" reply rates the task that just finished in this conversation.
+    // Skin tones and the emoji presentation selector do not change the meaning.
+    const bare = command.replace(
+      /\uFE0F|\u{1F3FB}|\u{1F3FC}|\u{1F3FD}|\u{1F3FE}|\u{1F3FF}/gu,
+      '',
+    );
+    const rating = /^(👍|good)$/u.test(bare)
+      ? 'good'
+      : /^(👎|bad)$/u.test(bare)
+        ? 'bad'
+        : undefined;
+    const ratedTurn =
+      rating && thread && !['running', 'queued', 'waiting'].includes(thread.status)
+        ? snapshot.timeline.findLast(
+            (item) => item.threadId === thread.id && item.kind === 'user',
+          )?.turnId
+        : undefined;
+    if (rating && thread && ratedTurn && snapshot.ratings?.[ratedTurn]) {
+      await this.#deps.controller.invoke('ratings.submit', {
+        threadId: thread.id,
+        turnId: ratedTurn,
+        rating,
+      });
+      if (!current()) return;
+      this.#reply(handle, 'Thanks, saved your rating.');
       return;
     }
     const decision = /^(yes|y|allow|approve|ok)$/.test(command)

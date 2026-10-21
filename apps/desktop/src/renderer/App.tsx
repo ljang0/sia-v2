@@ -336,6 +336,7 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                         ? activeThread.workspace
                         : undefined
                     }
+                    route={activeThread.route}
                     modelId={activeThread.model}
                     reasoningId={activeThread.reasoningEffort ?? ''}
                     models={modelOptions(snapshot, activeThread.provider, activeThread.model)}
@@ -637,6 +638,12 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
                 onRedo={
                   activeThread && online
                     ? (text) => run(() => api.redoLastMessage(activeThread.id, text))
+                    : undefined
+                }
+                onRateTask={
+                  activeThread
+                    ? (input) =>
+                        run(() => api.rateTask({ threadId: activeThread.id, ...input }))
                     : undefined
                 }
                 onRateReply={(rating, reply) => {

@@ -1,4 +1,6 @@
-# Sia 0.1.0-alpha.25
+# Sia 0.1.0-alpha.30
+
+Pilot candidate — acceptance and distribution pending.
 
 Sia is a private macOS 14+ alpha of a personal assistant that works in your apps for you. Sign in
 with your invited email, then connect your ChatGPT plan in Settings → AI. You don't need to install
@@ -33,11 +35,20 @@ anything else or paste an API key.
 - **Your own API key.** Settings → AI can optionally use an OpenAI Responses-compatible model.
   The key is encrypted and never shown again after saving.
 - **Scotty and phone access.** The desktop companion and Wi-Fi remote remain available. Text Sia
-  adds iMessage, Telegram, and Discord channels, off by default. Every phone action requires its
-  own approval; optional YES/NO replies approve one exact pending step. Voice notes, photos, and
+  adds iMessage, Telegram, and Discord channels, off by default. Your own paired phone and texting numbers follow your Computer approval setting; trusted
+  people's Sia and the plain-HTTP Wi-Fi link always ask. Optional YES/NO replies approve one exact step. Voice notes, photos, and
   result files are implemented. Real phone and bot acceptance remains a release gate.
+- **Native iPhone companion.** Pair the TestFlight app with your Mac to send tasks and view
+  results over the encrypted relay. Your Mac must remain awake with Sia running.
 - **Voice.** Hold Fn to talk to Sia and hear results read back.
-- **Feedback.** Rate replies with thumbs up or down.
+- **Feedback.** Rate finished tasks with thumbs up or down and optional reasons. Notes are previewed
+  before sending. Ratings queue for cloud sync; account deletion removes their cloud notes and
+  report contributions.
+- **Refreshed interface.** More readable controls, clearer working states, responsive menus, and
+  reduced-motion support on Mac and phone.
+- **Computer-use recovery.** When a dialog takes focus, Sia can find it and continue the task.
+- **Setup and pairing fixes.** Included AI can finish setup without ChatGPT sign-in; another phone
+  can pair while one is connected; self-addressed replies no longer start an echo task.
 
 ## Good to know
 

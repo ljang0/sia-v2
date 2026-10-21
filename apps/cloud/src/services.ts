@@ -12,6 +12,7 @@ import type {
   InviteRepository,
   RegistrationRateLimitRepository,
   QuotaGate,
+  RatingRepository,
   RemoteRelayStore,
   ResearchExportQueue,
   ResearchExportRepository,
@@ -27,6 +28,7 @@ import { ActionsService } from './services/actions.js';
 import { ConnectionsService } from './services/connections.js';
 import { ConnectorFilesService } from './services/connector-files.js';
 import { MetaService } from './services/meta.js';
+import { RatingsService } from './services/ratings.js';
 import { ReleaseService } from './services/release.js';
 import { ResearchAdminService } from './services/research-admin.js';
 import { ResearchService } from './services/research.js';
@@ -55,6 +57,8 @@ export interface ServiceDependencies {
   metaProvider: MetaProvider;
   voiceProvider: VoiceProvider;
   quota: QuotaGate;
+  /** Task ratings and their daily per-lab roll-ups (docs/arena-ratings.md). */
+  ratings: RatingRepository;
   /** Paired phones for the encrypted phone relay; removed with the account. */
   remoteDevices: Pick<RemoteRelayStore, 'deleteUserDevices'>;
   audit: AuditSink;
@@ -92,6 +96,7 @@ export function createServices(deps: ServiceDependencies) {
     meta,
     hostedModels: meta,
     voice: new VoiceService(deps),
+    ratings: new RatingsService(deps),
     deletionWorker: new DeletionWorker(deps),
   };
 }

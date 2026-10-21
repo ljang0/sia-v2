@@ -421,6 +421,36 @@ test('text size scales Sia and keeps primary actions on screen at 960x640', asyn
   await expect(body).toHaveCSS('font-size', '15.5px');
 });
 
+test('the new agent dialog keeps its actions visible at 1220x780 with Details open', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1220, height: 780 });
+  await page.goto('/#demo');
+  await page.getByRole('button', { name: 'Create agent', exact: true }).click();
+  const dialog = page.getByRole('dialog', { name: 'New agent' });
+  await dialog.getByText('Details', { exact: true }).click();
+  await expect(dialog.getByRole('combobox', { name: 'Model' })).toBeVisible();
+  const box = await dialog.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y + box!.height).toBeLessThanOrEqual(780);
+  for (const name of ['Create agent', 'Cancel']) {
+    const action = dialog.getByRole('button', { name, exact: true });
+    // In the window, and not clipped by the dialog's own scrolling body.
+    await expect(action).toBeInViewport({ ratio: 1 });
+    const actionBox = await action.boundingBox();
+    expect(actionBox!.y).toBeGreaterThanOrEqual(box!.y);
+    expect(actionBox!.y + actionBox!.height).toBeLessThanOrEqual(box!.y + box!.height);
+  }
+  // The body scrolls under the pinned footer; the footer is still where it was.
+  await dialog.getByRole('button', { name: 'Create agent', exact: true }).hover();
+  await page.mouse.wheel(0, 2000);
+  await expect(
+    dialog.getByRole('button', { name: 'Create agent', exact: true }),
+  ).toBeInViewport({
+    ratio: 1,
+  });
+});
+
 test('appearance stops and restores decorative graphics across settings and conversation', async ({
   page,
 }, info) => {
@@ -603,3 +633,28 @@ test('leaving an unused new conversation does not leave an empty row behind', as
   await nav.getByRole('button', { name: 'Triage today’s inbox', exact: true }).click();
   await expect(emptyRows).toHaveCount(0);
 });
+
+for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+  test(`a working agent breathes with ${reducedMotion} motion`, async ({ page }) => {
+    await page.emulateMedia({ reducedMotion });
+    await page.goto('/#demo');
+    await page.getByTitle('New conversation', { exact: true }).first().click();
+    const message = page.getByRole('textbox', { name: 'Message', exact: true });
+    await message.fill('Summarise the open risks');
+    await message.press('Enter');
+    const working = page.getByTestId('turn-running');
+    await expect(working).toBeVisible();
+    const form = working.locator('[data-identity]');
+    await expect(form).toHaveAttribute('data-state', 'working');
+    const motion = await form.evaluate((element) => ({
+      breath: getComputedStyle(element).animationName,
+      ring: getComputedStyle(element.parentElement!, '::after').animationName,
+    }));
+    if (reducedMotion === 'reduce') {
+      expect(motion).toEqual({ breath: 'none', ring: 'none' });
+    } else {
+      expect(motion.breath).not.toBe('none');
+      expect(motion.ring).not.toBe('none');
+    }
+  });
+}

@@ -103,6 +103,17 @@
   padding: 18px 28px 28px;
 }
 
+/* Details can make the form taller than the window. The dialog scrolls, and the actions stay
+   pinned to its bottom edge, painting over the form's bottom padding and the rows beneath. */
+.agentActions {
+  position: sticky;
+  z-index: 1;
+  bottom: 0;
+  margin: -4px 0 -28px;
+  padding: 12px 0 28px;
+  background: var(--bg-raised);
+}
+
 .identityRow {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);

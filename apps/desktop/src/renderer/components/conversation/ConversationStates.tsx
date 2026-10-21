@@ -2,6 +2,7 @@ import layout from '../../styles/layout.module.css';
 import buttons from '../../styles/buttons.module.css';
 import type { ThreadSummary } from '../../types';
 import { timeGreeting } from '../../welcome';
+import primitives from '../../styles/primitives.module.css';
 import styles from '../Conversation.module.css';
 import { AgentForm } from '../AgentForm';
 import { WelcomeRecents } from '../WelcomeRecents';
@@ -75,13 +76,15 @@ export function ConversationSkeleton() {
     <main className={layout.mainPane} aria-label="Loading conversation" aria-busy="true">
       <div className={styles.threadScroll}>
         <div className={styles.conversationColumn}>
-          <div className={styles.skeletonMessage} />
-          <div className={`${styles.skeletonMessage} ${styles.skeletonShort}`} />
-          <div className={styles.skeletonActivity} />
-          <div className={styles.skeletonMessage} />
+          <div className={`${primitives.skeleton} ${styles.skeletonMessage}`} />
+          <div
+            className={`${primitives.skeleton} ${styles.skeletonMessage} ${styles.skeletonShort}`}
+          />
+          <div className={`${primitives.skeleton} ${styles.skeletonActivity}`} />
+          <div className={`${primitives.skeleton} ${styles.skeletonMessage}`} />
         </div>
       </div>
-      <div className={styles.skeletonComposer} />
+      <div className={`${primitives.skeleton} ${styles.skeletonComposer}`} />
     </main>
   );
 }

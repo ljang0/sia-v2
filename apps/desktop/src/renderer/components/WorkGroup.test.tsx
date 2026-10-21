@@ -97,6 +97,35 @@ describe('work groups', () => {
     expect(screen.getByRole('status').textContent).not.toContain('Thinking');
   });
 
+  it('shows the working agent breathing, and only breathing while a step moves', () => {
+    const { container, rerender } = render(<WorkingStatus writing={false} agentHue={2} />);
+    const form = () => container.querySelector('[data-identity]');
+    expect(form()?.getAttribute('data-identity')).toBe('2');
+    expect(form()?.getAttribute('data-state')).toBe('working');
+    expect(screen.getByRole('status').hasAttribute('data-quiet')).toBe(false);
+    rerender(
+      <WorkingStatus step={step('a', { status: 'running' })} writing={false} agentHue={2} />,
+    );
+    expect(form()?.getAttribute('data-state')).toBe('idle');
+    expect(screen.getByRole('status').hasAttribute('data-quiet')).toBe(true);
+  });
+
+  it('settles a run into its summary only when it finishes while watched', () => {
+    const props = {
+      events: [step('a'), step('b')],
+      open: false,
+      onToggle: () => undefined,
+      renderStep: (event: ActivityEvent) => <ActivityRow key={event.id} event={event} />,
+    };
+    const { container, rerender } = render(<WorkGroup {...props} live />);
+    expect(container.querySelector('[data-settling]')).toBeNull();
+    rerender(<WorkGroup {...props} live={false} />);
+    expect(container.querySelector('[data-settling="true"]')).not.toBeNull();
+    cleanup();
+    const reopened = render(<WorkGroup {...props} live={false} />);
+    expect(reopened.container.querySelector('[data-settling]')).toBeNull();
+  });
+
   it('formats elapsed time', () => {
     expect(elapsed('2026-09-28T10:00:00Z', '2026-09-28T10:00:09Z')).toBe('9s');
     expect(elapsed('2026-09-28T10:00:00Z', '2026-09-28T11:05:00Z')).toBe('1h 5m');

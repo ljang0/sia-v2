@@ -1,17 +1,30 @@
-import { CaretRight, Check, DownloadSimple } from '@phosphor-icons/react';
+import { CaretRight, Check, DownloadSimple, ThumbsDown, ThumbsUp } from '@phosphor-icons/react';
+import { useState } from 'react';
 import type { RemoteTurn } from '../shared/phone-remote';
 import { SiaMark } from '../renderer/components/SiaMark';
 import { SafeMarkdown } from '../renderer/components/SafeMarkdown';
 import { remoteBase, remoteTransport, saveRemoteFile } from './api';
 import { ResultCard } from '../renderer/components/ResultCard';
 
-export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
+export function Turn({
+  turn,
+  agent,
+  onRate,
+}: {
+  turn: RemoteTurn;
+  agent: string;
+  /** Present on the owner's own phone: thumbs record a rating of this finished task. */
+  onRate?: ((rating: 'good' | 'bad') => Promise<void>) | undefined;
+}) {
   const finished =
     turn.status === 'done' && !turn.error && Boolean(turn.response.trim() || turn.files.length);
   const result = (
     <>
       {turn.response && (
-        <div className="remote-response">
+        <div
+          className="remote-response"
+          data-streaming={turn.status === 'working' || undefined}
+        >
           <SafeMarkdown content={turn.response} />
         </div>
       )}
@@ -72,7 +85,7 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
         </span>
       </div>
       {turn.steps.length > 0 && (
-        <details className="task-steps">
+        <details className="task-steps" data-live={turn.status === 'working' || undefined}>
           <summary>
             <CaretRight className="steps-caret" size={16} weight="bold" aria-hidden="true" />
             <span
@@ -102,6 +115,7 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
       {turn.error && !turn.response.includes(turn.error.trim()) && (
         <p className="task-error">{turn.error}</p>
       )}
+      {turn.rateable && onRate ? <TurnRating turn={turn} onRate={onRate} /> : null}
       {turn.status === 'waiting' && (
         <p className="waiting-note" data-kind={turn.approval ? 'approval' : 'question'}>
           {turn.approval && turn.approvalId
@@ -112,5 +126,55 @@ export function Turn({ turn, agent }: { turn: RemoteTurn; agent: string }) {
         </p>
       )}
     </section>
+  );
+}
+
+function TurnRating({
+  turn,
+  onRate,
+}: {
+  turn: RemoteTurn;
+  onRate(rating: 'good' | 'bad'): Promise<void>;
+}) {
+  const [chosen, setChosen] = useState(turn.rating);
+  const [saved, setSaved] = useState(false);
+  const rate = (rating: 'good' | 'bad') => {
+    const previous = chosen;
+    setChosen(rating);
+    setSaved(false);
+    void onRate(rating).then(
+      () => setSaved(true),
+      () => setChosen(previous),
+    );
+  };
+  const current = chosen ?? turn.rating;
+  return (
+    <div className="turn-rating" role="group" aria-label="Rate this task">
+      <span>{saved ? 'Thanks, saved.' : 'How did it go?'}</span>
+      <button
+        type="button"
+        aria-label="Good result"
+        aria-pressed={current === 'good'}
+        onClick={() => rate('good')}
+      >
+        <ThumbsUp
+          size={22}
+          weight={current === 'good' ? 'fill' : 'regular'}
+          aria-hidden="true"
+        />
+      </button>
+      <button
+        type="button"
+        aria-label="Bad result"
+        aria-pressed={current === 'bad'}
+        onClick={() => rate('bad')}
+      >
+        <ThumbsDown
+          size={22}
+          weight={current === 'bad' ? 'fill' : 'regular'}
+          aria-hidden="true"
+        />
+      </button>
+    </div>
   );
 }

@@ -11,8 +11,45 @@
   box-shadow: var(--shadow-menu);
 }
 
+/* A menu grows out of the control that opened it (Radix reports that corner), then its items
+   follow in a quick stagger so the list reads as unfolding rather than appearing. */
 .threadMenuContent[data-state='open'] {
-  animation: menuEnter var(--motion-standard) var(--ease-standard);
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin, top right);
+  animation: menuEnter var(--motion-surface) var(--ease-out-soft);
+}
+
+.threadMenuContent[data-state='open'] > * {
+  animation: menuItemIn var(--motion-surface) var(--ease-out-soft) backwards;
+  animation-delay: calc(var(--motion-stagger) * min(var(--menu-item, 1), 7));
+}
+
+.threadMenuContent[data-state='open'] > :nth-child(1) {
+  --menu-item: 0;
+}
+.threadMenuContent[data-state='open'] > :nth-child(2) {
+  --menu-item: 1;
+}
+.threadMenuContent[data-state='open'] > :nth-child(3) {
+  --menu-item: 2;
+}
+.threadMenuContent[data-state='open'] > :nth-child(4) {
+  --menu-item: 3;
+}
+.threadMenuContent[data-state='open'] > :nth-child(5) {
+  --menu-item: 4;
+}
+.threadMenuContent[data-state='open'] > :nth-child(6) {
+  --menu-item: 5;
+}
+.threadMenuContent[data-state='open'] > :nth-child(n + 7) {
+  --menu-item: 6;
+}
+
+@keyframes menuItemIn {
+  from {
+    opacity: 0;
+    transform: translateY(calc(var(--motion-nudge) * -1));
+  }
 }
 
 /* Unmount immediately: occluded windows can suspend animationend indefinitely. */
@@ -45,6 +82,46 @@
 
 .spin {
   animation: spin var(--motion-spin) linear infinite;
+}
+
+/* A placeholder for content still loading: a quiet block with a soft light passing across it.
+   It waits a beat before showing so a fast load never flashes it. Reduced Motion keeps the
+   still block. */
+.skeleton {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  border-radius: var(--radius-control);
+  background: var(--bg-subtle);
+  animation: skeletonIn var(--motion-surface) var(--ease-out-soft)
+    calc(var(--motion-stagger) * 4) backwards;
+}
+
+.skeleton::after {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    color-mix(in srgb, var(--bg-raised) 60%, transparent) 50%,
+    transparent 100%
+  );
+  content: '';
+  transform: translateX(-100%);
+  animation: skeletonSweep var(--motion-sweep) var(--ease-standard) infinite;
+}
+
+@keyframes skeletonIn {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes skeletonSweep {
+  60%,
+  to {
+    transform: translateX(100%);
+  }
 }
 
 @keyframes spin {
@@ -143,7 +220,7 @@
 @keyframes menuEnter {
   from {
     opacity: 0;
-    transform: translateY(-3px) scale(0.98);
+    transform: translateY(calc(var(--motion-nudge) * -1)) scale(var(--motion-pop-scale));
   }
   to {
     opacity: 1;
@@ -202,6 +279,8 @@
   }
 
   .threadMenuContent,
+  .threadMenuContent > *,
+  .skeleton::after,
   .spin,
   .inlineError {
     animation: none;

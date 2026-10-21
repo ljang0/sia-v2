@@ -19,6 +19,7 @@ type CloudAccountContext = Pick<
   | 'emit'
   | 'mac'
   | 'providers'
+  | 'ratings'
   | 'researchCapture'
   | 'researchOutbox'
   | 'resultSnapshot'
@@ -303,6 +304,7 @@ export class CloudAccount {
       this.ctx.connections.cancelLocalSetups();
       this.ctx.deps.localConnectors?.forgetAll();
       this.ctx.deps.repository.clearAll();
+      this.ctx.ratings.forget();
       this.ctx.state = structuredClone(INITIAL_STATE);
       this.ctx.researchOutbox.inFlightSync = undefined;
       this.ctx.researchOutbox.retryDelayMs = 15_000;

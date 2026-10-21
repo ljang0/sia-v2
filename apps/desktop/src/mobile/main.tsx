@@ -278,6 +278,18 @@ function App() {
       setPending(false);
     }
   };
+  // Thumbs on a finished task, from the owner's own phone only (the Mac checks this too).
+  const rate = async (turnId: string, rating: 'good' | 'bad') => {
+    if (!online || !state?.session) throw new Error('offline');
+    setError('');
+    try {
+      await remoteRequest('rate', { session: state.session, id: turnId, rating });
+      await refreshAfterAction();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : 'Try again when your Mac reconnects.');
+      throw cause;
+    }
+  };
   const microphone = () => {
     if (listening) {
       dictation.current?.stop();
@@ -354,7 +366,10 @@ function App() {
             {/* Remount on change so reconnecting lands with a visible pop, not a silent swap. */}
             <i key={online ? 'online' : 'offline'} />
           </span>
-          {online ? 'Mac connected' : 'Reconnecting'}
+          {/* Keyed so the words land with the light instead of swapping silently. */}
+          <span className="connection-label" key={online ? 'online' : 'offline'}>
+            {online ? 'Mac connected' : 'Reconnecting'}
+          </span>
           <Desktop size={16} />
         </button>
         <button
@@ -440,7 +455,12 @@ function App() {
               ) : (
                 <div className="turns">
                   {state.turns.map((turn) => (
-                    <Turn key={turn.id} turn={turn} agent={state.agent} />
+                    <Turn
+                      key={turn.id}
+                      turn={turn}
+                      agent={state.agent}
+                      onRate={state.canApprove ? (rating) => rate(turn.id, rating) : undefined}
+                    />
                   ))}
                 </div>
               )}

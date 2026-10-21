@@ -31,6 +31,7 @@ import {
   recoverPersistedState,
 } from './persisted-state.js';
 import type { ProviderAccess } from './providers.js';
+import type { TaskRatings } from './ratings.js';
 import type { ResearchCapture } from './research-capture.js';
 import type { ResearchOutbox } from './research-outbox.js';
 import type { RuntimeEventApplier } from './runtime-events.js';
@@ -51,6 +52,7 @@ export type ControllerServices = Pick<ControllerContext, ServiceName>;
 type ServiceName =
   | 'researchOutbox'
   | 'researchCapture'
+  | 'ratings'
   | 'connections'
   | 'account'
   | 'providers'
@@ -86,6 +88,7 @@ export class ControllerContext {
   // Domain collaborators, created by DesktopController through the wire callback.
   declare readonly researchOutbox: ResearchOutbox;
   declare readonly researchCapture: ResearchCapture;
+  declare readonly ratings: TaskRatings;
   declare readonly connections: ConnectorConnections;
   declare readonly account: CloudAccount;
   declare readonly providers: ProviderAccess;
@@ -206,6 +209,7 @@ export class ControllerContext {
     this.researchOutbox.refreshPendingCount();
     this.persist();
     this.researchOutbox.scheduleSync();
+    this.ratings.scheduleSync();
     this.schedules.timer = setInterval(() => void this.schedules.runDueSchedules(), 30_000);
     this.schedules.timer.unref();
     this.assistant.startIdleReviews();
@@ -228,6 +232,7 @@ export class ControllerContext {
     // stops responding. The app has already stopped accepting work at this point.
     const shutdownDeadline = Date.now() + 8_000;
     if (this.researchOutbox.retryTimer) clearTimeout(this.researchOutbox.retryTimer);
+    this.ratings.dispose();
     if (this.schedules.timer) clearInterval(this.schedules.timer);
     if (this.assistant.memoryTimer) clearInterval(this.assistant.memoryTimer);
     if (this.assistant.notchTimer) clearInterval(this.assistant.notchTimer);
@@ -247,6 +252,7 @@ export class ControllerContext {
     );
     await settleBeforeShutdown(this.connections.setup?.task, shutdownDeadline);
     await settleBeforeShutdown(this.researchOutbox.inFlightSync, shutdownDeadline);
+    await settleBeforeShutdown(this.ratings.inFlightSync, shutdownDeadline);
     await settleBeforeShutdown(this.runtime?.dispose(), shutdownDeadline);
     this.deps.workspaceOperations?.dispose?.();
     this.deps.voice?.dispose?.();

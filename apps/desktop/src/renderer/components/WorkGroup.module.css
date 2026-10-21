@@ -52,6 +52,23 @@
   color: var(--text-danger);
 }
 
+/* A run watched while it worked folds into its summary once: the line rises into place and its
+   check springs in where the live steps were. */
+.workGroup[data-settling='true'] > .workGroupSummary {
+  animation: workStepsReveal var(--motion-surface) var(--ease-out-soft) both;
+}
+
+.workGroup[data-settling='true'] .workGroupDoneIcon {
+  animation: workDonePop var(--motion-emphasis) var(--ease-spring) var(--motion-stagger) both;
+}
+
+@keyframes workDonePop {
+  from {
+    opacity: 0;
+    transform: scale(calc(var(--motion-pop-scale) - 0.36));
+  }
+}
+
 /* Opening a finished run unfolds its steps one after another, top down, capped at eight so a
    long run never waits on its own choreography. */
 .workGroup[data-open='true'] > .workGroupSteps > * {
@@ -113,7 +130,7 @@
   color: transparent;
   animation:
     workingLabelIn var(--motion-surface) var(--ease-out-soft) both,
-    workingShimmer calc(var(--motion-spin) * 2.6) linear infinite;
+    workingShimmer var(--motion-sweep) linear infinite;
 }
 
 @keyframes workingLabelIn {
@@ -168,24 +185,55 @@
   transition: transform var(--motion-emphasis) var(--ease-out-soft);
 }
 
-.workingSpinner {
-  color: var(--agent-color, var(--text-secondary));
-  animation: working-spin var(--motion-spin) linear infinite;
+/* The working agent's own form sits where a step's icon would, breathing slowly while a ring
+   radiates from it: the one "working" gesture. While a step row or the reply caret already moves,
+   the ring stops and the form only breathes. */
+.workingPresence {
+  position: relative;
+  display: inline-flex;
+  width: var(--icon-md);
+  height: var(--icon-md);
+  flex: none;
+  align-items: center;
+  justify-content: center;
 }
 
-/* The spinner keeps its space so the line does not shift as phases change. */
-.workingStatus[data-quiet] .workingSpinner {
-  animation: none;
+.workingStatus .workingPresence .workingOrb {
+  --agent-form-size: var(--icon-md);
+
+  animation: presenceBreathe var(--motion-breathe) var(--ease-standard) infinite;
+}
+
+.workingPresence::after {
+  position: absolute;
+  inset: -1px;
+  border: 1.5px solid var(--agent-color, var(--text-secondary));
+  border-radius: var(--radius-round);
+  content: '';
   opacity: 0;
+  pointer-events: none;
+  animation: presenceRing var(--motion-ring) var(--ease-out-soft) infinite;
 }
 
-.workingStatus[data-quiet] .workingLabel {
-  animation: workingLabelIn var(--motion-surface) var(--ease-out-soft) both;
+.workingStatus[data-quiet] .workingPresence::after {
+  animation: none;
 }
 
-@keyframes working-spin {
+@keyframes presenceBreathe {
+  50% {
+    transform: scale(var(--motion-breathe-scale));
+  }
+}
+
+@keyframes presenceRing {
+  from {
+    opacity: 0.42;
+    transform: scale(0.82);
+  }
+  70%,
   to {
-    transform: rotate(360deg);
+    opacity: 0;
+    transform: scale(1.75);
   }
 }
 
@@ -205,7 +253,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .workingSpinner,
+  .workingStatus .workingPresence .workingOrb,
+  .workingPresence::after,
+  .workGroup[data-settling='true'] > .workGroupSummary,
+  .workGroup[data-settling='true'] .workGroupDoneIcon,
   .workingCount,
   .workGroup[data-open='true'] > .workGroupSteps > * {
     animation: none;
@@ -216,4 +267,8 @@
     color: var(--text-secondary);
     animation: none;
   }
+}
+
+:global([data-appearance='calm']) .workingPresence::after {
+  animation: none;
 }

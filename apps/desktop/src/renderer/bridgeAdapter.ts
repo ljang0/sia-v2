@@ -535,6 +535,9 @@ export function createBridgeRendererApi(bridge: DesktopBridgeApi): RendererApi {
     async setDeveloperTools(enabled) {
       publish(await bridge.settings.setDeveloperTools(enabled));
     },
+    async rateTask(input) {
+      publish(await bridge.ratings.submit(input));
+    },
     async composeFeedback(message, threadId, includeDiagnostics) {
       await bridge.feedback.compose(message, threadId, includeDiagnostics);
     },

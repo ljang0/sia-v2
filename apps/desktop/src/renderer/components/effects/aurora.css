@@ -96,6 +96,20 @@
     animation-direction: alternate-reverse;
   }
 }
+/* Under the dither field the colour veils drift far more slowly, so the welcome light shifts
+   like weather rather than looping. Paused outside the welcome scene and when unfocused. */
+@media (prefers-reduced-motion: no-preference) {
+  .sia-aurora[data-renderer='dither'][data-paused='false'] .aurora-veil {
+    animation: auroraFallbackDrift var(--motion-ambient, 28s) ease-in-out infinite alternate;
+  }
+  .sia-aurora[data-renderer='dither'] .aurora-cyan {
+    animation-delay: -14s;
+  }
+  .sia-aurora[data-renderer='dither'] .aurora-violet {
+    animation-delay: -8s;
+    animation-direction: alternate-reverse;
+  }
+}
 @keyframes auroraFallbackDrift {
   from {
     translate: -2% 0;

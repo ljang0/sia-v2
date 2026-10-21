@@ -11,7 +11,7 @@ send from an existing personal draft. If focus moves unexpectedly, stop and re-e
 target before any more input.
 
 Record the result in the private pilot log with the exact Sia version and artifact hash under
-test. The source is `0.1.0-alpha.25`; the signed `0.1.0-alpha.25` candidate and its hashes are recorded in
+test. The source is `0.1.0-alpha.30`; the next signed candidate and its hashes must be recorded in
 [`public-release.md`](./public-release.md). The last published pilot artifact remains
 `0.1.0-alpha.24`, recorded in [`release-evidence.md`](./release-evidence.md).
 
@@ -21,8 +21,8 @@ From a clean checkout:
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm check
-pnpm test:e2e
+pnpm audit:dependencies
+pnpm test:pilot
 pnpm package:mac:dir
 ```
 
@@ -36,7 +36,7 @@ SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1 pnpm test:e2e:real:no-turn
 Run Chrome probing only with a dedicated visible test window and a unique
 `SIA_REAL_BROWSER_WINDOW_MATCH` value.
 
-## Integrated alpha.25 acceptance
+## Integrated alpha.30 acceptance
 
 Use one exact candidate for all four workstreams. Record its commit, app.asar SHA-256, bundle
 identifier, signing team, macOS version, test time, observed result, and evidence location.
@@ -87,6 +87,8 @@ On a slow connection, downloaded megabytes must advance beyond two minutes witho
 connection must offer an actionable retry and preserve the previous runtime.
 While Sia shows **Waiting for sign-in…**, press **Cancel** once (or leave the browser tab closed) and
 verify **Try again** starts a fresh sign-in in Sia; ordinary launches must not reopen it.
+With the managed version missing and no ChatGPT account, Included AI's **Finish setup** must install
+it and restart Sia without opening ChatGPT sign-in.
 **Allow all** must show individual statuses, skip granted access, and refresh after returning
 from System Settings without a restart. The tester completes any macOS approval dialogs.
 

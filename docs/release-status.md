@@ -1,38 +1,40 @@
 # Release status
 
-The last published signed, notarized pilot build is `0.1.0-alpha.24` (tag `v0.1.0-alpha.24`). Its exact
-source, artifacts, and live-provider checks are in
-[`release-evidence.md`](./release-evidence.md).
-The dated operator handoff for that build, including its private download instructions, remains
-at the release tag.
+Updated October 21, 2026. The next controlled product-pilot candidate is
+`0.1.0-alpha.30` on `claude/demo-candidate` (PR #22). It is under verification;
+**do not describe it as ready or send invitations until the acceptance record is complete**.
+The installed verification app is alpha.29. The last published pilot remains alpha.24.
 
-Start here:
+## Pilot scope
 
-- [`public-release.md`](./public-release.md) — current alpha.25 candidate, verification and blockers.
-- [`cmu-pilot-runbook.md`](./cmu-pilot-runbook.md) — five-minute setup and safe pilot defaults.
-- [`manual-acceptance.md`](./manual-acceptance.md) — the remaining human acceptance pass.
-- [`release-notes.md`](./release-notes.md) — tester-facing notes for the next build.
+The owner selected a combined Mac pilot and native iPhone TestFlight release. The scope is a
+small named cohort with research sharing off, Codex as the initial provider, and the encrypted
+phone relay. PR #23 integrates the native iPhone shell with the current Mac candidate. No invitations or public download are authorized
+by this status file. Keep the recipient list and private distribution links outside Git.
 
-## Remaining before broader release
+## Current engineering work
 
-SES production email delivery is now configured on `sia-alpha` with the verified branded sender.
-The successful deployment retained existing sessions and their 30-day refresh lifetime. The operator received an email code and completed signup in an isolated signed candidate profile.
-A separate clean macOS user and recipient upgrade still need acceptance; see the current candidate record above.
+- Patched Vite to 7.3.7; the high-severity dependency gate now passes. One moderate advisory
+  remains in the optional development packaging logger `sprintf-js` (the registry still offers
+  only 1.1.3); it is not shipped as an app runtime dependency.
+- Task ratings now save their record and report totals atomically, including delivery retry and
+  competing edits. A private account reference supports deleting notes and report contributions.
+- Source, deterministic desktop/phone, signing, cloud and exact-artifact live checks are being
+  recorded in the private operator evidence directory. Incomplete checks remain incomplete.
 
-These do not block a small named CMU product pilot with research collection off:
+## Acceptance before inviting testers
 
-1. Rotate the Meta credential and Apple app-specific password that were previously pasted into
-   chat, then update AWS Secrets Manager and the release Mac's Keychain profile.
-2. Name the pilot support/incident owner and keep the approved recipient list outside the
-   repository.
-3. Complete the human acceptance pass for email OTP, OpenAI OAuth, Google/Slack read-only access,
-   denial/cancel/reconnect, and the macOS permission prompts.
-4. Before public connector distribution, complete Google's verification requirements, two fresh
-   Google domains, two unrelated Slack workspaces, and separately approved synthetic write tests.
-5. Before research recruitment, complete every owner/signature in
-   [`research-release-signoff.md`](./research-release-signoff.md) and the deployed
-   research/alarm rehearsal in [`release.md`](./release.md).
+1. Complete source/CI and signed/notarized packaging for the exact candidate; retain alpha.29.
+2. Validate the cloud ratings change set and its deployed code hashes and routes.
+3. Rehearse signed-app file work, native computer use, phone relay, voice and texting.
+4. Pass native iPhone tests, device acceptance, signed archive and TestFlight processing.
+5. Complete clean macOS-account signup/permissions and previous-release upgrade acceptance.
+6. Confirm a named support/incident owner, recipient list and redistribution permission for
+   third-party native sources whose license is not recorded in this repository.
 
-Do not put credentials, OAuth material, private download links, participant data, or local incident
-bundles in this repository. Superseded release records remain available from Git history and their
-release tags; they are intentionally not duplicated on `main`.
+Research enrollment, public connector distribution, preview-harness admission,
+APNs notifications, arbitrary user-added MCP connectors and always-on cloud execution are
+separate gates; they are not implied by this controlled product pilot.
+
+See [manual acceptance](./manual-acceptance.md), [pilot runbook](./cmu-pilot-runbook.md),
+[release notes](./release-notes.md), and [public release](./public-release.md).

@@ -112,11 +112,24 @@ prompts, pages, files, command output, messages, or connected-app results may th
 private data or credentials. Do not join the research release or run a task unless that raw upload is
 acceptable. Alpha research data is not used for training.
 
+## Optional task feedback
+
+Giving a finished task a thumbs-up or thumbs-down saves the rating with its model, engine,
+outcome, duration, and step counts. It does not include the prompt, reply, files, or screenshots.
+An optional note is sent only after you enter it and confirm the preview. Feedback is separate
+from research sharing. Signed-in feedback queues on the Mac and uploads when the ratings service
+is available; offline feedback remains encrypted locally.
+
+Cloud feedback expires after 400 days. A private account reference lets account deletion remove
+your ratings and notes and their report contributions. Lab reports contain counts and averages,
+not individual notes, accounts, conversations, or tasks. These records are pseudonymous rather
+than anonymous because the service retains that deletion reference.
+
 ## Export, deletion, and retention
 
-Local-only research can be paused; signed-in participants must sign out to stop new capture.
+Research sharing can be paused in Privacy; it is off for the product pilot unless you separately consent.
 Research can be exported or deleted from Settings. Account deletion revokes connected apps,
-removes the cloud identity and cloud research data, and clears Sia's local agents, threads, and auth
+removes the cloud identity, cloud research data, task ratings and optional feedback notes, and clears Sia's local agents, threads, and auth
 only after the cloud deletion job succeeds. Workspace files, provider CLI accounts, and macOS
 permissions remain. Current cloud research objects expire after 90 days and non-current versions
 after up to 30 days. Local-only records are never retroactively uploaded. Unsynced signed-in records
