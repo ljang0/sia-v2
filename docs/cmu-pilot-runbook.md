@@ -23,7 +23,7 @@ safe, and easy to support. It is not approval for public distribution or a resea
 
 ## Native iPhone companion
 
-The combined pilot pairs Mac alpha.32 with native iPhone version 0.1.0 (30). Install the
+The combined pilot pairs Mac alpha.32 with native iPhone version 0.1.0 (31). Install the
 invited **Sia - Your Mac Assistant** build from TestFlight; the Home Screen app is named **Sia**.
 The operator must finish external beta review before inviting external testers.
 

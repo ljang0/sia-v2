@@ -2,23 +2,66 @@
 
 ## Current decision — October 21, 2026
 
-Alpha.30 is being prepared for a controlled, invited Mac product pilot with research sharing off.
-It is not yet approved for public distribution. [Release status](./release-status.md) is the
-current checklist; [manual acceptance](./manual-acceptance.md) defines exact-artifact evidence.
+The owner selected a combined invited Mac pilot and native iPhone TestFlight release.
+Mac alpha.32 is the current candidate. **External pilot release is not yet complete.**
+[Release status](./release-status.md) lists the remaining gates; the older live records below
+apply only to their stated artifacts. The last published Mac pilot remains alpha.24.
 
-Alpha.29 (`9d7034b`) is installed in the verification app and has signed/notarized app and DMG
-build evidence. Its saved pilot gate passed 1,315 desktop unit tests, 45 Electron tests, 27 renderer
-tests and 72 phone tests. The live Finder task completed with retries; a native simulator phone
-request received its result. Audible voice, fresh alpha.29 texting and clean-recipient acceptance
-were not established by those logs.
+Mac alpha.30 and alpha.31 were signed/notarized and their upgrades preserved the existing
+profile. A real native simulator relay task completed with the correct fictional totals
+(83 orders, 6 refunds, 77 net). It exposed a missing generated-file control on streamed
+Codex replies. Alpha.32 adds completion-time result delivery and a regression test for the
+actual delta-only reply sequence. The complete local pilot gate passed: 1,318 desktop unit,
+45 Electron, 27 renderer, and 72 Chromium/WebKit phone checks. Four live Electron cases remain
+opt-in. Both [Mac CI](https://github.com/ljang0/sia-v2/actions/runs/39551680713) and
+[integrated CI](https://github.com/ljang0/sia-v2/actions/runs/39551713075) passed.
 
-PR #22 contains the UI refresh, ratings and dialog recovery. Alpha.30 adds the patched Vite
-version and reliable cloud rating storage/deletion. PR #23 contains the native iPhone shell;
-TestFlight and push notifications remain separate. The last published pilot artifact remains
-alpha.24; no newer installer has been published during this preparation.
+The universal alpha.32 app and DMG were signed, notarized, stapled, and verified from source
+`000d495439eecebe3609f22b1834da04bd02c1cf`. The upgrade retained the existing profile without a
+new Keychain prompt. On this exact artifact, the generated report preview showed 83/6/77 and
+Reveal in Finder selected the correct file. A write outside the connected-app workspace was
+correctly refused. After a full quit/relaunch, the earlier result control persisted. A fresh in-workspace copy task
+completed, produced `pilot-summary-alpha32.md`, and its preview showed the expected 83/6/77.
+Native Save UI and physical-device acceptance remain open; automated download tests do not
+replace those checks.
 
-The prior source and live records below are historical evidence for their stated versions.
-They are not acceptance of alpha.32.
+The alpha.32 Finder rehearsal read the already-open fictional folder and reported the four
+filenames correctly, but did not complete Go to Folder: the shortcut had no confirmed dialog,
+and the Go-menu click was refused outside the target window. No files changed. This remains
+an incomplete native-computer acceptance gate. Native computer-use input was intermittently
+unavailable to the operator tool as well; do not count a successful accessibility read as a
+successful action.
+
+| Artifact                           | SHA-256                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `Sia-0.1.0-alpha.32-universal.dmg` | `752d09414b8cb004b04569166bc2f023990d2694e7102c167139928b3bc223ce` |
+| `Sia-0.1.0-alpha.32-universal.zip` | `f990a73b08dfc396b77fda5e3c50095cdefe8966b12f2702e89d4d66941e4080` |
+
+App Store Connect app `6825195609`, **Sia - Your Mac Assistant**, uses bundle `ai.sia.phone`.
+The external **Invited Pilot** group has no testers; contact details and Apple beta review
+remain incomplete. No tester invitations were sent. Push notifications remain unimplemented.
+
+Native build 31 from `55a7f58a4b75b8f6c2c233078009a3b7a9167d0d` adds the missing WebKit
+result-download handler and iOS save/share sheet, and reports Keychain save failures instead of
+silently continuing. Seven native tests passed, including byte-for-byte blob downloads and
+temporary-file cleanup plus isolated Keychain save/reload/update/revoke. The signed archive
+succeeded and App Store Connect accepted the upload. Build 31 finished processing and shows
+**Ready to Test** in **Pilot QA** (zero testers). A signed simulator retained its
+pairing after relaunch without a debug pairing link. The temporary October 21 test phone was
+then revoked: the Mac retained only its four pre-existing phones, and the simulator returned
+to native pairing without the task view, including after another relaunch. Physical-device acceptance remains open.
+
+Cloud ratings and account-deletion code from `bd32d980635b6cf894ae56c4bb2504cfadfaead7`
+were deployed to `sia-alpha`. Both Lambda hashes match, anonymous rating routes return 401,
+and all 18 alarms were OK after deployment. An authenticated in-app rating on a synthetic
+file task reached the aggregate report. Disposable-table verification covered atomic retries,
+rerating, and deleting one account's ratings without changing another account's contribution.
+The public privacy page now accurately describes optional feedback and separate research consent.
+
+PR #22 contains the Mac candidate and cloud fixes. PR #23 adds the native iPhone shell.
+Clean-recipient setup, physical iPhone acceptance, current-artifact voice/texting, support
+ownership and the recorded third-party redistribution permission remain open. Earlier
+successful rehearsals do not satisfy these current candidate gates.
 
 ## October 12 exact-candidate rehearsal
 
