@@ -36,7 +36,7 @@ SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1 pnpm test:e2e:real:no-turn
 Run Chrome probing only with a dedicated visible test window and a unique
 `SIA_REAL_BROWSER_WINDOW_MATCH` value.
 
-## Integrated alpha.30 acceptance
+## Integrated alpha.31 and native iPhone acceptance
 
 Use one exact candidate for all four workstreams. Record its commit, app.asar SHA-256, bundle
 identifier, signing team, macOS version, test time, observed result, and evidence location.
