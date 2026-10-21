@@ -22,8 +22,24 @@ builds ignore it.
 
 ## Ship
 
-TestFlight needs an App Store Connect app record for `ai.sia.phone` (team `DXYJ578DD4`), created
-by the owner. Then archive with `xcodebuild archive` and upload with `xcrun altool` or Xcode.
+The combined pilot uses version `0.1.0`, build `30`, alongside Mac alpha.30. Generate the project
+before archiving so Info.plist takes its version from the Xcode build settings. TestFlight needs
+an App Store Connect app record for `ai.sia.phone` (team `DXYJ578DD4`) and distribution signing.
+
+```sh
+xcodebuild archive -project Sia.xcodeproj -scheme Sia -configuration Release \
+  -destination 'generic/platform=iOS' -archivePath build/Sia.xcarchive \
+  -allowProvisioningUpdates
+xcodebuild -exportArchive -archivePath build/Sia.xcarchive \
+  -exportOptionsPlist ExportOptions.plist -exportPath build/export \
+  -allowProvisioningUpdates
+```
+
+The export options request App Store Connect upload. Use the signed-in Xcode account; do not
+put Apple credentials in this repository. Verify build processing in App Store Connect before
+marking the TestFlight gate complete. External testing also requires Apple's beta review.
+On a real iPhone, check pairing, one complete task, reconnect, revocation, spoken input, and
+opening a generated result. Simulator tests alone do not establish those device behaviors.
 
 Not yet built:
 
