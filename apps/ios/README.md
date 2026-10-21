@@ -22,7 +22,7 @@ builds ignore it.
 
 ## Ship
 
-The combined pilot uses version `0.1.0`, build `30`, alongside Mac alpha.30. Generate the project
+The combined pilot uses version `0.1.0`, build `30`, alongside Mac alpha.32. Generate the project
 before archiving so Info.plist takes its version from the Xcode build settings. TestFlight needs
 an App Store Connect app record for `ai.sia.phone` (team `DXYJ578DD4`) and distribution signing.
 
