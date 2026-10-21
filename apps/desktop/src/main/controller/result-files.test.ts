@@ -58,7 +58,7 @@ it('accepts an authorized root alias without permitting nested symlink traversal
   ).rejects.toThrow();
 });
 
-it.each(['structured', 'markdown'] as const)(
+it.each(['structured', 'markdown', 'streamed-markdown'] as const)(
   'delivers a %s result and reopens its grant after reload',
   async (format) => {
     const root = await directory();
@@ -99,7 +99,28 @@ it.each(['structured', 'markdown'] as const)(
             ],
           },
         } as ThreadEventEnvelope;
-        yield format === 'structured' ? presentMacResponse(event) : event;
+        if (format === 'streamed-markdown') {
+          // The ordinary Codex route emits deltas, then completion, with no final message.
+          const split = Math.floor(markdown.length / 2);
+          yield {
+            ...event,
+            payload: {
+              ...event.payload,
+              delta: true,
+              parts: [{ kind: 'text', text: markdown.slice(0, split) }],
+            },
+          } as ThreadEventEnvelope;
+          yield {
+            ...event,
+            id: 'result-delta-2',
+            sequence: 2,
+            payload: {
+              ...event.payload,
+              delta: true,
+              parts: [{ kind: 'text', text: markdown.slice(split) }],
+            },
+          } as ThreadEventEnvelope;
+        } else yield format === 'structured' ? presentMacResponse(event) : event;
         yield {
           ...base,
           id: 'finished',

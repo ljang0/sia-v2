@@ -18,7 +18,7 @@ TestFlight and push notifications remain separate. The last published pilot arti
 alpha.24; no newer installer has been published during this preparation.
 
 The prior source and live records below are historical evidence for their stated versions.
-They are not acceptance of alpha.30.
+They are not acceptance of alpha.32.
 
 ## October 12 exact-candidate rehearsal
 

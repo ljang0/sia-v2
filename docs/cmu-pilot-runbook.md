@@ -1,6 +1,6 @@
 # CMU pilot runbook
 
-This runbook is for the controlled `0.1.0-alpha.31` CMU pilot. It keeps the first session short,
+This runbook is for the controlled `0.1.0-alpha.32` CMU pilot. It keeps the first session short,
 safe, and easy to support. It is not approval for public distribution or a research launch.
 
 ## Five-minute first session
@@ -23,7 +23,7 @@ safe, and easy to support. It is not approval for public distribution or a resea
 
 ## Native iPhone companion
 
-The combined pilot pairs Mac alpha.31 with native iPhone version 0.1.0 (30). Install the
+The combined pilot pairs Mac alpha.32 with native iPhone version 0.1.0 (30). Install the
 invited **Sia - Your Mac Assistant** build from TestFlight; the Home Screen app is named **Sia**.
 The operator must finish external beta review before inviting external testers.
 

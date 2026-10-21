@@ -11,7 +11,7 @@ send from an existing personal draft. If focus moves unexpectedly, stop and re-e
 target before any more input.
 
 Record the result in the private pilot log with the exact Sia version and artifact hash under
-test. The source is `0.1.0-alpha.31`; the next signed candidate and its hashes must be recorded in
+test. The source is `0.1.0-alpha.32`; the next signed candidate and its hashes must be recorded in
 [`public-release.md`](./public-release.md). The last published pilot artifact remains
 `0.1.0-alpha.24`, recorded in [`release-evidence.md`](./release-evidence.md).
 
@@ -36,7 +36,7 @@ SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1 pnpm test:e2e:real:no-turn
 Run Chrome probing only with a dedicated visible test window and a unique
 `SIA_REAL_BROWSER_WINDOW_MATCH` value.
 
-## Integrated alpha.31 and native iPhone acceptance
+## Integrated alpha.32 and native iPhone acceptance
 
 Use one exact candidate for all four workstreams. Record its commit, app.asar SHA-256, bundle
 identifier, signing team, macOS version, test time, observed result, and evidence location.
