@@ -4,6 +4,42 @@ import XCTest
 
 @MainActor
 final class ResultDownloadsTests: XCTestCase {
+    func testCompletedDownloadPresentsShareSheetAndUnpairDismissesIt() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let previous = scene.windows.first(where: \.isKeyWindow)
+        let window = UIWindow(windowScene: scene)
+        let presenter = UIViewController()
+        let view = WKWebView(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let downloads = ResultDownloads()
+        let delegate = DownloadNavigation(downloads: downloads)
+        view.navigationDelegate = delegate
+        presenter.view.addSubview(view)
+        window.rootViewController = presenter
+        window.makeKeyAndVisible()
+        defer {
+            downloads.clear()
+            view.stopLoading()
+            window.isHidden = true
+            previous?.makeKeyAndVisible()
+        }
+        view.loadHTMLString("""
+            <!doctype html><body><script>
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob(['Fictional pilot report'], {type:'text/plain'}));
+            a.download = 'pilot.txt'; document.body.append(a); a.click();
+            </script></body>
+            """, baseURL: URL(string: "https://fixture.invalid"))
+        let shown = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            presenter.presentedViewController is UIActivityViewController
+        }, object: nil)
+        await fulfillment(of: [shown], timeout: 20)
+        downloads.clear()
+        let dismissed = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in
+            presenter.presentedViewController == nil
+        }, object: nil)
+        await fulfillment(of: [dismissed], timeout: 5)
+    }
+
     func testWebKitBlobDownloadPreservesBytesAndCleansTemporaryFile() async throws {
         let ready = expectation(description: "Result downloaded")
         var downloaded: URL?

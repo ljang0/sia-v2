@@ -17,7 +17,8 @@ xcodebuild test -project Sia.xcodeproj -scheme Sia -destination 'platform=iOS Si
 ```
 
 Keep simulator signing enabled: an unsigned simulator app cannot establish Keychain persistence.
-The native suite includes save, reload, update, and revoke checks in an isolated test Keychain service.
+The native suite includes save, reload, update, and revoke checks in an isolated test Keychain service,
+byte-for-byte WebKit downloads, and presentation/dismissal of the iOS share sheet.
 
 The simulator has no camera. Debug builds accept a pairing link in the `SIA_PAIRING_LINK`
 environment variable (`SIMCTL_CHILD_SIA_PAIRING_LINK` with `xcrun simctl launch`); release
