@@ -2,7 +2,7 @@ import SwiftUI
 
 /// First run: pair this iPhone with Sia on a Mac by scanning the code in Settings → Phone remote.
 struct PairingView: View {
-    let onPaired: (Pairing) -> Void
+    let onPaired: (Pairing) -> Bool
     @State private var scanning = false
     @State private var problem: String?
 
@@ -88,7 +88,9 @@ struct PairingView: View {
             problem = "That isn’t a Sia pairing code. On your Mac, choose Pair a phone and try again."
             return
         }
-        onPaired(pairing)
+        if !onPaired(pairing) {
+            problem = "Sia couldn’t securely save this pairing. Restart the app and try again."
+        }
     }
 }
 

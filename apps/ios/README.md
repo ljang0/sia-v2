@@ -13,8 +13,11 @@ web remote stay one codebase ([decision](../../docs/phone-native-app.md)). It ad
 ```sh
 pnpm --filter @sia/desktop remote:build   # builds the phone screens into apps/desktop/out/remote
 cd apps/ios && xcodegen generate           # writes Sia.xcodeproj (not checked in)
-xcodebuild test -project Sia.xcodeproj -scheme Sia -destination 'platform=iOS Simulator,name=<device>' CODE_SIGNING_ALLOWED=NO
+xcodebuild test -project Sia.xcodeproj -scheme Sia -destination 'platform=iOS Simulator,name=<device>'
 ```
+
+Keep simulator signing enabled: an unsigned simulator app cannot establish Keychain persistence.
+The native suite includes save, reload, update, and revoke checks in an isolated test Keychain service.
 
 The simulator has no camera. Debug builds accept a pairing link in the `SIA_PAIRING_LINK`
 environment variable (`SIMCTL_CHILD_SIA_PAIRING_LINK` with `xcrun simctl launch`); release
@@ -22,7 +25,7 @@ builds ignore it.
 
 ## Ship
 
-The combined pilot uses version `0.1.0`, build `30`, alongside Mac alpha.32. Generate the project
+The combined pilot uses version `0.1.0`, build `31`, alongside Mac alpha.32. Generate the project
 before archiving so Info.plist takes its version from the Xcode build settings. TestFlight needs
 an App Store Connect app record for `ai.sia.phone` (team `DXYJ578DD4`) and distribution signing.
 

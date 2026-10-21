@@ -10,11 +10,10 @@ struct SiaApp: App {
         // ignores synthetic taps. Release builds never read this.
         if let link = ProcessInfo.processInfo.environment["SIA_PAIRING_LINK"],
            let pairing = Pairing(link: link) {
-            PairingStore.save(pairing)
-            return pairing
+            return PairingStore.shared.save(pairing) ? pairing : nil
         }
         #endif
-        return PairingStore.load()
+        return PairingStore.shared.load()
     }
 
     var body: some Scene {
@@ -22,7 +21,7 @@ struct SiaApp: App {
             Group {
                 if let pairing {
                     RemoteWebView(pairing: pairing) {
-                        PairingStore.clear()
+                        PairingStore.shared.clear()
                         self.pairing = nil
                     }
                     .ignoresSafeArea()
@@ -30,16 +29,16 @@ struct SiaApp: App {
                     .id(pairing)
                 } else {
                     PairingView { paired in
-                        PairingStore.save(paired)
+                        guard PairingStore.shared.save(paired) else { return false }
                         pairing = paired
+                        return true
                     }
                 }
             }
             .onOpenURL { url in
                 // Universal links to the pairing page (phase 2) arrive here.
                 if let paired = Pairing(link: url.absoluteString) {
-                    PairingStore.save(paired)
-                    pairing = paired
+                    if PairingStore.shared.save(paired) { pairing = paired }
                 }
             }
         }

@@ -37,10 +37,12 @@ struct RemoteWebView: UIViewRepresentable {
 
     static func dismantleUIView(_ view: WKWebView, coordinator: Coordinator) {
         view.configuration.userContentController.removeScriptMessageHandler(forName: "sia")
+        coordinator.downloads.clear()
     }
 
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
         let onUnpaired: () -> Void
+        let downloads = ResultDownloads()
 
         init(onUnpaired: @escaping () -> Void) {
             self.onUnpaired = onUnpaired
@@ -63,6 +65,9 @@ struct RemoteWebView: UIViewRepresentable {
             decisionHandler: @escaping @MainActor (WKNavigationActionPolicy) -> Void
         ) {
             guard let url = action.request.url else { return decisionHandler(.cancel) }
+            if url.scheme == "blob" && action.shouldPerformDownload {
+                return decisionHandler(.download)
+            }
             if url.scheme == RemoteWebView.scheme || url.scheme == "about" || url.scheme == "blob" {
                 return decisionHandler(.allow)
             }
@@ -70,6 +75,30 @@ struct RemoteWebView: UIViewRepresentable {
                 UIApplication.shared.open(url)
             }
             decisionHandler(.cancel)
+        }
+
+        func webView(
+            _ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload
+        ) {
+            downloads.receive(download, from: webView)
+        }
+
+        func webView(
+            _ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload
+        ) {
+            downloads.receive(download, from: webView)
+        }
+
+        func webView(
+            _ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
+            initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void
+        ) {
+            guard frame.isMainFrame, frame.securityOrigin.protocol == RemoteWebView.scheme,
+                  let presenter = webView.window?.rootViewController,
+                  presenter.presentedViewController == nil else { return completionHandler() }
+            let alert = UIAlertController(title: "Sia", message: message, preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in completionHandler() })
+            presenter.present(alert, animated: true)
         }
 
         /// Links that ask for a new window (target=_blank) also open in Safari.

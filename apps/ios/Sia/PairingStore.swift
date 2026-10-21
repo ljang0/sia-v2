@@ -3,11 +3,14 @@ import Security
 
 /// Keeps the pairing in the iOS Keychain, on this device only (never synced or backed up to
 /// another device), readable after the first unlock so the app opens straight into Sia.
-enum PairingStore {
-    private static let service = "ai.sia.phone.pairing"
-    private static let account = "relay"
+struct PairingStore {
+    static let shared = PairingStore()
+    let service: String
 
-    private static var query: [String: Any] {
+    init(service: String = "ai.sia.phone.pairing") { self.service = service }
+    private let account = "relay"
+
+    private var query: [String: Any] {
         [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: service,
@@ -15,7 +18,7 @@ enum PairingStore {
         ]
     }
 
-    static func load() -> Pairing? {
+    func load() -> Pairing? {
         var request = query
         request[kSecReturnData as String] = true
         request[kSecMatchLimit as String] = kSecMatchLimitOne
@@ -27,16 +30,19 @@ enum PairingStore {
     }
 
     @discardableResult
-    static func save(_ pairing: Pairing) -> Bool {
+    func save(_ pairing: Pairing) -> Bool {
         guard let data = try? JSONEncoder().encode(pairing) else { return false }
-        clear()
+        let changes = [kSecValueData as String: data]
+        let updated = SecItemUpdate(query as CFDictionary, changes as CFDictionary)
+        if updated == errSecSuccess { return true }
+        guard updated == errSecItemNotFound else { return false }
         var item = query
         item[kSecValueData as String] = data
         item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
         return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
     }
 
-    static func clear() {
+    func clear() {
         SecItemDelete(query as CFDictionary)
     }
 }

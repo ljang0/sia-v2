@@ -30,6 +30,27 @@ final class PairingTests: XCTestCase {
         XCTAssertFalse(pairing.fragment.contains("+"))
     }
 
+    func testPairingPersistsUpdatesAndRevokesInKeychain() throws {
+        let store = PairingStore(service: "ai.sia.phone.tests.\(UUID().uuidString)")
+        defer { store.clear() }
+        let pairing = try XCTUnwrap(Pairing(link: link))
+        XCTAssertTrue(store.save(pairing))
+        XCTAssertEqual(PairingStore(service: store.service).load(), pairing)
+        let updated = Pairing(r: pairing.r, d: "replacement", t: "synthetic", k: pairing.k)
+        XCTAssertTrue(store.save(updated))
+        XCTAssertEqual(store.load(), updated)
+        store.clear()
+        XCTAssertNil(store.load())
+    }
+
+    @MainActor
+    func testResultFilenamesCannotEscapeTheirTemporaryDirectory() {
+        XCTAssertEqual(ResultDownloads.safeFilename("../../report.csv"), "report.csv")
+        XCTAssertEqual(ResultDownloads.safeFilename(".."), "Sia result")
+        XCTAssertEqual(ResultDownloads.safeFilename("report\n.csv"), "report.csv")
+        XCTAssertEqual(ResultDownloads.safeFilename("Family résumé.csv"), "Family résumé.csv")
+    }
+
     func testBundledPageHandlerStaysInsideItsFolder() throws {
         let root = URL(fileURLWithPath: "/tmp/remote", isDirectory: true)
         XCTAssertEqual(
