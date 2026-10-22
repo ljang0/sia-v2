@@ -144,6 +144,21 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect
       .poll(() => suggestion.evaluate((el) => getComputedStyle(el, '::before').opacity))
       .toBe('1');
+    await suggestion.click();
+    await expect(field).toBeFocused();
+    await expect(field).toHaveValue(/Compare the strongest sources/);
+    await expect(page.getByRole('button', { name: 'Stop', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('complementary', { name: 'Agent navigation' })).toHaveCSS(
+      'background-color',
+      colorScheme === 'light' ? 'rgb(244, 244, 245)' : 'rgb(14, 15, 17)',
+    );
+    await page.evaluate(() => document.fonts.ready);
+    expect(await heading.evaluate((el) => getComputedStyle(el).fontFamily)).toContain(
+      'Bricolage Grotesque',
+    );
+    expect(
+      await page.evaluate(() => document.fonts.check('600 24px "Bricolage Grotesque"')),
+    ).toBe(true);
     await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'dither');
     await expect
       .poll(() => heading.evaluate((el) => getComputedStyle(el).backgroundPosition))
@@ -170,6 +185,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(transcript).toHaveCount(1);
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
     await expect(send).toBeVisible();
+    await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'dither');
+    await expect(page.locator('.dither-aurora-field canvas')).toBeVisible();
+    await page.screenshot({ path: info.outputPath(`conversation-${colorScheme}.png`) });
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Voice', exact: true })).toBeVisible();
     expect(errors).toEqual([]);

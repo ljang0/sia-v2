@@ -92,6 +92,11 @@ test('core surfaces retain the visual-system and motion contract', async () => {
     ).not.toBe('0px');
 
     await stabilizeTranscriptTimes(sia.page);
+    // WebGL keeps drawing when CSS animations are disabled. Verify motion above, then use the
+    // real Reduce Motion path for repeatable screenshots of the animated conversation scene.
+    await sia.page.emulateMedia({ reducedMotion: 'reduce' });
+    await expect(sia.page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'still');
+    await sia.page.evaluate(() => document.fonts.ready);
 
     await expect(sia.page).toHaveScreenshot('workspace-light.png', stableScreenshot);
 
@@ -131,8 +136,12 @@ test('core surfaces retain the visual-system and motion contract', async () => {
     await expect(sia.page).toHaveScreenshot('activity-light.png', stableScreenshot);
     await sia.page.getByRole('button', { name: 'Close activity' }).click();
 
-    await sia.page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'no-preference' });
+    await sia.page.emulateMedia({ colorScheme: 'dark', reducedMotion: 'reduce' });
     await sia.page.setViewportSize({ width: 960, height: 640 });
+    await expect(sia.page.getByRole('complementary', { name: 'Agent navigation' })).toHaveCSS(
+      'background-color',
+      'rgb(14, 15, 17)',
+    );
     await sia.page.waitForTimeout(300);
     await stabilizeTranscriptTimes(sia.page);
     await expect(sia.page).toHaveScreenshot('workspace-dark-compact.png', stableScreenshot);

@@ -32,7 +32,7 @@
 }
 
 .mainPane[data-scene='conversation'] .conversationAurora {
-  opacity: 0.08;
+  opacity: 0.5;
 }
 
 .gradientHeading {

@@ -1,5 +1,13 @@
 import { ArrowClockwise, ArrowDown, Clock, WarningCircle } from '@phosphor-icons/react';
-import { type ReactNode, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import type {
   ActivityEvent,
   ApprovalDecision,
@@ -170,6 +178,15 @@ export function Conversation({
   const [justCompleted, setJustCompleted] = useState(false);
   const [openWorkGroups, setOpenWorkGroups] = useState<ReadonlySet<string>>(() => new Set());
   const { draggingFiles, dropTargetProps } = useFileDrop(onDropAttachments);
+  const suggestionId = useRef(0);
+  const [suggestion, setSuggestion] = useState<{
+    threadId: string;
+    id: number;
+    text: string;
+  }>();
+  const consumeSuggestion = useCallback((id: number) => {
+    setSuggestion((current) => (current?.id === id ? undefined : current));
+  }, []);
   const [preview, setPreview] = useState<{
     attachment: RendererAttachment;
     result?: AttachmentPreview;
@@ -556,11 +573,7 @@ export function Conversation({
       data-file-dragging={draggingFiles ? 'true' : undefined}
       {...dropTargetProps}
     >
-      <Aurora
-        className={layout.conversationAurora}
-        still={thread.events.length > 0}
-        pauseWhenUnfocused
-      />
+      <Aurora className={layout.conversationAurora} pauseWhenUnfocused />
       {findOpen ? (
         <ConversationFind
           query={findQuery}
@@ -600,7 +613,9 @@ export function Conversation({
               agentHue={agentHue}
               prompts={starterPrompts}
               recentThreads={recentThreads}
-              onSend={(prompt) => void onSend(prompt)}
+              onChoose={(prompt) =>
+                setSuggestion({ threadId: thread.id, id: ++suggestionId.current, text: prompt })
+              }
               onOpenThread={onOpenThread}
               onOpenApps={onOpenApps}
             />
@@ -729,6 +744,8 @@ export function Conversation({
       />
       <Composer
         key={thread.id}
+        suggestion={suggestion?.threadId === thread.id ? suggestion : undefined}
+        onSuggestionApplied={consumeSuggestion}
         initialValue={thread.draft ?? ''}
         running={running || queued || waitingForApproval}
         stoppable={running || queued || waiting}

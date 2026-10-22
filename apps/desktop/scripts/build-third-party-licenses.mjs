@@ -186,6 +186,7 @@ const ditherLicense = (
   )
 ).trimEnd();
 const bundledComponentSections = [
+  `${'='.repeat(80)}\nBUNDLED FONT: Bricolage Grotesque\nDECLARED LICENSE: SIL Open Font License 1.1\n${'-'.repeat(80)}\n${(await readFile(join(licenseSourcesRoot, 'bricolage-grotesque-OFL.txt'), 'utf8')).trimEnd()}`,
   `${'='.repeat(80)}\nBUNDLED COMPONENT: React Bits Dither\nDECLARED LICENSE: MIT + Commons Clause License Condition v1.0\n${'-'.repeat(80)}\n--- LICENSE.md ---\n${ditherLicense}`,
 ];
 

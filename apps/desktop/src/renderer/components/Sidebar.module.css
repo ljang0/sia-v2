@@ -1,5 +1,7 @@
 .sidebar,
 .sidebarCollapsed {
+  --font-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-brand: var(--font-display);
   position: relative;
   display: flex;
   flex: 0 0 var(--sidebar-width);

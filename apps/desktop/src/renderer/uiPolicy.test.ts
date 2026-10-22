@@ -157,11 +157,10 @@ describe('renderer accessibility CSS policy', () => {
     }
   });
 
-  it('uses the system display face for identity and keeps it off controls and body copy', () => {
-    // Native SF Pro throughout: Display for names and headings, Text for controls and reading.
-    expect(tokens).toMatch(/--font-brand:\s*'SF Pro Display'/);
-    expect(tokens).toMatch(/--font-display:\s*'SF Pro Display'/);
-    expect(tokens).not.toContain('@font-face');
+  it('uses bundled Bricolage for identity and keeps it off controls and body copy', () => {
+    expect(tokens).toMatch(/--font-brand:\s*'Bricolage Grotesque'/);
+    expect(tokens).toMatch(/--font-display:\s*'Bricolage Grotesque'/);
+    expect(tokens).toContain("url('./fonts/BricolageGrotesque-latin.woff2')");
 
     // Controls, form fields, and body copy never borrow the display face.
     const controlRules = [
@@ -229,7 +228,12 @@ describe('renderer accessibility CSS policy', () => {
     }
 
     for (const source of [light, dark]) {
-      for (const background of ['--shell-bg', '--shell-bg-deep']) {
+      for (const background of [
+        '--shell-bg',
+        '--shell-bg-deep',
+        '--shell-hover',
+        '--shell-selected',
+      ]) {
         expect(
           contrast(token(source, '--shell-muted'), token(source, background)),
         ).toBeGreaterThanOrEqual(4.5);

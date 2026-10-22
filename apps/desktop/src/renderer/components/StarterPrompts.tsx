@@ -39,13 +39,13 @@ const ICONS: Record<StarterPrompt['icon'], Icon> = {
   bug: Bug,
 };
 
-/** Suggested first tasks. Each card sends its full request, so the first task is one click. */
+/** Suggested first tasks. Choosing a card opens its full request as an editable draft. */
 export function StarterPrompts({
   prompts,
-  onSend,
+  onChoose,
 }: {
   prompts: readonly StarterPrompt[];
-  onSend(prompt: string): void;
+  onChoose(prompt: string): void;
 }) {
   if (!prompts.length) return null;
   return (
@@ -53,7 +53,7 @@ export function StarterPrompts({
       {prompts.map(({ icon, title, prompt }) => {
         const StarterIcon = ICONS[icon];
         return (
-          <SpotlightButton key={prompt} type="button" onClick={() => onSend(prompt)}>
+          <SpotlightButton key={prompt} type="button" onClick={() => onChoose(prompt)}>
             <span className={styles.starterIcon} aria-hidden="true">
               <StarterIcon size={18} />
             </span>

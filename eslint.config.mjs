@@ -24,6 +24,8 @@ export default defineConfig(
       'apps/cloud/lambda/**',
       'apps/ios/build/**',
       'apps/desktop/build/native/**',
+      // Private, Git-ignored research exports and local probe artifacts are not source.
+      'research/rl-environments/local/**',
       // Vendored React Bits component, kept as upstream ships it (see its LICENSE.md).
       'apps/desktop/src/renderer/components/effects/dither-preview/**',
     ],

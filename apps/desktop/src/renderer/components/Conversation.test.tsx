@@ -717,7 +717,7 @@ describe('Conversation waiting controls', () => {
 });
 
 describe('Conversation continuity tools', () => {
-  it('starts an empty thread from a contextual prompt', () => {
+  it('opens a contextual prompt as an editable draft and sends only on submission', async () => {
     const onSend = vi.fn(async () => undefined);
     render(
       <Conversation
@@ -735,7 +735,53 @@ describe('Conversation continuity tools', () => {
     fireEvent.click(
       screen.getByRole('button', { name: /Review blockers.*Review the release blockers/ }),
     );
-    expect(onSend).toHaveBeenCalledWith('Review the release blockers.');
+    const input = screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement;
+    expect(input.value).toBe('Review the release blockers.');
+    expect(document.activeElement).toBe(input);
+    expect(onSend).not.toHaveBeenCalled();
+    fireEvent.change(input, { target: { value: 'Review only the urgent release blockers.' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() =>
+      expect(onSend).toHaveBeenCalledWith('Review only the urgent release blockers.', []),
+    );
+  });
+
+  it('does not replay a chosen suggestion when returning to a conversation', () => {
+    const props = {
+      starterPrompts: [
+        { icon: 'review' as const, title: 'Review blockers', prompt: 'Review blockers.' },
+      ],
+      onSend: vi.fn(async () => undefined),
+      onStop: async () => undefined,
+      onRetry: async () => undefined,
+      onResolveApproval: async () => undefined,
+    };
+    const { rerender } = render(
+      <Conversation {...props} thread={baseThread({ status: 'idle' })} />,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /Review blockers/ }));
+    fireEvent.change(screen.getByRole('textbox', { name: 'Message' }), {
+      target: { value: 'My edited request' },
+    });
+    rerender(
+      <Conversation
+        {...props}
+        thread={baseThread({ id: 'thread-2', status: 'idle', draft: 'Other draft' })}
+      />,
+    );
+    expect(
+      (screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement).value,
+    ).toBe('Other draft');
+    rerender(
+      <Conversation
+        {...props}
+        thread={baseThread({ status: 'idle', draft: 'My edited request' })}
+      />,
+    );
+    expect(
+      (screen.getByRole('textbox', { name: 'Message' }) as HTMLTextAreaElement).value,
+    ).toBe('My edited request');
+    expect(props.onSend).not.toHaveBeenCalled();
   });
 
   it('finds matching events inside the open thread', () => {

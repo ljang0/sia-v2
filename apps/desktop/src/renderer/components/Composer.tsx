@@ -12,6 +12,7 @@ import {
 import {
   type ClipboardEvent,
   type KeyboardEvent,
+  useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -33,6 +34,8 @@ interface ComposerAttachment {
 }
 
 interface ComposerProps {
+  suggestion?: { id: number; text: string } | undefined;
+  onSuggestionApplied?: ((id: number) => void) | undefined;
   initialValue?: string;
   disabled?: boolean;
   running?: boolean;
@@ -68,6 +71,8 @@ interface ComposerProps {
 }
 
 export function Composer({
+  suggestion,
+  onSuggestionApplied,
   initialValue = '',
   disabled,
   running,
@@ -145,7 +150,7 @@ export function Composer({
     [],
   );
 
-  const persistDraftSoon = (content: string) => {
+  const persistDraftSoon = useCallback((content: string) => {
     pendingDraft.current = content;
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);
     draftSaveTimer.current = setTimeout(() => {
@@ -156,15 +161,25 @@ export function Composer({
         void Promise.resolve(draftChangeHandler.current?.(pending)).catch(() => undefined);
       }
     }, 300);
-  };
+  }, []);
 
-  const updateValue = (content: string) => {
-    // Editing or clearing a recalled message makes it the person's own draft again.
-    recall.current = undefined;
-    valueRef.current = content;
-    setValue(content);
-    persistDraftSoon(content);
-  };
+  const updateValue = useCallback(
+    (content: string) => {
+      // Editing or clearing a recalled message makes it the person's own draft again.
+      recall.current = undefined;
+      valueRef.current = content;
+      setValue(content);
+      persistDraftSoon(content);
+    },
+    [persistDraftSoon],
+  );
+
+  useEffect(() => {
+    if (!suggestion) return;
+    updateValue(suggestion.text);
+    textArea.current?.focus({ preventScroll: true });
+    onSuggestionApplied?.(suggestion.id);
+  }, [suggestion, updateValue, onSuggestionApplied]);
 
   const persistDraftNow = (content: string) => {
     if (draftSaveTimer.current) clearTimeout(draftSaveTimer.current);

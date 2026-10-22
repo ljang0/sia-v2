@@ -2,6 +2,9 @@
 
 These immutable files let release packaging run without network access.
 
+- `bricolage-grotesque-OFL.txt` accompanies the bundled Bricolage Grotesque variable Latin font;
+  both are restored from Sia's existing font distribution in Git history.
+
 - The SPDX license texts are from SPDX License List Data v3.28.0, commit
   `c4a7237ec8f4654e867546f9f409749300f1bf4c`, under `text/<SPDX-ID>.txt`:
   <https://github.com/spdx/license-list-data/tree/v3.28.0/text>

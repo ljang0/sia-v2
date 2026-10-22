@@ -14,7 +14,7 @@ export function WelcomeHome({
   agentHue,
   prompts,
   recentThreads,
-  onSend,
+  onChoose,
   onOpenThread,
   onOpenApps,
 }: {
@@ -22,7 +22,7 @@ export function WelcomeHome({
   agentHue?: number | undefined;
   prompts: readonly StarterPrompt[];
   recentThreads: readonly ThreadSummary[];
-  onSend(prompt: string): void;
+  onChoose(prompt: string): void;
   onOpenThread?: ((id: string) => void) | undefined;
   onOpenApps?: (() => void) | undefined;
 }) {
@@ -41,11 +41,11 @@ export function WelcomeHome({
         What would you like to do?
       </GradientText>
       <p className={home.lede} style={step(2)}>
-        Describe what you want done, or start from a suggestion.
+        Describe what you want done, or choose a suggestion to edit before sending.
       </p>
       {prompts.length ? (
         <div className={home.suggestions} style={step(3)}>
-          <StarterPrompts prompts={prompts} onSend={onSend} />
+          <StarterPrompts prompts={prompts} onChoose={onChoose} />
         </div>
       ) : null}
       {onOpenApps ? (

@@ -2,8 +2,8 @@
 
 Sia's visual idea is simple and specific: **an agent is a living room for work.** A quiet sidebar
 holds distinct agent identities; the selected agent opens a clean, neutral workspace beside it. The
-look is a polished native Mac app: neutral surfaces, one emerald accent from the Sia mark, SF Pro
-type, hairline edges, and soft layered shadows. The product should feel expressive and companionable
+look pairs a neutral sidebar and workspace with one emerald accent and Bricolage
+headings, native system body type, hairline edges, and soft layered shadows. The product should feel expressive and companionable
 without becoming mascot-like. Safety, consent,
 and legal surfaces remain sober. Sia is not an AI dashboard and not a chat template.
 
@@ -25,8 +25,9 @@ conversation; it does not resend the original request. Phone greetings identify 
 retain the existing editable recent prompts.
 
 Desktop and phone suggestions use a restrained pointer-following sage highlight, with a centered
-keyboard-focus treatment and native button semantics. Choosing a suggestion sends its full
-request, so the first task is one click. Welcome headline gradients drift slowly and pause when
+keyboard-focus treatment and native button semantics. Choosing a suggestion fills and focuses an
+editable draft; sending is explicit. An applied suggestion is consumed so returning to a conversation
+cannot replace its edited draft. Welcome headline gradients drift slowly and pause when
 hidden. Calm and Reduce Motion keep these surfaces still, and forced colors restores solid text.
 The desktop composer's send and Stop buttons ignore repeat clicks while a send or stop is in
 flight. Text typed during a send stays as the next draft, a failed send keeps the draft, and a
@@ -40,6 +41,11 @@ waiting, cancelled, and failed work do not receive the completed result treatmen
 Switching desktop views or phone tabs uses a short fade and vertical ease on the existing surface.
 Navigation is immediate, drafts retain their normal persistence, and incoming task updates do not
 restart the transition. Reduce Motion and desktop Calm disable this movement.
+
+The desktop Dither aurora stays animated during conversations as well as on the welcome screen,
+with a quieter opacity behind replies. It pauses when the window loses focus or becomes hidden;
+Calm and Reduce Motion keep a still gradient and dispose the decorative renderer. Buttons retain
+their solid accent treatment, and Use my Mac setup still requires its complete permission checklist.
 
 Desktop startup begins with a large wordmark on the canvas color, then eases the background into a
 sidebar-colored shape on the left beside “Loading Sia.” It follows the actual initial load: there is no minimum wait,
@@ -120,10 +126,9 @@ restore the launcher; they do not discard the request or start another turn.
 
 ## The room rule
 
-- **The sidebar** (`--shell-*` tokens) is the agent navigation: agents, contextual threads,
-  Activity / Settings. In light appearance it is a soft grey panel (`#f4f4f5`) beside a near-white
-  canvas, like a macOS source list; in dark appearance it is the deepest graphite layer. Selection
-  is a neutral fill; the identity hue appears only in the agent's avatar, never as a wash.
+- **The sidebar** (`--shell-*` tokens) keeps main's navigation: soft grey (`#f4f4f5`) in light
+  appearance and graphite (`#0e0f11`) in dark, with neutral selections and the system display
+  face for navigation. The identity hue appears in the agent's avatar, never as a wash.
 - **The room** (`.workspace`, `--bg-*` tokens) is the neutral space of the agent whose thread is
   open (or the selected agent when no thread is). It carries `data-identity` so `--agent-color`
   resolves to that agent's hue (`--hue-0..3`: slate blue, coral, sky, green — chosen in the agent
@@ -131,7 +136,7 @@ restore the launcher; they do not discard the request or start another turn.
   also selects an abstract living form. The persisted value remains `hue`. The identity appears in
   the sidebar avatar, room header, conversation, presence, streaming caret, empty state, and
   approvals. Never use it to make the person's consequential controls look pre-approved.
-- **Color**: surfaces carry no tint. Light: canvas `#fcfcfd`, raised `#ffffff`, sidebar `#f4f4f5`,
+- **Color**: surfaces stay neutral. Light: canvas `#fcfcfd`, raised `#ffffff`, sidebar `#f4f4f5`,
   text `#18181b` / `#4b4b53` / `#5f5f68`. Dark: canvas `#131416`, raised `#1a1b1e`, sidebar
   `#0e0f11`, text `#ededef` / `#b4b4bc` / `#9a9aa3`. The one brand accent is emerald (`#07855b`
   light, `#34d399` dark) and is reserved for primary actions, focus, selection, links, and live
@@ -142,10 +147,12 @@ restore the launcher; they do not discard the request or start another turn.
   `ActionButton` is the shared native button for the composer, launcher, and phone; there is no
   WebGL button effect. The composer is a raised surface with a hairline border and an accent focus
   ring.
-- **Type**: the macOS system face throughout. `--font-display` / `--font-brand` are SF Pro Display
+- **Type**: `--font-display` / `--font-brand` use bundled Bricolage Grotesque
   for names, headings, the wordmark, metrics, and dialog titles, with `--tracking-display`
-  (-0.022em); `--font-sans` (SF Pro Text) carries body copy, controls, labels, and navigation.
-  Nothing is bundled. `src/renderer/uiPolicy.test.ts` checks the display face is on names and
+  (-0.022em); navigation overrides the display face with SF Pro Display. `--font-sans` (SF Pro Text)
+  carries body copy, controls, and labels.
+  The variable Latin font is bundled under SIL OFL 1.1, with its license included in the generated
+  license corpus. `src/renderer/uiPolicy.test.ts` checks the display face is on names and
   headings and off controls and body copy, that every hue slot is defined, and that the room maps
   every identity slot to a hue.
 - **Icons**: Phosphor only, regular weight. `fill` is kept for media and status glyphs (stop, play,
@@ -240,14 +247,14 @@ effect (what appeared, what moved, what finished, what needs attention).
   tighten onto their control over `--motion-standard` at zero specificity, so a control's own
   animation always wins. The message field eases to its new height; the send arrow lifts away on
   each send.
-- The welcome light drifts on `--motion-ambient` only while the welcome scene is focused. In dark
+- The aurora drifts while the welcome or conversation scene is focused. In dark
   mode the dither grid stays quieter so it never reads as noise behind text.
 
 ## Locked dials
 
-Variance 5, motion 6, density 3. One quiet neutral sidebar, one neutral room surface system, four
-agent forms with one job, one emerald accent for controls and status, Phosphor icons, and the SF Pro
-system faces, with a four-step radius rule: `--radius-tight` 6px for chips/menus, `--radius-control`
+Variance 5, motion 6, density 3. One neutral sidebar, one neutral room surface system, four
+agent forms with one job, one emerald accent for controls and status, Phosphor icons, and Bricolage headings with
+system body type, with a four-step radius rule: `--radius-tight` 6px for chips/menus, `--radius-control`
 8px for controls and rows, `--radius-surface` 12px for cards and the few contained surfaces that
 need an edge, `--radius-dialog` 16px for floating dialogs and the composer, `--radius-round` only for true circles, and a
 square workspace edge (`--radius-room: 0`). Type uses the `--text-*` / `--display-*` scale and the
@@ -324,7 +331,7 @@ Star Border remains an optional reference, not an additional screen-border effec
 | [21st Animated Keyboard](https://21st.dev/@badtzx0/components/animated-keyboard) | Fn lesson               | Focus on the Fn key and two neighboring keys; fill it only while the real recorder listens.                        |
 | [React Bits Stepper](https://reactbits.dev/components/stepper)                   | Setup header            | Three quiet stages: Welcome, Mac access, Try Fn. Follow saved progress without artificial delays.                  |
 | [React Bits Animated Content](https://reactbits.dev/animations/animated-content) | Setup transitions       | Short fade and 8px arrival when the stage changes. Keep controls usable immediately.                               |
-| [React Bits Spotlight Card](https://reactbits.dev/components/spotlight-card)     | First-task suggestions  | A restrained sage hover/focus treatment; each card sends its request in one click.                                 |
+| [React Bits Spotlight Card](https://reactbits.dev/components/spotlight-card)     | First-task suggestions  | A restrained sage hover/focus treatment; each card opens an editable draft.                                        |
 | [React Bits Gradient Text](https://reactbits.dev/text-animations/gradient-text)  | Welcome headline        | One slow mint/blue sweep, keeping body text still and readable; pauses when hidden.                                |
 | [21st SendButton](https://agent-elements.21st.dev/docs/send-button)              | Desktop/phone composer  | Reference only: idle, send, and stop states stay distinct on the native action buttons; guard repeat clicks.       |
 | [React Bits Star Border](https://reactbits.dev/animations/star-border)           | Active voice affordance | Consider a very faint highlight on the Fn practice key only; avoid more perpetual borders or competing highlights. |

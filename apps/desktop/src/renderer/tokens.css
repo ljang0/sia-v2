@@ -1,12 +1,18 @@
 /*
- * Sia's visual system: quiet neutral surfaces, one confident emerald accent, native type.
- * Light mode is near-white with a soft grey sidebar; dark mode is graphite. Neither carries a
- * colour cast. The emerald comes from the Sia mark and is reserved for primary actions, focus,
- * selection, and live status. Semantic colours (success, warning, danger) stay separate from it.
- * Type is the macOS system face throughout: SF Pro Display with slight negative tracking for names
- * and headings, SF Pro Text for controls and reading. Surfaces use one-pixel hairlines, layered
- * soft shadows, 8 / 12 / 16px radii (controls / cards / dialogs), and a 4px spacing rhythm.
+ * Sia's visual system: neutral navigation and workspace surfaces, with an emerald
+ * accent for primary actions. Bricolage Grotesque gives names and headings a recognizable voice;
+ * native system typography carries controls and reading. Comfortable text sizes, solid buttons,
+ * one-pixel hairlines, and the shared motion vocabulary remain consistent across the app.
  */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  font-style: normal;
+  font-weight: 200 800;
+  font-stretch: 75% 100%;
+  font-display: swap;
+  src: url('./fonts/BricolageGrotesque-latin.woff2') format('woff2');
+}
+
 :root {
   color-scheme: light dark;
   font-family:
@@ -19,8 +25,10 @@
   text-rendering: optimizeLegibility;
 
   --font-sans: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-brand: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-display: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-brand:
+    'Bricolage Grotesque', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display:
+    'Bricolage Grotesque', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: ui-monospace, 'SFMono-Regular', Menlo, Monaco, Consolas, monospace;
 
   /* Type scale, sized for everyday readers rather than dense tools: ordinary interface text is
@@ -46,7 +54,7 @@
   --weight-semibold: 600;
   --weight-display: 650;
   --tracking-display: -0.022em;
-  --display-settings: normal;
+  --display-settings: 'opsz' 40;
 
   /* Surfaces (light): true neutrals, near-white canvas, a soft grey sidebar. */
   --bg-app: #f1f1f3;
