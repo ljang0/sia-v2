@@ -338,9 +338,14 @@ test('navigation stays stable, previews do not select, and the compact rail keep
     await expect(nav).toHaveCSS('flex-basis', width === 900 ? '248px' : '288px');
     const title = renamed.getByText(longTitle, { exact: true });
     await expect(title).toHaveCSS('white-space', 'nowrap');
-    expect((await title.boundingBox())!.width).toBeGreaterThan(
-      (await nav.boundingBox())!.width * 0.65,
-    );
+    const group = nav.locator('section').filter({
+      has: page.getByRole('button', { name: 'Personal admin', exact: true }),
+    });
+    const groupBounds = (await group.boundingBox())!;
+    const rowBounds = (await renamed.locator('..').boundingBox())!;
+    // Conversations sit beneath their agent; preserve useful title space in the indented row.
+    expect(rowBounds.x - groupBounds.x).toBeCloseTo(24, 0);
+    expect((await title.boundingBox())!.width).toBeGreaterThan(rowBounds.width * 0.65);
     expect((await renamed.boundingBox())!.height).toBe((await task.boundingBox())!.height);
     const beforeHover = await title.boundingBox();
     await renamed.hover();
