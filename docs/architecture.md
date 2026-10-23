@@ -398,11 +398,21 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   and title matching; a known conflicting native ID never falls through to that heuristic.
   Empty background accessibility automatically requests one image unless the caller explicitly
   selected text-only output. Protected/refused reads never use this fallback, and unavailable
-  screenshots never grant pixel input. Sia preserves the driver’s exact-window `background_input`
+  screenshots never establish text coverage. A compact CUA control projection is distinguished
+  from a truncated text read only when the exact-window native reader explicitly finishes without
+  truncation, the driver walk reports no truncation or pending nodes, and valid returned/total counts
+  agree. `control_projection_partial` remains separate from `window_text_complete`; neither proves
+  coverage of other pages, filters, accounts or hidden app data. Unknown or genuinely partial reads
+  retain the incomplete-coverage warning. This prevents a healthy projection from creating false
+  needs-attention tasks without weakening source-coverage checks.
+  Unavailable screenshots never grant pixel input. Sia preserves the driver’s exact-window `background_input`
   report, including separate accessibility, pointer and keyboard availability. An off-Space or
   AX-unresolved window may provide observation pixels without accepting any background input;
   those snapshots no longer advertise pixel actions. Input checks the relevant route, and pixel
   delivery rechecks it after the fresh capture. Driver-side target checks remain authoritative.
+  An explicit `background_unavailable` refusal remains a refusal, distinct from a lost input
+  acknowledgement. Electron/Chromium may reject background wheel events; Sia must use supported
+  observed controls or report the specific gap rather than replay input or foreground the app.
   An unconfirmed delivery with a foreground escalation
   suggestion still receives post-action observation: the input may already have worked. The model
   inspects that result before declaring failure or choosing another observed control; Sia never

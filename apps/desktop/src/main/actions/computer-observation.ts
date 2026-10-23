@@ -302,9 +302,24 @@ export class ComputerObservation {
     const driverState = asRecord(raw);
     const returnedCount = nonNegativeInteger(driverState?.returned_element_count);
     const totalCount = nonNegativeInteger(driverState?.total_element_count);
+    const pendingNodes = nonNegativeInteger(driverState?.nodes_pending);
+    const projectedControls = driverState?.elements_complete === false;
+    // The current driver can project controls from a fully walked AX window.
+    // That is not a truncated text read. Require independent, exact-window text
+    // evidence and explicit complete-walk metadata before making the distinction.
+    const windowTextComplete =
+      readableContext?.partial === false &&
+      Boolean(readableContext.text.trim()) &&
+      driverState?.truncated === false &&
+      pendingNodes === 0 &&
+      returnedCount !== undefined &&
+      totalCount !== undefined &&
+      returnedCount === totalCount;
     const partial =
       readableContext?.partial === true ||
-      driverState?.elements_complete === false ||
+      driverState?.truncated === true ||
+      (pendingNodes !== undefined && pendingNodes > 0) ||
+      (projectedControls && !windowTextComplete) ||
       (returnedCount !== undefined && totalCount !== undefined && returnedCount < totalCount);
     const backgroundInput = windowBackgroundInput(raw, binding);
     const observationOnly =
@@ -345,13 +360,20 @@ export class ComputerObservation {
             ? new URL(browserUrl).origin + new URL(browserUrl).pathname
             : undefined,
         visible_text: readableContext?.text || undefined,
+        ...(projectedControls ? { control_projection_partial: true } : {}),
+        ...(windowTextComplete ? { window_text_complete: true } : {}),
         ...(partial
           ? {
               observation_partial: true,
               coverage_note:
                 'Only part of this window was read. Continue with scrolling, pagination or the relevant view; absence here does not establish that an item/account is missing.',
             }
-          : {}),
+          : windowTextComplete && projectedControls
+            ? {
+                coverage_note:
+                  'Available text in this exact accessibility window was read without truncation. The driver projects controls; that does not mean this text is missing. This covers only the current window state, not other pages, filters, accounts or hidden app data. Inspect other requested views when needed.',
+              }
+            : {}),
         image_text: imageText,
         ...(request.arguments.read_text === true
           ? {

@@ -845,3 +845,44 @@ it('provides screenshot field centers only with stable, fresh Mac window geometr
   move = true;
   expect((await capture())[0]!.pixel_bounds).toBeUndefined();
 });
+
+it('keeps an explicit background refusal distinct from uncertain delivery', async () => {
+  const cua = fakeCua(async (name) => {
+    if (name === 'list_apps')
+      return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+    if (name === 'list_windows')
+      return { windows: [{ pid: 42, window_id: 91, app_name: 'Notes', title: 'Draft' }] };
+    if (name === 'get_window_state')
+      return {
+        snapshot_id: 's00000001',
+        elements: [
+          { element_token: 's00000001:9', role: 'AXTextArea', value: 'Existing text' },
+        ],
+      };
+    if (name === 'scroll') throw new Error('CUA refused: background_unavailable');
+    throw new Error('Unexpected fixture action ' + name);
+  });
+  const backend = new DesktopActionBackend({
+    cua,
+    macBrowserAccess: () => true,
+    macBackgroundControl: () => true,
+  });
+  const target = await grantedComputerTarget(backend);
+  const args = { app_id: target.appId, window_id: target.windowId, include_image: false };
+  const snapshot = dataRecord((await backend.invoke(request('computer_snapshot', args))).data);
+  const result = await backend.invoke(
+    request('computer_action', {
+      ...args,
+      snapshot_id: snapshot.snapshot_id,
+      action: 'scroll',
+      direction: 'down',
+      amount: 3,
+    }),
+  );
+  expect(result.outcome).toBe('needs_foreground');
+  expect(dataRecord(result.data).input_delivery_uncertain).toBeUndefined();
+  expect(cua.call.mock.calls.filter(([name]) => name === 'scroll')).toHaveLength(1);
+  expect(cua.call.mock.calls.every(([, args]) => args.delivery_mode !== 'foreground')).toBe(
+    true,
+  );
+});

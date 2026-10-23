@@ -326,7 +326,13 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
           description: 'Modifier keys held with action key',
         },
         direction: string('Scroll direction', { enum: ['up', 'down', 'left', 'right'] }),
-        amount: { type: 'integer', minimum: 1, maximum: 10000 },
+        amount: {
+          type: 'integer',
+          minimum: 1,
+          maximum: 10000,
+          description:
+            'Scroll line repetitions, not pixels; the native driver clamps to 50. Some Electron/Chromium windows refuse background wheel events. Do not repeat a refused scroll or switch to foreground automatically; use observed controls and current window text, or report the specific remaining access gap.',
+        },
         target_role: string('Accessibility role'),
       },
       ['app_id', 'window_id', 'snapshot_id', 'action'],

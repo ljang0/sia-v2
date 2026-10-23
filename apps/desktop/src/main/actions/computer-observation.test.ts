@@ -298,3 +298,116 @@ it('keeps accessibility usable when screenshot capture fails and omits hidden hi
   expect(dataRecord(result.data).pixel_actions_available).toBe(false);
   expect(cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(2);
 });
+
+it('does not call a complete native text read truncated merely because controls are projected', async () => {
+  const cua = fakeCua(async (name) => {
+    if (name === 'list_apps')
+      return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+    if (name === 'list_windows')
+      return {
+        windows: [{ pid: 42, window_id: 91, app_name: 'Notes', title: 'Reading list' }],
+      };
+    if (name === 'get_window_state')
+      return {
+        snapshot_id: 's00000001',
+        elements: [
+          { element_token: 's00000001:9', role: 'AXStaticText', value: 'R1 12 min; R2 15 min' },
+        ],
+        elements_complete: false,
+        truncated: false,
+        nodes_pending: 0,
+        returned_element_count: 1,
+        total_element_count: 1,
+      };
+    throw new Error('Unexpected fixture action ' + name);
+  });
+  const backend = new DesktopActionBackend({
+    cua,
+    macBrowserAccess: () => true,
+    macBackgroundControl: () => true,
+    readWindowContext: async () => ({
+      status: 'ready',
+      bundleID: 'com.apple.Notes',
+      title: 'Reading list',
+      text: 'R1 12 min; R2 15 min',
+      partial: false,
+    }),
+  });
+  const target = await grantedComputerTarget(backend);
+  const data = dataRecord(
+    (
+      await backend.invoke(
+        request('computer_snapshot', {
+          app_id: target.appId,
+          window_id: target.windowId,
+          include_image: false,
+        }),
+      )
+    ).data,
+  );
+  expect(data.observation_partial).not.toBe(true);
+  expect(data.control_projection_partial).toBe(true);
+});
+it.each([
+  'helper-partial',
+  'driver-truncated',
+  'rows-omitted',
+  'unknown-counts',
+  'unknown-text',
+  'protected',
+] as const)('retains real coverage/protection guards: %s', async (variant) => {
+  const cua = fakeCua(async (name) => {
+    if (name === 'list_apps')
+      return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+    if (name === 'list_windows')
+      return {
+        windows: [{ pid: 42, window_id: 91, app_name: 'Notes', title: 'Reading list' }],
+      };
+    if (name === 'get_window_state')
+      return {
+        snapshot_id: 's00000001',
+        elements: [
+          { element_token: 's00000001:9', role: 'AXStaticText', value: 'Visible data' },
+        ],
+        elements_complete: false,
+        truncated: variant === 'driver-truncated',
+        nodes_pending: 0,
+        ...(variant === 'unknown-counts'
+          ? {}
+          : {
+              returned_element_count: 1,
+              total_element_count: variant === 'rows-omitted' ? 2 : 1,
+            }),
+      };
+    throw new Error('Unexpected fixture action ' + name);
+  });
+  const backend = new DesktopActionBackend({
+    cua,
+    macBrowserAccess: () => true,
+    macBackgroundControl: () => true,
+    ...(variant === 'unknown-text'
+      ? {}
+      : {
+          readWindowContext: async () =>
+            variant === 'protected'
+              ? ({ status: 'protected' } as const)
+              : ({
+                  status: 'ready',
+                  bundleID: 'com.apple.Notes',
+                  title: 'Reading list',
+                  text: 'Visible data',
+                  partial: variant === 'helper-partial',
+                } as const),
+        }),
+  });
+  const target = await grantedComputerTarget(backend);
+  const result = await backend.invoke(
+    request('computer_snapshot', {
+      app_id: target.appId,
+      window_id: target.windowId,
+      include_image: false,
+    }),
+  );
+  if (variant === 'protected') expect(result.outcome).toBe('refused');
+  else expect(dataRecord(result.data).observation_partial).toBe(true);
+});
