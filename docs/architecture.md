@@ -513,9 +513,14 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Manual preferences are also ranked by request and selected as whole entries within 16,000 characters
   on connected and both Mac routes. The native helper receives that selected projection; the complete
   managed preferences file stays available. Credential markers are filtered before context assembly.
+  Each task request also carries the host UTC timestamp, local date/time and IANA timezone for
+  relative-date interpretation. This lives in the request, not the provider-session instructions,
+  so the clock does not invalidate a reusable session. Explicit user dates override it; current
+  enrollment and source coverage still require live evidence.
   Task continuity is separate from automatic learning: `assistant/task-context.ts` stores up to eight
   task checkpoints per conversation in the encrypted record repository, outside renderer snapshots
-  and direct action research/trajectory payloads. Each checkpoint preserves the original request,
+  and direct action research/trajectory payloads. Each checkpoint preserves the original request
+  (included whole in resumed-task context),
   constraints, sourced account/institution associations, source coverage, uncertain/verified writes,
   next steps, revision and update time. `task_checkpoint` is capability-scoped to the active turn;
   historical reads are limited to retained turns in that same conversation. Updates use revision
@@ -526,7 +531,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   thread/agent deletion removes its records. No cross-conversation memory is created by this tool.
   Before Mac/scheduled results are presented, the host rejects success while a recorded scope gap,
   pending/blocked source, uncertain write or next step remains. Connected completions with such gaps
-  also fail with an attention notice. This is a consistency check on model-reported state, not an
+  also fail with an attention notice. Checkpoint actions mean writes actually attempted, and next
+  steps mean unfinished work for the current deliverable. Completed advice or a planning report
+  can succeed while recommending that a later action needs new approval; recommendations do not
+  authorize those actions or excuse an uncertain attempted write. This is a consistency check on model-reported state, not an
   independent semantic verifier: it cannot prove omitted sources were checked or prevent every false
   claim. Fresh app evidence and existing file verification remain required. Explicit automatic-learning
   settings still govern all durable preferences, vault notes, lessons and consolidation.

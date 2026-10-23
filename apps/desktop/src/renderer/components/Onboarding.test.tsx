@@ -646,6 +646,40 @@ it('finishes a verified pass without restarting Sia', async () => {
   expect(api.startRealtimeVoice).not.toHaveBeenCalled();
 });
 
+it('preserves granted Mac access but blocks finishing when AI disconnects during setup', async () => {
+  const { snapshot, api, props } = setup('verify');
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.screenRecording = 'allowed';
+  snapshot.voice.pushToTalk = {
+    available: false,
+    enabled: false,
+    accessibility: false,
+    microphone: false,
+    phase: 'idle',
+  };
+  const provider = snapshot.providers.find(({ id }) => id === snapshot.agents[0]!.provider)!;
+  provider.status = 'needs-login';
+  const content = () => (
+    <Onboarding {...props}>
+      <div>Conversation</div>
+    </Onboarding>
+  );
+  const view = render(content());
+  const finish = screen.getByRole<HTMLButtonElement>('button', { name: 'Start using Sia' });
+  expect(finish.disabled).toBe(true);
+  expect(screen.getByRole('region', { name: 'Finish AI setup' }).textContent).toContain(
+    'Your Mac access is saved',
+  );
+  expect(api.requestComputerPermissions).not.toHaveBeenCalled();
+  expect(api.setOnboarding).not.toHaveBeenCalledWith('complete');
+  provider.status = 'ready';
+  view.rerender(content());
+  await waitFor(() => expect(finish.disabled).toBe(false));
+  fireEvent.click(finish);
+  await waitFor(() => expect(api.setOnboarding).toHaveBeenCalledWith('complete'));
+  expect(api.createAgent).not.toHaveBeenCalled();
+});
+
 it('resumes an active pass after the relaunch without asking again for granted rows', async () => {
   const { snapshot, api, props } = setup('verify');
   snapshot.preferences.onboarding = {

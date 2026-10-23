@@ -130,6 +130,13 @@ let windowStateSaver: WindowStateSaver | undefined;
 const rendererRecovery = new RendererRecovery();
 const notificationTimes = new Map<string, number>();
 const liveNotifications = new Set<Notification>();
+// Explicit, isolated fake-service checks can render without showing windows or taking focus.
+// A packaged app or real-provider session can never opt into this fixture behavior.
+const quietFixture =
+  !app.isPackaged &&
+  process.env.SIA_FAKE_SERVICES === '1' &&
+  Boolean(process.env.SIA_TEST_USER_DATA) &&
+  process.env.SIA_TEST_QUIET === '1';
 
 if (!app.isPackaged && process.env.SIA_TEST_USER_DATA) {
   app.setPath('userData', process.env.SIA_TEST_USER_DATA);
@@ -190,6 +197,7 @@ if (!gotLock) {
   void app
     .whenReady()
     .then(() => {
+      if (quietFixture && process.platform === 'darwin') app.setActivationPolicy('prohibited');
       // macOS is logging out or shutting down: never hold that up with a quit question.
       powerMonitor.on('shutdown', () => {
         quitConfirmed = true;
@@ -224,8 +232,10 @@ async function revealApplicationWindow(revealConversation = false): Promise<void
     mainWindow.webContents.send('sia:event', {
       type: 'open-conversation',
     } satisfies import('../shared/bridge.js').DesktopPushEvent);
-  mainWindow.show();
-  mainWindow.focus();
+  if (!quietFixture) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
 }
 
 function createApplication(): Promise<void> {
@@ -356,7 +366,9 @@ async function performApplicationCreation(): Promise<void> {
         else if (response === 1) app.quit();
       });
   });
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => {
+    if (!quietFixture) window.show();
+  });
   window.on('closed', () => {
     controller?.releaseRendererVoiceCapture();
     unregisterIpc?.();

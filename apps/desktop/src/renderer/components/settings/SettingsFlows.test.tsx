@@ -783,7 +783,7 @@ function withoutResearchConsent(): RendererSnapshot {
   };
 }
 
-it('sets up computer, voice and missing app access through one settings action', async () => {
+it('sets up required Mac access together and adds voice only when chosen', async () => {
   const snapshot = structuredClone(demoSnapshot);
   snapshot.computer.accessibility = 'not-requested';
   snapshot.computer.screenRecording = 'not-requested';
@@ -855,6 +855,10 @@ it('sets up computer, voice and missing app access through one settings action',
   });
   expect(macSetupApi.requestComputerPermissions).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
+  await waitFor(() => expect(screen.getByText('Mac access is ready.')).toBeTruthy());
+  expect(macSetupApi.configureVoice).not.toHaveBeenCalled();
+  expect(macSetupApi.configurePushToTalk).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Set up voice: Talk with Fn' }));
   await waitFor(() => expect(macSetupApi.configureVoice).toHaveBeenCalledOnce());
   await waitFor(() => expect(macSetupApi.configurePushToTalk).toHaveBeenCalledOnce());
   await waitFor(() => expect(screen.getByText('Mac access is ready.')).toBeTruthy());

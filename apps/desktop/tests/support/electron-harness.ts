@@ -78,6 +78,13 @@ export async function launchIsolatedSia(
     });
   }
   const page = await readyPage(application);
+  if (options.fakeServices !== false && process.env.SIA_TEST_QUIET === '1') {
+    expect(
+      await application.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().every((window) => !window.isVisible()),
+      ),
+    ).toBe(true);
+  }
   const rendererErrors = collectRendererErrors(page);
 
   return {

@@ -4,6 +4,7 @@ import type { ThreadView } from '../../shared/bridge.js';
 import { DESKTOP_EXECUTION_GUIDANCE } from '../assistant/assistant-library.js';
 import { TASK_CONTEXT_GUIDANCE } from '../assistant/task-context.js';
 import { promptMemories } from '../assistant/memory-context.js';
+import { taskClock } from '../assistant/task-clock.js';
 import type { MacTaskResult } from '../actions/mac-execution.js';
 import {
   MEMORY_REVIEW_PROMPT,
@@ -373,6 +374,7 @@ export class TurnRunner {
                   if (recordVault) nativeRawResponse = text;
                 },
                 text: [
+                  taskClock(),
                   turn.recovery,
                   this.ctx.assistant.library.isReview(thread.id)
                     ? ''

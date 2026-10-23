@@ -49,6 +49,9 @@ it('persists task constraints and uncertain writes through a real encrypted data
       'verify Add calendar entry',
     );
     expect(reopened.prompt('thread', 'agent', 'turn')).toContain('Carnegie Mellon');
+    expect(reopened.prompt('thread', 'agent', 'turn')).toContain(
+      'Find all my assignments this week',
+    );
     expect(reopened.read('thread', 'different-agent', 'turn')).toBeUndefined();
     expect(reopened.read('other-thread', 'agent', 'turn')).toBeUndefined();
   } finally {

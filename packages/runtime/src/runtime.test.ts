@@ -315,6 +315,7 @@ describe('CLI discovery', () => {
     expect(isVersionSupported('0.155.0-alpha.9.2', pinned)).toBe(true);
     expect(isVersionSupported('0.160.0', pinned)).toBe(true);
     expect(isVersionSupported('0.162.0-alpha.2', pinned)).toBe(true);
+    expect(isVersionSupported('0.163.0-alpha.11.2', pinned)).toBe(true);
     for (const version of [
       '0.154.0',
       '0.154.0-alpha.1',
@@ -329,6 +330,10 @@ describe('CLI discovery', () => {
       '0.162.0-alpha.1',
       '0.162.0-alpha.3',
       '0.162.0',
+      '0.163.0-alpha.11',
+      '0.163.0-alpha.11.1',
+      '0.163.0-alpha.11.3',
+      '0.163.0',
     ])
       expect(isVersionSupported(version, pinned)).toBe(false);
     expect(

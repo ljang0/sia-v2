@@ -283,7 +283,7 @@ use whitespace and a hairline divider before adding another box.
 - One clear primary action per surface; no duplicate controls or provider-specific layout fork.
 - Use my Mac onboarding has one setup button that walks every required macOS permission; there
   is no separate opt-in for everyday apps.
-- Fn practice after setup reflects actual recorder states and is always skippable.
+- Fn voice has its own explicit setup action and never interrupts the required Mac-permission pass or lowers its progress count. Fn practice after setup reflects actual recorder states and is always skippable. An AI connection lost during permissions keeps the saved grants and offers reconnection before finishing.
 - Conversation remains dominant. Tool activity is compact and progressively disclosed.
   A live activity group shows its current step with earlier steps folded into an expandable count.
   Finished groups, including single-step groups, start folded. Full commands and output are shown only
@@ -358,3 +358,5 @@ Star Border remains an optional reference, not an additional screen-border effec
 the learn-by-doing pattern: skip existing grants, press/speak/release to practice, permit skipping,
 and resume interrupted setup. Its documented flow is the reference for the sequence; Sia's key-fill
 visual is a local design, not copied proprietary artwork.
+
+Phone reply indicators track actual text streaming, so completed commentary does not look unfinished while later work runs. A failed relay file save stays beside the result with a retry action; repeated taps while saving start only one download. The conversation and paired session stay intact.

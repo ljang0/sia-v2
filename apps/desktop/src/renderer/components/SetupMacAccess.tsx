@@ -66,8 +66,8 @@ const automationState: Record<AutomationStatus, AccessState> = {
 
 /**
  * Every macOS permission Sia can ask for, in the order setup asks. Accessibility and Screen
- * Recording are needed to work on the Mac; everything else can be skipped and is asked for by
- * macOS in plain words the first time a task needs it.
+ * Recording, installed app Automation and Messages history are required. Fn voice is optional
+ * and is requested only when the person chooses its own setup button.
  */
 export function macAccessRows(
   snapshot: RendererSnapshot,
@@ -232,8 +232,8 @@ export function SetupMacAccess({
     canRelaunch: Boolean(onRestart),
   });
   const shown = rows.filter((row) => row.state !== 'unavailable');
-  const readyCount = shown.filter((row) => row.state === 'ready').length;
   const required = rows.filter((row) => !row.optional);
+  const readyCount = required.filter((row) => row.state === 'ready').length;
   // A row macOS cannot offer on this Mac (an app that is not installed) never blocks setup.
   const requiredReady = required.every(
     (row) => row.state === 'ready' || row.state === 'unavailable',
@@ -243,6 +243,7 @@ export function SetupMacAccess({
   const current = rows.find(
     (row) =>
       row.guided &&
+      !row.optional &&
       (row.state === 'needed' ||
         row.state === 'closed' ||
         row.state === 'denied' ||
@@ -254,7 +255,8 @@ export function SetupMacAccess({
   const relaunchRef = useRef(relaunch.length);
   relaunchRef.current = relaunch.length;
   const walk = rows.filter(
-    (row) => row.guided && row.state !== 'unavailable' && !skipped.includes(row.id),
+    (row) =>
+      row.guided && !row.optional && row.state !== 'unavailable' && !skipped.includes(row.id),
   );
   useEffect(() => {
     onReadyChange?.(requiredReady);
@@ -297,7 +299,7 @@ export function SetupMacAccess({
       refreshing.current = false;
     }
   };
-  const waiting = shown.some((row) => row.state !== 'ready');
+  const waiting = required.some((row) => row.state !== 'ready');
   useEffect(() => {
     const refresh = () => void refreshAccess();
     const timer = waiting ? window.setInterval(refresh, active ? 2000 : 5000) : undefined;
@@ -348,6 +350,7 @@ export function SetupMacAccess({
     generation.current++;
     setActive(false);
     setPending(false);
+    setRowPending(undefined);
     setError(undefined);
   };
   const relaunchNow = () => {
@@ -363,11 +366,14 @@ export function SetupMacAccess({
     setAsked((ids) => (ids.includes(row.id) ? ids : [...ids, row.id]));
     setSkipped((ids) => ids.filter((id) => id !== row.id));
     setError(undefined);
+    const pass = generation.current;
     try {
-      await row.request(() => mounted.current);
+      await row.request(() => mounted.current && pass === generation.current);
+      if (!mounted.current || pass !== generation.current) return;
       await latest.current.api.refreshComputerPermissions();
     } catch (cause) {
-      if (mounted.current) setError(errorMessage(cause, 'Setup needs another try.'));
+      if (mounted.current && pass === generation.current)
+        setError(errorMessage(cause, 'Setup needs another try.'));
     } finally {
       requesting.current = false;
       if (mounted.current) setRowPending(undefined);
@@ -385,8 +391,9 @@ export function SetupMacAccess({
   const busy = pending || Boolean(rowPending);
 
   const renderRow = (row: AccessRow) => {
-    const action =
-      row.state === 'closed'
+    const action = row.optional
+      ? 'Set up voice'
+      : row.state === 'closed'
         ? 'Open app'
         : row.state === 'denied' || !row.guided
           ? 'Open Settings'
@@ -431,10 +438,10 @@ export function SetupMacAccess({
     <section className={styles.accessSection} aria-label="Guided Mac permissions">
       {!compact && <h3>Set up Mac access in one go</h3>}
       <p className={styles.accessSummary} role="status">
-        <strong key={readyCount} data-ready={(requiredReady && !current) || undefined}>
+        <strong key={readyCount} data-ready={requiredReady || undefined}>
           {requiredReady && !current
             ? 'Mac access is ready.'
-            : `${readyCount} of ${shown.length} permissions ready`}
+            : `${readyCount} of ${required.length} permissions ready`}
         </strong>
         <span>
           Allow all walks you through each one and moves on once it’s on. You approve every
@@ -446,10 +453,12 @@ export function SetupMacAccess({
         <span
           className={styles.meter}
           aria-hidden="true"
-          data-full={readyCount === shown.length || undefined}
+          data-full={requiredReady || undefined}
         >
           <span
-            style={{ transform: `scaleX(${shown.length ? readyCount / shown.length : 1})` }}
+            style={{
+              transform: `scaleX(${required.length ? readyCount / required.length : 1})`,
+            }}
           />
         </span>
       </p>
@@ -555,6 +564,17 @@ export function SetupMacAccess({
         <p className={styles.error} role="alert">
           {error}
         </p>
+      )}
+      {rowPending && (
+        <button
+          className={styles.link}
+          onClick={() => {
+            pause();
+            onPause?.();
+          }}
+        >
+          Finish later
+        </button>
       )}
       <ul className={styles.accessList} aria-label="Needed permissions">
         {required.map(renderRow)}

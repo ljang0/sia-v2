@@ -682,3 +682,11 @@ The staged development bundle removes Finder/resource-fork metadata that [Apple 
 signed apps](https://developer.apple.com/library/archive/qa/qa1940/_index.html); other attributes,
 including quarantine, are preserved. No script resets TCC or grants privacy access. Release builds retain the separate Developer ID
 pipeline. See [Apple’s designated requirement documentation](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).
+
+For the two focused main-window UI gates without opening app windows on your Mac, build first and use:
+
+```sh
+SIA_TEST_QUIET=1 pnpm --filter @sia/desktop exec playwright test e2e/browser-recovery.spec.ts e2e/visual-polish.spec.ts
+```
+
+Quiet mode requires an unpackaged app, fake services, and an isolated test profile. It never applies to packaged or real-provider sessions. The harness checks the fixture windows stay hidden. Other tests that explicitly open auxiliary windows still belong on the CI runner; this flag does not turn real Mac actions into headless actions.

@@ -32,8 +32,16 @@ export const taskCheckpointState = z
           })
           .strict(),
       )
-      .max(20),
-    next_steps: z.array(text(300)).max(8),
+      .max(20)
+      .describe(
+        'Writes actually attempted in this task. Do not list recommendations or hypothetical future actions.',
+      ),
+    next_steps: z
+      .array(text(300))
+      .max(8)
+      .describe(
+        'Unfinished work required for the current requested deliverable. Future recommendations belong in the answer or summary.',
+      ),
   })
   .strict()
   .refine(

@@ -5,5 +5,11 @@ export const CODEX_SUPPORTED_VERSIONS = {
   maximumExclusive: '0.154.0',
   // The installed desktop build is verified independently; do not admit the
   // entire next minor or other prereleases merely to expose a newer catalog.
-  additionalVersions: ['0.155.0-alpha.9', '0.155.0-alpha.9.2', '0.160.0', '0.162.0-alpha.2'],
+  additionalVersions: [
+    '0.155.0-alpha.9',
+    '0.155.0-alpha.9.2',
+    '0.160.0',
+    '0.162.0-alpha.2',
+    '0.163.0-alpha.11.2',
+  ],
 } as const;
