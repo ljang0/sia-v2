@@ -2,9 +2,11 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import {
   actionResult,
+  classifyFailure,
   refused,
   resultRefusal,
   screenshotDimensions,
+  safeErrorMessage,
   stale,
 } from './action-results.js';
 import { requiredEnum, requiredString } from './arguments.js';
@@ -293,7 +295,36 @@ export class ComputerInput {
         .filter((window) => window.appId === binding.appId)
         .map((window) => window.windowId),
     );
-    const raw = await this.ctx.callCua(request, tool, input);
+    let raw: unknown;
+    try {
+      raw = await this.ctx.callCua(request, tool, input);
+    } catch (error) {
+      const message = safeErrorMessage(error);
+      // These explicit driver validation/authorization refusals prove no input was posted.
+      // A generic timeout or broken transport does not: the app may already have committed.
+      if (
+        /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window)$/.test(
+          message,
+        )
+      )
+        return classifyFailure(error);
+      this.ctx.computer.snapshots.delete(snapshotId);
+      this.ctx.computer.latestSnapshot.delete(binding.id);
+      return {
+        outcome: 'accepted_unverified',
+        summary:
+          'The input may have been delivered, but its acknowledgement could not be verified. Observe the exact window and inspect the intended result before continuing; do not replay the action.',
+        reason: message,
+        data: {
+          app_id: binding.appId,
+          window_id: binding.id,
+          input_delivery_uncertain: true,
+          previous_snapshot_id: snapshotId,
+          next_step:
+            'Capture fresh state and reconcile the saved item, receipt, or other semantic result. The previous input target has been revoked. An absent immediate acknowledgement does not prove the write failed.',
+        },
+      };
+    }
     const focusedFallback = base.delivery_mode === 'foreground';
     const native = actionResult(
       raw,

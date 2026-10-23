@@ -372,6 +372,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Missing/loading observations, stale targets and refusals stop the run without replay. Runs containing
   UI delivery remain `accepted_unverified` until the agent inspects semantic evidence. Native scripts
   remain on the native route; both routes share journal evidence for consolidation.
+  A transport error after requesting window input is also `accepted_unverified`, not proof of
+  refusal: the app may already have committed the change. Sia revokes the old snapshot/input
+  capability and requires fresh observation before further input. Explicit driver validation and
+  authorization refusals retain their refusal status. Neither path automatically replays input.
   Background native observations default to accessibility/text, with `include_image:true` for visual
   evidence and pixel targeting, or `read_text:true` for screenshot OCR. Browser observations keep
   images by default; text edits also capture an image to cross-check unreliable AX echo. Pixel input always receives a

@@ -155,6 +155,48 @@ scope. A narrated slide walkthrough is not an end-to-end recording of connected 
 
 ## First launch
 
+### Background reliability matrix
+
+The [100-task manifest](../apps/desktop/tests/fixtures/reliability/cases.json) covers ten domains:
+campus investigation, calendars, communications, projects, consumer decisions, files, app edits,
+recovery, memory/context and scope boundaries. Every task runs through the actual desktop controller,
+Codex harness and action gateway, with foreground fallback disabled. Each uses a disposable agent
+workspace. Independent graders check facts, source coverage, saved app records, duplicate writes,
+immutable inputs and output files. A model's own success flag never determines a pass.
+
+Run the model/host matrix without touching the desktop:
+
+```sh
+SIA_CODEX_REAL_SMOKE=1 SIA_RELIABILITY_SIMULATED_CUA=1 \
+SIA_SMOKE_MODEL=gpt-6-astra SIA_RELIABILITY_EVIDENCE_DIR=/private/tmp/sia-background-matrix \
+pnpm --filter @sia/desktop exec vitest run src/main/actions/background-reliability.smoke.test.ts
+node apps/desktop/scripts/summarize-background-tasks.mjs --evidence /private/tmp/sia-background-matrix
+```
+
+This uses a real model with simulated driver observations. It does **not** establish native input
+delivery. For real bundled Cua Driver acceptance, first create the separate local test app:
+
+```sh
+SIA_RELIABILITY_REAL_CUA=1 node apps/desktop/scripts/background-task-lab.mjs start --config /private/tmp/sia-task-lab.json
+SIA_RELIABILITY_DRIVER_PROBE=1 SIA_RELIABILITY_REAL_CUA=1 SIA_RELIABILITY_LAB=/private/tmp/sia-task-lab.json \
+pnpm --filter @sia/desktop exec vitest run src/main/actions/reliability/driver.smoke.test.ts
+```
+
+The probe consumes no model turn and never sends input. It must find the lab's accessibility
+surface; an unresolved surface is an environment blocker, not a completed native acceptance check.
+Then replace `SIA_RELIABILITY_SIMULATED_CUA=1` with `SIA_RELIABILITY_REAL_CUA=1` and
+`SIA_RELIABILITY_LAB=/private/tmp/sia-task-lab.json` in the matrix command, using a separate evidence
+directory. The native wrapper filters inventory and input to the lab's exact process. Neither mode
+uses real accounts. Close the lab with the same launcher and `stop --config` when finished.
+
+`SIA_RELIABILITY_CASES=campus-professors,recovery-lost-ack` selects focused reruns. Evidence is outside
+the repository: append-only `attempts.jsonl`, per-attempt traces, code/harness hashes, and a generated
+`report.md`/`summary.json`. Reruns preserve failures, count distinct task IDs rather than attempts,
+and distinguish native/simulated drivers and correctly incomplete tasks. Keep environment triage
+separate from product failures; do not convert blocked native checks into simulated passes.
+
+### Pilot setup
+
 From the repository root, follow the install and signing steps in [RA onboarding](./ra-onboarding.md),
 then launch an isolated development profile. `pnpm dev` builds workspace dependencies itself.
 Use the signed app and a disposable participant for live acceptance.

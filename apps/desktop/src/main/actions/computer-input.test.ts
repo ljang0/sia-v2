@@ -2,6 +2,61 @@ import { describe, expect, it, vi } from 'vitest';
 import { DesktopActionBackend } from './desktop-action-backend.js';
 import { dataRecord, fakeCua, grantedComputerTarget, request } from './test-support.js';
 
+it.each(['Timed out waiting for input acknowledgement', 'read ECONNRESET'])(
+  'preserves uncertain delivery and revokes the old input target after %s',
+  async (message) => {
+    let saved = 0;
+    const cua = fakeCua(async (name) => {
+      if (name === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+      if (name === 'list_windows')
+        return { windows: [{ pid: 42, window_id: 91, app_name: 'Notes', title: 'Draft' }] };
+      if (name === 'get_window_state')
+        return {
+          snapshot_id: 'native-snapshot',
+          elements: [{ element_token: 'save', role: 'AXButton', label: 'Save' }],
+        };
+      if (name === 'click') {
+        saved++;
+        throw new Error(message);
+      }
+      throw new Error(`Unexpected fixture tool ${name}`);
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    const target = await grantedComputerTarget(backend);
+    const snapshot = dataRecord(
+      (
+        await backend.invoke(
+          request('computer_snapshot', {
+            app_id: target.appId,
+            window_id: target.windowId,
+            include_image: false,
+          }),
+        )
+      ).data,
+    );
+    const element = (snapshot.elements as Record<string, unknown>[])[0]!;
+    const action = request('computer_action', {
+      app_id: target.appId,
+      window_id: target.windowId,
+      snapshot_id: snapshot.snapshot_id,
+      element_ref: element.element_ref,
+      action: 'click',
+    });
+    const result = await backend.invoke(action);
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(result.data).toMatchObject({ input_delivery_uncertain: true });
+    expect(result.summary).toMatch(/inspect|observe/i);
+    expect(saved).toBe(1);
+    expect((await backend.invoke(action)).outcome).toBe('stale');
+    expect(saved).toBe(1);
+  },
+);
+
 // These fixtures advance app state with explicit mock observations. Real settle
 // sleeps add load and timing failures without exercising an application's timing.
 vi.mock('node:timers/promises', async (original) => ({
