@@ -2,6 +2,57 @@ import { describe, expect, it, vi } from 'vitest';
 import { DesktopActionBackend } from './desktop-action-backend.js';
 import { dataRecord, fakeCua, grantedComputerTarget, request } from './test-support.js';
 
+it('sets an exact field with the current driver contract and observes its new value', async () => {
+  let value = '';
+  const cua = fakeCua(async (name, args) => {
+    if (name === 'list_apps')
+      return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+    if (name === 'list_windows')
+      return { windows: [{ pid: 42, window_id: 91, app_name: 'Notes', title: 'Draft' }] };
+    if (name === 'get_window_state')
+      return {
+        snapshot_id: 's00000001',
+        elements: [
+          { element_token: 's00000001:9', role: 'AXTextField', label: 'Title', value },
+        ],
+      };
+    if (name === 'set_value') {
+      expect(args).toEqual({
+        pid: 42,
+        window_id: 91,
+        session: expect.any(String),
+        element_token: 's00000001:9',
+        value: 'Revised title',
+      });
+      value = String(args.value);
+      return { effect: 'unverifiable', delivery: { mode: 'background' } };
+    }
+    throw new Error(`Unexpected fixture tool ${name}`);
+  });
+  const backend = new DesktopActionBackend({
+    cua,
+    macBrowserAccess: () => true,
+    macBackgroundControl: () => true,
+  });
+  const target = await grantedComputerTarget(backend);
+  const args = { app_id: target.appId, window_id: target.windowId, include_image: false };
+  const snapshot = dataRecord((await backend.invoke(request('computer_snapshot', args))).data);
+  const result = await backend.invoke(
+    request('computer_action', {
+      ...args,
+      snapshot_id: snapshot.snapshot_id,
+      element_ref: (snapshot.elements as Record<string, unknown>[])[0]!.element_ref,
+      action: 'set',
+      text: 'Revised title',
+    }),
+  );
+  expect(result.outcome).toBe('accepted_unverified');
+  expect(dataRecord(result.data).elements).toEqual([
+    expect.objectContaining({ label: 'Title', value: 'Revised title' }),
+  ]);
+  expect(cua.call.mock.calls.filter(([name]) => name === 'set_value')).toHaveLength(1);
+});
+
 it.each(['Timed out waiting for input acknowledgement', 'read ECONNRESET'])(
   'preserves uncertain delivery and revokes the old input target after %s',
   async (message) => {
@@ -163,10 +214,11 @@ describe('DesktopActionBackend computer boundary', () => {
     expect(click?.[1]).toMatchObject({
       pid: 42,
       window_id: 91,
-      snapshot_id: 's12345678',
       element_token: 'native-token-1',
       delivery_mode: 'background',
     });
+    expect(click?.[1]).not.toHaveProperty('snapshot_id');
+    expect(click?.[1]).not.toHaveProperty('element_index');
 
     const staleResult = await backend.invoke(
       request('computer_action', {
@@ -246,8 +298,10 @@ describe('DesktopActionBackend computer boundary', () => {
       window_id: 91,
       element_token: 'text-area-1',
       value: 'Replacement text',
-      delivery_mode: 'background',
     });
+    expect(cua.call.mock.calls.find(([tool]) => tool === 'set_value')?.[1]).not.toHaveProperty(
+      'delivery_mode',
+    );
 
     const replacedData = dataRecord(replaced.data);
     const nextElement = (replacedData.elements as Array<Record<string, unknown>>)[0]!;

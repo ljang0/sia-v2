@@ -41,6 +41,13 @@ const rows = manifest.map((item) => {
     elapsed_ms: latest?.elapsed_ms,
     failure: latest?.failure,
     evidence: latest?.evidence,
+    history: history.map((attempt) => ({
+      status: attempt.status,
+      failure: attempt.failure,
+      evidence: attempt.evidence,
+      source_commit: attempt.source_commit,
+      driver_mode: attempt.driver_mode,
+    })),
   };
 });
 const summary = {
@@ -54,6 +61,7 @@ const summary = {
     (row) => row.expected_attention && row.status === 'passed',
   ).length,
   total_attempts: attempts.length,
+  driver_modes: [...new Set(attempts.map((attempt) => attempt.driver_mode ?? 'unknown'))],
   triage_notes: triage,
   rows,
 };
@@ -64,7 +72,7 @@ const clean = (value) =>
     .replaceAll('\n', ' ');
 await writeFile(
   join(directory, 'report.md'),
-  `# Background reliability test log\n\n${summary.unique_attempted}/100 distinct tasks attempted. Latest: ${summary.latest_passed} passed, ${summary.latest_failed} failed, ${summary.not_run} not run. ${summary.expected_attention_passed} passes are expected incomplete-task handling, not completed app actions. ${summary.total_attempts} total attempts; previous failures remain in attempts.jsonl.\n\nThese are real-model tests through Sia’s background controller with fictional account data. Each attempt records driver_mode: native uses the bundled Cua Driver against a disposable app; simulated uses in-memory driver observations and does not validate native input delivery. They do not establish accuracy on real external accounts or first-time permissions. The actual app state, output files and source coverage are independently graded. All agent input is restricted to the lab PID with foreground fallback disabled.\n\n| Task | Category | Latest | Attempts | Latest failure |\n| --- | --- | --- | --- | --- |\n${rows.map((row) => `| ${clean(row.id)} | ${clean(row.category)} | ${row.status} | ${row.attempts} | ${clean(row.failure)} |`).join('\n')}\n`,
+  `# Background reliability test log\n\n${summary.unique_attempted}/100 distinct tasks attempted. Latest: ${summary.latest_passed} passed, ${summary.latest_failed} failed, ${summary.not_run} not run. ${summary.expected_attention_passed} passes are expected incomplete-task handling, not completed app actions. ${summary.total_attempts} total attempts; previous failures remain in attempts.jsonl. Driver modes: ${summary.driver_modes.join(', ')}.\n\nThese are real-model tests through Sia’s background controller with fictional account data. Native uses the bundled Cua Driver against a disposable app; simulated uses in-memory driver observations and does not validate native input delivery. They do not establish accuracy on real external accounts or first-time permissions. The actual app state, output files and source coverage are independently graded. All agent input is restricted to the lab PID with foreground fallback disabled.\n\n| Task | Category | First | Latest | Attempts | Evidence history | Latest failure |\n| --- | --- | --- | --- | --- | --- | --- |\n${rows.map((row) => `| ${clean(row.id)} | ${clean(row.category)} | ${row.first_status} | ${row.status} | ${row.attempts} | ${row.history.map((attempt, index) => `[${index + 1}: ${attempt.status}](${encodeURI(join(attempt.evidence, 'trace.json'))})`).join(', ')} | ${clean(row.failure)} |`).join('\n')}\n\n## Failure triage\n\n${triage.length ? triage.map((note) => `- **${clean(note.id)}** (${clean(note.classification)}): ${clean(note.reason)} ${clean(note.remedy)}`).join('\n') : 'No triage notes recorded.'}\n`,
 );
 console.log(
   JSON.stringify({

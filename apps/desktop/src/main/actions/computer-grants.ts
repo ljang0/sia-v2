@@ -3,8 +3,7 @@ import type { ValidatedActionInvocation } from '@sia/action-gateway';
 import type { BackgroundInputStatus } from './background-input.js';
 
 export interface NativeElementAddress {
-  readonly token?: string;
-  readonly index?: number;
+  readonly token: string;
   readonly label?: string;
   readonly role?: string;
 }
@@ -37,7 +36,6 @@ export interface WindowSnapshotCapability {
   readonly publicWindowId: string;
   readonly pid: number;
   readonly windowId: number;
-  readonly nativeSnapshotId?: string;
   readonly elements: ReadonlyMap<string, NativeElementAddress>;
 }
 

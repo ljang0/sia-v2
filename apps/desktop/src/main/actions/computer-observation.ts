@@ -18,7 +18,6 @@ import {
   compact,
   findElementRecords,
   findRecordArray,
-  findString,
   firstString,
   isDefined,
   isHiddenWindowStructure,
@@ -235,7 +234,6 @@ export class ComputerObservation {
       binding.title;
     if (title) this.ctx.computer.windows.set(binding.id, { ...binding, title });
     const snapshotId = randomUUID();
-    const nativeSnapshotId = findString(raw, ['snapshot_id', 'snapshotId']);
     const pixels =
       !includeImage || windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
     const elementMap = new Map<string, NativeElementAddress>();
@@ -250,15 +248,12 @@ export class ComputerObservation {
         )
           return undefined;
         const token = firstString(record, ['element_token', 'elementToken']);
-        const index = nonNegativeInteger(record.element_index ?? record.elementIndex);
-        if (!token && (index === undefined || !nativeSnapshotId))
-          return this.ctx.macBrowserAccess() ? sanitizeElement(record) : undefined;
+        if (!token) return this.ctx.macBrowserAccess() ? sanitizeElement(record) : undefined;
         const ref = `w:${snapshotId}:${position}`;
         const label = trustedElementLabel(record);
         const role = trustedDisplayText(firstString(record, ['role', 'type']));
         elementMap.set(ref, {
-          ...(token ? { token } : {}),
-          ...(index === undefined ? {} : { index }),
+          token,
           ...(label ? { label } : {}),
           ...(role ? { role } : {}),
         });
@@ -331,7 +326,6 @@ export class ComputerObservation {
       pid: binding.pid,
       windowId: binding.windowId,
       elements: elementMap,
-      ...(nativeSnapshotId ? { nativeSnapshotId } : {}),
     };
     this.ctx.computer.rememberSnapshot(capability);
     return {

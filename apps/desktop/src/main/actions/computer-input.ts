@@ -209,11 +209,9 @@ export class ComputerInput {
         : !address
           ? 'foreground'
           : 'background',
-      // An unaddressed action must not carry an element snapshot: the driver
-      // otherwise refuses it with element_index_required. Sia's grant is checked above.
-      snapshot_id: address ? capability.nativeSnapshotId : undefined,
+      // Native tokens already bind the exact snapshot and row. Legacy index/snapshot
+      // arguments are rejected by the current driver; never manufacture a token.
       element_token: address?.token,
-      element_index: address?.index,
     });
 
     let tool: string;
@@ -261,7 +259,14 @@ export class ComputerInput {
         const text = typeof args.text === 'string' ? args.text : undefined;
         if (text === undefined) return refused('computer_action set requires text.');
         tool = 'set_value';
-        input = { ...base, value: text };
+        // set_value is an exact AX operation and has no delivery_mode argument.
+        input = compact({
+          pid: base.pid,
+          window_id: base.window_id,
+          session: base.session,
+          element_token: base.element_token,
+          value: text,
+        });
         break;
       }
       case 'scroll':

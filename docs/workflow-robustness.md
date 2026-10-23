@@ -202,13 +202,18 @@ public-page turns ran on the corrected build:
   read failed with `session_ended`; no click was sent. The reusable provider conversation had also
   been used as the CUA session label. A terminal driver session then poisoned later requests.
 
-The installed CUA 0.21.0 source was inspected at commit
+The then-installed CUA 0.21.0 source was inspected at commit
 `70db98d1bcd92890d778f4978e0eb107a4b66c1b`:
 [`ax/exact_target.rs`](https://github.com/trycua/cua/blob/70db98d1bcd92890d778f4978e0eb107a4b66c1b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs)
 requires the exact native id in fresh `AXWindows` membership. Its `get_window_state` deliberately
 returns observation-only state when that identity is unresolved, because input could reach another
 window owned by the same process. Sia's supplemental native reader resolving the page does not
-establish a safe CUA input route. No driver guard was bypassed or dependency replaced.
+establish a safe CUA input route. No driver guard was bypassed in those checks. The subsequent
+background reliability work upgrades the SDK and both Mac native libraries to 0.37.0 after an
+isolated comparison resolved the same test window and delivered an exact background click. Sia
+requests structured controls and route metadata explicitly and uses the current token-only input
+contract. The 100-task matrix in [demo acceptance](./demo.md#background-reliability-matrix) keeps
+native-driver results separate from simulated observations and retains failed attempts.
 
 Native computer sessions are now scoped to each active turn with a fresh opaque label, while Codex
 conversation reuse and explicitly attached browser sessions retain their own lifetimes. New turns

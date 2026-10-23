@@ -153,9 +153,7 @@ organizes documents without making legal tax determinations.
 The accompanying presentation/video should say **real model, fictional data** and preserve this
 scope. A narrated slide walkthrough is not an end-to-end recording of connected accounts.
 
-## First launch
-
-### Background reliability matrix
+## Background reliability matrix
 
 The [100-task manifest](../apps/desktop/tests/fixtures/reliability/cases.json) covers ten domains:
 campus investigation, calendars, communications, projects, consumer decisions, files, app edits,
@@ -194,6 +192,8 @@ the repository: append-only `attempts.jsonl`, per-attempt traces, code/harness h
 `report.md`/`summary.json`. Reruns preserve failures, count distinct task IDs rather than attempts,
 and distinguish native/simulated drivers and correctly incomplete tasks. Keep environment triage
 separate from product failures; do not convert blocked native checks into simulated passes.
+
+## First launch
 
 ### Pilot setup
 

@@ -396,7 +396,13 @@ export class CuaService {
           const result = await waitForAbort(
             Promise.resolve().then(async () => {
               operation.signal.throwIfAborted();
-              return await driver!.callTool(tool, JSON.stringify(args), {
+              // The driver's compact default omits structured controls and route metadata.
+              // Both are required for protected-field checks and exact background grants.
+              const input =
+                tool === 'get_window_state'
+                  ? { ...args, tree_format: 'elements', verbose: true }
+                  : args;
+              return await driver!.callTool(tool, JSON.stringify(input), {
                 signal: operation.signal,
               });
             }),

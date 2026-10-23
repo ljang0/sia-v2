@@ -204,7 +204,7 @@
         }
       }
     },
-    "fields": "professor: string; ta: string",
+    "fields": "professor: string in weekday HH:mm format only; ta: string in weekday HH:mm format only; omit names and explanatory prose from these fields",
     "expected": {
       "professor": "Tuesday 11:00",
       "ta": "Monday 14:00"
@@ -816,7 +816,7 @@
         }
       }
     },
-    "fields": "confirmed_time: string; sent: boolean",
+    "fields": "confirmed_time: string in weekday HH:mm format only, with no connecting words or prose; sent: boolean",
     "expected": {
       "confirmed_time": "Tuesday 11:30",
       "sent": false
@@ -1163,7 +1163,7 @@
         }
       }
     },
-    "fields": "state: string; as_of: string",
+    "fields": "state: string; as_of: string in HH:mm format only, with no explanatory prose",
     "expected": {
       "state": "resolved",
       "as_of": "09:00"
@@ -2367,7 +2367,7 @@
         }
       }
     },
-    "fields": "verified_dates: string[] in the listed/source order; complete: boolean",
+    "fields": "verified_dates: string[] of ISO dates (YYYY-MM-DD) in source order; complete: boolean",
     "expected": {
       "verified_dates": ["2026-10-29"],
       "complete": false

@@ -9,7 +9,7 @@ allowBuilds:
   esbuild: true
 
 minimumReleaseAgeExclude:
-  - electron@43.5.0
+  - electron@43.8.1
 
 # Security patches within the affected release lines. Keep transitive build/test
 # dependencies patched even when their upstream lockfiles or ranges lag behind.

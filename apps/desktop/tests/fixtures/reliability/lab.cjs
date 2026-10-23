@@ -45,7 +45,14 @@ const server = createServer(async (req, res) => {
   if (req.method === 'POST' && url.pathname === '/__action') {
     let body = '';
     for await (const chunk of req) body += chunk;
-    const values = Object.fromEntries(new URLSearchParams(body));
+    // HTML form submission canonicalizes textarea newlines to CRLF. Store semantic
+    // field values consistently with the source fixture and simulated app.
+    const values = Object.fromEntries(
+      [...new URLSearchParams(body)].map(([key, value]) => [
+        key,
+        value.replaceAll('\r\n', '\n'),
+      ]),
+    );
     const page = definition.pages[current];
     const button = page.buttons?.[values.__button];
     if (!button) {

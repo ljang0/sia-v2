@@ -13,6 +13,7 @@ import { RuntimeCoordinator } from '../providers/runtime-coordinator.js';
 import { discoverCodexInstallation } from '../providers/codex-installation.js';
 import { probeProviders } from '../providers/provider-probe.js';
 import { CuaService } from '../mac/cua-service.js';
+import { BrowserWindowService } from '../mac/browser-window.js';
 import { BackgroundTaskLab } from './reliability/lab.js';
 import { SimulatedTaskLab } from './reliability/simulated-lab.js';
 import { gradeReliabilityCase } from './reliability/grade.js';
@@ -55,6 +56,9 @@ live(
     const cipher = new EphemeralPayloadCipher();
     const codexCommand = await discoverCodexInstallation();
     const model = process.env.SIA_SMOKE_MODEL ?? 'gpt-6-astra';
+    const nativeContext = simulated
+      ? undefined
+      : new BrowserWindowService(resolve('build/native/SiaVoiceHelper'));
     const sourceCommit = execFileSync('git', ['rev-parse', 'HEAD'], {
       encoding: 'utf8',
     }).trim();
@@ -144,6 +148,15 @@ live(
         cloud,
         macBrowserAccess: () => true,
         macBackgroundControl: () => true,
+        ...(nativeContext
+          ? {
+              readWindowContext: (pid: number, windowId: number) =>
+                nativeContext.context(pid, windowId),
+              readImageText: (data: string) => nativeContext.imageText(data),
+              inspectBrowserWindow: (pid: number, windowId: number) =>
+                nativeContext.inspect(pid, windowId),
+            }
+          : {}),
         openUrl: (url) => lab.openUrl(url),
         assistantAction: (request) =>
           host.assistantAction(request, (name, args, signal) =>

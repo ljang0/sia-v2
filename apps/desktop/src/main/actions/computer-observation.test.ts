@@ -172,8 +172,8 @@ describe('DesktopActionBackend computer boundary', () => {
       if (tool === 'get_window_state')
         return {
           value: {
-            snapshot_id: 'native',
-            elements: [{ element_index: 1, role: 'AXButton', label: 'Document' }],
+            snapshot_id: 's00000001',
+            elements: [{ element_token: 's00000001:1', role: 'AXButton', label: 'Document' }],
           },
           ...(args.include_screenshot
             ? { images: [{ mimeType: 'image/png', dataBase64: png.toString('base64') }] }

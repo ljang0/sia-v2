@@ -40,6 +40,30 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+it('requests structured controls and background grants instead of the compact markdown default', async () => {
+  const observed = {
+    elements: [{ role: 'AXSecureTextField', element_token: 's00000001:9' }],
+    background_input: { exact_window: { status: 'matched', pid: 42, window_id: 91 } },
+  };
+  const driver = successfulDriver(observed);
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    const result = await service.call(
+      'get_window_state',
+      { pid: 42, window_id: 91, include_screenshot: false },
+      directContext,
+    );
+    expect(result).toEqual(observed);
+    expect(JSON.parse(driver.callTool.mock.calls[0]![1])).toMatchObject({
+      tree_format: 'elements',
+      verbose: true,
+      include_screenshot: false,
+    });
+  } finally {
+    await service.shutdown();
+  }
+});
+
 it.each(['ready', 'unavailable'] as const)(
   'does not request permissions again when computer access is %s',
   async (status) => {
@@ -134,6 +158,8 @@ describe('confirming granted access through the driver', () => {
       pid: 501,
       window_id: 77,
       include_screenshot: true,
+      tree_format: 'elements',
+      verbose: true,
     });
     await cua.permissions();
     expect(driver.callTool).toHaveBeenCalledTimes(2);
