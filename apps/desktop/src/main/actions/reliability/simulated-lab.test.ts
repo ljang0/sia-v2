@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { CuaService } from '../../mac/cua-service.js';
-import { findRecordArray } from '../driver-records.js';
+import { findElementRecords, findRecordArray } from '../driver-records.js';
 import { SimulatedTaskLab } from './simulated-lab.js';
 
 const context = { kind: 'turn', threadId: 'fixture', turnId: 'turn' } as const;
@@ -65,6 +65,46 @@ it('rejects foreign inventory instead of exposing it when a driver is misconfigu
     await expect(lab.call(driver, 'list_apps', {}, context)).rejects.toThrow(
       'must never use a native driver inventory',
     );
+  } finally {
+    await driver.shutdown();
+  }
+});
+
+it('uses current snapshot-bound tokens without the retired snapshot/index input fields', async () => {
+  const lab = new SimulatedTaskLab();
+  await lab.reset({
+    id: 'token-test',
+    category: 'test',
+    title: 'Tokens',
+    request: 'Navigate',
+    fields: 'value: number',
+    expected: { value: 42 },
+    mustObserve: ['/next'],
+    app: {
+      start: '/',
+      pages: {
+        '/': { title: 'Start', text: 'Open next.', links: { Next: '/next' } },
+        '/next': { title: 'Next', text: '42' },
+      },
+    },
+  });
+  const driver = new CuaService(
+    { authorize: async () => 'deny' },
+    { fakePermissions: true, driverFactory: () => lab.createDriver() },
+  );
+  const target = { pid: lab.pid, window_id: 91 };
+  try {
+    const state = await lab.call(driver, 'get_window_state', target, context);
+    const link = findElementRecords(state, 'window').find((row) => row.label === 'Next')!;
+    const input = { ...target, element_token: link.element_token, delivery_mode: 'background' };
+    expect(await lab.call(driver, 'click', input, context)).toMatchObject({
+      effect: 'confirmed',
+    });
+    expect((await lab.state()).current).toBe('/next');
+    await lab.call(driver, 'get_window_state', target, context);
+    expect(await lab.call(driver, 'click', input, context)).toMatchObject({
+      error_code: 'stale_snapshot',
+    });
   } finally {
     await driver.shutdown();
   }

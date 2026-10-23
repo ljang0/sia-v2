@@ -118,6 +118,7 @@ export class SimulatedTaskLab {
       }
       this.revision++;
       this.controls.clear();
+      const snapshotId = `s${this.revision.toString(16).padStart(8, '0')}`;
       this.observed.add(this.current);
       const elements: Record<string, unknown>[] = [
         { role: 'AXStaticText', value: page.text },
@@ -130,7 +131,7 @@ export class SimulatedTaskLab {
         value?: string,
         path?: string,
       ) => {
-        const token = `fixture:${this.revision}:${elements.length}`;
+        const token = `${snapshotId}:${elements.length}`;
         this.controls.set(token, { kind, label, ...(path ? { path } : {}) });
         elements.push({
           role,
@@ -146,7 +147,7 @@ export class SimulatedTaskLab {
         add('field', label, label === 'Body' ? 'AXTextArea' : 'AXTextField', value);
       for (const label of Object.keys(page.buttons ?? {})) add('button', label, 'AXButton');
       return {
-        snapshot_id: `fixture-snapshot-${this.revision}`,
+        snapshot_id: snapshotId,
         elements,
         elements_complete: true,
         background_input: {
@@ -169,7 +170,7 @@ export class SimulatedTaskLab {
       this.injected = true;
       return { error_code: 'stale_snapshot' };
     }
-    if (args.element_token && args.snapshot_id !== `fixture-snapshot-${this.revision}`)
+    if (args.element_token && !this.controls.has(String(args.element_token)))
       return { error_code: 'stale_snapshot' };
     const control = this.controls.get(String(args.element_token));
     const effect = { effect: 'confirmed', delivery: { mode: 'background' } };
