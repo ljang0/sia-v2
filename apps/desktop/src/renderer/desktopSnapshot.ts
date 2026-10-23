@@ -342,6 +342,7 @@ function mapTimelineItem(item: TimelineItemView): ThreadEvent {
       id: item.id,
       type: 'message',
       role: item.kind,
+      ...(item.kind === 'assistant' ? { streaming: item.status === 'running' } : {}),
       content: item.text ?? item.detail ?? '',
       timestamp: item.timestamp,
       ...(item.attachments?.length

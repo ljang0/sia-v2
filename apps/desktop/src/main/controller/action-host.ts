@@ -24,6 +24,10 @@ export class ActionHost {
 
   invocationObserver(): ActionInvocationObserver {
     return (invocation) => {
+      if (invocation.name === 'task_checkpoint') {
+        this.ctx.researchCapture.taintResearchTurn(invocation.context.turnId);
+        return;
+      }
       if (GOOGLE_WORKSPACE_ACTION.test(invocation.name)) {
         this.ctx.researchCapture.excludeResearchTurn(invocation.context.turnId);
         this.ctx.deps.trajectory?.excludeTurn(
@@ -45,6 +49,9 @@ export class ActionHost {
 
   resultObserver(): ActionResultObserver {
     return (notice) => {
+      // Task-local account associations and working notes stay in encrypted chat storage,
+      // outside trajectories and optional research payloads.
+      if (notice.name === 'task_checkpoint') return;
       const thread = this.ctx.state.threads.find(
         (entry) => entry.id === notice.context.threadId,
       );

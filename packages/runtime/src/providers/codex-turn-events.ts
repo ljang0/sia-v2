@@ -13,6 +13,8 @@ export interface ActiveTurn {
   readonly queue: AsyncQueue<ThreadEventEnvelope>;
   readonly events: EventFactory;
   readonly nativeItems: Map<string, Record<string, unknown>>;
+  readonly nativeWorkPending: Set<string>;
+  readonly commentaryPreviews: Map<string, { prefix: string; plain?: boolean }>;
   readonly dynamicToolNames: ReadonlySet<string>;
   readonly mac: boolean;
   readonly nativeApproval: 'ask' | 'auto';
@@ -23,14 +25,32 @@ export interface ActiveTurn {
   readonly taskGrants: Set<string>;
   lastActivity?: number;
   approvalPending?: boolean;
+  userInputPending?: boolean;
+  reconnecting?: boolean;
   dynamicToolsPending?: number;
   watchdogError?: string;
+  watchdogCode?: string;
   hasFinalResponse?: boolean;
   nativeTurnId?: string;
   /** Stop arrived before Codex reported the native turn id. */
   interruptPending?: boolean;
   /** Steers waiting for the native turn id, which turn/steer requires. */
   nativeTurnIdWaiters?: Array<(nativeTurnId: string | undefined) => void>;
+}
+
+/** Some models also wrap commentary in JSON. Decide from its first content before showing it. */
+export function readableCommentaryDelta(active: ActiveTurn, id: string, delta: string): string {
+  const preview = active.commentaryPreviews.get(id) ?? { prefix: '' };
+  active.commentaryPreviews.set(id, preview);
+  if (preview.plain === false) return '';
+  if (preview.plain) return delta;
+  preview.prefix += delta;
+  const first = preview.prefix.trimStart()[0];
+  if (!first && preview.prefix.length < 512) return '';
+  preview.plain = Boolean(first && !['{', '[', '`'].includes(first));
+  const text = preview.plain ? preview.prefix : '';
+  preview.prefix = '';
+  return text;
 }
 
 /**

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { taskCheckpoint } from './task-checkpoint.js';
 
 const id = z.string().trim().min(1).max(512);
 
@@ -846,6 +847,7 @@ export const macAutomation = z
   );
 
 export const actionInputSchemas = {
+  task_checkpoint: taskCheckpoint,
   assistant_library: libraryList,
   memory_learn: memoryLearn,
   memory_suggest: memorySuggestion,

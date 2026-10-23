@@ -398,7 +398,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   suggestion still receives post-action observation: the input may already have worked. The model
   inspects that result before declaring failure or choosing another observed control; Sia never
   automatically retries the input in the foreground.
-  Driver calls have a deadline covering queue wait and execution. Cancelled waiters return promptly
+  Each driver call's execution deadline starts after it owns the serialized queue; waiting for an
+  earlier call or the person's approval does not consume that execution budget. Caller cancellation
+  remains available throughout queueing and execution. Cancelled waiters return promptly
   without overtaking the active call; late initialization cannot replace a recovered driver.
   An expired implicit SDK session renews once for unscoped read-only app/window inventory. Named
   sessions, permission refusals and writes are never replayed by that recovery path.
@@ -457,14 +459,25 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   captured after the lease is held, immediately before sending the turn.
   A whole-task `global_focus` lease prevents concurrent Sia tasks from driving the GUI. Fn audio
   capture can proceed while a task runs; new Mac tasks queue for the screen. Notch's progress-aware
-  watchdog is ported (180 seconds without provider activity; one hour maximum, excluding approval
-  waits). Pending host tool calls suspend the inactivity timer while their own bounded timeouts apply;
-  the one-hour task limit remains. Completion/cancellation wins over a late start-request failure,
+  watchdog checks after 180 seconds without provider activity; one hour remains the task limit,
+  excluding approval/input waits. Pending native commands and host tools protect quiet work; their
+  own bounds and the one-hour task limit remain. An otherwise silent turn gets a bounded metadata-only
+  `thread/read` health check before cancellation. A provider reporting the thread active keeps it
+  running. Inactive, unreachable, and one-hour-limit failures carry distinct error codes and reasons.
+  Completion/cancellation wins over late health checks or a late start-request failure,
   preventing duplicate terminal events or writes to a closed event queue.
   Cancellation interrupts the turn, declines pending approvals and cleans native background
   terminals before releasing the screen. No model/GUI probes run automatically at launch.
   Final structured results use Notch's response contract and balanced-object parser, translated to
   Sia's timeline, voice response and output-file link. Partial JSON is never streamed into speech.
+  Plain-text commentary streams as it arrives; commentary starting with JSON or a code fence stays
+  hidden until the authoritative completed item can be translated. Completion replaces a streamed
+  message in place. Recoverable provider retries show a reconnecting activity, not a failed task.
+  Provider connection and native memory preparation overlap before the model turn, so the full memory
+  context is still included. The startup activity records preparation/connection/Mac-wait durations
+  and shows the actual phase. Unchanged vault notes reuse a bounded in-memory text/digest cache only
+  after a fresh NOFOLLOW open and inode, link-count, size and nanosecond mtime/ctime validation.
+  Optional conversation naming waits until running, queued and waiting tasks have finished.
   Both Mac control modes execute the copied Swift `JournalStore`, `SkillLibrary` and
   `AgentResponse` from `native/notch/engine/` through the helper's headless `--notch-engine` mode. The foreground operating
   prompt and PROMOTE/DISTILL/INDEX recipe are generated from pinned Notch source literals, with
@@ -485,15 +498,38 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   sandboxed `skill_save`/`skill_run` route. No credentials or browser profiles are copied: background
   window control operates on the same already-signed-in Mac apps.
   New Mac agents in either mode enable Notch-style learning. Existing opt-outs remain unchanged.
-  Before request preparation, the host selects up to four relevant Markdown notes from filenames
-  and MOC descriptions using local term matching (including coursework/account vocabulary).
-  Ranking considers every eligible filename before choosing four notes; accumulating more than
-  200 notes does not hide later filenames. Only the selected note bodies are read.
-  Excerpts are bounded to 4,000 characters per note and 12,000 total; unsafe files and notes with
+  Before request preparation, the host selects up to four relevant Markdown notes using filenames,
+  MOC descriptions and note contents, with coursework/account vocabulary and short follow-up context.
+  Every eligible filename participates in metadata ranking. Content search prioritizes those matches,
+  then inspects up to 512 candidate notes, at most 256 KB per file and 2 MB total per request. This is
+  bounded retrieval, not proof that the vault was exhaustively searched. An in-memory read cache holds
+  up to 128 small notes, rechecking file identity, link count and nanosecond timestamps on every hit;
+  no search index or embeddings are sent to another service. Excerpts center on matching passages
+  rather than always taking the beginning. They are bounded to 4,000 characters per note and 12,000 total; unsafe files and notes with
   credential markers are skipped. The copied Swift adapter injects these as historical,
   untrusted `relevant_memory` data on both routes, including when learning is paused. They help
   locate the person's institution/profile but never establish current facts, grant permission,
   or replace live account verification. The model can read more through the existing vault tools.
+  Manual preferences are also ranked by request and selected as whole entries within 16,000 characters
+  on connected and both Mac routes. The native helper receives that selected projection; the complete
+  managed preferences file stays available. Credential markers are filtered before context assembly.
+  Task continuity is separate from automatic learning: `assistant/task-context.ts` stores up to eight
+  task checkpoints per conversation in the encrypted record repository, outside renderer snapshots
+  and direct action research/trajectory payloads. Each checkpoint preserves the original request,
+  constraints, sourced account/institution associations, source coverage, uncertain/verified writes,
+  next steps, revision and update time. `task_checkpoint` is capability-scoped to the active turn;
+  historical reads are limited to retained turns in that same conversation. Updates use revision
+  checks and cannot silently drop known sources or writes; corrections use explained exclusions or
+  evidenced reversals. Memory reviews cannot use it. Starting a resumed turn preserves its state,
+  including after relaunch; partial prior-task summaries can retrieve their full retained record.
+  Forks copy checkpoints with conversation history, edits remove the replaced task checkpoint, and
+  thread/agent deletion removes its records. No cross-conversation memory is created by this tool.
+  Before Mac/scheduled results are presented, the host rejects success while a recorded scope gap,
+  pending/blocked source, uncertain write or next step remains. Connected completions with such gaps
+  also fail with an attention notice. This is a consistency check on model-reported state, not an
+  independent semantic verifier: it cannot prove omitted sources were checked or prevent every false
+  claim. Fresh app evidence and existing file verification remain required. Explicit automatic-learning
+  settings still govern all durable preferences, vault notes, lessons and consolidation.
   Native consolidation uses the source recipe on the agent's pinned Codex model after new
   experience, at most every six hours while idle; explicit review/trigger can request it sooner.
   The review has only `memory_vault` list/read/write/append: no native shell, GUI, accounts or

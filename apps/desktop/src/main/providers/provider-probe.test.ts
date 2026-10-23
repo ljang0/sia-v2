@@ -41,7 +41,7 @@ describe('probeProviders', () => {
     expect(meta?.status).toBe('unavailable');
   });
 
-  it.each(['0.149.0', '0.153.0', '0.155.0-alpha.9.2', '0.160.0'])(
+  it.each(['0.149.0', '0.153.0', '0.155.0-alpha.9.2', '0.160.0', '0.162.0-alpha.2'])(
     'pins Codex compatibility, checks auth, and passes only the minimal safe environment (%s)',
     async (version) => {
       const directory = await mkdtemp(join(tmpdir(), 'sia-provider-probe-'));

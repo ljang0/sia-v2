@@ -187,6 +187,7 @@ export class Agents {
     );
     if (active) throw new Error('Cancel the active or queued task before deleting this agent.');
     this.ctx.assistant.library.forgetAgent(agentId);
+    this.ctx.assistant.taskContext.forgetAgent(agentId, agent.threadIds);
     const threadIds = new Set(agent.threadIds);
     this.ctx.state.agents = this.ctx.state.agents.filter(({ id }) => id !== agentId);
     this.ctx.state.threads = this.ctx.state.threads.filter(({ agentId: id }) => id !== agentId);

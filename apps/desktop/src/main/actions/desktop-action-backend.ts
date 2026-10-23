@@ -180,6 +180,7 @@ export class DesktopActionBackend implements ActionBackend {
         case 'computer_write_file':
           return await workspaceFileAction(request);
         case 'assistant_library':
+        case 'task_checkpoint':
         case 'memory_learn':
         case 'memory_suggest':
         case 'memory_vault':

@@ -32,17 +32,24 @@ release approval by themselves.
 
 Codex installation discovery selects the newest admitted installed binary, including the copy
 bundled with the official desktop app. The stable range remains `>=0.147.0 <0.154.0`;
-`0.155.0-alpha.9`, `0.155.0-alpha.9.2` and `0.160.0` are additional exact builds, independently checked for ChatGPT authentication,
-ephemeral session isolation in connected/review/foreground/background modes, and its live Astra
+`0.155.0-alpha.9`, `0.155.0-alpha.9.2`, `0.160.0` and `0.162.0-alpha.2` are additional exact builds, independently checked for ChatGPT authentication,
+ephemeral session isolation in connected/review/foreground/background modes, and the live model
 catalog. Discovery includes both the older `Contents/Resources/codex` executable and the current
 `Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex` bundle layout; otherwise an updated
 official app can be missed and an older managed runtime selected instead. Other untested versions,
-including `0.160.1` and `0.161.0`, remain excluded. The exact exception
+including `0.160.1`, `0.161.0`, other `0.162.0` prereleases and stable `0.162.0`, remain excluded. The exact exception
 lives in `CODEX_SUPPORTED_VERSIONS` and is shared by discovery, probing and runtime startup.
 This avoids falling back to an older CLI with a narrower model catalog. Existing threads retain
 their selected model and harness. Model discovery uses the official
 [App Server model catalog](https://learn.chatgpt.com/docs/app-server); it does not invent account
 access from a static model label.
+
+The `0.162.0-alpha.2` admission also verifies both `gpt-6.1-sol` (GPT-6.1 Sol) and
+`gpt-6-astra` (GPT-6 Astra) against the signed-in account's catalog, and creates isolated ephemeral
+sessions for each in connected, review, foreground and background modes without sending a turn.
+Both remain ordinary Codex subscription routes. Their labels and reasoning choices come from
+`model/list`; unavailable or hidden models are not added as static choices. Existing agents and
+threads keep their selected model until the person changes it.
 
 When Codex is missing or incompatible, **Set up Codex** in onboarding or
 Settings → AI downloads the Sia-pinned stable `0.160.0` from the official npm registry.
@@ -64,6 +71,9 @@ The opt-in no-turn candidate check is:
 ```sh
 SIA_CODEX_REAL_SMOKE=1 SIA_CODEX_CANDIDATE_COMMAND='/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex' SIA_CODEX_CANDIDATE_VERSION=0.160.0 SIA_SMOKE_MODEL=gpt-6-astra pnpm --filter @sia/runtime exec vitest run src/codex-isolation.smoke.test.ts
 ```
+
+For the admitted `0.162.0-alpha.2` desktop build, run the same check with that exact candidate
+version and each of `SIA_SMOKE_MODEL=gpt-6.1-sol` and `SIA_SMOKE_MODEL=gpt-6-astra`.
 
 It creates isolated sessions but sends no model turn or app action. Use the opt-in desktop
 memory and background recovery smokes for actual turns with disposable local/in-memory fixtures.

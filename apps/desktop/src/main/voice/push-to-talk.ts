@@ -72,6 +72,7 @@ type Command = {
   label?: string;
   text?: string;
   hint?: string;
+  voicePhase?: 'listening' | 'transcribing' | 'sent' | 'notice';
   dismiss?: boolean;
 };
 export interface VoiceHelperTransport {
@@ -498,7 +499,17 @@ export class PushToTalkService {
       this.#view.practiceTranscript = undefined;
       this.#set('starting');
       this.#helper.send({ type: 'session', id: recordingId });
-      const { sessionId } = await this.#options.voice.startRealtime();
+      const { sessionId } = await this.#options.voice.startRealtime((text) => {
+        if (this.#recording !== recording || !this.#options.allowed()) return;
+        this.#helper?.send({
+          type: 'status',
+          id: recording.id,
+          text: text.slice(0, 4000),
+          label: recording.practice ? 'Sia · Voice practice' : target.label,
+          voicePhase: recording.released ? 'transcribing' : 'listening',
+          hint: recording.released ? 'Finishing your request…' : 'Esc to cancel',
+        });
+      });
       if (this.#recording !== recording || !this.#options.allowed()) {
         await this.#options.voice.stopRealtime(sessionId, false).catch(() => undefined);
         return;
@@ -542,6 +553,15 @@ export class PushToTalkService {
         this.#taskThreads.set(task.threadId, { task, generation: this.#speechGeneration });
       this.syncTasks();
       this.#helper?.send({ type: 'session' });
+      if (!recording.practice)
+        this.#helper?.send({
+          type: 'status',
+          text: text.slice(0, 4000),
+          label: recording.target.label,
+          voicePhase: 'sent',
+          hint: 'Your request is in Sia',
+          dismiss: true,
+        });
       this.#set('idle');
     } catch {
       if (this.#recording === recording)

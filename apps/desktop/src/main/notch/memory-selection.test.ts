@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { selectMemoryNotes } from './memory-selection.js';
+import { memoryExcerpt, selectMemoryNotes } from './memory-selection.js';
 
 it('loads institutional/account hints from the index without relying on the model to open links', () => {
   expect(
@@ -14,6 +14,36 @@ it('loads institutional/account hints from the index without relying on the mode
       'study.md',
     ]),
   ).toEqual(['study.md']);
+});
+
+it('finds content-only account associations and retrieves the relevant passage late in a long note', () => {
+  const text =
+    'Unrelated historical notes.\n'.repeat(500) +
+    '\nCMU Canvas at Carnegie Mellon uses the university account for current professors.\n' +
+    'Other notes.\n'.repeat(300);
+  const contents = new Map([
+    ['notes.md', text],
+    ['cooking.md', 'Soup and recipes'],
+  ]);
+  expect(
+    selectMemoryNotes('Find my professors at CMU', '', ['notes.md', 'cooking.md'], contents),
+  ).toEqual(['notes.md']);
+  const passage = memoryExcerpt(text, 'Find my professors at CMU');
+  expect(passage.text).toContain('CMU Canvas at Carnegie Mellon');
+  expect(passage.text.length).toBeLessThanOrEqual(4000);
+  expect(passage.truncated).toBe(true);
+  expect(
+    selectMemoryNotes(
+      'continue with that',
+      '',
+      ['notes.md'],
+      contents,
+      'Find my professors through Canvas',
+    ),
+  ).toEqual(['notes.md']);
+  expect(selectMemoryNotes('hi', '', ['notes.md'], contents, 'Find Canvas professors')).toEqual(
+    [],
+  );
 });
 
 it('ignores empty/generic requests, unsafe links, scripts and unrelated notes', () => {

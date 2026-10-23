@@ -344,12 +344,14 @@ button.agentAvatar {
 
 .threadRow:hover,
 .newThreadInline:hover {
-  background: var(--shell-hover);
   color: var(--shell-text);
 }
 
+.newThreadInline:hover {
+  background: var(--shell-hover);
+}
+
 .threadRowSelected {
-  background: var(--shell-selected);
   color: var(--shell-text);
   font-weight: var(--weight-medium);
 }
@@ -373,9 +375,36 @@ button.agentAvatar {
 }
 
 .threadRow {
+  position: relative;
+  isolation: isolate;
   gap: 2px;
   padding: 0 3px 0 0;
   cursor: default;
+}
+
+/* Only the surface contracts on hover; titles and click targets stay in place. */
+.threadRow::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  border-radius: inherit;
+  background: var(--shell-hover);
+  content: '';
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity var(--motion-fast) var(--ease-standard),
+    transform var(--motion-fast) var(--ease-standard);
+}
+
+.threadRowSelected::before {
+  background: var(--shell-selected);
+  opacity: 1;
+}
+
+.threadRow:hover::before {
+  opacity: 1;
+  transform: scale(0.98, 0.9);
 }
 
 .threadSelectButton {
@@ -593,10 +622,6 @@ button.agentAvatar {
 
 .agentAvatar:has([data-state])::after {
   display: none;
-}
-
-.threadRowSelected {
-  background: var(--shell-selected);
 }
 
 .sidebarFooter {

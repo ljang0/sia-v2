@@ -72,16 +72,23 @@ export function ActivityRow({ event }: ActivityRowProps) {
   const hasDetail = Boolean(event.title || event.detail || event.presentation);
   const screen =
     event.presentation?.kind === 'image' && isScreenCapture(event.presentation.path);
-  const runningLabel = screen
-    ? 'Looking at the screen'
-    : activityLabel(event.toolName, event.presentation?.kind ?? event.kind);
+  const runningLabel =
+    event.toolName === 'runtime.start'
+      ? event.status === 'complete'
+        ? 'Ready to work'
+        : event.title || 'Getting ready'
+      : screen
+        ? 'Looking at the screen'
+        : activityLabel(event.toolName, event.presentation?.kind ?? event.kind);
   const label =
     event.status === 'complete' ? completedActivityLabel(runningLabel) : runningLabel;
   const summary = activitySummary(event, [runningLabel, label]);
   // The plain title only when the rich detail below does not already say it. Never the raw
   // tool name (computer_action, mail_send): the label above already names the step.
   const detailTitle =
-    !event.presentation && summary && event.title !== event.detail ? event.title : '';
+    !event.presentation && (summary || event.kind === 'command') && event.title !== event.detail
+      ? event.title
+      : '';
 
   return (
     <div className={`${styles.activityRow} ${statusClass}`} data-status={event.status}>
@@ -95,17 +102,7 @@ export function ActivityRow({ event }: ActivityRowProps) {
         <Icon size={16} aria-hidden="true" />
         <span className={styles.activityTitle}>
           <span className={styles.activityLabel}>{label}</span>
-          {summary ? (
-            <span
-              className={
-                event.presentation?.kind === 'command'
-                  ? `${styles.activitySummary} ${styles.activitySummaryCode}`
-                  : styles.activitySummary
-              }
-            >
-              {summary}
-            </span>
-          ) : null}
+          {summary ? <span className={styles.activitySummary}>{summary}</span> : null}
         </span>
         <span className={primitives.visuallyHidden}>Status: {event.status}</span>
         <StatusIcon size={16} className={statusIconClass} aria-hidden="true" />
@@ -127,10 +124,10 @@ export function ActivityRow({ event }: ActivityRowProps) {
   );
 }
 
-/** One specific, plain line about the step: the command, the files, or the search. */
+/** One specific, plain line about the step. Commands stay inside the expandable detail. */
 function activitySummary(event: ActivityEvent, labels: readonly string[]): string {
   const presentation = event.presentation;
-  if (presentation?.kind === 'command') return clipText(singleLine(presentation.command), 90);
+  if (presentation?.kind === 'command' || event.kind === 'command') return '';
   if (presentation?.kind === 'file_change' && presentation.files.length) {
     const first = baseName(presentation.files[0]!.path);
     const more = presentation.files.length - 1;

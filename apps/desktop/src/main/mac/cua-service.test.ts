@@ -326,6 +326,54 @@ describe('CuaService call boundaries', () => {
     ]);
   });
 
+  it('gives each queued call its full execution budget, including after an approval wait', async () => {
+    vi.useFakeTimers();
+    const decision = Promise.withResolvers<'allow'>();
+    let secondStarted = false;
+    const driver = {
+      callTool: vi.fn(),
+      shutdown: vi.fn(async () => undefined),
+    };
+    const service = new CuaService(
+      { authorize: async () => decision.promise },
+      {
+        callTimeoutMs: 25,
+        driverFactory: (authorize) => {
+          driver.callTool
+            .mockImplementationOnce(async () => {
+              await authorize({
+                adapterId: 'window',
+                riskClass: 'input',
+                permissionMode: 'standard',
+                publicSession: 's',
+                requestDigest: 'd',
+                humanSummary: 'Click',
+                resourceJson: '{}',
+                expiresUnixMs: 0n,
+              });
+              return { rawJson: '{}' };
+            })
+            .mockImplementationOnce(async () => {
+              secondStarted = true;
+              await new Promise((resolve) => setTimeout(resolve, 20));
+              return { rawJson: '{"done":true}' };
+            });
+          return driver;
+        },
+      },
+    );
+    const first = service.call('click', {}, { kind: 'turn', threadId: 't', turnId: 'u' });
+    await vi.advanceTimersByTimeAsync(0);
+    const second = service.call('list_apps', {}, directContext);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(secondStarted).toBe(false);
+    decision.resolve('allow');
+    await vi.advanceTimersByTimeAsync(20);
+    await first;
+    await expect(second).resolves.toEqual({ done: true });
+    expect(driver.shutdown).not.toHaveBeenCalled();
+  });
+
   it('disposes a late driver initialization instead of replacing the recovered driver', async () => {
     vi.useFakeTimers();
     const initializing = Promise.withResolvers<ReturnType<typeof successfulDriver>>();

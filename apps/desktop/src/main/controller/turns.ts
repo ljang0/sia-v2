@@ -32,6 +32,7 @@ type TurnsContext = Pick<
   | 'shuttingDown'
   | 'speech'
   | 'state'
+  | 'threads'
 >;
 
 /**
@@ -175,11 +176,12 @@ export class Turns {
       text: messageText,
       provider: thread.provider,
     });
-    if (thread.title === UNTITLED_THREAD_TITLE) {
+    if (thread.title === UNTITLED_THREAD_TITLE && thread.titleSource !== 'custom') {
       thread.title =
         conversationTitle(input.text) ||
         attachmentGrants[0]?.view.name ||
         (attachmentGrants.length ? 'Attached files' : UNTITLED_THREAD_TITLE);
+      thread.titleSource = 'message';
     }
     const queued: QueuedTurn = {
       ...(context ? { context } : {}),
@@ -238,6 +240,7 @@ export class Turns {
     }
     thread.updatedAt = new Date().toISOString();
     this.ctx.commit();
+    this.ctx.threads.titles.request(thread.id);
     return { turnId, snapshot: this.ctx.resultSnapshot() };
   }
 
@@ -288,11 +291,19 @@ export class Turns {
     try {
       // The next turn starts a fresh provider session from the remaining conversation.
       void this.ctx.runtime?.releaseSession(thread.id).catch(() => undefined);
-      return this.sendTurn({
+      const sent = this.sendTurn({
         threadId: thread.id,
         text,
         ...(attachmentIds.length ? { attachmentIds } : {}),
       });
+      if (last.turnId) {
+        try {
+          this.ctx.assistant.taskContext.forgetTurn(thread.id, thread.agentId, last.turnId);
+        } catch {
+          /* Cleanup must not roll back a turn that has already been sent. */
+        }
+      }
+      return sent;
     } catch (error) {
       this.ctx.state.timeline = timeline;
       thread.status = previousStatus;
@@ -633,10 +644,7 @@ export class Turns {
       id: randomUUID(),
       turnId: turn.id,
       kind: 'activity',
-      title: this.ctx.deps.fakeServices
-        ? 'Preparing local tools'
-        : `Starting ${thread.provider === 'codex' ? 'Codex' : thread.provider}`,
-      detail: thread.workspace,
+      title: this.ctx.deps.fakeServices ? 'Preparing local tools' : 'Getting your task ready',
       status: 'running',
       toolName: 'runtime.start',
       timestamp: new Date().toISOString(),
@@ -673,6 +681,7 @@ export class Turns {
     if (this.ctx.mac.awakeTurns.delete(threadId)) this.ctx.deps.keepAwake?.release(threadId);
     if (thread) this.workspaceLeases.delete(thread.workspace);
     this.drainQueue();
+    this.ctx.threads.titles.resume();
     // A follow-up can still wait when another thread took the workspace first. A paused
     // thread keeps its failed state and Continue task until the person acts.
     if (thread && !this.heldThreads.has(threadId)) this.markWaitingFollowUps(thread);

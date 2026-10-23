@@ -51,13 +51,12 @@ describe('status accessibility', () => {
       />,
     );
 
-    // The finished row names the step and its command before it is expanded.
-    expect(
-      screen.getByRole('button', { name: /Ran a step on your Mac\s*pnpm test/i }),
-    ).toBeTruthy();
+    // Keep the summary concise; command details appear only after expansion.
+    expect(screen.getByRole('button', { name: /Ran a step on your Mac/i })).toBeTruthy();
+    expect(screen.queryByText('pnpm test')).toBeNull();
     expect(screen.queryByText('20 passed')).toBeNull();
     fireEvent.click(screen.getByRole('button', { name: /Ran a step on your Mac/i }));
-    expect(screen.getAllByText('pnpm test').length).toBeGreaterThan(1);
+    expect(screen.getByText('pnpm test')).toBeTruthy();
     expect(screen.getByText('/tmp/workspace')).toBeTruthy();
     expect(screen.getByText('20 passed')).toBeTruthy();
     expect(screen.getByText('Finished · 912 ms')).toBeTruthy();

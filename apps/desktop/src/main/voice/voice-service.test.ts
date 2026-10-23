@@ -394,4 +394,45 @@ describe('ElevenLabsVoiceService', () => {
     ]);
     records.close();
   });
+
+  it.each([true, false])(
+    'limits live previews to the active session (commit: %s)',
+    async (commit) => {
+      class PreviewSocket extends FakeRealtimeSocket {
+        transcript(type: string, text: string) {
+          this.emitMessage({ message_type: type, text });
+        }
+      }
+      const records = repository();
+      const socket = new PreviewSocket();
+      const service = new ElevenLabsVoiceService({
+        repository: records,
+        gateway: gateway(),
+        websocketFactory: () => {
+          queueMicrotask(() => socket.open());
+          return socket;
+        },
+      });
+      await service.configure();
+      const preview = vi.fn();
+      const { sessionId } = await service.startRealtime(preview);
+      socket.transcript('partial_transcript', '  Find my classes  ');
+      expect(preview).toHaveBeenLastCalledWith('Find my classes');
+      socket.transcript('partial_transcript', 'x'.repeat(4_001));
+      expect(preview).toHaveBeenLastCalledWith('x'.repeat(4_000));
+      // A failed display update must not interrupt recognition or commit.
+      preview.mockImplementation(() => {
+        throw new Error('Preview closed');
+      });
+      socket.transcript('final_transcript', 'Find my classes this week');
+      service.appendRealtime(sessionId, Buffer.from([1, 0]).toString('base64'));
+      await expect(service.stopRealtime(sessionId, commit)).resolves.toBe(
+        commit ? 'live request' : '',
+      );
+      const calls = preview.mock.calls.length;
+      socket.transcript('partial_transcript', 'Late words after close');
+      expect(preview).toHaveBeenCalledTimes(calls);
+      records.close();
+    },
+  );
 });

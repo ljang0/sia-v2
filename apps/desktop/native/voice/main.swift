@@ -12,12 +12,6 @@ func emit(_ value: [String: Any]) {
 }
 
 @MainActor
-final class AssistantStatusPanel: NSPanel {
-    override var canBecomeKey: Bool { false }
-    override var canBecomeMain: Bool { false }
-}
-
-@MainActor
 final class VoiceHelper {
     private var contextEnabled = false
     private var macContext = false
@@ -34,17 +28,9 @@ final class VoiceHelper {
     private var statusTimer: Timer?
     private var lastPing = Date()
     private var observers: [NSObjectProtocol] = []
-    private let status = AssistantStatusPanel(contentRect: NSRect(x: 0, y: 0, width: 440, height: 60),
-                                 styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    private let status = VoiceTranscriptPanelController()
 
     init() {
-        status.isOpaque = false
-        status.backgroundColor = .clear
-        status.hasShadow = true
-        status.hidesOnDeactivate = false
-        status.ignoresMouseEvents = true
-        status.level = .statusBar
-        status.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         monitor = PushToTalkMonitor()
         monitor?.onHoldBegan = { [weak self] in
             guard let self else { return }
@@ -75,7 +61,10 @@ final class VoiceHelper {
             })
         }
         observers.append(NotificationCenter.default.addObserver(forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.glow.displaysChanged() }
+            MainActor.assumeIsolated {
+                self?.glow.displaysChanged()
+                self?.status.reposition()
+            }
         })
         Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -134,7 +123,8 @@ final class VoiceHelper {
                 recordingID = id
                 processingVoice = true
                 updateGlow()
-                status.orderOut(nil)
+                statusTimer?.invalidate()
+                status.show("", hint: "Esc to cancel", label: value["label"] as? String ?? "Sia", phase: .listening)
                 emit(["type": "recording", "id": id])
                 limit = Timer.scheduledTimer(withTimeInterval: 60, repeats: false) { [weak self] _ in
                     MainActor.assumeIsolated { self?.cancel() }
@@ -145,7 +135,7 @@ final class VoiceHelper {
             if sessionID == id || heldID == id {
                 stop(commit: false)
                 sessionID = nil
-                status.orderOut(nil)
+                status.hide()
             }
         case "task":
             guard let phase = value["phase"] as? String,
@@ -157,34 +147,23 @@ final class VoiceHelper {
             if sessionID == nil { processingVoice = false }
             updateGlow()
             statusTimer?.invalidate()
-            status.orderOut(nil)
+            if sessionID != nil && processingVoice && recordingID == nil { status.transcribing() }
+            else { status.hide() }
         case "status":
-            sessionID = value["id"] as? String
-            show(value["text"] as? String ?? "Sia", hint: value["hint"] as? String ?? "")
+            if let id = value["id"] as? String, id != sessionID { return }
+            statusTimer?.invalidate()
+            status.show(value["text"] as? String ?? "Sia", hint: value["hint"] as? String ?? "",
+                        label: value["label"] as? String ?? "Sia",
+                        phase: VoiceTranscriptPhase(rawValue: value["voicePhase"] as? String ?? "") ?? .notice)
             if value["dismiss"] as? Bool == true {
                 sessionID = nil
                 statusTimer = Timer.scheduledTimer(withTimeInterval: 3, repeats: false) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.status.orderOut(nil) }
+                    MainActor.assumeIsolated { self?.status.hide() }
                 }
             }
         case "shutdown": shutdown()
         default: break
         }
-    }
-
-    private func show(_ text: String, hint: String) {
-        statusTimer?.invalidate()
-        status.ignoresMouseEvents = true
-        status.setContentSize(NSSize(width: 440, height: 60))
-        let screen = EdgeGlowWindowController.targetScreen()
-        status.setFrameOrigin(NSPoint(x: screen.visibleFrame.midX - 220, y: screen.visibleFrame.maxY - 78))
-        status.contentView = NSHostingView(rootView:
-            VStack(spacing: 4) {
-                Text(String(text.prefix(140))).font(.system(size: 14, weight: .medium)).lineLimit(1)
-                Text(hint).font(.system(size: 11)).foregroundStyle(.secondary)
-            }.padding(12).frame(width: 440, height: 60).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16))
-        )
-        status.orderFrontRegardless()
     }
 
     private func updateGlow() {
@@ -200,6 +179,7 @@ final class VoiceHelper {
         let heardSpeech = capture?.stop() ?? false
         capture = nil
         processingVoice = commit && heardSpeech
+        if processingVoice { status.transcribing() }
         updateGlow()
         guard let id else { return }
         DispatchQueue.main.async {
@@ -214,7 +194,7 @@ final class VoiceHelper {
         heldID = nil
         stop(commit: false)
         sessionID = nil
-        status.orderOut(nil)
+        status.hide()
         if let id { emit(["type": "cancelled", "id": id]) }
     }
 

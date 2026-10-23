@@ -214,6 +214,7 @@ export class ControllerContext {
     this.schedules.timer.unref();
     this.assistant.startIdleReviews();
     void this.schedules.runDueSchedules();
+    this.threads.titles.refresh();
   }
 
   resultSnapshot(): DesktopSnapshot {

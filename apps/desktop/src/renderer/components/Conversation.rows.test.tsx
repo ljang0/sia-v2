@@ -39,6 +39,7 @@ function history(turns: number): ThreadEvent[] {
         type: 'message',
         role: 'assistant',
         content: `Reply ${turn}`,
+        streaming: turn === turns - 1,
         timestamp,
       },
     );

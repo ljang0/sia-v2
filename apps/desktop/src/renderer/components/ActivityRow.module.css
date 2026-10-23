@@ -93,11 +93,6 @@
   font-weight: var(--weight-regular);
 }
 
-.activitySummaryCode {
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-}
-
 .activityDetail {
   margin: 2px 12px 10px 40px;
   padding: 10px 14px;

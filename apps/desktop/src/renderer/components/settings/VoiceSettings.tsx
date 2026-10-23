@@ -74,7 +74,10 @@ export function VoiceSettings({
     >
       <InlineSettingsError message={error} />
       {onStartSetup && voice.status !== 'connected' ? (
-        <button className={buttons.secondaryButton} onClick={onStartSetup}>
+        <button
+          className={`${buttons.secondaryButton} ${styles.setupGuide}`}
+          onClick={onStartSetup}
+        >
           Walk me through setup
         </button>
       ) : null}

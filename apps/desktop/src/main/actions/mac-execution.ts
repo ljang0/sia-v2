@@ -5,6 +5,7 @@ import type { ThreadEventEnvelope } from '@sia/protocol';
 // Shell/AppleScript/screenshot loop retained; Claude transport and Notch UI replaced.
 // See THIRD_PARTY_NOTICES.md and docs/architecture.md for the adapter differences.
 export const MAC_EXECUTION_TOOLS: readonly string[] = [
+  'task_checkpoint',
   'assistant_library',
   'memory_learn',
   'memory_suggest',

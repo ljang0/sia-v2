@@ -75,6 +75,8 @@ export function activityLabel(tool: string | undefined, kind?: string): string {
     schedule_update: 'Updating a schedule',
     schedule_delete: 'Removing a schedule',
     'runtime.start': 'Getting ready',
+    'runtime.connection': 'Reconnecting to your AI',
+    task_checkpoint: 'Keeping track of the task',
   };
   if (tool && labels[tool]) return labels[tool];
   const kinds: Record<string, string> = {
@@ -111,6 +113,7 @@ const PAST_TENSE: Record<string, string> = {
   Preparing: 'Prepared',
   Reading: 'Read',
   Removing: 'Removed',
+  Reconnecting: 'Reconnected',
   Replying: 'Replied',
   Reviewing: 'Reviewed',
   Running: 'Ran',

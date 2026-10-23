@@ -3,6 +3,30 @@ import { executionLabel, modelChoices } from './agentModels';
 import { demoSnapshot } from './demo/snapshot';
 import type { ProviderSetup } from './types';
 
+it('offers Sol 6.1 and Astra 6 exactly as the connected account advertises them', () => {
+  const codex = structuredClone(demoSnapshot.providers.find(({ id }) => id === 'codex')!);
+  codex.models = [
+    { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol', description: '', reasoningEfforts: ['low'] },
+    { id: 'gpt-6-astra', label: 'GPT-6 Astra', description: '', reasoningEfforts: ['medium'] },
+  ];
+  expect(modelChoices([codex])).toEqual([
+    {
+      provider: 'codex',
+      model: 'gpt-6.1-sol',
+      label: 'GPT-6.1 Sol · ChatGPT plan',
+      ready: true,
+    },
+    {
+      provider: 'codex',
+      model: 'gpt-6-astra',
+      label: 'GPT-6 Astra · ChatGPT plan',
+      ready: true,
+    },
+  ]);
+  codex.models = codex.models.slice(1);
+  expect(modelChoices([codex]).map(({ model }) => model)).toEqual(['gpt-6-astra']);
+});
+
 describe('executionLabel', () => {
   it('names the plan, not the harness, for a ChatGPT-plan thread', () => {
     expect(executionLabel(demoSnapshot.providers, 'codex', 'gpt-5.6-sol')).toBe('ChatGPT plan');

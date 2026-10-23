@@ -106,6 +106,64 @@ function release(h: ReturnType<typeof harness>, id: string) {
 }
 
 describe('Fn push-to-talk sessions', () => {
+  it('previews words without sending, then shows the committed transcript at the pinned destination', async () => {
+    const h = harness();
+    const target = h.target();
+    const id = await listen(h);
+    const preview = vi.mocked(h.voice.startRealtime).mock.calls[0]?.[0];
+    expect(preview).toBeTypeOf('function');
+    preview?.('Please summarize');
+    expect(h.native.send).toHaveBeenLastCalledWith({
+      type: 'status',
+      id,
+      text: 'Please summarize',
+      label: target.label,
+      voicePhase: 'listening',
+      hint: 'Esc to cancel',
+    });
+    expect(h.send).not.toHaveBeenCalled();
+    h.changeTarget();
+    release(h, id);
+    preview?.('Please summarize this document.');
+    expect(h.native.send).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        type: 'status',
+        id,
+        voicePhase: 'transcribing',
+        label: target.label,
+      }),
+    );
+    await flush();
+    expect(h.send).toHaveBeenCalledExactlyOnceWith(target, 'Please summarize this document.');
+    expect(h.native.send).toHaveBeenLastCalledWith({
+      type: 'status',
+      text: 'Please summarize this document.',
+      label: target.label,
+      voicePhase: 'sent',
+      hint: 'Your request is in Sia',
+      dismiss: true,
+    });
+    const commands = h.native.send.mock.calls.length;
+    preview?.('Late words after sending');
+    expect(h.native.send).toHaveBeenCalledTimes(commands);
+  });
+
+  it.each(['cancel', 'new recording', 'sign-out'] as const)(
+    'ignores preview updates from an old session after %s',
+    async (reason) => {
+      const h = harness();
+      const id = await listen(h);
+      const preview = vi.mocked(h.voice.startRealtime).mock.calls[0]?.[0];
+      if (reason === 'sign-out') h.setAllowed(false);
+      else h.event({ type: 'cancelled', id });
+      if (reason === 'new recording') await listen(h);
+      h.native.send.mockClear();
+      preview?.('These words no longer belong on screen');
+      expect(h.native.send).not.toHaveBeenCalled();
+      expect(h.send).not.toHaveBeenCalled();
+    },
+  );
+
   it('transcribes practice without dispatching a task or reading app context, then restores normal Fn', async () => {
     const h = harness();
     h.service.setContextEnabled(true, true);
@@ -376,8 +434,15 @@ it('dispatches to the pinned voice thread without a result-window callback', asy
   await flush();
   expect(h.send).toHaveBeenCalledExactlyOnceWith(target, 'Please summarize this document.');
   expect(h.service.view().phase).toBe('idle');
-  expect(h.native.send.mock.calls.some(([command]) => command.type === 'status')).toBe(false);
-  expect(h.native.send).toHaveBeenLastCalledWith({ type: 'session' });
+  expect(h.native.send).toHaveBeenCalledWith({ type: 'session' });
+  expect(h.native.send).toHaveBeenLastCalledWith({
+    type: 'status',
+    text: 'Please summarize this document.',
+    label: target.label,
+    voicePhase: 'sent',
+    hint: 'Your request is in Sia',
+    dismiss: true,
+  });
   expect(
     nativeVoiceEvent.safeParse({ type: 'panelReply', id: target.threadId, text: 'obsolete' })
       .success,

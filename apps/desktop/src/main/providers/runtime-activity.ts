@@ -9,6 +9,7 @@ export function humanizeToolName(value: string): string {
 }
 
 const RUNTIME_TOOL_LABELS: Record<string, string> = {
+  task_checkpoint: 'Keeping track of the task',
   websearch: 'Searching the web',
   browser_tabs: 'Checking browser tabs',
   browser_snapshot: 'Reading the page',

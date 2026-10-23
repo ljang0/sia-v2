@@ -13,6 +13,7 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from '../assistant/memory-suggestions.js';
 import { NativeSkills } from '../assistant/native-skills.js';
+import { TaskContextStore } from '../assistant/task-context.js';
 import { NotchVault } from '../notch/vault.js';
 import type { ControllerContext } from './context.js';
 
@@ -40,6 +41,7 @@ type AssistantFeaturesContext = Pick<
  */
 export class AssistantFeatures {
   readonly library: AssistantLibrary;
+  readonly taskContext: TaskContextStore;
   memoryTimer: NodeJS.Timeout | undefined;
   notchTimer: NodeJS.Timeout | undefined;
   private nextNotchCheck = 0;
@@ -47,6 +49,7 @@ export class AssistantFeatures {
 
   constructor(private readonly ctx: AssistantFeaturesContext) {
     this.library = new AssistantLibrary(ctx.deps.repository);
+    this.taskContext = new TaskContextStore(ctx.deps.repository);
   }
 
   /**
@@ -219,6 +222,39 @@ export class AssistantFeatures {
       view.learningAgents?.includes(agentId) === true &&
       view.reviewAgents?.includes(agentId) === true;
     switch (request.name) {
+      case 'task_checkpoint': {
+        const args = parseActionArguments('task_checkpoint', request.arguments);
+        const record =
+          args.operation === 'read'
+            ? this.taskContext.read(
+                request.context.threadId,
+                agentId,
+                args.turn_id ?? request.context.turnId,
+              )
+            : this.taskContext.update(
+                request.context.threadId,
+                agentId,
+                request.context.turnId,
+                args,
+              );
+        return {
+          outcome: 'verified',
+          summary:
+            args.operation === 'read'
+              ? 'Read the task checkpoint.'
+              : 'Saved the task checkpoint. App results still need verification.',
+          data: record
+            ? {
+                ...record,
+                remaining: this.taskContext.remaining(
+                  request.context.threadId,
+                  agentId,
+                  record.turnId,
+                ),
+              }
+            : null,
+        };
+      }
       case 'memory_vault': {
         const args = parseActionArguments('memory_vault', request.arguments);
         const review = this.library.isReview(request.context.threadId);

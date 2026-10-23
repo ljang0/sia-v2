@@ -370,7 +370,6 @@ export class CuaService {
       timer = setTimeout(() => operation.abort(timeoutError), Math.max(0, remainingMs));
       timer.unref();
     };
-    startTimer();
     const clock = {
       pause: (): void => {
         if (!timer) return;
@@ -387,6 +386,8 @@ export class CuaService {
       // retains its place until that call ends, so subsequent calls cannot race it.
       await waitForAbort(previous, operation.signal);
       ownsQueue = true;
+      // Queue time belongs to the preceding call; only this call's execution uses its budget.
+      startTimer();
       this.#authorizationContext = context;
       this.#callClock = clock;
       driver = await waitForAbort(this.#getDriver(), operation.signal);

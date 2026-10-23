@@ -314,6 +314,7 @@ describe('CLI discovery', () => {
     expect(isVersionSupported('0.155.0-alpha.9', pinned)).toBe(true);
     expect(isVersionSupported('0.155.0-alpha.9.2', pinned)).toBe(true);
     expect(isVersionSupported('0.160.0', pinned)).toBe(true);
+    expect(isVersionSupported('0.162.0-alpha.2', pinned)).toBe(true);
     for (const version of [
       '0.154.0',
       '0.154.0-alpha.1',
@@ -325,6 +326,9 @@ describe('CLI discovery', () => {
       '0.160.0-alpha.1',
       '0.160.1',
       '0.161.0',
+      '0.162.0-alpha.1',
+      '0.162.0-alpha.3',
+      '0.162.0',
     ])
       expect(isVersionSupported(version, pinned)).toBe(false);
     expect(
@@ -1966,7 +1970,158 @@ describe('Notch-style native Mac sessions', () => {
       }
     },
   );
-  it('discovers Astra from the live model catalog contract, preserving the account reasoning options', async () => {
+  it.each([false, true])(
+    'keeps quiet native work alive and streams only readable progress (JSON commentary: %s)',
+    async (jsonCommentary) => {
+      const peers = linkedPeers();
+      const started = Promise.withResolvers<void>();
+      let interrupts = 0;
+      peers.server.onRequest(async (method, params) => {
+        if (method === 'initialize') return {};
+        if (method === 'thread/start')
+          return {
+            thread: { id: 'quiet-native' },
+            sandbox: { type: 'dangerFullAccess' },
+            approvalPolicy: 'never',
+          };
+        if (method === 'experimentalFeature/list')
+          return {
+            data: Object.entries({ ...isolatedCodexFeatures, multi_agent: false }).map(
+              ([name, enabled]) => ({ name, enabled }),
+            ),
+            nextCursor: null,
+          };
+        if (method === 'turn/start') {
+          started.resolve();
+          return { turn: { id: 'quiet-turn' } };
+        }
+        if (method === 'turn/interrupt') {
+          interrupts++;
+          return {};
+        }
+        if (method === 'thread/backgroundTerminals/clean') return {};
+        const response = codexIsolationResponse(method, params);
+        if (response !== undefined) return response;
+        throw new Error(`Unexpected ${method}`);
+      });
+      const adapter = new CodexAppServerAdapter({
+        peerFactory: async () => ({
+          peer: peers.client,
+          dispose: async () => {
+            await peers.client.close();
+            await peers.server.close();
+          },
+        }),
+      });
+      try {
+        const session = await adapter.createSession({
+          ...sessionOptions,
+          nativeTools: 'mac',
+          nativeApproval: 'auto',
+          baseInstructions: 'Use the provided tools.',
+        });
+        vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+        const events: ThreadEventEnvelope[] = [];
+        const finished = (async () => {
+          for await (const event of adapter.sendTurn(session, {
+            turnId: 'quiet-turn',
+            text: 'Check Canvas',
+          }))
+            events.push(event);
+        })();
+        await started.promise;
+        const notify = async (method: string, value: Record<string, unknown>) => {
+          await peers.server.notify(method, { threadId: session.nativeId, ...value });
+          await new Promise((resolve) => setImmediate(resolve));
+        };
+        await notify('item/started', {
+          item: {
+            id: 'quiet-command',
+            type: 'commandExecution',
+            command: 'a quiet fixture',
+            status: 'inProgress',
+          },
+        });
+        await vi.advanceTimersByTimeAsync(240_000);
+        expect(interrupts).toBe(0);
+        await notify('item/completed', {
+          item: {
+            id: 'quiet-command',
+            type: 'commandExecution',
+            status: 'completed',
+            exitCode: 0,
+          },
+        });
+        await notify('error', {
+          willRetry: true,
+          error: { message: 'Transient connection loss' },
+        });
+        expect(
+          events.some(
+            (event) =>
+              event.type === 'tool' &&
+              event.payload.name === 'runtime.connection' &&
+              event.payload.phase === 'started',
+          ),
+        ).toBe(true);
+        await notify('item/started', {
+          item: { id: 'progress', type: 'agentMessage', phase: 'commentary', text: '' },
+        });
+        expect(
+          events.some(
+            (event) =>
+              event.type === 'tool' &&
+              event.payload.name === 'runtime.connection' &&
+              event.payload.phase === 'completed',
+          ),
+        ).toBe(true);
+        const progress = jsonCommentary ? '{"response":"Checking Canvas"}' : 'Checking Canvas';
+        await notify('item/agentMessage/delta', {
+          itemId: 'progress',
+          delta: progress.slice(0, 8),
+        });
+        await notify('item/agentMessage/delta', {
+          itemId: 'progress',
+          delta: progress.slice(8),
+        });
+        const messages = () => events.filter((event) => event.type === 'message');
+        expect(messages().length).toBe(jsonCommentary ? 0 : 2);
+        if (!jsonCommentary)
+          expect(messages()[0]?.payload).toMatchObject({ phase: 'commentary', delta: true });
+        await notify('item/completed', {
+          item: { id: 'progress', type: 'agentMessage', phase: 'commentary', text: progress },
+        });
+        const beforeFinal = messages().length;
+        await notify('item/started', {
+          item: { id: 'final', type: 'agentMessage', phase: 'final_answer', text: '' },
+        });
+        await notify('item/agentMessage/delta', { itemId: 'final', delta: '{"response":' });
+        expect(messages()).toHaveLength(beforeFinal);
+        await notify('item/completed', {
+          item: {
+            id: 'final',
+            type: 'agentMessage',
+            phase: 'final_answer',
+            text: '{"type":"action","response":"Verified","success":true}',
+          },
+        });
+        await notify('turn/completed', { turn: { id: 'quiet-turn', status: 'completed' } });
+        await finished;
+        expect(events.filter((event) => event.type === 'completion')).toHaveLength(1);
+        expect(events.at(-1)?.payload).toMatchObject({ status: 'completed' });
+        expect(
+          events.some(
+            (event) => event.type === 'tool' && event.payload.name === 'agentMessage',
+          ),
+        ).toBe(false);
+      } finally {
+        vi.useRealTimers();
+        await adapter.dispose();
+      }
+    },
+  );
+
+  it('discovers Sol 6.1 and Astra 6 from the model catalog, preserving account reasoning options', async () => {
     const peers = linkedPeers();
     peers.server.onRequest(async (method, params) => {
       if (method === 'initialize') return {};
@@ -1974,6 +2129,17 @@ describe('Notch-style native Mac sessions', () => {
         expect(params).toMatchObject({ limit: 100 });
         return {
           data: [
+            {
+              id: 'sol',
+              model: 'gpt-6.1-sol',
+              displayName: 'GPT-6.1 Sol',
+              supportedReasoningEfforts: [
+                { reasoningEffort: 'low' },
+                { reasoningEffort: 'high' },
+                { reasoningEffort: 'ultra' },
+              ],
+              defaultReasoningEffort: 'low',
+            },
             {
               id: 'astra',
               model: 'gpt-6-astra',
@@ -2003,6 +2169,13 @@ describe('Notch-style native Mac sessions', () => {
     });
     try {
       expect(await adapter.listModels()).toEqual([
+        {
+          id: 'gpt-6.1-sol',
+          label: 'GPT-6.1 Sol',
+          description: '',
+          reasoningEfforts: ['low', 'high', 'ultra'],
+          defaultReasoningEffort: 'low',
+        },
         {
           id: 'gpt-6-astra',
           label: 'GPT-6 Astra',
@@ -2718,7 +2891,7 @@ describe('Codex turn resilience', () => {
     await adapter.dispose();
   });
 
-  it('does not surface an error that Codex is about to retry', async () => {
+  it('shows retry progress without surfacing a recoverable connection failure as an error', async () => {
     const peers = codexServer(async (p) => {
       setTimeout(() => {
         void (async () => {
@@ -2750,7 +2923,7 @@ describe('Codex turn resilience', () => {
     const types: string[] = [];
     for await (const event of adapter.sendTurn(session, { turnId: 't1', text: 'hi' }))
       types.push(event.type);
-    expect(types).toEqual(['completion']);
+    expect(types).toEqual(['tool', 'tool', 'completion']);
     await adapter.dispose();
   });
 

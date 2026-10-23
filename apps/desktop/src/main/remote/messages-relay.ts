@@ -950,7 +950,6 @@ export class MessagesRelay {
         (
           await this.#deps.controller.invoke('threads.create', {
             agentId: this.#config.agentId!,
-            title: `Text: ${(text || 'Photo').slice(0, 70)}`,
           })
         ).threadId;
       if (!current()) return;
