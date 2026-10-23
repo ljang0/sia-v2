@@ -68,8 +68,9 @@ same bundled PNG. Only one logo is on screen at a time: the phone welcome hero c
 header keeps an empty slot there.
 The bundled copy is the supplied artwork scaled to 768×512 to keep the app light, and the Home
 Screen name remains **Sia**.
-The desktop title bar centers the unboxed logo between the Mac window controls and sidebar toggle,
-with clear space around the mark. Phone and welcome-screen icon treatments remain independent.
+The desktop title bar centers the logo on a single dark rounded surface between the Mac window
+controls and sidebar toggle, with clear space around the mark in both themes. Phone and welcome-screen
+icon treatments remain independent.
 An existing iOS Home Screen shortcut may need to be removed and added again to refresh its cached icon.
 
 Settings → More → Appearance has three choices, all saved in the existing encrypted profile and
