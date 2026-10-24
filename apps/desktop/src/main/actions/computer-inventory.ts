@@ -268,6 +268,7 @@ export class ComputerInventory {
           outcome: 'needs_foreground',
           summary:
             'The app opened, but the driver could not keep it behind your current app. No further input was sent.',
+          data: { blocker_code: 'app_focus_not_restored', delivery_requested: 'background' },
         };
     } else {
       if (!this.ctx.options.openApplication) return refused('App opening is unavailable.');

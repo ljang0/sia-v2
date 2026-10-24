@@ -212,6 +212,13 @@ evidence: inspect actual app state, source URLs, saved bytes, input preservation
 Workspace-file actions alone do not establish GUI control; app cases require an observation of
 the requested real app.
 
+Audit both top-level and nested delivery fields in every action result. Unexpected foreground
+input fails a background-only attempt even when its final answer is correct. An app-open result
+that reports it could not restore the previous frontmost app also fails that constraint. Preserve
+these violations in the original history when a later retry succeeds. Native menus have no
+driver-enforced background delivery ceiling and are refused in background-only turns; available
+window controls and explicit background shortcuts remain usable.
+
 Keep the manifest, append-only attempt log, trajectories, screenshots and report in a private
 evidence directory outside Git. If a checker rejects a correct answer because its oracle dropped
 part of the request or imposed an unspecified format, retain the failed grade and record a

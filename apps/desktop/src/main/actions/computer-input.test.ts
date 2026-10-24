@@ -2,6 +2,59 @@ import { describe, expect, it, vi } from 'vitest';
 import { DesktopActionBackend } from './desktop-action-backend.js';
 import { dataRecord, fakeCua, grantedComputerTarget, request } from './test-support.js';
 
+it('preserves uncertain unexpected foreground input even if a dialog opens, and revokes the old target', async () => {
+  let sent = 0;
+  const cua = fakeCua(async (name) => {
+    if (name === 'list_apps')
+      return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+    if (name === 'list_windows')
+      return {
+        windows: [
+          { pid: 42, window_id: 91, app_name: 'Notes', title: 'Draft' },
+          ...(sent ? [{ pid: 42, window_id: 92, app_name: 'Notes', title: 'Dialog' }] : []),
+        ],
+      };
+    if (name === 'get_window_state')
+      return { elements: [{ role: 'AXButton', label: 'Save', element_token: 's00000001:3' }] };
+    if (name === 'click') {
+      sent++;
+      return { effect: 'unverifiable', delivery: { mode: 'foreground' } };
+    }
+    throw new Error(`Unexpected ${name}`);
+  });
+  const backend = new DesktopActionBackend({
+    cua,
+    macBrowserAccess: () => true,
+    macBackgroundControl: () => true,
+  });
+  const target = await grantedComputerTarget(backend);
+  const ids = { app_id: target.appId, window_id: target.windowId };
+  const observed = dataRecord((await backend.invoke(request('computer_snapshot', ids))).data);
+  const action = request('computer_action', {
+    ...ids,
+    snapshot_id: observed.snapshot_id,
+    action: 'click',
+    element_ref: (observed.elements as Record<string, unknown>[])[0]!.element_ref,
+  });
+  const strict = { ...action, context: { ...action.context, backgroundOnly: true } };
+  const result = await backend.invoke(strict);
+  expect(result.outcome).toBe('needs_foreground');
+  expect(result.summary).not.toContain('went nowhere');
+  expect(result.data).toMatchObject({
+    input_delivery_uncertain: true,
+    driver_operation: 'click',
+    requested_delivery: 'background',
+  });
+  expect(cua.call).toHaveBeenCalledWith(
+    'click',
+    expect.objectContaining({ delivery_mode: 'background' }),
+    expect.objectContaining({ backgroundOnly: true }),
+    undefined,
+  );
+  expect((await backend.invoke(strict)).outcome).toBe('stale');
+  expect(sent).toBe(1);
+});
+
 it.each([
   { action: 'menu', menu_path: ['File', 'Save'], native: 'invoke_menu' },
   { action: 'click', count: 2, native: 'double_click' },

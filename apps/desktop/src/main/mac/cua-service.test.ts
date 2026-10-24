@@ -40,6 +40,24 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+it('refuses an unbounded native-menu delivery before creating a driver in a background-only turn', async () => {
+  const driverFactory = vi.fn(() => successfulDriver({}));
+  const service = new CuaService(authorization(), { driverFactory });
+  await expect(
+    service.call(
+      'invoke_menu',
+      { pid: 42, window_id: 91, path: ['File', 'Save'] },
+      {
+        kind: 'turn',
+        threadId: 'thread',
+        turnId: 'turn',
+        backgroundOnly: true,
+      },
+    ),
+  ).rejects.toThrow('CUA refused: background_unavailable');
+  expect(driverFactory).not.toHaveBeenCalled();
+});
+
 it.each([
   ['launch_app', { bundle_id: 'com.apple.TextEdit', session: 'task-session' }],
   ['invoke_menu', { pid: 42, window_id: 91, path: ['File', 'Save'], session: 'task-session' }],

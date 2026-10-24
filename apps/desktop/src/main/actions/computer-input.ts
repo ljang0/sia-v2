@@ -376,6 +376,23 @@ export class ComputerInput {
         : `Delivered ${String(args.action)} in the background.`,
       { allowForeground: focusedFallback },
     );
+    const nativeData = asRecord(native.data);
+    if (native.outcome === 'needs_foreground' && nativeData?.delivery_mode === 'foreground') {
+      this.ctx.computer.snapshots.delete(snapshotId);
+      this.ctx.computer.latestSnapshot.delete(binding.id);
+      return {
+        ...native,
+        data: {
+          ...nativeData,
+          app_id: binding.appId,
+          window_id: binding.id,
+          driver_operation: tool,
+          requested_delivery: base.delivery_mode,
+          input_delivery_uncertain: true,
+          previous_snapshot_id: snapshotId,
+        },
+      };
+    }
     if (
       native.outcome === 'refused' ||
       native.outcome === 'stale' ||

@@ -43,7 +43,12 @@ interface AuthorizationBroker {
 }
 
 export type CuaAuthorizationContext =
-  | { readonly kind: 'turn'; readonly threadId: string; readonly turnId: string }
+  | {
+      readonly kind: 'turn';
+      readonly threadId: string;
+      readonly turnId: string;
+      readonly backgroundOnly?: boolean;
+    }
   | {
       readonly kind: 'direct_user';
       readonly operation:
@@ -350,6 +355,11 @@ export class CuaService {
   ): Promise<unknown> {
     if (!CUA_TOOLS.has(tool)) throw new Error(`CUA tool ${tool} is not exposed by Sia.`);
     signal?.throwIfAborted();
+    // Unlike explicit background key/pointer operations, the SDK's native menu
+    // operation has no delivery ceiling and can report foreground dispatch.
+    // Refuse before driver initialization, queueing or input, not after delivery.
+    if (tool === 'invoke_menu' && context.kind === 'turn' && context.backgroundOnly)
+      throw new Error('CUA refused: background_unavailable');
     const previous = this.#callTail;
     const next = Promise.withResolvers<void>();
     this.#callTail = next.promise;

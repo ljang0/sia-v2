@@ -327,11 +327,16 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   observed snapshot-bound element tokens, without the retired index/snapshot input arguments.
   `set_value` is an exact accessibility operation and does not accept a delivery-mode argument.
   Element double-clicks use the driver's `double_click`/AXOpen route, while pixel double-clicks
-  retain the bounded screenshot route. Exact native menu paths use `invoke_menu` on the granted
-  window rather than the global menu bar or a key shortcut requiring foreground focus. Menu calls
+  retain the bounded screenshot route. When foreground recovery is permitted, exact native menu
+  paths use `invoke_menu` on the granted window rather than the global menu bar. Its SDK operation
+  has no background delivery ceiling, so the host propagates the immutable turn policy and refuses
+  it before driver initialization in background-only turns. Those turns use separately available
+  accessibility controls or explicitly background keyboard equivalents instead. Menu calls
   retain snapshot, protected-window, route and authorization checks; authentication, credential,
   terminal and scripting menus are refused. `window_not_key` is an explicit no-input refusal,
   not uncertain delivery, and never triggers an automatic foreground retry.
+  An unexpected foreground acknowledgement remains uncertain, revokes the old snapshot, and
+  records its driver operation. A new dialog cannot relabel that input as "not sent."
   Browsers retain their existing page controls and permitted navigation shortcuts; the new native
   menu route cannot open browser file pickers, internal pages or developer tools.
   Background app opening uses the bundled driver's non-activating `launch_app` route. An optional
