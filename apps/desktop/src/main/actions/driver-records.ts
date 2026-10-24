@@ -205,14 +205,28 @@ export function isHiddenWindowStructure(record: Record<string, unknown>): boolea
 }
 
 export function isProtectedElement(record: Record<string, unknown>): boolean {
-  const identity = [
-    firstString(record, ['role', 'type', 'input_type', 'inputType']),
-    firstString(record, ['autocomplete']),
-  ]
-    .filter(isDefined)
+  const identity = ['role', 'type', 'subrole', 'input_type', 'inputType', 'autocomplete']
+    .map((key) => record[key])
+    .filter((value) => typeof value === 'string')
     .join(' ');
   return /(?:password|secure|credential|one-time-code|current-password|new-password)/i.test(
     identity,
+  );
+}
+
+function passwordLabelIsProtected(role: string, label: string): boolean {
+  if (!/password/i.test(label)) return false;
+  if (/^AX(?:TextField|TextArea|ComboBox|SearchField)$/.test(role)) return true;
+  const literal = label.replace(/\b(?:[a-z_]\w*\.)+[a-z_]\w*password\w*(?=\s*\()/gi, '').trim();
+  if (!/password/i.test(literal)) return false;
+  if (role !== 'AXStaticText') return true;
+  // Non-interactive documentation prose is data, not an authentication control.
+  // Literal labels and credential disclosures still protect the entire window.
+  return (
+    /^[\w.-]*password\w*$/i.test(literal) ||
+    /^(?:[\w.-]+\s+){0,3}passwords?\s*:?\s*$/i.test(literal) ||
+    /password["']?[\w .-]{0,40}(?::|=|\bis\b)\s*\S/i.test(literal) ||
+    /^(?:(?:your|user|account|current|new|shared)\s+)?password\s+\S+$/i.test(literal)
   );
 }
 
@@ -227,14 +241,13 @@ export function windowHasProtectedControls(value: unknown): boolean {
       // Public API links such as ZipFile.setpassword() are not password fields.
       // Editable controls retain the conservative substring check; literal
       // password labels/prose and secure roles remain protected everywhere.
-      const passwordLabel = /^AX(?:TextField|TextArea|ComboBox|SearchField)$/.test(
-        String(record.role),
-      )
-        ? label
-        : label.replace(/\b(?:[a-z_]\w*\.)+[a-z_]\w*password\w*(?=\s*\()/gi, '');
+      const password = [record.title, record.label].some(
+        (text) =>
+          typeof text === 'string' && passwordLabelIsProtected(String(record.role), text),
+      );
       return (
         isProtectedElement(record) ||
-        /password/i.test(passwordLabel) ||
+        password ||
         // Match authentication words, not "signing"/"blogging" in public page labels.
         /(?:secure|\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat|verification code|passkey|api.?key|access.?token)/i.test(
           label,
