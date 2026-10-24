@@ -16,6 +16,7 @@ function harness() {
     inputError: '',
     observationError: '',
     observationRefused: false,
+    afterNavigateError: '',
   };
   const call = vi.fn(async (tool: string, args: Record<string, unknown>) => {
     if (tool === 'list_apps')
@@ -57,6 +58,7 @@ function harness() {
     }
     if (tool === 'browser_navigate') {
       state.url = String(args.url);
+      state.observationError = state.afterNavigateError;
       return { effect: 'confirmed' };
     }
     if (tool === 'browser_click' || tool === 'browser_type' || tool === 'browser_pointer') {
@@ -165,6 +167,20 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
     );
     expect(result.outcome).toBe('accepted_unverified');
     expect(h.call.mock.calls.some(([name]) => name === 'browser_navigate')).toBe(false);
+  });
+
+  it('does not relabel accepted navigation as unsent when its page observation fails', async () => {
+    const h = harness();
+    h.state.prepared = true;
+    h.state.afterNavigateError = 'CUA refused: browser_tab_not_found';
+    const target = await h.target();
+    const result = await h.backend.invoke(
+      h.request('computer_open_url', { ...target, url: 'https://canvas.cmu.edu/' }),
+    );
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(result.data).toMatchObject({ input_delivery_uncertain: true });
+    expect(result.data).not.toHaveProperty('visible_text');
+    expect(h.call.mock.calls.filter(([name]) => name === 'browser_navigate')).toHaveLength(1);
   });
 
   it('keeps tab choices stable instead of rebinding and minting new driver ids', async () => {

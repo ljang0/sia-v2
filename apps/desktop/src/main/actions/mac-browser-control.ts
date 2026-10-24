@@ -428,15 +428,27 @@ export class MacBrowserControl {
       session: tab.session,
       origin: new URL(url).origin,
     });
-    return this.#wrap(
-      window,
-      tab,
-      await this.#client(window).actions.snapshot({
+    let observed: ActionExecutionResult;
+    try {
+      observed = await this.#client(window).actions.snapshot({
         ...request,
         name: 'browser_snapshot',
         arguments: { tab_id: tab.nativeId },
-      }),
-    );
+      });
+    } catch {
+      return this.#unobservedNavigation(window);
+    }
+    if (observed.outcome !== 'verified') return this.#unobservedNavigation(window);
+    return this.#wrap(window, tab, observed);
+  }
+
+  #unobservedNavigation(window: ComputerWindowBinding): ActionExecutionResult {
+    return {
+      outcome: 'accepted_unverified',
+      summary:
+        'Browser navigation was accepted, but the resulting page could not be observed. Check the exact tab before continuing; do not claim the destination loaded or replay navigation blindly.',
+      data: { app_id: window.appId, window_id: window.id, input_delivery_uncertain: true },
+    };
   }
 
   async act(
