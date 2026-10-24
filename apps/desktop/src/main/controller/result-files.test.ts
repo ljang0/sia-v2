@@ -58,16 +58,22 @@ it('accepts an authorized root alias without permitting nested symlink traversal
   ).rejects.toThrow();
 });
 
-it.each(['structured', 'markdown', 'streamed-markdown'] as const)(
+it.each(['structured', 'markdown', 'streamed-markdown', 'calendar'] as const)(
   'delivers a %s result and reopens its grant after reload',
   async (format) => {
+    const name = format === 'calendar' ? 'study-session.ics' : 'Family résumé.csv';
+    const content =
+      format === 'calendar'
+        ? 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n'
+        : 'category,total\nfood,25\n';
+    const structured = format === 'structured' || format === 'calendar';
     const root = await directory();
     const opened = vi.fn(async () => {});
     const revealed = vi.fn(async () => {});
     const runtime = {
       async *runTurn(input: RuntimeTurnInput) {
-        const path = join(input.thread.workspace, 'Family résumé.csv');
-        await writeFile(path, 'category,total\nfood,25\n');
+        const path = join(input.thread.workspace, name);
+        await writeFile(path, content);
         const result = {
           type: 'action',
           success: true,
@@ -75,7 +81,7 @@ it.each(['structured', 'markdown', 'streamed-markdown'] as const)(
           steps: [],
           output_file: await realpath(path),
         };
-        if (format === 'structured') input.onMacResult?.(result);
+        if (structured) input.onMacResult?.(result);
         const markdown = `Your report is ready: [report](<${path}>). [Again](${encodeURI(path)}) [Private](/etc/hosts) [Web](https://example.com/report.csv)`;
         const base = {
           threadId: input.thread.id,
@@ -94,7 +100,7 @@ it.each(['structured', 'markdown', 'streamed-markdown'] as const)(
             parts: [
               {
                 kind: 'text',
-                text: format === 'structured' ? JSON.stringify(result) : markdown,
+                text: structured ? JSON.stringify(result) : markdown,
               },
             ],
           },
@@ -120,7 +126,7 @@ it.each(['structured', 'markdown', 'streamed-markdown'] as const)(
               parts: [{ kind: 'text', text: markdown.slice(split) }],
             },
           } as ThreadEventEnvelope;
-        } else yield format === 'structured' ? presentMacResponse(event) : event;
+        } else yield structured ? presentMacResponse(event) : event;
         yield {
           ...base,
           id: 'finished',
@@ -160,7 +166,7 @@ it.each(['structured', 'markdown', 'streamed-markdown'] as const)(
         .timeline.find((item) => item.id === 'result-message')!;
       expect(message.text).toContain('Your report is ready');
       const attachment = message.attachments![0]!;
-      expect(attachment).toMatchObject({ name: 'Family résumé.csv', generated: true });
+      expect(attachment).toMatchObject({ name, generated: true });
       const thread = controller.snapshot().threads.find((item) => item.id === threadId)!;
       const restored = new Attachments({
         deps: {
@@ -173,9 +179,11 @@ it.each(['structured', 'markdown', 'streamed-markdown'] as const)(
         requireThread: () => thread,
       });
       const input = { threadId, attachmentId: attachment.id };
+      // Attaching a calendar result never opens/imports it automatically.
+      expect(opened).not.toHaveBeenCalled();
       expect(await restored.previewAttachment(input)).toMatchObject({
         kind: 'text',
-        content: 'category,total\nfood,25\n',
+        content,
       });
       await restored.openAttachment(input);
       await restored.revealAttachment(input);
@@ -183,7 +191,7 @@ it.each(['structured', 'markdown', 'streamed-markdown'] as const)(
       expect(revealed).toHaveBeenCalledWith(expect.stringContaining(attachment.name));
       const downloaded = await restored.readGeneratedResult(threadId, attachment.id);
       expect(downloaded.name).toBe(attachment.name);
-      expect(downloaded.data.toString()).toBe('category,total\nfood,25\n');
+      expect(downloaded.data.toString()).toBe(content);
       await expect(
         restored.openAttachment({ ...input, threadId: 'other-thread' }),
       ).rejects.toThrow('grant');

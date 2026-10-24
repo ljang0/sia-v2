@@ -238,6 +238,31 @@ it('shows a safe turn-start error and removes the empty thread created by a fail
   );
 });
 
+it('streams phone text only while that reply is receiving text, not for all remaining work', async () => {
+  const { state, post, url } = await setup();
+  await post('command', { id: randomUUID(), text: 'Check each course', session: null });
+  const threadId = state.activeThreadId!;
+  const reply: DesktopSnapshot['timeline'][number] = {
+    id: randomUUID(),
+    threadId,
+    sequence: 2,
+    timestamp: '',
+    kind: 'assistant',
+    text: 'Checking each course.',
+    status: 'running',
+  };
+  state.timeline.push(reply);
+  const read = async () =>
+    ((await (await fetch(new URL('state', url))).json()) as RemoteState).turns.at(-1)!;
+  expect(await read()).toMatchObject({ status: 'working', streaming: true });
+  reply.status = 'complete';
+  expect((await read()).streaming).toBeUndefined();
+  expect((await read()).status).toBe('working');
+  reply.status = 'running';
+  state.threads[0]!.status = 'waiting';
+  expect((await read()).streaming).toBeUndefined();
+});
+
 it('serves only the paired mobile surface and rejects missing tokens, rebinding and cross-origin actions', async () => {
   const { url, post, invoke } = await setup();
   expect((await fetch(url)).status).toBe(200);

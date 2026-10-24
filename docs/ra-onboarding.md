@@ -595,6 +595,20 @@ explicit On my screen choice is kept. The choice applies to the next typed or Fn
 background driver cannot load or lacks Accessibility or Screen Recording, the task stops before
 starting with a plain next step and a **Continue task** button.
 
+With **Pause and tell me**, background tasks use already-open apps and supported window controls.
+They do not launch apps/documents or use the system website opener, since those can take focus.
+If you are using the target app, Sia pauses before input rather than competing with you. It also
+pauses if desktop focus changes during input or focus cannot be checked. Review any uncertain
+last step before continuing. This mode does not provide an isolated second desktop; simultaneous
+control of the same active app remains unavailable. **Allow brief foreground control** is an
+explicit alternative for tasks that need it.
+
+For an already-configured development profile, `pnpm --filter @sia/desktop preview --background`
+starts the real app without showing its window or raising the secure-workspace explanation.
+Encrypted storage and macOS permissions remain required; a missing Keychain grant can still need
+the person's approval. Open Sia normally to reveal the window later. A background relaunch of an
+already-running instance leaves its window alone.
+
 While an On my screen task works, a thin glowing border and a small “Sia is using your screen ·
 Press ⌃Esc to stop” pill sit on top of every display. They never take focus or clicks, are kept out of
 screenshots, and disappear when the task finishes, stops, waits for you, or pauses. ⌃Esc
@@ -682,3 +696,11 @@ The staged development bundle removes Finder/resource-fork metadata that [Apple 
 signed apps](https://developer.apple.com/library/archive/qa/qa1940/_index.html); other attributes,
 including quarantine, are preserved. No script resets TCC or grants privacy access. Release builds retain the separate Developer ID
 pipeline. See [Apple’s designated requirement documentation](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).
+
+For the two focused main-window UI gates without opening app windows on your Mac, build first and use:
+
+```sh
+SIA_TEST_QUIET=1 pnpm --filter @sia/desktop exec playwright test e2e/browser-recovery.spec.ts e2e/visual-polish.spec.ts
+```
+
+Quiet mode requires an unpackaged app, fake services, and an isolated test profile. It never applies to packaged or real-provider sessions. The harness checks the fixture windows stay hidden. Other tests that explicitly open auxiliary windows still belong on the CI runner; this flag does not turn real Mac actions into headless actions.

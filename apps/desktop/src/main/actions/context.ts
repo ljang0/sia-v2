@@ -34,6 +34,9 @@ export class ActionBackendContext {
       kind: 'turn',
       threadId: request.context.threadId,
       turnId: request.context.turnId,
+      ...(request.context.backgroundOnly !== undefined
+        ? { backgroundOnly: request.context.backgroundOnly }
+        : {}),
     };
     return this.options.cua.call(tool, args, context, request.context.signal);
   }

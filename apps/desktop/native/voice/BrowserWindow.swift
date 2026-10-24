@@ -28,22 +28,38 @@ enum BrowserWindow {
         let title: String = attr(window, kAXTitleAttribute) ?? ""
         var url: String? = attr(window, kAXDocumentAttribute)
         var protected = false
+        var protectedRole = "unknown"
+        var protectedKind = "unknown"
+        var protectedLabelLength = 0
+        var protectedLabelWords = 0
         var complete = true
         var nodes = 0
         var webAreas = 0
+        var stop: String?
         var visited = Set<CFHashCode>()
         func walk(_ node: AXUIElement, _ depth: Int) {
             guard complete, !protected else { return }
-            guard Date() < deadline, depth < 50, nodes < 4000 else { complete = false; return }
+            guard Date() < deadline, depth < 50, nodes < WindowContext.maximumScanNodes else {
+                complete = false
+                stop = Date() >= deadline ? "time" : depth >= 50 ? "depth" : "nodes"
+                return
+            }
             guard visited.insert(CFHash(node)).inserted else { return }
             nodes += 1
-            let role: String = attr(node, kAXRoleAttribute) ?? ""
-            let subrole: String = attr(node, kAXSubroleAttribute) ?? ""
-            let name: String = attr(node, kAXTitleAttribute) ?? ""
-            let description: String = attr(node, kAXDescriptionAttribute) ?? ""
+            guard let metadata = WindowContext.metadata(node) else { complete = false; stop = "attributes"; return }
+            let role = metadata.role
+            let subrole = metadata.subrole
+            let name = metadata.title
+            let description = metadata.description
             let label = (role + " " + subrole + " " + name + " " + description).lowercased()
             if role.isEmpty { complete = false; return }
-            if ["securetextfield", "password", "passkey", "verification code", "private browsing", "private window", "incognito", "developer tools", "web inspector"].contains(where: label.contains) {
+            let passwordLabel = [name, description].first(where: { WindowContext.hasPasswordMetadata(role: role, label: $0) })
+            let structural = ["securetextfield", "passkey", "verification code", "private browsing", "private window", "incognito", "developer tools", "web inspector"].first(where: label.contains)
+            if passwordLabel != nil || structural != nil {
+                protectedRole = ["AXWindow", "AXLink", "AXButton", "AXStaticText", "AXHeading", "AXTextField", "AXTextArea", "AXSecureTextField", "AXComboBox", "AXSearchField", "AXGroup", "AXWebArea"].contains(role) ? role : "other"
+                protectedKind = passwordLabel != nil ? "password_metadata" : structural!
+                protectedLabelLength = passwordLabel?.count ?? 0
+                protectedLabelWords = passwordLabel?.split(whereSeparator: { $0.isWhitespace }).count ?? 0
                 protected = true; return
             }
             if ["AXTextField", "AXComboBox", "AXSearchField"].contains(role) {
@@ -60,14 +76,15 @@ enum BrowserWindow {
                     else if let value: String = attr(node, "AXURL") { url = value }
                 }
             }
-            let children: [AXUIElement] = attr(node, kAXChildrenAttribute) ?? []
-            for child in children { walk(child, depth + 1) }
+            for child in metadata.children { walk(child, depth + 1) }
         }
         walk(window, 0)
-        if protected { return ["status": "protected"] }
+        if protected { return ["status": "protected", "protected_role": protectedRole,
+                               "protected_kind": protectedKind, "protected_label_length": protectedLabelLength,
+                               "protected_label_words": protectedLabelWords] }
         guard complete, Date() < deadline, NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == bundle,
               let live = WindowContext.resolve(pid: pid, windowID: windowID), CFEqual(window, live),
-              Date() < deadline else { return ["status": "unavailable", "reason": "incomplete"] }
+              Date() < deadline else { return ["status": "unavailable", "reason": "incomplete", "scan_stop": stop ?? "revalidation", "scan_nodes": nodes] }
         // An empty browser window can be navigated without exposing a web account.
         if url == nil, webAreas == 0, ["Start Page", "New Tab", "Safari"].contains(title) { url = "about:blank" }
         guard let url, url.utf8.count <= 8192 else { return ["status": "unavailable", "reason": "page"] }

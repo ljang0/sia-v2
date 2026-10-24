@@ -67,22 +67,39 @@ describe('work groups', () => {
     expect(screen.queryByText('ls a')).toBeNull();
     fireEvent.click(summary);
     rerender(<WorkGroup {...props} open={open} />);
+    expect(screen.queryByText('ls a')).toBeNull();
+    fireEvent.click(screen.getAllByRole('button', { name: /Ran a step on your Mac/ })[0]!);
     expect(screen.getByText('ls a')).toBeTruthy();
   });
 
-  it('keeps steps of the running turn visible', () => {
-    render(
+  it('shows only the current step and lets the person expand earlier activity', () => {
+    const renderStep = (event: ActivityEvent) => <ActivityRow key={event.id} event={event} />;
+    const { rerender } = render(
       <WorkGroup
         events={[step('a'), step('b', { status: 'running' })]}
         live
         open={false}
         onToggle={() => undefined}
-        renderStep={(event) => <ActivityRow key={event.id} event={event} />}
+        renderStep={renderStep}
       />,
     );
-    expect(screen.getByText('ls a')).toBeTruthy();
+    expect(screen.queryByText('ls a')).toBeNull();
+    expect(screen.queryByText('Ran a step on your Mac')).toBeNull();
     expect(screen.getByText('Running a step on your Mac')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: /Activity · 2 steps/ }).getAttribute('aria-expanded'),
+    ).toBe('false');
     expect(screen.queryByRole('button', { name: /Worked for/ })).toBeNull();
+    rerender(
+      <WorkGroup
+        events={[step('a'), step('b', { status: 'running' })]}
+        live
+        open
+        onToggle={() => undefined}
+        renderStep={renderStep}
+      />,
+    );
+    expect(screen.getByText('Ran a step on your Mac')).toBeTruthy();
   });
 
   it('shows what Sia is doing now', () => {
@@ -95,6 +112,27 @@ describe('work groups', () => {
     render(<WorkingStatus writing={false} thinking="Checking free slots" />);
     expect(screen.getByRole('status').textContent).toContain('Checking free slots');
     expect(screen.getByRole('status').textContent).not.toContain('Thinking');
+  });
+
+  it('shows the actual Mac wait or automatic reconnection instead of thinking', () => {
+    const { rerender } = render(
+      <WorkingStatus
+        writing={false}
+        step={step('startup', {
+          status: 'running',
+          toolName: 'runtime.start',
+          title: 'Waiting for another task to finish on your Mac',
+        })}
+      />,
+    );
+    expect(screen.getByRole('status').textContent).toContain('Waiting for another task');
+    rerender(
+      <WorkingStatus
+        writing={false}
+        step={step('connection', { status: 'running', toolName: 'runtime.connection' })}
+      />,
+    );
+    expect(screen.getByRole('status').textContent).toContain('Reconnecting to your AI');
   });
 
   it('shows the working agent breathing, and only breathing while a step moves', () => {
@@ -228,6 +266,12 @@ describe('plan steps', () => {
 });
 
 describe('activity detail', () => {
+  it('keeps full shell commands behind the step disclosure', () => {
+    render(<ActivityRow event={step('private-command')} />);
+    expect(screen.queryByText('ls private-command')).toBeNull();
+    fireEvent.click(screen.getByRole('button'));
+    expect(screen.getByText('ls private-command')).toBeTruthy();
+  });
   it('never shows the raw tool name', () => {
     render(
       <ActivityRow

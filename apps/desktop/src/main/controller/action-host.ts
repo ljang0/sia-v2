@@ -12,7 +12,13 @@ import { SAFE_RESEARCH_ACTIONS } from './research-records.js';
 /** The parts of the controller context ActionHost uses. */
 type ActionHostContext = Pick<
   ControllerContext,
-  'assistant' | 'deps' | 'releaseAccessLocked' | 'researchCapture' | 'schedules' | 'state'
+  | 'assistant'
+  | 'deps'
+  | 'releaseAccessLocked'
+  | 'researchCapture'
+  | 'schedules'
+  | 'state'
+  | 'mac'
 >;
 
 /**
@@ -24,6 +30,10 @@ export class ActionHost {
 
   invocationObserver(): ActionInvocationObserver {
     return (invocation) => {
+      if (invocation.name === 'task_checkpoint') {
+        this.ctx.researchCapture.taintResearchTurn(invocation.context.turnId);
+        return;
+      }
       if (GOOGLE_WORKSPACE_ACTION.test(invocation.name)) {
         this.ctx.researchCapture.excludeResearchTurn(invocation.context.turnId);
         this.ctx.deps.trajectory?.excludeTurn(
@@ -45,6 +55,9 @@ export class ActionHost {
 
   resultObserver(): ActionResultObserver {
     return (notice) => {
+      // Task-local account associations and working notes stay in encrypted chat storage,
+      // outside trajectories and optional research payloads.
+      if (notice.name === 'task_checkpoint') return;
       const thread = this.ctx.state.threads.find(
         (entry) => entry.id === notice.context.threadId,
       );
@@ -65,6 +78,21 @@ export class ActionHost {
         });
       }
       this.recordActionResult(notice);
+      const resultData = notice.result.data;
+      if (
+        notice.context.backgroundOnly &&
+        ['computer_action', 'computer_open_app', 'computer_open_url'].includes(notice.name) &&
+        resultData &&
+        typeof resultData === 'object' &&
+        'background_interrupted' in resultData &&
+        resultData.background_interrupted === true
+      ) {
+        this.ctx.mac.pauseBackgroundTurn(
+          notice.context.threadId,
+          notice.context.turnId,
+          'blocker_code' in resultData && resultData.blocker_code === 'foreground_app_in_use',
+        );
+      }
       if (GOOGLE_WORKSPACE_ACTION.test(notice.name)) return;
       this.ctx.researchCapture.stageRawResearchEvent({
         threadId: notice.context.threadId,

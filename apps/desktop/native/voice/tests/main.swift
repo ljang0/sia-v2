@@ -1,6 +1,65 @@
 import ImageIO
 import AppKit
 import CoreGraphics
+import ApplicationServices
+
+precondition(WindowContext.localDocumentURL("file:///tmp/ordinary%20note.txt") == "file:///tmp/ordinary%20note.txt")
+precondition(WindowContext.localDocumentURL(URL(fileURLWithPath: "/tmp/ordinary.pdf")) == "file:///tmp/ordinary.pdf")
+for invalid in ["https://example.org/document.pdf", "file://remote-host/tmp/note.txt", "file://user:secret@localhost/tmp/note.txt", "file:///tmp/note.txt?token=omitted", "file:///tmp/note.txt#secret"] {
+    precondition(WindowContext.localDocumentURL(invalid) == nil)
+}
+precondition(WindowContext.localDocumentURL(nil) == nil)
+
+precondition(!WindowContext.hasPasswordMetadata(role: "AXLink", label: "ZipFile.setpassword(pwd)"))
+precondition(!WindowContext.hasPasswordMetadata(role: "AXLink", label: "setpassword()"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXTextField", label: "setpassword()"))
+precondition(!WindowContext.hasPasswordMetadata(role: "AXHeading", label: "ZipFile.setpassword()"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXTextField", label: "UserPassword"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXTextArea", label: "AccountPassword"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "password: [omitted]"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "\"password\": \"[omitted]\""))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "UserPassword"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "account.user_password"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "account.user_password: [omitted]"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "account.user_password = [omitted]"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "pwd is the password used to decrypt encrypted ZIP files as a bytes object."))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "Set pwd as the default password to extract encrypted files."))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "Your password is [omitted]"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "The username is student and the password is [omitted]"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "Account password"))
+
+// A missing optional attribute is a leaf; a failed children read is not proof
+// that a potentially protected subtree is empty. These checks never query an app.
+let emptyMetadata: [AnyObject] = ["AXStaticText" as NSString, NSNull(), "Title" as NSString,
+                                NSNull(), [] as NSArray]
+precondition(WindowContext.metadataValues(emptyMetadata)?.role == "AXStaticText")
+precondition(WindowContext.metadataValues(Array(emptyMetadata.dropLast())) == nil)
+var malformedMetadata = emptyMetadata
+malformedMetadata[0] = NSNull()
+precondition(WindowContext.metadataValues(malformedMetadata) == nil)
+malformedMetadata = emptyMetadata
+malformedMetadata[4] = "not a child list" as NSString
+precondition(WindowContext.metadataValues(malformedMetadata) == nil)
+var missingChildren = AXError.attributeUnsupported
+var failedChildren = AXError.cannotComplete
+var noChildren = AXError.noValue
+var leafMetadata = emptyMetadata
+leafMetadata[4] = AXValueCreate(.axError, &missingChildren)!
+precondition(WindowContext.metadataValues(leafMetadata)?.children.isEmpty == true)
+leafMetadata[4] = AXValueCreate(.axError, &noChildren)!
+precondition(WindowContext.metadataValues(leafMetadata)?.children.isEmpty == true)
+leafMetadata[4] = AXValueCreate(.axError, &failedChildren)!
+precondition(WindowContext.metadataValues(leafMetadata) == nil)
+// An unreadable secure subrole/title must not be treated as an absent label.
+for index in 1...3 {
+    var unreadable = emptyMetadata
+    unreadable[index] = AXValueCreate(.axError, &failedChildren)!
+    precondition(WindowContext.metadataValues(unreadable) == nil)
+    unreadable[index] = AXValueCreate(.axError, &missingChildren)!
+    precondition(WindowContext.metadataValues(unreadable) != nil)
+    unreadable[index] = NSNumber(value: true)
+    precondition(WindowContext.metadataValues(unreadable) == nil)
+}
 
 // Exercises the real Notch-derived monitor without installing an OS tap or posting input.
 // Bulk permission setup must not reopen Finder or any already-running app.

@@ -40,6 +40,218 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+it.each(['invoke_menu', 'launch_app'])(
+  'refuses unbounded %s before creating a driver in a background-only turn',
+  async (tool) => {
+    const driverFactory = vi.fn(() => successfulDriver({}));
+    const service = new CuaService(authorization(), { driverFactory });
+    await expect(
+      service.call(
+        tool,
+        { pid: 42, window_id: 91, path: ['File', 'Save'] },
+        {
+          kind: 'turn',
+          threadId: 'thread',
+          turnId: 'turn',
+          backgroundOnly: true,
+        },
+      ),
+    ).rejects.toThrow('CUA refused: background_unavailable');
+    expect(driverFactory).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  'browser_prepare',
+  'browser_navigate',
+  'browser_click',
+  'browser_type',
+  'browser_pointer',
+])('checks the host-bound browser process before %s', async (tool) => {
+  const driver = successfulDriver({ apps: [{ pid: 42, active: true }] });
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(
+      service.call(
+        tool,
+        { delivery_mode: 'background' },
+        {
+          kind: 'turn',
+          threadId: 'thread',
+          turnId: 'turn',
+          backgroundOnly: true,
+          backgroundTargetPid: 42,
+        },
+      ),
+    ).rejects.toThrow('CUA refused: foreground_app_in_use');
+    expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual(['list_apps']);
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it('refuses browser input without a host-owned process binding', async () => {
+  const driver = successfulDriver({ apps: [{ pid: 7, active: true }] });
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(
+      service.call(
+        'browser_click',
+        { target_id: 'model-guessed', tab_id: 'model-guessed' },
+        { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+      ),
+    ).rejects.toThrow('CUA refused: background_focus_unavailable');
+    expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual(['list_apps']);
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it.each([
+  'click',
+  'double_click',
+  'drag',
+  'type_text',
+  'set_value',
+  'press_key',
+  'hotkey',
+  'scroll',
+])('does not deliver %s into the app the person is using', async (tool) => {
+  const driver = successfulDriver({ apps: [{ pid: 42, active: true }] });
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(
+      service.call(
+        tool,
+        { pid: 42, window_id: 91, delivery_mode: 'background' },
+        { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+      ),
+    ).rejects.toThrow('CUA refused: foreground_app_in_use');
+    expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual(['list_apps']);
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it.each([
+  'unchanged',
+  'became-active',
+  'other-app-became-active',
+  'unknown-after',
+  'unknown-before',
+])('checks real app focus around background input: %s', async (scenario) => {
+  let inventories = 0;
+  const driver = {
+    callTool: vi.fn(async (name: string) => {
+      if (name !== 'list_apps')
+        return {
+          rawJson: JSON.stringify({ effect: 'confirmed', delivery: { mode: 'background' } }),
+        };
+      inventories++;
+      const unknown =
+        scenario === 'unknown-before' || (scenario === 'unknown-after' && inventories === 2);
+      return {
+        rawJson: JSON.stringify({
+          apps: unknown
+            ? []
+            : [
+                {
+                  pid:
+                    inventories !== 2
+                      ? 7
+                      : scenario === 'became-active'
+                        ? 42
+                        : scenario === 'other-app-became-active'
+                          ? 99
+                          : 7,
+                  active: true,
+                },
+              ],
+        }),
+      };
+    }),
+    shutdown: vi.fn(async () => undefined),
+  };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    const action = service.call(
+      'click',
+      { pid: 42, window_id: 91, delivery_mode: 'background' },
+      { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+    );
+    if (scenario === 'unknown-before') {
+      await expect(action).rejects.toThrow('CUA refused: background_focus_unavailable');
+      expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual(['list_apps']);
+    } else {
+      const result = await action;
+      expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual([
+        'list_apps',
+        'click',
+        'list_apps',
+      ]);
+      if (scenario === 'became-active' || scenario === 'other-app-became-active')
+        expect(result).toMatchObject({ background_focus_changed: true });
+      else if (scenario === 'unknown-after')
+        expect(result).toMatchObject({ background_focus_unverified: true });
+      else expect(result).toMatchObject({ effect: 'confirmed' });
+    }
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it.each([
+  ['launch_app', { bundle_id: 'com.apple.TextEdit', session: 'task-session' }],
+  ['invoke_menu', { pid: 42, window_id: 91, path: ['File', 'Save'], session: 'task-session' }],
+  [
+    'double_click',
+    {
+      pid: 42,
+      window_id: 91,
+      element_token: 's00000001:3',
+      delivery_mode: 'background',
+      session: 'task-session',
+    },
+  ],
+] as const)(
+  'authorizes and forwards the bundled %s primitive without adding unsupported arguments',
+  async (name, args) => {
+    const broker = { authorize: vi.fn(async () => 'allow' as const) };
+    const driver = successfulDriver({ effect: 'unverifiable' });
+    const service = new CuaService(broker, { driverFactory: () => driver });
+    try {
+      await service.call(name, args, { kind: 'turn', threadId: 'thread', turnId: 'turn' });
+      expect(JSON.parse(driver.callTool.mock.calls[0]![1])).toEqual(args);
+    } finally {
+      await service.shutdown();
+    }
+  },
+);
+
+it('requests structured controls and background grants instead of the compact markdown default', async () => {
+  const observed = {
+    elements: [{ role: 'AXSecureTextField', element_token: 's00000001:9' }],
+    background_input: { exact_window: { status: 'matched', pid: 42, window_id: 91 } },
+  };
+  const driver = successfulDriver(observed);
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    const result = await service.call(
+      'get_window_state',
+      { pid: 42, window_id: 91, include_screenshot: false },
+      directContext,
+    );
+    expect(result).toEqual(observed);
+    expect(JSON.parse(driver.callTool.mock.calls[0]![1])).toMatchObject({
+      tree_format: 'elements',
+      verbose: true,
+      include_screenshot: false,
+    });
+  } finally {
+    await service.shutdown();
+  }
+});
+
 it.each(['ready', 'unavailable'] as const)(
   'does not request permissions again when computer access is %s',
   async (status) => {
@@ -134,6 +346,8 @@ describe('confirming granted access through the driver', () => {
       pid: 501,
       window_id: 77,
       include_screenshot: true,
+      tree_format: 'elements',
+      verbose: true,
     });
     await cua.permissions();
     expect(driver.callTool).toHaveBeenCalledTimes(2);
@@ -324,6 +538,54 @@ describe('CuaService call boundaries', () => {
       'list_apps',
       'list_windows',
     ]);
+  });
+
+  it('gives each queued call its full execution budget, including after an approval wait', async () => {
+    vi.useFakeTimers();
+    const decision = Promise.withResolvers<'allow'>();
+    let secondStarted = false;
+    const driver = {
+      callTool: vi.fn(),
+      shutdown: vi.fn(async () => undefined),
+    };
+    const service = new CuaService(
+      { authorize: async () => decision.promise },
+      {
+        callTimeoutMs: 25,
+        driverFactory: (authorize) => {
+          driver.callTool
+            .mockImplementationOnce(async () => {
+              await authorize({
+                adapterId: 'window',
+                riskClass: 'input',
+                permissionMode: 'standard',
+                publicSession: 's',
+                requestDigest: 'd',
+                humanSummary: 'Click',
+                resourceJson: '{}',
+                expiresUnixMs: 0n,
+              });
+              return { rawJson: '{}' };
+            })
+            .mockImplementationOnce(async () => {
+              secondStarted = true;
+              await new Promise((resolve) => setTimeout(resolve, 20));
+              return { rawJson: '{"done":true}' };
+            });
+          return driver;
+        },
+      },
+    );
+    const first = service.call('click', {}, { kind: 'turn', threadId: 't', turnId: 'u' });
+    await vi.advanceTimersByTimeAsync(0);
+    const second = service.call('list_apps', {}, directContext);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(secondStarted).toBe(false);
+    decision.resolve('allow');
+    await vi.advanceTimersByTimeAsync(20);
+    await first;
+    await expect(second).resolves.toEqual({ done: true });
+    expect(driver.shutdown).not.toHaveBeenCalled();
   });
 
   it('disposes a late driver initialization instead of replacing the recovered driver', async () => {

@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 const desktopRoot = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 
 export interface IsolatedSiaOptions {
+  readonly arguments?: readonly string[];
   readonly executablePath?: string;
   readonly fakeServices?: boolean;
   readonly environment?: Readonly<Record<string, string>>;
@@ -46,6 +47,7 @@ export async function launchIsolatedSia(
     // Real-provider probes keep the production display behavior.
     args: [
       desktopRoot,
+      ...(options.arguments ?? []),
       ...(options.fakeServices === false
         ? []
         : ['--force-color-profile=srgb', '--force-device-scale-factor=1']),
@@ -78,6 +80,13 @@ export async function launchIsolatedSia(
     });
   }
   const page = await readyPage(application);
+  if (options.fakeServices !== false && process.env.SIA_TEST_QUIET === '1') {
+    expect(
+      await application.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows().every((window) => !window.isVisible()),
+      ),
+    ).toBe(true);
+  }
   const rendererErrors = collectRendererErrors(page);
 
   return {

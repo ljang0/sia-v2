@@ -73,6 +73,16 @@ transcription and Fn task execution; running/queued tasks animate the gradient, 
 and completion/failure/cancellation fades it out. The parent sends only an idle/working/waiting
 phase, never task text. Reduced Motion uses a steady edge. Approvals remain in the main app.
 
+`VoiceTranscriptPanel.swift` owns the separate click-through transcript card at the top of the current
+display. It keeps one SwiftUI view alive as words arrive, with three readable lines, a destination,
+release/Escape hints, and listening, transcribing, sent, or notice states. ElevenLabs partial transcripts
+travel only over the existing private helper pipe; previews never dispatch a task or enter persistence.
+Mac on-device speech shows the listening state and the committed transcript after release. Stale previews
+are ignored after cancellation or a new recording. The sent card fades after three seconds; cancellation
+hides it. The card cannot become the key/main window, take mouse input, or open Sia. It follows system
+light/dark appearance, Increase Contrast, Reduce Transparency, and Reduce Motion. The original multicolor
+edge glow remains independent of this card.
+
 The Connected apps outline uses Notch’s 400-node, 12-level, 2,800-character budgets with a 600 ms deadline. A
 metadata pass excludes protected controls before reading static text; editable field values are
 not included. Incomplete protection checks suppress content. This remains gesture-only capture.

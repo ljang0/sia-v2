@@ -92,6 +92,9 @@ test('existing browser-blocked conversations offer inline recovery without openi
     const recovery = sia.page.getByRole('region', { name: 'Continue with Chrome' });
     const failure = sia.page.getByTestId('interrupted-turn-banner');
     await expect(failure.getByRole('button', { name: 'Continue task' })).toBeVisible();
+    // Finished activity stays folded; explicitly inspect the failed step.
+    await sia.page.getByRole('button', { name: /1 step had a problem/ }).click();
+    await failure.hover();
     for (const colorScheme of ['light', 'dark'] as const) {
       await sia.page.emulateMedia({ colorScheme });
       const colors = await failure.evaluate((element) => {

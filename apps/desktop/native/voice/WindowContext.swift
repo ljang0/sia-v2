@@ -5,6 +5,76 @@ import ApplicationServices
 import Darwin
 
 enum WindowContext {
+    // Rich course/calendar pages can exceed four thousand AX nodes. Batched
+    // metadata keeps this bounded walk inside the existing wall-clock budget.
+    static let maximumScanNodes = 16000
+    static func localDocumentURL(_ value: Any?) -> String? {
+        let url: URL?
+        if let value = value as? URL { url = value }
+        else if let value = value as? String { url = URL(string: value) }
+        else { url = nil }
+        guard let url, url.isFileURL, url.user == nil, url.password == nil,
+              url.query == nil, url.fragment == nil,
+              url.host == nil || url.host == "" || url.host == "localhost" else { return nil }
+        return url.absoluteString
+    }
+    static func hasPasswordMetadata(role: String, label: String) -> Bool {
+        guard label.range(of: "password", options: .caseInsensitive) != nil else { return false }
+        if ["AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"].contains(role) {
+            return true
+        }
+        // API identifiers such as setpassword() are not authentication surfaces.
+        // Literal password labels, including static disclosures, remain blocked.
+        let literal = label.replacingOccurrences(of: "\\b(?:[a-z_]\\w*\\.)*[a-z_]\\w*password\\w*(?=\\s*\\()",
+                                                with: "", options: [.regularExpression, .caseInsensitive])
+        return literal.range(of: "password", options: .caseInsensitive) != nil
+    }
+    struct Metadata {
+        let role: String
+        let subrole: String
+        let title: String
+        let description: String
+        let children: [AXUIElement]
+    }
+
+    /// One cross-process read per node, without reading editable values. Walking
+    /// a long public page with five separate AX messages could exhaust the
+    /// security scan's budget before its URL could be verified.
+    static func metadata(_ element: AXUIElement) -> Metadata? {
+        var values: CFArray?
+        let names = [kAXRoleAttribute, kAXSubroleAttribute, kAXTitleAttribute,
+                     kAXDescriptionAttribute, kAXChildrenAttribute] as CFArray
+        guard AXUIElementCopyMultipleAttributeValues(element, names, [], &values) == .success,
+              let values else { return nil }
+        return metadataValues(values as [AnyObject])
+    }
+
+    static func metadataValues(_ values: [AnyObject]) -> Metadata? {
+        guard values.count == 5, let role = values[0] as? String, !role.isEmpty,
+              let subrole = metadataText(values[1]), let title = metadataText(values[2]),
+              let description = metadataText(values[3]) else { return nil }
+        let children: [AXUIElement]
+        if let list = values[4] as? [AXUIElement] { children = list }
+        else if missingMetadataValue(values[4]) { children = [] }
+        else { return nil }
+        return Metadata(role: role, subrole: subrole, title: title, description: description,
+                        children: children)
+    }
+
+    private static func metadataText(_ value: AnyObject) -> String? {
+        if let text = value as? String { return text }
+        return missingMetadataValue(value) ? "" : nil
+    }
+
+    private static func missingMetadataValue(_ value: AnyObject) -> Bool {
+        if value is NSNull { return true }
+        guard CFGetTypeID(value) == AXValueGetTypeID() else { return false }
+        let ax = unsafeBitCast(value, to: AXValue.self)
+        var error = AXError.success
+        return AXValueGetType(ax) == .axError && AXValueGetValue(ax, .axError, &error)
+            && (error == .attributeUnsupported || error == .noValue)
+    }
+
     static func attribute<T>(_ element: AXUIElement, _ key: String) -> T? {
         var value: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, key as CFString, &value) == .success else { return nil }
@@ -123,18 +193,17 @@ enum WindowContext {
         // suppresses this supplemental outline; it never bypasses the CUA guard.
         func inspect(_ element: AXUIElement, _ depth: Int) {
             guard complete, !protected else { return }
-            guard depth <= 40, nodes.count < 2000, Date() < deadline else { complete = false; return }
+            guard depth <= 40, nodes.count < maximumScanNodes, Date() < deadline else { complete = false; return }
             guard visited.insert(CFHash(element)).inserted else { return }
-            let role: String = attribute(element, kAXRoleAttribute) ?? ""
-            let subrole: String = attribute(element, kAXSubroleAttribute) ?? ""
-            let title: String = attribute(element, kAXTitleAttribute) ?? ""
-            let description: String = attribute(element, kAXDescriptionAttribute) ?? ""
-            guard !role.isEmpty else { complete = false; return }
+            guard let metadata = metadata(element) else { complete = false; return }
+            let role = metadata.role
+            let subrole = metadata.subrole
+            let title = metadata.title
+            let description = metadata.description
             let identity = (role + " " + subrole + " " + title + " " + description).lowercased()
-            if ["securetextfield", "password", "passkey", "verification code", "private browsing", "incognito"].contains(where: identity.contains) { protected = true; return }
+            if [title, description].contains(where: { hasPasswordMetadata(role: role, label: $0) }) || ["securetextfield", "passkey", "verification code", "private browsing", "incognito"].contains(where: identity.contains) { protected = true; return }
             nodes.append((element, role, title.isEmpty ? description : title))
-            let children: [AXUIElement] = attribute(element, kAXChildrenAttribute) ?? []
-            for child in children { inspect(child, depth + 1) }
+            for child in metadata.children { inspect(child, depth + 1) }
         }
         inspect(window, 0)
         guard !protected else { return ["status": "protected"] }
@@ -161,6 +230,13 @@ enum WindowContext {
         guard NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == bundle,
               let live = resolve(pid: pid, windowID: windowID), CFEqual(window, live), Date() < deadline else { return ["status": "unavailable"] }
         let title: String = attribute(window, kAXTitleAttribute) ?? ""
-        return ["status": "ready", "bundleID": bundle, "title": FnContext.bounded(title, 300), "text": FnContext.bounded(lines.joined(separator: "\n"), 12000), "partial": partial]
+        var result: [String: Any] = ["status": "ready", "bundleID": bundle, "title": FnContext.bounded(title, 300), "text": FnContext.bounded(lines.joined(separator: "\n"), 12000), "partial": partial]
+        // Host-only identity for reusing an already-open authorized document.
+        // This follows the same exact-window and protected-content checks above.
+        let document: Any? = attribute(window, kAXDocumentAttribute)
+        if let url = localDocumentURL(document), url.utf16.count <= 8192 {
+            result["documentURL"] = url
+        }
+        return result
     }
 }

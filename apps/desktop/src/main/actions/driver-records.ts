@@ -205,31 +205,46 @@ export function isHiddenWindowStructure(record: Record<string, unknown>): boolea
 }
 
 export function isProtectedElement(record: Record<string, unknown>): boolean {
-  const identity = [
-    firstString(record, ['role', 'type', 'input_type', 'inputType']),
-    firstString(record, ['autocomplete']),
-  ]
-    .filter(isDefined)
+  const identity = ['role', 'type', 'subrole', 'input_type', 'inputType', 'autocomplete']
+    .map((key) => record[key])
+    .filter((value) => typeof value === 'string')
     .join(' ');
   return /(?:password|secure|credential|one-time-code|current-password|new-password)/i.test(
     identity,
   );
 }
 
+function passwordLabelIsProtected(role: string, label: string): boolean {
+  if (!/password/i.test(label)) return false;
+  if (/^AX(?:TextField|TextArea|ComboBox|SearchField)$/.test(role)) return true;
+  const literal = label.replace(/\b(?:[a-z_]\w*\.)*[a-z_]\w*password\w*(?=\s*\()/gi, '');
+  return /password/i.test(literal);
+}
+
 export function windowHasProtectedControls(value: unknown): boolean {
   return ['elements', 'nodes']
     .flatMap((key) => findRecordArray(value, key))
     .filter((record) => !isHiddenWindowStructure(record))
-    .some(
-      (record) =>
+    .some((record) => {
+      const label = [record.role, record.subrole, record.title, record.label]
+        .filter((item) => typeof item === 'string')
+        .join(' ');
+      // Public API links such as ZipFile.setpassword() are not password fields.
+      // Editable controls retain the conservative substring check; literal
+      // password labels/prose and secure roles remain protected everywhere.
+      const password = [record.title, record.label].some(
+        (text) =>
+          typeof text === 'string' && passwordLabelIsProtected(String(record.role), text),
+      );
+      return (
         isProtectedElement(record) ||
+        password ||
         // Match authentication words, not "signing"/"blogging" in public page labels.
-        /(?:secure|password|\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat|verification code|passkey|api.?key|access.?token)/i.test(
-          [record.role, record.subrole, record.title, record.label]
-            .filter((item) => typeof item === 'string')
-            .join(' '),
-        ),
-    );
+        /(?:secure|\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat|verification code|passkey|api.?key|access.?token)/i.test(
+          label,
+        )
+      );
+    });
 }
 
 export function positiveInteger(value: unknown, maximum: number): number | undefined {

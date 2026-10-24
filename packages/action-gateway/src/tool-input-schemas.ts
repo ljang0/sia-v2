@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { taskCheckpoint } from './task-checkpoint.js';
 
 const id = z.string().trim().min(1).max(512);
 
@@ -19,6 +20,7 @@ export const memoryVault = z
 const computerOpenApp = z
   .object({
     delivery: z.enum(['background', 'foreground']).optional(),
+    workspace_path: z.string().min(1).max(4096).optional(),
     application: z
       .string()
       .trim()
@@ -30,6 +32,9 @@ const computerOpenApp = z
 
 const computerOpenUrl = z
   .object({
+    app_id: id.optional(),
+    window_id: id.optional(),
+    tab_id: id.optional(),
     delivery: z.enum(['background', 'foreground']).optional(),
     url: z
       .url()
@@ -48,6 +53,7 @@ const computerSnapshot = z
   .object({
     app_id: id,
     window_id: id,
+    tab_id: id.optional(),
     wait_ms: z.number().int().min(0).max(3000).optional(),
     read_text: z.boolean().optional(),
     include_image: z.boolean().optional(),
@@ -60,7 +66,8 @@ const computerAction = z
     app_id: id,
     window_id: id,
     snapshot_id: id,
-    action: z.enum(['click', 'type', 'set', 'scroll', 'key', 'drag']),
+    action: z.enum(['click', 'type', 'set', 'scroll', 'key', 'drag', 'menu']),
+    menu_path: z.array(z.string().trim().min(1).max(200)).min(1).max(16).optional(),
     button: z.enum(['left', 'right']).optional(),
     count: z.number().int().min(1).max(2).optional(),
     include_image: z.boolean().optional(),
@@ -87,39 +94,48 @@ const computerAction = z
     target_role: z.string().max(128).optional(),
   })
   .strict()
-  .superRefine(({ action, element_ref, x, y, to_x, to_y, button, count }, context) => {
-    const coordinates = x !== undefined && y !== undefined;
-    if ((button !== undefined || count !== undefined) && action !== 'click')
-      context.addIssue({ code: 'custom', message: 'button/count only apply to click.' });
-    if (count === 2 && (!coordinates || element_ref))
-      context.addIssue({
-        code: 'custom',
-        message: 'Double-click requires fresh screenshot coordinates.',
-      });
-    if (
-      (x !== undefined || y !== undefined || to_x !== undefined || to_y !== undefined) &&
-      (!coordinates || element_ref || !['click', 'drag', 'type'].includes(action))
-    )
-      context.addIssue({
-        code: 'custom',
-        message:
-          'Use either an element reference or complete screenshot coordinates for click/drag/type.',
-      });
-    if (action !== 'drag' && (to_x !== undefined || to_y !== undefined))
-      context.addIssue({ code: 'custom', message: 'End coordinates only apply to drag.' });
-    if (action === 'drag' && (!coordinates || to_x === undefined || to_y === undefined))
-      context.addIssue({
-        code: 'custom',
-        message: 'Drag requires start and end screenshot coordinates.',
-      });
-    if ((action === 'set' || (action === 'click' && !coordinates)) && !element_ref) {
-      context.addIssue({
-        code: 'custom',
-        path: ['element_ref'],
-        message: `${action} requires an exact element reference`,
-      });
-    }
-  });
+  .superRefine(
+    ({ action, element_ref, x, y, to_x, to_y, button, count, menu_path }, context) => {
+      const coordinates = x !== undefined && y !== undefined;
+      if ((button !== undefined || count !== undefined) && action !== 'click')
+        context.addIssue({ code: 'custom', message: 'button/count only apply to click.' });
+      if (count === 2 && button === 'right')
+        context.addIssue({ code: 'custom', message: 'Double-click uses the left button.' });
+      if ((action === 'menu') !== Boolean(menu_path))
+        context.addIssue({
+          code: 'custom',
+          message: 'Menu actions require only a native menu path.',
+        });
+      if (action === 'menu' && (element_ref || x !== undefined || y !== undefined))
+        context.addIssue({
+          code: 'custom',
+          message: 'Menu paths cannot mix with element/pixel targets.',
+        });
+      if (
+        (x !== undefined || y !== undefined || to_x !== undefined || to_y !== undefined) &&
+        (!coordinates || element_ref || !['click', 'drag', 'type'].includes(action))
+      )
+        context.addIssue({
+          code: 'custom',
+          message:
+            'Use either an element reference or complete screenshot coordinates for click/drag/type.',
+        });
+      if (action !== 'drag' && (to_x !== undefined || to_y !== undefined))
+        context.addIssue({ code: 'custom', message: 'End coordinates only apply to drag.' });
+      if (action === 'drag' && (!coordinates || to_x === undefined || to_y === undefined))
+        context.addIssue({
+          code: 'custom',
+          message: 'Drag requires start and end screenshot coordinates.',
+        });
+      if ((action === 'set' || (action === 'click' && !coordinates)) && !element_ref) {
+        context.addIssue({
+          code: 'custom',
+          path: ['element_ref'],
+          message: `${action} requires an exact element reference`,
+        });
+      }
+    },
+  );
 
 const browserTabs = z.object({}).strict();
 
@@ -127,7 +143,7 @@ const workspaceFileName = z
   .string()
   .min(1)
   .max(180)
-  .regex(/^[^./\\\x00-\x1f][^/\\\x00-\x1f]*\.(?:txt|md|csv|tsv|json)$/i);
+  .regex(/^[^./\\\x00-\x1f][^/\\\x00-\x1f]*\.(?:txt|md|csv|tsv|json|ics)$/i);
 
 export const computerReadFile = z.object({ name: workspaceFileName }).strict();
 
@@ -846,6 +862,7 @@ export const macAutomation = z
   );
 
 export const actionInputSchemas = {
+  task_checkpoint: taskCheckpoint,
   assistant_library: libraryList,
   memory_learn: memoryLearn,
   memory_suggest: memorySuggestion,

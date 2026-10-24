@@ -321,6 +321,62 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   the turn fails before any model call with a plain next step (allow access, or choose On my screen)
   and the Continue task banner. The background route uses
   `@trycua/cua-driver` through `CuaService` in the Electron main process, without a VM or driver daemon.
+  The SDK and both bundled Mac native libraries are pinned together at 0.37.0. Sia explicitly
+  requests structured `elements` and verbose background-route metadata; the driver's compact
+  markdown default cannot support Sia's protected-field checks or input grants. Actions use only
+  observed snapshot-bound element tokens, without the retired index/snapshot input arguments.
+  `set_value` is an exact accessibility operation and does not accept a delivery-mode argument.
+  Element double-clicks use the driver's `double_click`/AXOpen route, while pixel double-clicks
+  retain the bounded screenshot route. When foreground recovery is permitted, exact native menu
+  paths use `invoke_menu` on the granted window rather than the global menu bar. Its SDK operation
+  has no background delivery ceiling, so the host propagates the immutable turn policy and refuses
+  it before driver initialization in background-only turns. Those turns use separately available
+  accessibility controls or explicitly background keyboard equivalents instead. Menu calls
+  retain snapshot, protected-window, route and authorization checks; authentication, credential,
+  terminal and scripting menus are refused. `window_not_key` is an explicit no-input refusal,
+  not uncertain delivery, and never triggers an automatic foreground retry.
+  An unexpected foreground acknowledgement remains uncertain, revokes the old snapshot, and
+  records its driver operation. A new dialog cannot relabel that input as "not sent."
+  In strict background turns, each native input and Chromium browser mutation/setup reads the live foreground application before
+  dispatch. Input into that application is refused, leaving the person's active work alone.
+  A second read after input detects any foreground-app change or an unverifiable focus state;
+  it preserves uncertainty and pauses the exact turn, including queued follow-ups. Sia does not
+  restore focus over a person's choice, replay the action, or automatically resume the pause.
+  These checks are conservative and cannot make the native desktop a fully isolated second Mac:
+  the person and Sia cannot simultaneously drive the same active app in strict mode.
+  Browsers retain their existing page controls and permitted navigation shortcuts; the new native
+  menu route cannot open browser file pickers, internal pages or developer tools.
+  With foreground recovery permitted, background app opening uses the bundled driver's
+  non-activating `launch_app` route. Strict background turns refuse new app/document launches
+  before the driver is initialized: an app may activate itself despite a background request.
+  They can reuse an already-running app window or an exact already-open document. The system
+  URL opener is also refused before dispatch in strict mode. Existing Chrome, Edge and Brave
+  windows use the bundled driver's exact-tab browser adapter through the same `computer_*`
+  tools and ActionGateway. Read-only snapshots never prepare a profile. An authorized
+  `computer_open_url` may request `browser_prepare` with the exact PID/window, existing-profile
+  strategy and background delivery; refusal never escalates to foreground. Preparation is
+  not a guarantee of access: browser consent and the driver's supported routes still apply.
+  Safe start tabs are navigation-only, and unrelated website tabs need explicit selection.
+  Browser bindings remain pinned for the turn instead of reminting tab choices on every read;
+  reads and actions verify the exact target/tab and consume stale input capabilities. This
+  avoids Chromium's stale accessibility tree on another Space. Native browser keys, pointer
+  input and off-Space AX fallback are unavailable on this Chromium route. Safari retains its
+  native window route and the conservative active-app safeguard. Default-browser account
+  identity is never assumed, and no cookie or login is copied.
+  A driver report that it restored the foreground app is an interruption even if before/after
+  app samples match; the affected turn pauses with uncertain delivery rather than claiming
+  background success.
+  An optional
+  `workspace_path` opens an existing ordinary text document in TextEdit, PDF/image in Preview, or
+  directory in Finder. The host resolves it inside the pinned workspace and rejects URL schemes,
+  traversal, hidden/credential paths, links, executable bundles and app/type mismatches. No model
+  launch arguments, inspector ports or arbitrary file grants are exposed. Opening is followed by
+  inventory; the task must still inspect and verify its exact document.
+  Before reopening a workspace document, the host can reuse an existing window whose live native
+  file URL and app identity exactly match the authorized target. Titles only select a bounded set
+  of candidates; they never prove file identity. Protected/unavailable context, other paths and
+  non-file URLs cannot establish reuse. The native URL stays in the main process; fresh snapshots
+  are still required before acting. This avoids unnecessary app activation when a file is open.
   Native computer calls use a fresh opaque CUA session for each active turn, separate from the
   reusable Codex conversation and explicitly attached browser sessions. A new turn revokes prior
   app/window/snapshot refs and discovers fresh ones; an aborted old call cannot clear current refs.
@@ -347,9 +403,31 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   place: no browser profile, cookie, password or token is copied. The model is instructed to inspect
   visible tabs/account controls in the established window before opening a URL in a different
   default browser/profile.
+  A protected document is left untouched, but does not block an independently public staff or
+  syllabus page already in the requested scope. The host returns recent verified source paths as
+  navigation hints and explains how to open a known public URL and revalidate its new document.
+  This cannot open authentication paths, reuse stale input refs, establish private access or turn
+  public course information into evidence of the person's enrollment.
   Driver truncation and supplemental text limits are exposed as partial observations, not complete
   coverage. A response with no readable text, controls or image revokes the previous input snapshot
   and returns an explicit observation failure; it cannot mint a verified state or imply sign-out.
+  Native text readers batch role/subrole/title/description/children metadata per AX node before
+  reading content, retaining a complete protected-surface prepass. Their 16,000-node bound keeps
+  the existing depth/time limits; missing or unreadable child metadata fails closed. Partial
+  supplemental text also requests OCR of the same permitted window image, giving the current
+  viewport after scrolling without claiming that the whole document has been read. Image-free
+  and protected observations never invoke OCR. After an action opens a Save/Open panel, a fresh
+  parent snapshot is inspected first: native AXSheet controls often belong to that document even
+  when WindowServer lists an auxiliary panel that cannot be controlled. Only fresh parent refs and
+  explicitly available routes may be used; a driver's refusal is never overridden.
+  A public API identifier such as `ZipFile.setpassword()` does not by itself identify a password
+  surface. Both native and structured-control readers exclude that identifier from password-label
+  matching while preserving conservative checks on editable controls, literal/compound password
+  labels, credential assignments, secure roles and authentication pages.
+  Unqualified API calls such as `setpassword()` use the same rule; editable controls never receive
+  that exemption. Structural checks inspect every role, subrole, input type and autocomplete
+  marker; an ordinary role cannot hide a password type. Protected native reads expose only a
+  fixed role/rule category and label length/word count for diagnosis, never the matching label.
   Background also exposes `computer_list_files`, `computer_read_file` and `computer_write_file`
   through ActionGateway. They read bounded UTF-8 data files and create new txt/md/csv/tsv/json
   reports in the host-pinned task workspace. Updating an existing file requires the SHA-256 from
@@ -372,6 +450,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Missing/loading observations, stale targets and refusals stop the run without replay. Runs containing
   UI delivery remain `accepted_unverified` until the agent inspects semantic evidence. Native scripts
   remain on the native route; both routes share journal evidence for consolidation.
+  A transport error after requesting window input is also `accepted_unverified`, not proof of
+  refusal: the app may already have committed the change. Sia revokes the old snapshot/input
+  capability and requires fresh observation before further input. Explicit driver validation and
+  authorization refusals retain their refusal status. Neither path automatically replays input.
   Background native observations default to accessibility/text, with `include_image:true` for visual
   evidence and pixel targeting, or `read_text:true` for screenshot OCR. Browser observations keep
   images by default; text edits also capture an image to cross-check unreliable AX echo. Pixel input always receives a
@@ -389,16 +471,28 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   and title matching; a known conflicting native ID never falls through to that heuristic.
   Empty background accessibility automatically requests one image unless the caller explicitly
   selected text-only output. Protected/refused reads never use this fallback, and unavailable
-  screenshots never grant pixel input. Sia preserves the driver’s exact-window `background_input`
+  screenshots never establish text coverage. A compact CUA control projection is distinguished
+  from a truncated text read only when the exact-window native reader explicitly finishes without
+  truncation, the driver walk reports no truncation or pending nodes, and valid returned/total counts
+  agree. `control_projection_partial` remains separate from `window_text_complete`; neither proves
+  coverage of other pages, filters, accounts or hidden app data. Unknown or genuinely partial reads
+  retain the incomplete-coverage warning. This prevents a healthy projection from creating false
+  needs-attention tasks without weakening source-coverage checks.
+  Unavailable screenshots never grant pixel input. Sia preserves the driver’s exact-window `background_input`
   report, including separate accessibility, pointer and keyboard availability. An off-Space or
   AX-unresolved window may provide observation pixels without accepting any background input;
   those snapshots no longer advertise pixel actions. Input checks the relevant route, and pixel
   delivery rechecks it after the fresh capture. Driver-side target checks remain authoritative.
+  An explicit `background_unavailable` refusal remains a refusal, distinct from a lost input
+  acknowledgement. Electron/Chromium may reject background wheel events; Sia must use supported
+  observed controls or report the specific gap rather than replay input or foreground the app.
   An unconfirmed delivery with a foreground escalation
   suggestion still receives post-action observation: the input may already have worked. The model
   inspects that result before declaring failure or choosing another observed control; Sia never
   automatically retries the input in the foreground.
-  Driver calls have a deadline covering queue wait and execution. Cancelled waiters return promptly
+  Each driver call's execution deadline starts after it owns the serialized queue; waiting for an
+  earlier call or the person's approval does not consume that execution budget. Caller cancellation
+  remains available throughout queueing and execution. Cancelled waiters return promptly
   without overtaking the active call; late initialization cannot replace a recovered driver.
   An expired implicit SDK session renews once for unscoped read-only app/window inventory. Named
   sessions, permission refusals and writes are never replayed by that recovery path.
@@ -457,14 +551,25 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   captured after the lease is held, immediately before sending the turn.
   A whole-task `global_focus` lease prevents concurrent Sia tasks from driving the GUI. Fn audio
   capture can proceed while a task runs; new Mac tasks queue for the screen. Notch's progress-aware
-  watchdog is ported (180 seconds without provider activity; one hour maximum, excluding approval
-  waits). Pending host tool calls suspend the inactivity timer while their own bounded timeouts apply;
-  the one-hour task limit remains. Completion/cancellation wins over a late start-request failure,
+  watchdog checks after 180 seconds without provider activity; one hour remains the task limit,
+  excluding approval/input waits. Pending native commands and host tools protect quiet work; their
+  own bounds and the one-hour task limit remain. An otherwise silent turn gets a bounded metadata-only
+  `thread/read` health check before cancellation. A provider reporting the thread active keeps it
+  running. Inactive, unreachable, and one-hour-limit failures carry distinct error codes and reasons.
+  Completion/cancellation wins over late health checks or a late start-request failure,
   preventing duplicate terminal events or writes to a closed event queue.
   Cancellation interrupts the turn, declines pending approvals and cleans native background
   terminals before releasing the screen. No model/GUI probes run automatically at launch.
   Final structured results use Notch's response contract and balanced-object parser, translated to
   Sia's timeline, voice response and output-file link. Partial JSON is never streamed into speech.
+  Plain-text commentary streams as it arrives; commentary starting with JSON or a code fence stays
+  hidden until the authoritative completed item can be translated. Completion replaces a streamed
+  message in place. Recoverable provider retries show a reconnecting activity, not a failed task.
+  Provider connection and native memory preparation overlap before the model turn, so the full memory
+  context is still included. The startup activity records preparation/connection/Mac-wait durations
+  and shows the actual phase. Unchanged vault notes reuse a bounded in-memory text/digest cache only
+  after a fresh NOFOLLOW open and inode, link-count, size and nanosecond mtime/ctime validation.
+  Optional conversation naming waits until running, queued and waiting tasks have finished.
   Both Mac control modes execute the copied Swift `JournalStore`, `SkillLibrary` and
   `AgentResponse` from `native/notch/engine/` through the helper's headless `--notch-engine` mode. The foreground operating
   prompt and PROMOTE/DISTILL/INDEX recipe are generated from pinned Notch source literals, with
@@ -485,15 +590,46 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   sandboxed `skill_save`/`skill_run` route. No credentials or browser profiles are copied: background
   window control operates on the same already-signed-in Mac apps.
   New Mac agents in either mode enable Notch-style learning. Existing opt-outs remain unchanged.
-  Before request preparation, the host selects up to four relevant Markdown notes from filenames
-  and MOC descriptions using local term matching (including coursework/account vocabulary).
-  Ranking considers every eligible filename before choosing four notes; accumulating more than
-  200 notes does not hide later filenames. Only the selected note bodies are read.
-  Excerpts are bounded to 4,000 characters per note and 12,000 total; unsafe files and notes with
+  Before request preparation, the host selects up to four relevant Markdown notes using filenames,
+  MOC descriptions and note contents, with coursework/account vocabulary and short follow-up context.
+  Every eligible filename participates in metadata ranking. Content search prioritizes those matches,
+  then inspects up to 512 candidate notes, at most 256 KB per file and 2 MB total per request. This is
+  bounded retrieval, not proof that the vault was exhaustively searched. An in-memory read cache holds
+  up to 128 small notes, rechecking file identity, link count and nanosecond timestamps on every hit;
+  no search index or embeddings are sent to another service. Excerpts center on matching passages
+  rather than always taking the beginning. They are bounded to 4,000 characters per note and 12,000 total; unsafe files and notes with
   credential markers are skipped. The copied Swift adapter injects these as historical,
   untrusted `relevant_memory` data on both routes, including when learning is paused. They help
   locate the person's institution/profile but never establish current facts, grant permission,
   or replace live account verification. The model can read more through the existing vault tools.
+  Manual preferences are also ranked by request and selected as whole entries within 16,000 characters
+  on connected and both Mac routes. The native helper receives that selected projection; the complete
+  managed preferences file stays available. Credential markers are filtered before context assembly.
+  Each task request also carries the host UTC timestamp, local date/time and IANA timezone for
+  relative-date interpretation. This lives in the request, not the provider-session instructions,
+  so the clock does not invalidate a reusable session. Explicit user dates override it; current
+  enrollment and source coverage still require live evidence.
+  Task continuity is separate from automatic learning: `assistant/task-context.ts` stores up to eight
+  task checkpoints per conversation in the encrypted record repository, outside renderer snapshots
+  and direct action research/trajectory payloads. Each checkpoint preserves the original request
+  (included whole in resumed-task context),
+  constraints, sourced account/institution associations, source coverage, uncertain/verified writes,
+  next steps, revision and update time. `task_checkpoint` is capability-scoped to the active turn;
+  historical reads are limited to retained turns in that same conversation. Updates use revision
+  checks and cannot silently drop known sources or writes; corrections use explained exclusions or
+  evidenced reversals. Memory reviews cannot use it. Starting a resumed turn preserves its state,
+  including after relaunch; partial prior-task summaries can retrieve their full retained record.
+  Forks copy checkpoints with conversation history, edits remove the replaced task checkpoint, and
+  thread/agent deletion removes its records. No cross-conversation memory is created by this tool.
+  Before Mac/scheduled results are presented, the host rejects success while a recorded scope gap,
+  pending/blocked source, uncertain write or next step remains. Connected completions with such gaps
+  also fail with an attention notice. Checkpoint actions mean writes actually attempted, and next
+  steps mean unfinished work for the current deliverable. Completed advice or a planning report
+  can succeed while recommending that a later action needs new approval; recommendations do not
+  authorize those actions or excuse an uncertain attempted write. This is a consistency check on model-reported state, not an
+  independent semantic verifier: it cannot prove omitted sources were checked or prevent every false
+  claim. Fresh app evidence and existing file verification remain required. Explicit automatic-learning
+  settings still govern all durable preferences, vault notes, lessons and consolidation.
   Native consolidation uses the source recipe on the agent's pinned Codex model after new
   experience, at most every six hours while idle; explicit review/trigger can request it sooner.
   The review has only `memory_vault` list/read/write/append: no native shell, GUI, accounts or

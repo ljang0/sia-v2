@@ -37,6 +37,33 @@ const renderConversation = (thread: ThreadDetail) => {
 };
 
 describe('Conversation waiting controls', () => {
+  it('does not call a completed progress note a reply still being written', () => {
+    renderConversation(
+      baseThread({
+        status: 'running',
+        events: [
+          {
+            id: 'request',
+            type: 'message',
+            role: 'user',
+            content: 'Check Canvas',
+            timestamp: new Date().toISOString(),
+          },
+          {
+            id: 'progress',
+            type: 'message',
+            role: 'assistant',
+            content: 'Checking Canvas.',
+            streaming: false,
+            timestamp: new Date().toISOString(),
+          },
+        ],
+      }),
+    );
+    expect(screen.getByTestId('turn-running').textContent).toContain('Thinking');
+    expect(screen.getByTestId('turn-running').textContent).not.toContain('Writing the reply');
+  });
+
   it('shows an explained task failure once and keeps the continue control', () => {
     const explanation = 'The browser needs a fresh window snapshot.';
     renderConversation(

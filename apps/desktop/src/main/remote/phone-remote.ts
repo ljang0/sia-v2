@@ -741,7 +741,6 @@ export class PhoneRemote {
         (createdThreadId = (
           await this.#deps.controller.invoke('threads.create', {
             agentId: this.#config.agentId!,
-            title: text.slice(0, 80),
           })
         ).threadId);
       if (!isCurrent()) throw new RemoteError(PHONE_UNLINKED);

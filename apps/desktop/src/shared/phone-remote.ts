@@ -59,6 +59,8 @@ export interface RemoteTurn {
   id: string;
   text: string;
   response: string;
+  /** True only while the current assistant message is receiving text. */
+  streaming?: boolean;
   status: 'working' | 'waiting' | 'done' | 'error' | 'cancelled';
   steps: string[];
   error: string;

@@ -34,17 +34,20 @@ const piRoute: ModelRoute = {
 const allowedRoutes = [directRoute, openCodeRoute, piRoute] as const;
 
 describe('execution target resolver', () => {
-  it('routes an available Astra model through the same Codex subscription harness', () => {
-    expect(resolveExecutionTarget({ provider: 'codex', model: 'gpt-6-astra' })).toMatchObject({
-      ok: true,
-      target: {
-        model: 'gpt-6-astra',
-        harnessModelId: 'gpt-6-astra',
-        harnessId: 'codex_app_server',
-        credentialSource: 'provider_subscription',
-      },
-    });
-  });
+  it.each(['gpt-6.1-sol', 'gpt-6-astra'])(
+    'routes %s through the Codex subscription harness',
+    (model) => {
+      expect(resolveExecutionTarget({ provider: 'codex', model })).toMatchObject({
+        ok: true,
+        target: {
+          model,
+          harnessModelId: model,
+          harnessId: 'codex_app_server',
+          credentialSource: 'provider_subscription',
+        },
+      });
+    },
+  );
   it('provides migration-compatible defaults for every legacy provider', () => {
     expect(LEGACY_ROUTE_DEFAULTS).toEqual({
       codex: { harnessId: 'codex_app_server', credentialSource: 'provider_subscription' },

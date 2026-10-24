@@ -18,7 +18,6 @@ import {
   compact,
   findElementRecords,
   findRecordArray,
-  findString,
   firstString,
   isDefined,
   isHiddenWindowStructure,
@@ -209,7 +208,7 @@ export class ComputerObservation {
     const image = actionImages(raw)?.images?.[0];
     const imageText =
       this.ctx.macBrowserAccess() &&
-      request.arguments.read_text === true &&
+      (request.arguments.read_text === true || readableContext?.partial === true) &&
       image &&
       !windowHasProtectedControls(raw)
         ? await this.ctx.options.readImageText?.(image.dataBase64)
@@ -235,7 +234,6 @@ export class ComputerObservation {
       binding.title;
     if (title) this.ctx.computer.windows.set(binding.id, { ...binding, title });
     const snapshotId = randomUUID();
-    const nativeSnapshotId = findString(raw, ['snapshot_id', 'snapshotId']);
     const pixels =
       !includeImage || windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
     const elementMap = new Map<string, NativeElementAddress>();
@@ -250,15 +248,12 @@ export class ComputerObservation {
         )
           return undefined;
         const token = firstString(record, ['element_token', 'elementToken']);
-        const index = nonNegativeInteger(record.element_index ?? record.elementIndex);
-        if (!token && (index === undefined || !nativeSnapshotId))
-          return this.ctx.macBrowserAccess() ? sanitizeElement(record) : undefined;
+        if (!token) return this.ctx.macBrowserAccess() ? sanitizeElement(record) : undefined;
         const ref = `w:${snapshotId}:${position}`;
         const label = trustedElementLabel(record);
         const role = trustedDisplayText(firstString(record, ['role', 'type']));
         elementMap.set(ref, {
-          ...(token ? { token } : {}),
-          ...(index === undefined ? {} : { index }),
+          token,
           ...(label ? { label } : {}),
           ...(role ? { role } : {}),
         });
@@ -307,9 +302,24 @@ export class ComputerObservation {
     const driverState = asRecord(raw);
     const returnedCount = nonNegativeInteger(driverState?.returned_element_count);
     const totalCount = nonNegativeInteger(driverState?.total_element_count);
+    const pendingNodes = nonNegativeInteger(driverState?.nodes_pending);
+    const projectedControls = driverState?.elements_complete === false;
+    // The current driver can project controls from a fully walked AX window.
+    // That is not a truncated text read. Require independent, exact-window text
+    // evidence and explicit complete-walk metadata before making the distinction.
+    const windowTextComplete =
+      readableContext?.partial === false &&
+      Boolean(readableContext.text.trim()) &&
+      driverState?.truncated === false &&
+      pendingNodes === 0 &&
+      returnedCount !== undefined &&
+      totalCount !== undefined &&
+      returnedCount === totalCount;
     const partial =
       readableContext?.partial === true ||
-      driverState?.elements_complete === false ||
+      driverState?.truncated === true ||
+      (pendingNodes !== undefined && pendingNodes > 0) ||
+      (projectedControls && !windowTextComplete) ||
       (returnedCount !== undefined && totalCount !== undefined && returnedCount < totalCount);
     const backgroundInput = windowBackgroundInput(raw, binding);
     const observationOnly =
@@ -331,7 +341,6 @@ export class ComputerObservation {
       pid: binding.pid,
       windowId: binding.windowId,
       elements: elementMap,
-      ...(nativeSnapshotId ? { nativeSnapshotId } : {}),
     };
     this.ctx.computer.rememberSnapshot(capability);
     return {
@@ -351,13 +360,20 @@ export class ComputerObservation {
             ? new URL(browserUrl).origin + new URL(browserUrl).pathname
             : undefined,
         visible_text: readableContext?.text || undefined,
+        ...(projectedControls ? { control_projection_partial: true } : {}),
+        ...(windowTextComplete ? { window_text_complete: true } : {}),
         ...(partial
           ? {
               observation_partial: true,
               coverage_note:
                 'Only part of this window was read. Continue with scrolling, pagination or the relevant view; absence here does not establish that an item/account is missing.',
             }
-          : {}),
+          : windowTextComplete && projectedControls
+            ? {
+                coverage_note:
+                  'Available text in this exact accessibility window was read without truncation. The driver projects controls; that does not mean this text is missing. This covers only the current window state, not other pages, filters, accounts or hidden app data. Inspect other requested views when needed.',
+              }
+            : {}),
         image_text: imageText,
         ...(request.arguments.read_text === true
           ? {
@@ -434,11 +450,17 @@ export class ComputerObservation {
       outcome: 'refused',
       summary: protectedPage
         ? 'This specific browser window contains a protected page or security control. It was not read. This does not establish that another window or the requested account needs login.'
-        : 'This specific browser window could not be identified or observed. This is not evidence of a login screen. Continue in the task window already observed, or bring the browser forward and inspect this window again.',
+        : 'This specific browser window could not be identified or observed. This is not evidence of a login screen. Continue with another authorized source or report this exact observation gap, respecting the selected foreground policy.',
       data: {
         app_id: binding.appId,
         window_id: binding.id,
         blocker_code: protectedPage ? 'protected_window' : 'window_unavailable',
+        ...(protectedPage
+          ? {
+              next_step:
+                'Do not interact with this protected document or attempt authentication. For public facts already in scope, reuse a known public subpage from saved source hints, memory or prior verified observations with computer_open_url, then take a fresh snapshot. A protected homepage does not establish that its public staff/syllabus pages are protected. This grants no access to private data and never substitutes public information for verified enrollment or account identity.',
+            }
+          : {}),
         ...(state.status !== 'ready' && state.reason ? { blocker_detail: state.reason } : {}),
       },
     };

@@ -206,7 +206,8 @@ export function codexIsolationConfig(
     // Custom labs receive computer/browser/search through Sia's audited
     // dynamic tools; only the user's native Codex plan uses provider search.
     web_search: customProvider || disableNative || mac ? 'disabled' : 'live',
-    ...(mac ? { project_doc_max_bytes: 0 } : {}),
+    // These sessions receive their context explicitly; do not mix in workspace instructions.
+    ...(mac || disableNative ? { project_doc_max_bytes: 0 } : {}),
     notify: [],
     orchestrator: {
       skills: { enabled: false },

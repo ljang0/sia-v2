@@ -2,6 +2,383 @@ import { describe, expect, it, vi } from 'vitest';
 import { DesktopActionBackend } from './desktop-action-backend.js';
 import { dataRecord, fakeCua, grantedComputerTarget, request } from './test-support.js';
 
+it.each([
+  {
+    name: 'reported foreground delivery',
+    result: { effect: 'unverifiable', delivery: { mode: 'foreground' } },
+  },
+  { name: 'observed focus change', result: { background_focus_changed: true } },
+  { name: 'unknown focus after delivery', result: { background_focus_unverified: true } },
+  {
+    name: 'driver restoring focus after hidden activation',
+    result: { data: { effect: 'confirmed', restored_frontmost_app: true } },
+  },
+])(
+  'preserves uncertainty for $name even if a dialog opens, and revokes the old target',
+  async ({ result: delivered }) => {
+    let sent = 0;
+    const cua = fakeCua(async (name) => {
+      if (name === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+      if (name === 'list_windows')
+        return {
+          windows: [
+            { pid: 42, window_id: 91, app_name: 'Notes', title: 'Draft' },
+            ...(sent ? [{ pid: 42, window_id: 92, app_name: 'Notes', title: 'Dialog' }] : []),
+          ],
+        };
+      if (name === 'get_window_state')
+        return {
+          elements: [{ role: 'AXButton', label: 'Save', element_token: 's00000001:3' }],
+        };
+      if (name === 'click') {
+        sent++;
+        return delivered;
+      }
+      throw new Error(`Unexpected ${name}`);
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    const target = await grantedComputerTarget(backend);
+    const ids = { app_id: target.appId, window_id: target.windowId };
+    const observed = dataRecord((await backend.invoke(request('computer_snapshot', ids))).data);
+    const action = request('computer_action', {
+      ...ids,
+      snapshot_id: observed.snapshot_id,
+      action: 'click',
+      element_ref: (observed.elements as Record<string, unknown>[])[0]!.element_ref,
+    });
+    const strict = { ...action, context: { ...action.context, backgroundOnly: true } };
+    const result = await backend.invoke(strict);
+    expect(result.outcome).toBe('needs_foreground');
+    expect(result.summary).not.toContain('went nowhere');
+    expect(result.data).toMatchObject({
+      input_delivery_uncertain: true,
+      driver_operation: 'click',
+      requested_delivery: 'background',
+    });
+    expect(cua.call).toHaveBeenCalledWith(
+      'click',
+      expect.objectContaining({ delivery_mode: 'background' }),
+      expect.objectContaining({ backgroundOnly: true }),
+      undefined,
+    );
+    expect((await backend.invoke(strict)).outcome).toBe('stale');
+    expect(sent).toBe(1);
+  },
+);
+
+it.each([
+  { action: 'menu', menu_path: ['File', 'Save'], native: 'invoke_menu' },
+  { action: 'click', count: 2, native: 'double_click' },
+])(
+  'delivers $native through the exact captured window without a keyboard fallback',
+  async (operation) => {
+    const cua = fakeCua(async (name) => {
+      if (name === 'list_apps')
+        return { apps: [{ pid: 42, name: 'TextEdit', bundle_id: 'com.apple.TextEdit' }] };
+      if (name === 'list_windows')
+        return { windows: [{ pid: 42, window_id: 91, app_name: 'TextEdit', title: 'Draft' }] };
+      if (name === 'get_window_state')
+        return {
+          elements: [{ element_token: 's00000001:3', role: 'AXTextArea', value: 'Draft text' }],
+        };
+      if (name === operation.native)
+        return { effect: 'unverifiable', delivery: { mode: 'background' } };
+      throw new Error(`Unexpected ${name}`);
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    const target = await grantedComputerTarget(backend);
+    const snapshot = dataRecord(
+      (
+        await backend.invoke(
+          request('computer_snapshot', {
+            app_id: target.appId,
+            window_id: target.windowId,
+            include_image: false,
+          }),
+        )
+      ).data,
+    );
+    if (operation.action === 'menu')
+      expect(
+        backend.trustedApprovalTarget('computer_action', {
+          app_id: target.appId,
+          window_id: target.windowId,
+          snapshot_id: snapshot.snapshot_id,
+          action: 'menu',
+          menu_path: operation.menu_path,
+        }),
+      ).toBe('TextEdit, window “Draft”: native menu File → Save');
+    const result = await backend.invoke(
+      request('computer_action', {
+        app_id: target.appId,
+        window_id: target.windowId,
+        snapshot_id: snapshot.snapshot_id,
+        ...(operation.action === 'click'
+          ? {
+              action: 'click',
+              count: 2,
+              element_ref: (snapshot.elements as Record<string, unknown>[])[0]!.element_ref,
+            }
+          : { action: 'menu', menu_path: operation.menu_path }),
+      }),
+    );
+    expect(result.outcome, result.summary).toBe('accepted_unverified');
+    const calls = cua.call.mock.calls.filter(([name]) => name === operation.native);
+    expect(calls).toHaveLength(1);
+    expect(calls[0]![1]).toEqual({
+      pid: 42,
+      window_id: 91,
+      session: expect.any(String),
+      ...(operation.action === 'click'
+        ? { element_token: 's00000001:3', delivery_mode: 'background' }
+        : { path: ['File', 'Save'] }),
+    });
+  },
+);
+
+it.each(['Passwords', 'New Terminal at Folder', 'Web Inspector', 'Sign In', 'Run Script'])(
+  'blocks a sensitive native menu: %s',
+  async (label) => {
+    const cua = fakeCua(async (name) => {
+      if (name === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+      if (name === 'list_windows')
+        return { windows: [{ pid: 42, window_id: 91, app_name: 'Notes' }] };
+      if (name === 'get_window_state') return { elements: [] };
+      throw new Error(`Unexpected ${name}`);
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    const target = await grantedComputerTarget(backend);
+    const args = { app_id: target.appId, window_id: target.windowId };
+    const snapshot = dataRecord(
+      (await backend.invoke(request('computer_snapshot', args))).data,
+    );
+    expect(
+      (
+        await backend.invoke(
+          request('computer_action', {
+            ...args,
+            snapshot_id: snapshot.snapshot_id,
+            action: 'menu',
+            menu_path: ['File', label],
+          }),
+        )
+      ).outcome,
+    ).toBe('refused');
+    expect(cua.call.mock.calls.some(([name]) => name === 'invoke_menu')).toBe(false);
+  },
+);
+
+it('keeps attached Save sheet controls bound to their exact parent window', async () => {
+  let opened = false;
+  let filename = 'Untitled';
+  const cua = fakeCua(async (name, args) => {
+    if (name === 'list_apps')
+      return { apps: [{ pid: 42, name: 'TextEdit', bundle_id: 'com.apple.TextEdit' }] };
+    if (name === 'list_windows')
+      return {
+        windows: [
+          { pid: 42, window_id: 91, title: 'Draft', app_name: 'TextEdit' },
+          ...(opened ? [{ pid: 42, window_id: 92, title: 'Save', app_name: 'TextEdit' }] : []),
+        ],
+      };
+    if (name === 'get_window_state') {
+      expect(args.window_id).toBe(91);
+      return {
+        elements: opened
+          ? [
+              { element_token: 's00000002:0', role: 'AXSheet', label: 'save' },
+              {
+                element_token: 's00000002:1',
+                role: 'AXTextField',
+                label: 'Save As',
+                value: filename,
+              },
+              { element_token: 's00000002:2', role: 'AXButton', label: 'Save' },
+            ]
+          : [{ element_token: 's00000001:0', role: 'AXTextArea', value: 'Checklist' }],
+      };
+    }
+    if (name === 'hotkey') {
+      opened = true;
+      return { effect: 'unverifiable', delivery: { mode: 'background' } };
+    }
+    if (name === 'set_value') {
+      expect(args.window_id).toBe(91);
+      expect(args.element_token).toBe('s00000002:1');
+      filename = String(args.value);
+      return { effect: 'unverifiable', delivery: { mode: 'background' } };
+    }
+    throw new Error(`Unexpected ${name}`);
+  });
+  const backend = new DesktopActionBackend({
+    cua,
+    macBrowserAccess: () => true,
+    macBackgroundControl: () => true,
+  });
+  const target = await grantedComputerTarget(backend);
+  const original = dataRecord(
+    (
+      await backend.invoke(
+        request('computer_snapshot', {
+          app_id: target.appId,
+          window_id: target.windowId,
+        }),
+      )
+    ).data,
+  );
+  const saved = await backend.invoke(
+    request('computer_action', {
+      app_id: target.appId,
+      window_id: target.windowId,
+      snapshot_id: original.snapshot_id,
+      action: 'key',
+      value: 's',
+      modifiers: ['cmd'],
+    }),
+  );
+  const fresh = dataRecord(saved.data);
+  expect(fresh.window_id).toBe(target.windowId);
+  expect(fresh.snapshot_id).not.toBe(original.snapshot_id);
+  expect(fresh.next_step).toContain('attached sheet');
+  expect((fresh.new_windows as Record<string, unknown>[])[0]?.title).toBe('Save');
+  const field = (fresh.elements as Record<string, unknown>[]).find(
+    (row) => row.role === 'AXTextField',
+  )!;
+  const changed = await backend.invoke(
+    request('computer_action', {
+      app_id: target.appId,
+      window_id: target.windowId,
+      snapshot_id: fresh.snapshot_id,
+      element_ref: field.element_ref,
+      action: 'set',
+      text: 'checklist.txt',
+    }),
+  );
+  expect(changed.outcome, changed.summary).toBe('accepted_unverified');
+  expect(filename).toBe('checklist.txt');
+  expect(cua.call.mock.calls.filter(([name]) => name === 'hotkey')).toHaveLength(1);
+});
+
+it('sets an exact field with the current driver contract and observes its new value', async () => {
+  let value = '';
+  const cua = fakeCua(async (name, args) => {
+    if (name === 'list_apps')
+      return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+    if (name === 'list_windows')
+      return { windows: [{ pid: 42, window_id: 91, app_name: 'Notes', title: 'Draft' }] };
+    if (name === 'get_window_state')
+      return {
+        snapshot_id: 's00000001',
+        elements: [
+          { element_token: 's00000001:9', role: 'AXTextField', label: 'Title', value },
+        ],
+      };
+    if (name === 'set_value') {
+      expect(args).toEqual({
+        pid: 42,
+        window_id: 91,
+        session: expect.any(String),
+        element_token: 's00000001:9',
+        value: 'Revised title',
+      });
+      value = String(args.value);
+      return { effect: 'unverifiable', delivery: { mode: 'background' } };
+    }
+    throw new Error(`Unexpected fixture tool ${name}`);
+  });
+  const backend = new DesktopActionBackend({
+    cua,
+    macBrowserAccess: () => true,
+    macBackgroundControl: () => true,
+  });
+  const target = await grantedComputerTarget(backend);
+  const args = { app_id: target.appId, window_id: target.windowId, include_image: false };
+  const snapshot = dataRecord((await backend.invoke(request('computer_snapshot', args))).data);
+  const result = await backend.invoke(
+    request('computer_action', {
+      ...args,
+      snapshot_id: snapshot.snapshot_id,
+      element_ref: (snapshot.elements as Record<string, unknown>[])[0]!.element_ref,
+      action: 'set',
+      text: 'Revised title',
+    }),
+  );
+  expect(result.outcome).toBe('accepted_unverified');
+  expect(dataRecord(result.data).elements).toEqual([
+    expect.objectContaining({ label: 'Title', value: 'Revised title' }),
+  ]);
+  expect(cua.call.mock.calls.filter(([name]) => name === 'set_value')).toHaveLength(1);
+});
+
+it.each(['Timed out waiting for input acknowledgement', 'read ECONNRESET'])(
+  'preserves uncertain delivery and revokes the old input target after %s',
+  async (message) => {
+    let saved = 0;
+    const cua = fakeCua(async (name) => {
+      if (name === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+      if (name === 'list_windows')
+        return { windows: [{ pid: 42, window_id: 91, app_name: 'Notes', title: 'Draft' }] };
+      if (name === 'get_window_state')
+        return {
+          snapshot_id: 'native-snapshot',
+          elements: [{ element_token: 'save', role: 'AXButton', label: 'Save' }],
+        };
+      if (name === 'click') {
+        saved++;
+        throw new Error(message);
+      }
+      throw new Error(`Unexpected fixture tool ${name}`);
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    const target = await grantedComputerTarget(backend);
+    const snapshot = dataRecord(
+      (
+        await backend.invoke(
+          request('computer_snapshot', {
+            app_id: target.appId,
+            window_id: target.windowId,
+            include_image: false,
+          }),
+        )
+      ).data,
+    );
+    const element = (snapshot.elements as Record<string, unknown>[])[0]!;
+    const action = request('computer_action', {
+      app_id: target.appId,
+      window_id: target.windowId,
+      snapshot_id: snapshot.snapshot_id,
+      element_ref: element.element_ref,
+      action: 'click',
+    });
+    const result = await backend.invoke(action);
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(result.data).toMatchObject({ input_delivery_uncertain: true });
+    expect(result.summary).toMatch(/inspect|observe/i);
+    expect(saved).toBe(1);
+    expect((await backend.invoke(action)).outcome).toBe('stale');
+    expect(saved).toBe(1);
+  },
+);
+
 // These fixtures advance app state with explicit mock observations. Real settle
 // sleeps add load and timing failures without exercising an application's timing.
 vi.mock('node:timers/promises', async (original) => ({
@@ -108,10 +485,11 @@ describe('DesktopActionBackend computer boundary', () => {
     expect(click?.[1]).toMatchObject({
       pid: 42,
       window_id: 91,
-      snapshot_id: 's12345678',
       element_token: 'native-token-1',
       delivery_mode: 'background',
     });
+    expect(click?.[1]).not.toHaveProperty('snapshot_id');
+    expect(click?.[1]).not.toHaveProperty('element_index');
 
     const staleResult = await backend.invoke(
       request('computer_action', {
@@ -191,8 +569,10 @@ describe('DesktopActionBackend computer boundary', () => {
       window_id: 91,
       element_token: 'text-area-1',
       value: 'Replacement text',
-      delivery_mode: 'background',
     });
+    expect(cua.call.mock.calls.find(([tool]) => tool === 'set_value')?.[1]).not.toHaveProperty(
+      'delivery_mode',
+    );
 
     const replacedData = dataRecord(replaced.data);
     const nextElement = (replacedData.elements as Array<Record<string, unknown>>)[0]!;
@@ -272,7 +652,7 @@ describe('DesktopActionBackend computer boundary', () => {
     });
   });
 
-  it('returns a newly created document window instead of re-observing the old document', async () => {
+  it('points at a genuinely new document when no attached sheet appears in the parent', async () => {
     let created = false;
     const cua = fakeCua(async (tool) => {
       if (tool === 'list_apps')
@@ -334,7 +714,7 @@ describe('DesktopActionBackend computer boundary', () => {
     expect(next.window_id).not.toBe(target.windowId);
     expect(data.elements).toBeUndefined();
     expect(cua.call.mock.calls.filter(([tool]) => tool === 'hotkey')).toHaveLength(1);
-    expect(cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(1);
+    expect(cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(2);
   });
 
   it('points at a sheet that took focus when a key is refused on the window behind it', async () => {
@@ -735,4 +1115,54 @@ it('provides screenshot field centers only with stable, fresh Mac window geometr
   expect((await capture({ ...args, include_image: false }))[0]!.pixel_bounds).toBeUndefined();
   move = true;
   expect((await capture())[0]!.pixel_bounds).toBeUndefined();
+});
+
+it.each([
+  {
+    tool: 'scroll',
+    code: 'background_unavailable',
+    action: { action: 'scroll', direction: 'down', amount: 3 },
+  },
+  {
+    tool: 'hotkey',
+    code: 'window_not_key',
+    action: { action: 'key', value: 's', modifiers: ['cmd'] },
+  },
+])('keeps an explicit $code refusal distinct from uncertain delivery', async (scenario) => {
+  const cua = fakeCua(async (name) => {
+    if (name === 'list_apps')
+      return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+    if (name === 'list_windows')
+      return { windows: [{ pid: 42, window_id: 91, app_name: 'Notes', title: 'Draft' }] };
+    if (name === 'get_window_state')
+      return {
+        snapshot_id: 's00000001',
+        elements: [
+          { element_token: 's00000001:9', role: 'AXTextArea', value: 'Existing text' },
+        ],
+      };
+    if (name === scenario.tool) throw new Error('CUA refused: ' + scenario.code);
+    throw new Error('Unexpected fixture action ' + name);
+  });
+  const backend = new DesktopActionBackend({
+    cua,
+    macBrowserAccess: () => true,
+    macBackgroundControl: () => true,
+  });
+  const target = await grantedComputerTarget(backend);
+  const args = { app_id: target.appId, window_id: target.windowId, include_image: false };
+  const snapshot = dataRecord((await backend.invoke(request('computer_snapshot', args))).data);
+  const result = await backend.invoke(
+    request('computer_action', {
+      ...args,
+      snapshot_id: snapshot.snapshot_id,
+      ...scenario.action,
+    }),
+  );
+  expect(result.outcome).toBe('needs_foreground');
+  expect(dataRecord(result.data).input_delivery_uncertain).toBeUndefined();
+  expect(cua.call.mock.calls.filter(([name]) => name === scenario.tool)).toHaveLength(1);
+  expect(cua.call.mock.calls.every(([, args]) => args.delivery_mode !== 'foreground')).toBe(
+    true,
+  );
 });

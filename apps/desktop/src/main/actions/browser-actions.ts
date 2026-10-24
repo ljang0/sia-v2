@@ -4,6 +4,8 @@ import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/acti
 import {
   actionImages,
   actionResult,
+  classifyFailure,
+  inputWasRefused,
   refused,
   resultRefusal,
   stale,
@@ -322,7 +324,13 @@ export class BrowserActions {
         const text = typeof args.text === 'string' ? args.text : undefined;
         if (text === undefined) return refused('browser_action type requires text.');
         tool = 'browser_type';
-        input = { ...base, ref: nativeRef, text, mode: 'insert_text', replace: false };
+        input = {
+          ...base,
+          ref: nativeRef,
+          text,
+          mode: 'insert_text',
+          replace: args.replace === true,
+        };
         break;
       }
       case 'scroll': {
@@ -346,7 +354,22 @@ export class BrowserActions {
       default:
         return refused('Unsupported browser action.');
     }
-    const raw = await this.ctx.callCua(request, tool, input);
+    // Native refs are single-use authority. A transport error cannot prove a write failed.
+    this.ctx.browser.snapshots.delete(capability.id);
+    if (this.ctx.browser.latestSnapshot.get(capability.tabId) === capability.id)
+      this.ctx.browser.latestSnapshot.delete(capability.tabId);
+    let raw: unknown;
+    try {
+      raw = await this.ctx.callCua(request, tool, input);
+    } catch (error) {
+      if (inputWasRefused(error)) return classifyFailure(error);
+      return {
+        outcome: 'accepted_unverified',
+        summary:
+          'The browser input may have been delivered, but its acknowledgement was lost. Observe the exact tab before continuing; do not replay the action.',
+        data: { input_delivery_uncertain: true },
+      };
+    }
     const native = actionResult(
       raw,
       `Browser ${String(args.action)} was delivered in the background.`,
@@ -398,8 +421,29 @@ export class BrowserActions {
     native: ActionExecutionResult,
     request: ValidatedActionInvocation,
   ): Promise<ActionExecutionResult> {
-    const after = await this.#captureBrowser(binding, request);
-    if (after.outcome !== 'verified') return after;
+    let after: ActionExecutionResult;
+    try {
+      after = await this.#captureBrowser(binding, request);
+    } catch {
+      return {
+        outcome: 'accepted_unverified',
+        summary:
+          'The browser accepted input, but its result could not be observed. Check the exact tab before continuing; do not repeat the action.',
+        data: { delivery: native.data, input_delivery_uncertain: true },
+      };
+    }
+    if (after.outcome !== 'verified')
+      return {
+        outcome: 'accepted_unverified',
+        summary:
+          'Browser input was accepted, but the follow-up observation was refused. Verify the exact tab before continuing; do not replay the action.',
+        data: {
+          delivery: native.data,
+          input_delivery_uncertain: true,
+          observation_outcome: after.outcome,
+        },
+        ...(after.reason ? { reason: after.reason } : {}),
+      };
     return {
       outcome: native.outcome,
       summary:

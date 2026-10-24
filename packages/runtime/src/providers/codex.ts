@@ -21,6 +21,7 @@ import { EventFactory, numberAt, record, stringAt } from '../events.js';
 import { JsonLinesTransport, JsonRpcPeer } from '../json-rpc.js';
 import { ProcessSupervisor, waitForProcessSpawn } from '../supervisor.js';
 import { CODEX_SUPPORTED_VERSIONS } from './codex-versions.js';
+import { watchMacTurn } from './codex-watchdog.js';
 import { codexHistoryItems, codexUserInput } from './codex-input.js';
 import {
   codexAppServerArgs,
@@ -38,6 +39,7 @@ import {
   nativePhase,
   nativeTaskGrantKeys,
   nativeToolEvent,
+  readableCommentaryDelta,
 } from './codex-turn-events.js';
 
 export { CODEX_SUPPORTED_VERSIONS };
@@ -451,6 +453,8 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       queue: new AsyncQueue(),
       events: new EventFactory(this.id, session.threadId, input.turnId),
       nativeItems: new Map(),
+      nativeWorkPending: new Set(),
+      commentaryPreviews: new Map(),
       taskGrants: new Set(),
       mac: ['mac', 'mac-background'].includes(
         this.#sessionOptions.get(session.id)?.nativeTools ?? '',
@@ -479,34 +483,19 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       })
       .catch((error: unknown) => this.#failTurn(active, error));
 
-    const startedAt = Date.now();
     const watchdog = active.mac
-      ? setInterval(() => {
-          if (
-            active.approvalPending ||
-            ((active.dynamicToolsPending ?? 0) > 0 && Date.now() - startedAt < 3_600_000)
-          ) {
-            active.lastActivity = Date.now();
-            return;
-          }
-          if (
-            Date.now() - (active.lastActivity ?? startedAt) < 180_000 &&
-            Date.now() - startedAt < 3_600_000
-          )
-            return;
-          if (watchdog) clearInterval(watchdog);
-          active.watchdogError = 'The Mac task stopped responding and was cancelled.';
-          void this.cancelTurn(session, input.turnId).then(
-            () => this.#failTurn(active, new Error(active.watchdogError)),
-            (error) => this.#failTurn(active, error),
-          );
-        }, 5000)
+      ? watchMacTurn({
+          active,
+          peer,
+          current: () => this.#activeByThread.get(session.nativeId) === active,
+          cancel: () => this.cancelTurn(session, input.turnId),
+          fail: (error) => this.#failTurn(active, error),
+        })
       : undefined;
-    watchdog?.unref();
     try {
       for await (const event of active.queue) yield event;
     } finally {
-      if (watchdog) clearInterval(watchdog);
+      watchdog?.();
       try {
         // Do not leave delayed GUI commands running after releasing the task's screen lease.
         if (active.mac)
@@ -829,15 +818,35 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (startedTurnId) this.#learnNativeTurnId(active, startedTurnId);
     const item = record(value.item);
     const itemId = stringAt(value, ['itemId'], ['item', 'id']) ?? 'provider-item';
+    if (active.reconnecting && (method.startsWith('item/') || method === 'turn/completed')) {
+      active.reconnecting = false;
+      active.queue.push(
+        active.events.create('tool', {
+          callId: `${active.input.turnId}:connection`,
+          name: 'runtime.connection',
+          phase: 'completed',
+          arguments: {},
+          native: true,
+        }),
+      );
+    }
     if (method === 'item/agentMessage/delta') {
-      // Mac final answers are structured JSON. Present the completed response, never JSON fragments.
-      if (active.mac) return;
+      const commentary = stringAt(active.nativeItems.get(itemId), ['phase']) === 'commentary';
+      // Structured final answers stay hidden, but readable progress should stream immediately.
+      if ((active.mac || active.input.outputSchema) && !commentary) return;
+      const delta = stringAt(value, ['delta'], ['text']) ?? '';
+      const text =
+        commentary && (active.mac || active.input.outputSchema)
+          ? readableCommentaryDelta(active, itemId, delta)
+          : delta;
+      if (!text) return;
       active.queue.push(
         active.events.create('message', {
           messageId: itemId,
           role: 'assistant',
-          parts: [{ kind: 'text', text: stringAt(value, ['delta'], ['text']) ?? '' }],
+          parts: [{ kind: 'text', text }],
           delta: true,
+          ...(commentary ? { phase: 'commentary' as const } : {}),
         }),
       );
       return;
@@ -895,8 +904,22 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (method === 'item/started' || method === 'item/completed') {
       const itemType = stringAt(item, ['type']);
       active.nativeItems.set(itemId, item);
-      if (active.mac && itemType === 'agentMessage') {
+      if (method === 'item/completed') active.nativeWorkPending.delete(itemId);
+      else if (
+        itemType &&
+        [
+          'commandExecution',
+          'fileChange',
+          'mcpToolCall',
+          'collabAgentToolCall',
+          'webSearch',
+          'contextCompaction',
+        ].includes(itemType)
+      )
+        active.nativeWorkPending.add(itemId);
+      if (itemType === 'agentMessage') {
         if (method === 'item/completed') {
+          active.commentaryPreviews.delete(itemId);
           const text = stringAt(item, ['text']) ?? '';
           if (stringAt(item, ['phase']) !== 'commentary')
             active.hasFinalResponse = Boolean(text.trim());
@@ -921,8 +944,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         }
         return;
       }
-      const toolName = stringAt(item, ['tool'], ['name']) ?? itemType;
-      if (toolName || !isTextOnlyCodexItem(itemType)) {
+      if (!isTextOnlyCodexItem(itemType)) {
         active.queue.push(nativeToolEvent(active, itemId, item, nativePhase(method, item)));
       }
       return;
@@ -953,7 +975,20 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     }
     if (method === 'error' || method === 'turn/error' || method === 'thread/error') {
       // Codex retries transient stream failures itself; only a final error ends the turn.
-      if (value.willRetry === true) return;
+      if (value.willRetry === true) {
+        if (!active.reconnecting)
+          active.queue.push(
+            active.events.create('tool', {
+              callId: `${active.input.turnId}:connection`,
+              name: 'runtime.connection',
+              phase: 'started',
+              arguments: {},
+              native: true,
+            }),
+          );
+        active.reconnecting = true;
+        return;
+      }
       // The app-server reports why a turn is about to fail (auth, usage limits, transport)
       // through an error notification; surface it so a failed turn is never silent.
       const message =
@@ -987,7 +1022,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         if (failureMessage) {
           active.queue.push(
             active.events.create('error', {
-              code: 'provider_error',
+              code: active.watchdogCode ?? 'provider_error',
               message: failureMessage,
               recoverable: true,
             }),
@@ -1152,37 +1187,43 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         ? (record(params).questions as unknown[]).map(record)
         : [];
       const answers: Record<string, { answers: string[] }> = {};
-      for (const [index, question] of questions.entries()) {
-        const questionId = stringAt(question, ['id']) ?? `question-${index + 1}`;
-        const requestId = `${method}:${itemId}:${questionId}`;
-        const options = Array.isArray(question.options)
-          ? question.options
-              .map((option) => stringAt(record(option), ['label']))
-              .filter((label): label is string => Boolean(label))
-          : [];
-        const prompt =
-          [stringAt(question, ['header']), stringAt(question, ['question'])]
-            .filter(Boolean)
-            .join('\n') || 'Codex needs input';
-        active.queue.push(
-          active.events.create('question', {
-            requestId,
-            phase: 'requested',
-            prompt: options.length ? `${prompt}\nOptions: ${options.join(', ')}` : prompt,
-          }),
-        );
-        const response = await new Promise<ProviderRequestResponse>((resolve, reject) => {
-          this.#pendingRequests.set(requestId, {
-            resolve,
-            reject,
-            nativeThreadId: active.session.nativeId,
+      active.userInputPending = true;
+      try {
+        for (const [index, question] of questions.entries()) {
+          const questionId = stringAt(question, ['id']) ?? `question-${index + 1}`;
+          const requestId = `${method}:${itemId}:${questionId}`;
+          const options = Array.isArray(question.options)
+            ? question.options
+                .map((option) => stringAt(record(option), ['label']))
+                .filter((label): label is string => Boolean(label))
+            : [];
+          const prompt =
+            [stringAt(question, ['header']), stringAt(question, ['question'])]
+              .filter(Boolean)
+              .join('\n') || 'Codex needs input';
+          active.queue.push(
+            active.events.create('question', {
+              requestId,
+              phase: 'requested',
+              prompt: options.length ? `${prompt}\nOptions: ${options.join(', ')}` : prompt,
+            }),
+          );
+          const response = await new Promise<ProviderRequestResponse>((resolve, reject) => {
+            this.#pendingRequests.set(requestId, {
+              resolve,
+              reject,
+              nativeThreadId: active.session.nativeId,
+            });
           });
-        });
-        // A turn that ended (or a denial) resolves without text: stop asking.
-        if (response.text === undefined) break;
-        answers[questionId] = { answers: [response.text] };
+          // A turn that ended (or a denial) resolves without text: stop asking.
+          if (response.text === undefined) break;
+          answers[questionId] = { answers: [response.text] };
+        }
+        return { answers };
+      } finally {
+        active.userInputPending = false;
+        active.lastActivity = Date.now();
       }
-      return { answers };
     }
     throw Object.assign(new Error(`Unsupported Codex request ${method}`), { code: -32601 });
   }
@@ -1193,7 +1234,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     if (this.#activeByThread.get(active.session.nativeId) !== active) return;
     active.queue.push(
       active.events.create('error', {
-        code: 'provider_request_failed',
+        code: active.watchdogCode ?? 'provider_request_failed',
         message: error instanceof Error ? error.message : String(error),
         recoverable: true,
       }),

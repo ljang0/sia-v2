@@ -10,6 +10,7 @@ const infraTemplatePath = join(root, 'infra/template.yaml');
 
 const expectedActionTools = [
   'assistant_library',
+  'task_checkpoint',
   'memory_learn',
   'memory_vault',
   'memory_suggest',

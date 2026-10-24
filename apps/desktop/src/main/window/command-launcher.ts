@@ -103,7 +103,6 @@ export function createCommandLauncher(
         } else {
           ({ threadId } = await controller.invoke('threads.create', {
             agentId: input.agentId,
-            title: input.text.slice(0, 80),
           }));
         }
         controller.sendLauncherTurn({ threadId, text: input.text }, activationContext);

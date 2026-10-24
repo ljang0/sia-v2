@@ -480,6 +480,14 @@ export function Conversation({
   const editableEventId = redoable ? thread.events[lastUserEventIndex]?.id : undefined;
   const tryAgainEventId = redoable ? currentAssistantEventId : undefined;
   const turnActive = running || waiting;
+  const writingReply =
+    running &&
+    thread.events.some(
+      (event) =>
+        event.type === 'message' &&
+        event.id === currentAssistantEventId &&
+        event.streaming === true,
+    );
   const currentStep = running
     ? thread.events
         .slice(lastUserEventIndex + 1)
@@ -538,7 +546,12 @@ export function Conversation({
         busyApprovalId={event.type === 'approval' ? busyApprovalId : undefined}
         speechPhase={speech.eventId === event.id ? speech.phase : 'idle'}
         speechError={speech.eventId === event.id ? speech.error : undefined}
-        streaming={running && event.id === currentAssistantEventId}
+        streaming={
+          running &&
+          event.type === 'message' &&
+          event.id === currentAssistantEventId &&
+          event.streaming === true
+        }
         justCompleted={justCompleted && event.id === currentAssistantEventId}
         completed={event.id === resultId}
         speakable={Boolean(voiceEnabled && onSpeak)}
@@ -628,7 +641,13 @@ export function Conversation({
                   <WorkGroup
                     key={block.id}
                     events={block.events}
-                    live={turnActive && block.start > lastUserEventIndex}
+                    live={
+                      turnActive &&
+                      block.start > lastUserEventIndex &&
+                      block.events.some(
+                        (event) => event.status === 'running' || event.status === 'queued',
+                      )
+                    }
                     startedAt={eventTime(thread.events[block.start - 1])}
                     endedAt={eventTime(thread.events[block.end + 1])}
                     open={openWorkGroups.has(block.id)}
@@ -648,7 +667,7 @@ export function Conversation({
                 <WorkingStatus
                   since={eventTime(thread.events[lastUserEventIndex])}
                   step={currentStep}
-                  writing={Boolean(currentAssistantEventId)}
+                  writing={writingReply}
                   thinking={thread.thinking}
                   plan={currentPlanProgress}
                   finished={finishedSteps}

@@ -143,26 +143,50 @@ it('stops the pass while a native request is pending and does not continue after
   ).toBe(false);
 });
 
-it('does not enable Fn after the person pauses a pending voice setup', async () => {
+it.each([false, true])(
+  'does not resume paused voice setup or display its late error (reject: %s)',
+  async (reject) => {
+    const { snapshot, api, complete, rerender } = setup();
+    snapshot.computer.accessibility = 'allowed';
+    snapshot.computer.screenRecording = 'allowed';
+    snapshot.voice.status = 'disconnected';
+    snapshot.voice.dictationAvailable = true;
+    snapshot.voice.pushToTalk!.available = true;
+    const voice = Promise.withResolvers<void>();
+    api.configureVoice.mockImplementation(() => voice.promise);
+    rerender();
+    fireEvent.click(screen.getByRole('button', { name: 'Set up voice: Talk with Fn' }));
+    await waitFor(() => expect(api.configureVoice).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Finish later' }));
+    await act(async () => {
+      if (reject) voice.reject(new Error('Voice service unavailable'));
+      else voice.resolve();
+      await voice.promise.catch(() => undefined);
+    });
+    expect(api.configurePushToTalk).not.toHaveBeenCalled();
+    expect(api.requestAutomationPermission).not.toHaveBeenCalled();
+    expect(complete).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).toBeNull();
+  },
+);
+
+it('finishes required access without starting optional voice or counting it as missing access', async () => {
   const { snapshot, api, complete, rerender } = setup();
   snapshot.computer.accessibility = 'allowed';
   snapshot.computer.screenRecording = 'allowed';
-  snapshot.voice.status = 'disconnected';
   snapshot.voice.dictationAvailable = true;
   snapshot.voice.pushToTalk!.available = true;
-  const voice = Promise.withResolvers<void>();
-  api.configureVoice.mockImplementation(() => voice.promise);
+  snapshot.voice.status = 'disconnected';
   rerender();
   fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
-  await waitFor(() => expect(api.configureVoice).toHaveBeenCalledOnce());
-  fireEvent.click(screen.getByRole('button', { name: 'Finish later' }));
-  await act(async () => {
-    voice.resolve();
-    await voice.promise;
-  });
+  await waitFor(() => expect(api.requestAutomationPermission).toHaveBeenCalledWith('safari'));
+  expect(api.configureVoice).not.toHaveBeenCalled();
+  snapshot.computer.automation!.safari = 'ready';
+  rerender();
+  await waitFor(() => expect(complete).toHaveBeenCalledOnce());
+  expect(screen.getByText('Mac access is ready.')).toBeTruthy();
   expect(api.configurePushToTalk).not.toHaveBeenCalled();
-  expect(api.requestAutomationPermission).not.toHaveBeenCalled();
-  expect(complete).not.toHaveBeenCalled();
+  expect(screen.getByRole('button', { name: 'Set up voice: Talk with Fn' })).toBeTruthy();
 });
 
 it('keeps core statuses visible and allows passive checks without starting a permission pass', async () => {

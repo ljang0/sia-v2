@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
 import type { RuntimeTurnInput } from '../providers/runtime-coordinator.js';
 import { computer, createHarness } from './test-support.js';
+import { NotchVault } from '../notch/vault.js';
 
 describe('Use my Mac power and lock handling', () => {
   /** A runtime whose first turn keeps working until it is stopped; later turns complete. */
@@ -81,6 +82,86 @@ describe('Use my Mac power and lock handling', () => {
       harness.controller.snapshot().threads.find(({ id }) => id === threadId)?.status;
     return { ...harness, keepAwake, threadId, status };
   }
+
+  it('connects while memory prepares, keeps the enriched request, and finalizes streamed text in place', async () => {
+    const memory = Promise.withResolvers<{ prompt: string }>();
+    const engine = vi
+      .spyOn(NotchVault.prototype, 'engine')
+      .mockImplementation(async (_helper, input) =>
+        input.operation === 'prepare' ? memory.promise : { recorded: true },
+      );
+    const prepareThread = vi.fn(async () => undefined);
+    let request = '';
+    const runtime = {
+      prepareThread,
+      async *runTurn(input: RuntimeTurnInput) {
+        request = input.text;
+        input.onPhase?.('waiting_for_computer');
+        input.onTiming?.('computer_wait', 50);
+        input.onPhase?.('working');
+        for (const [index, text, delta] of [
+          [1, 'Checking ', true],
+          [2, 'Canvas', true],
+          [3, 'Checking Canvas.', false],
+        ] as const)
+          yield {
+            id: randomUUID(),
+            threadId: input.thread.id,
+            turnId: input.turnId,
+            provider: 'codex' as const,
+            timestamp: new Date().toISOString(),
+            sequence: index,
+            type: 'message' as const,
+            payload: {
+              messageId: 'progress',
+              role: 'assistant' as const,
+              parts: [{ kind: 'text' as const, text }],
+              delta,
+              phase: 'commentary' as const,
+            },
+          };
+        input.onMacResult?.({ success: true, response: 'Verified', steps: [] });
+        yield {
+          id: randomUUID(),
+          threadId: input.thread.id,
+          turnId: input.turnId,
+          provider: 'codex' as const,
+          timestamp: new Date().toISOString(),
+          sequence: 4,
+          type: 'completion' as const,
+          payload: { status: 'completed' as const },
+        };
+      },
+      dispose: vi.fn(async () => undefined),
+    };
+    const { controller, threadId } = await macThread({ runtime });
+    try {
+      await controller.invoke('threads.send', { threadId, text: 'Check Canvas' });
+      await vi.waitFor(() => expect(prepareThread).toHaveBeenCalledOnce());
+      expect(request).toBe('');
+      memory.resolve({ prompt: 'Saved account context. Check Canvas' });
+      await vi.waitFor(() =>
+        expect(
+          controller.snapshot().threads.find((thread) => thread.id === threadId)?.status,
+        ).toBe('idle'),
+      );
+      expect(request).toContain('Saved account context. Check Canvas');
+      const timeline = controller
+        .snapshot()
+        .timeline.filter((item) => item.threadId === threadId);
+      const messages = timeline.filter((item) => item.detail === 'progress');
+      expect(messages).toHaveLength(1);
+      expect(messages[0]).toMatchObject({ text: 'Checking Canvas.', status: 'complete' });
+      const startup = timeline.find((item) => item.toolName === 'runtime.start');
+      expect(startup?.detail).toContain('Saved context:');
+      expect(startup?.detail).toContain('AI connection:');
+      expect(startup?.detail).toContain('Waiting for Mac: 50 ms');
+    } finally {
+      memory.resolve({ prompt: 'Cancelled' });
+      await controller.shutdown();
+      engine.mockRestore();
+    }
+  });
 
   it('keeps the Mac awake for a Mac task and releases it when the task stops or fails', async () => {
     const { runtime } = holdingRuntime();
@@ -241,6 +322,45 @@ describe('Use my Mac power and lock handling', () => {
     await vi.waitFor(() => expect(status()).toBe('running'));
     expect(keepAwake.hold).not.toHaveBeenCalled();
     await controller.invoke('threads.cancel', { threadId });
+    await controller.shutdown();
+  });
+
+  it('pauses the exact background turn on a foreground conflict without releasing queued follow-ups', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    await controller.invoke('threads.send', { threadId, text: 'Read my coursework this week' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    const turnId = controller.snapshot().timeline.find((item) => item.kind === 'user')!.turnId!;
+    await controller.invoke('threads.send', {
+      threadId,
+      text: 'Then read my registered events',
+    });
+    const notice = {
+      name: 'computer_action' as const,
+      context: {
+        sessionId: 'session',
+        threadId,
+        turnId,
+        provider: 'codex' as const,
+        workspace: '/tmp/sia-workspace',
+        backgroundOnly: true,
+      },
+      result: {
+        outcome: 'needs_foreground' as const,
+        summary: 'Blocked before input',
+        data: { background_interrupted: true, blocker_code: 'foreground_app_in_use' },
+      },
+    };
+    const observe = controller.actionResultObserver();
+    await observe({ ...notice, context: { ...notice.context, turnId: 'old-turn' } });
+    expect(status()).toBe('running');
+    expect(runtime.cancel).not.toHaveBeenCalled();
+    await observe(notice);
+    expect(status()).toBe('failed');
+    expect(runtime.cancel).toHaveBeenCalledWith(threadId, turnId);
+    expect(controller.snapshot().timeline.at(-1)?.text).toContain('using the target app');
+    await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+    expect(requests).toHaveLength(1);
     await controller.shutdown();
   });
 

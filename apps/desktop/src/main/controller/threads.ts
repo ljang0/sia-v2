@@ -11,18 +11,22 @@ import type { ControllerContext } from './context.js';
 import { modelRouteKey, requireReleaseProvider } from './execution-routes.js';
 import { extractHttpUrls, safeUrlHost, searchExcerpt } from './thread-search.js';
 import { normalizeWorkspace, worktreeLabel } from './workspace-paths.js';
+import { ConversationTitles } from './conversation-titles.js';
 
 /** The parts of the controller context Threads uses. */
 type ThreadsContext = Pick<
   ControllerContext,
   | 'attachments'
+  | 'assistant'
   | 'commit'
+  | 'deps'
   | 'persistSoon'
   | 'providers'
   | 'requireAgent'
   | 'requireSignedInReleaseAccount'
   | 'requireThread'
   | 'resultSnapshot'
+  | 'remoteAccessAllowed'
   | 'runtime'
   | 'state'
   | 'turns'
@@ -35,7 +39,11 @@ type ThreadsContext = Pick<
  * and manages thread goals and worktrees.
  */
 export class Threads {
-  constructor(private readonly ctx: ThreadsContext) {}
+  readonly titles: ConversationTitles;
+
+  constructor(private readonly ctx: ThreadsContext) {
+    this.titles = new ConversationTitles(ctx);
+  }
 
   /**
    * The user-facing "New conversation" route. Like a single draft tab, it reopens the agent's
@@ -117,6 +125,7 @@ export class Threads {
       id,
       agentId: agent.id,
       title: input.title?.trim() || UNTITLED_THREAD_TITLE,
+      ...(input.title?.trim() ? { titleSource: 'custom' as const } : {}),
       provider: agent.provider,
       model: agent.model,
       ...(reasoningEffort ? { reasoningEffort } : {}),
@@ -148,6 +157,7 @@ export class Threads {
     this.ctx.state.activeThreadId = thread.id;
     this.ctx.state.activeAgentId = thread.agentId;
     this.ctx.commit();
+    this.titles.request(threadId);
     return this.ctx.resultSnapshot();
   }
 
@@ -156,6 +166,7 @@ export class Threads {
     const title = input.title.trim();
     if (!title) throw new Error('Enter a thread name.');
     thread.title = title;
+    thread.titleSource = 'custom';
     thread.updatedAt = new Date().toISOString();
     this.ctx.commit();
     return this.ctx.resultSnapshot();
@@ -290,6 +301,7 @@ export class Threads {
       ...structuredClone(source),
       id,
       title: input.title?.trim() || `${source.title} (fork)`,
+      titleSource: 'custom',
       workspace,
       worktree,
       status: 'idle',
@@ -319,6 +331,7 @@ export class Threads {
     const agent = this.ctx.requireAgent(source.agentId);
     agent.threadIds.push(id);
     agent.updatedAt = now;
+    this.ctx.assistant.taskContext.forkThread(source.id, id, source.agentId);
     this.ctx.state.activeAgentId = source.agentId;
     this.ctx.state.activeThreadId = id;
     this.ctx.commit();
@@ -497,6 +510,7 @@ export class Threads {
       if (item.threadId === thread.id && item.turnId)
         this.ctx.turns.failedTurnAttachments.delete(item.turnId);
     this.ctx.attachments.forgetThread(thread.id);
+    this.ctx.assistant.taskContext.forgetThread(thread.id);
     this.ctx.turns.heldThreads.delete(thread.id);
     const runtime = this.ctx.runtime;
     void Promise.resolve()

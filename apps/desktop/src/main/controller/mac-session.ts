@@ -60,6 +60,17 @@ export class MacSession {
     this.ctx.commit();
   }
 
+  pauseBackgroundTurn(threadId: string, turnId: string, appInUse: boolean): void {
+    if (this.turns.get(threadId)?.id !== turnId) return;
+    this.pauseMacTurn(
+      threadId,
+      appInUse
+        ? 'Sia paused before input because you are using the target app. Switch to another app and press Continue task when ready.'
+        : 'Sia paused because desktop focus changed or could not be verified. Check the last step before pressing Continue task; an uncertain action must not be repeated.',
+    );
+    this.ctx.commit();
+  }
+
   private pauseMacTurn(threadId: string, text: string): void {
     const thread = this.ctx.requireThread(threadId);
     const running = this.ctx.turns.running.get(threadId);

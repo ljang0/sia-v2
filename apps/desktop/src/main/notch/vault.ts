@@ -20,8 +20,14 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import type { AssistantLibraryView } from '../../shared/assistant-library.js';
+import { memoryCredentialMarker as sensitive } from '../assistant/memory-privacy.js';
 import { notchVaultRoot } from './foreground.js';
-import { selectMemoryNotes } from './memory-selection.js';
+import {
+  hasMemoryQuery,
+  isSearchableMemoryNote,
+  memoryExcerpt,
+  selectMemoryNotes,
+} from './memory-selection.js';
 
 export interface VaultNote {
   name: string;
@@ -29,9 +35,10 @@ export interface VaultNote {
   revision: string;
   readOnly: boolean;
 }
+// Small in-memory read cache. Every hit still opens with NOFOLLOW and checks the current inode,
+// link count, size, and nanosecond modification/change times before reusing text or its digest.
+const noteCache = new Map<string, { version: string; note: VaultNote }>();
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
-const sensitive =
-  /(?:-----BEGIN|\b(?:password|api[_ -]?key|access[_ -]?token|secret)\s*[:=]|\bsk[-_][a-z0-9]{12})/i;
 const safeText = (text: string) =>
   sensitive.test(text) ? '[sensitive content omitted]' : text;
 const validName =
@@ -67,17 +74,27 @@ export class NotchVault {
       throw new Error('Choose a note or skill inside this agent’s vault.');
     return join(this.ensure(), name);
   }
-  read(name: string): VaultNote {
+  read(name: string, maximumBytes = 8_000_000): VaultNote {
     const path = this.#path(name);
     let fd: number | undefined;
     try {
       fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-      const info = fstatSync(fd);
-      if (!info.isFile() || info.nlink !== 1 || info.size > 8_000_000)
+      const info = fstatSync(fd, { bigint: true });
+      if (!info.isFile() || info.nlink !== 1n || info.size > BigInt(maximumBytes))
         throw new Error('The vault file must be an ordinary UTF-8 file under 8 MB.');
+      const version = `${info.dev}:${info.ino}:${info.size}:${info.mtimeNs}:${info.ctimeNs}`;
+      const cached = noteCache.get(path);
+      if (cached?.version === version) return { ...cached.note };
+      noteCache.delete(path);
       const text = readFileSync(fd, 'utf8');
-      return { name, text, revision: digest(text), readOnly: name === 'preferences.md' };
+      const note = { name, text, revision: digest(text), readOnly: name === 'preferences.md' };
+      if (info.size <= 64_000n && !sensitive.test(text)) {
+        if (noteCache.size >= 128) noteCache.delete(noteCache.keys().next().value!);
+        noteCache.set(path, { version, note });
+      }
+      return { ...note };
     } catch (error) {
+      noteCache.delete(path);
       if ((error as NodeJS.ErrnoException).code === 'ENOENT')
         return { name, text: '', revision: '', readOnly: name === 'preferences.md' };
       throw error;
@@ -122,6 +139,7 @@ export class NotchVault {
     )
       throw new Error('This vault file is too large.');
     const path = this.#path(name);
+    noteCache.delete(path);
     let fd: number | undefined;
     try {
       fd = openSync(
@@ -265,7 +283,9 @@ export class NotchVault {
     const entry = this.read(name);
     if (!entry.revision || entry.revision !== revision)
       throw new Error('This file changed. Refresh before deleting.');
-    unlinkSync(this.#path(name));
+    const path = this.#path(name);
+    noteCache.delete(path);
+    unlinkSync(path);
   }
   requested(): boolean {
     return existsSync(join(this.root, '.consolidate-now'));
@@ -300,19 +320,36 @@ export class NotchVault {
   ): Promise<{ prompt?: string; recorded?: boolean }> {
     const root = this.ensure();
     if (input.operation === 'prepare') {
-      const names = selectMemoryNotes(
-        String(input.request ?? ''),
-        this.read('MOC.md').text,
-        readdirSync(root).sort(),
-      );
+      const request = String(input.request ?? '');
+      const context = String(input.retrievalContext ?? '');
+      const index = this.read('MOC.md').text;
+      const available = readdirSync(root).filter(isSearchableMemoryNote).sort();
+      const metadata = selectMemoryNotes(request, index, available, undefined, context);
+      const contents = new Map<string, string>();
+      // Bounded local search; no embedding service or second model call. Read cached text
+      // only after the ordinary NOFOLLOW/inode/revision checks, including after external edits.
+      let searchBudget = 2_000_000;
+      const candidates = [...new Set([...metadata, ...available])];
+      if (hasMemoryQuery(request, context))
+        for (const name of candidates.slice(0, 512)) {
+          if (searchBudget <= 0) break;
+          try {
+            const note = this.read(name, Math.min(256_000, searchBudget));
+            searchBudget -= Buffer.byteLength(note.text);
+            if (!sensitive.test(note.text)) contents.set(name, note.text);
+          } catch {
+            // An oversized/replaced/unsafe file does not block the task or enter retrieval.
+          }
+        }
+      const names = selectMemoryNotes(request, index, available, contents, context);
       let remaining = 12_000;
       const relevantNotes = names.flatMap((name) => {
         try {
-          const note = this.read(name);
-          if (!note.text || sensitive.test(note.text) || remaining <= 0) return [];
-          const text = note.text.slice(0, Math.min(4000, remaining));
-          remaining -= text.length;
-          return [{ name, text, truncated: text.length < note.text.length }];
+          const text = contents.get(name) ?? this.read(name, 256_000).text;
+          if (!text || sensitive.test(text) || remaining <= 0) return [];
+          const excerpt = memoryExcerpt(text, request, context, Math.min(4000, remaining));
+          remaining -= excerpt.text.length;
+          return [{ name, ...excerpt }];
         } catch {
           // Missing, replaced or unsafe notes cannot prevent a real app task.
           return [];
