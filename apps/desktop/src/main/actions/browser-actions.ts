@@ -16,6 +16,7 @@ import type { BrowserBinding, BrowserSnapshotCapability } from './browser-grants
 import { stageBrowserUploadFiles } from './browser-uploads.js';
 import {
   browserRouteWasReplaced,
+  browserUrlIsAuthentication,
   browserUrlLooksSensitive,
   findBrowserLocation,
   modelVisibleBrowserUrl,
@@ -26,6 +27,7 @@ import type { ComputerInventory } from './computer-inventory.js';
 import type { ActionBackendContext } from './context.js';
 import {
   asRecord,
+  browserHasAuthenticationControls,
   collectTabRecords,
   compact,
   findElementRecords,
@@ -199,6 +201,17 @@ export class BrowserActions {
       }
     }
     const liveUrl = location?.url;
+    if (browserUrlIsAuthentication(liveUrl) || browserHasAuthenticationControls(raw)) {
+      const previous = this.ctx.browser.latestSnapshot.get(binding.tabId);
+      if (previous) this.ctx.browser.snapshots.delete(previous);
+      this.ctx.browser.latestSnapshot.delete(binding.tabId);
+      return {
+        outcome: 'refused',
+        summary:
+          'An authentication form was observed. The person must complete sign-in; no form content, screenshots or input references were returned.',
+        data: { blocker_code: 'authentication_surface', observed_authentication: true },
+      };
+    }
     if (
       !origin ||
       !liveUrl ||
@@ -441,6 +454,9 @@ export class BrowserActions {
           delivery: native.data,
           input_delivery_uncertain: true,
           observation_outcome: after.outcome,
+          ...(asRecord(after.data)?.observed_authentication === true
+            ? { observed_authentication: true, blocker_code: 'authentication_surface' }
+            : {}),
         },
         ...(after.reason ? { reason: after.reason } : {}),
       };

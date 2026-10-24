@@ -4,8 +4,11 @@ import { collectTabRecords, findString, firstString } from './driver-records.js'
 
 const SENSITIVE_BROWSER_HOST =
   /(?:^|\.)(?:accounts\.google\.com|login\.microsoftonline\.com|appleid\.apple\.com|id\.apple\.com|auth0\.com|okta\.com|1password\.com|bitwarden\.com|lastpass\.com|dashlane\.com|keepersecurity\.com)$/i;
+const AUTHENTICATION_BROWSER_HOST = /^(?:login|log-in|signin|sign-in|auth|sso|idp)\./i;
+const AUTHENTICATION_BROWSER_PATH =
+  /(?:^|\/)(?:login|log-in|signin|sign-in|signup|sign-up|oauth|authorize|authorization|auth|idp|saml[0-9]*|sso|mfa|2fa|webauthn|passkey|password|reset|reset-password|magic|magic-link)(?:\/|$)/i;
 const SENSITIVE_BROWSER_PATH =
-  /(?:^|\/)(?:login|log-in|signin|sign-in|signup|sign-up|oauth|authorize|authorization|auth|mfa|2fa|webauthn|passkey|password|reset|reset-password|magic|magic-link|tokens?|access[-_]?tokens?|personal[-_]?access[-_]?tokens?|api[-_]?keys?|credentials?|secrets?|security)(?:\/|$)/i;
+  /(?:^|\/)(?:tokens?|access[-_]?tokens?|personal[-_]?access[-_]?tokens?|api[-_]?keys?|credentials?|secrets?|security)(?:\/|$)/i;
 const SENSITIVE_BROWSER_QUERY_KEY =
   /(?:^|[^a-z0-9])(?:api[-_]?key|access[-_]?token|auth|authorization|code|credentials?|jwt|key|password|refresh[-_]?token|secret|session|signature|sig|token)(?:$|[^a-z0-9])/i;
 
@@ -16,12 +19,31 @@ export function browserUrlLooksSensitive(value: string | undefined): boolean {
     return (
       Boolean(url.username || url.password) ||
       SENSITIVE_BROWSER_HOST.test(url.hostname) ||
+      AUTHENTICATION_BROWSER_HOST.test(url.hostname) ||
+      AUTHENTICATION_BROWSER_PATH.test(url.pathname) ||
       SENSITIVE_BROWSER_PATH.test(url.pathname) ||
       [...url.searchParams.keys()].some((key) => SENSITIVE_BROWSER_QUERY_KEY.test(key)) ||
       SENSITIVE_BROWSER_QUERY_KEY.test(url.hash.slice(1))
     );
   } catch {
     return true;
+  }
+}
+
+/** Actual observed sign-in locations, distinct from a generic private-URL policy refusal. */
+export function browserUrlIsAuthentication(value: string | undefined): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return (
+      AUTHENTICATION_BROWSER_HOST.test(url.hostname) ||
+      AUTHENTICATION_BROWSER_PATH.test(url.pathname) ||
+      /(?:^|\.)(?:accounts\.google\.com|login\.microsoftonline\.com|appleid\.apple\.com|id\.apple\.com|auth0\.com|okta\.com)$/i.test(
+        url.hostname,
+      )
+    );
+  } catch {
+    return false;
   }
 }
 

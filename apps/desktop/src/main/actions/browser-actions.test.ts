@@ -264,12 +264,6 @@ describe('DesktopActionBackend browser boundary', () => {
                 states: { disabled: false },
                 actions: ['click'],
               },
-              {
-                ref: `p${stateCount}:2`,
-                role: 'password',
-                value: 'secret',
-                actions: ['type'],
-              },
             ],
             request_debug: args,
           },

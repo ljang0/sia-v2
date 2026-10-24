@@ -57,7 +57,6 @@ export class MacBrowserControl {
   readonly #snapshots = new Map<string, Tab>();
   readonly #preparationAttempted = new Set<string>();
   #turn = '';
-  #session = '';
 
   constructor(
     private readonly ctx: ActionBackendContext,
@@ -65,9 +64,12 @@ export class MacBrowserControl {
   ) {}
 
   #client(window: ComputerWindowBinding) {
-    const existing = this.#clients.get(window.id);
+    // The host's exact browser connection outlives an individual task. Public window,
+    // tab and input refs still rotate each turn; only the driver's profile grant is reused.
+    const key = `${window.pid}:${window.windowId}`;
+    const existing = this.#clients.get(key);
     if (existing) return existing;
-    const session = `${this.#session}-${window.windowId}`;
+    const session = `sia-mac-browser-${randomUUID()}`;
     const context = new ActionBackendContext({
       ...this.ctx.options,
       macBrowserAccess: () => false,
@@ -91,7 +93,12 @@ export class MacBrowserControl {
       actions: new BrowserActions(context, new ComputerInventory(context)),
       session,
     };
-    this.#clients.set(window.id, client);
+    this.#clients.set(key, client);
+    if (this.#clients.size > 128) {
+      const oldest = this.#clients.keys().next().value!;
+      this.#clients.get(oldest)?.context.browser.reset();
+      this.#clients.delete(oldest);
+    }
     return client;
   }
 
@@ -112,9 +119,7 @@ export class MacBrowserControl {
     ]);
     if (key === this.#turn) return;
     this.#turn = key;
-    this.#session = `sia-mac-browser-${randomUUID()}`;
     for (const client of this.#clients.values()) client.context.browser.reset();
-    this.#clients.clear();
     this.#tabs.clear();
     this.#snapshots.clear();
     this.#preparationAttempted.clear();
@@ -127,7 +132,7 @@ export class MacBrowserControl {
   ): Promise<ActionExecutionResult | Tab[]> {
     this.#begin(request);
     // Keep each exact window's native authority separate, even inside one Chrome process.
-    const session = this.#client(window).session;
+    let session = this.#client(window).session;
     // Bind mode mints new opaque driver ids on each call. Rebinding while presenting a
     // tab choice would revoke the very ids the person/model is choosing. Keep the
     // turn's exact window binding; every content read still revalidates the pinned tab.
@@ -135,14 +140,28 @@ export class MacBrowserControl {
       (tab) => tab.window.id === window.id && tab.session === session,
     );
     if (bound.length) return bound;
-    const args = { pid: window.pid, window_id: window.windowId, session };
+    let args = { pid: window.pid, window_id: window.windowId, session };
     let raw: unknown;
     let failure: ActionExecutionResult | undefined;
-    try {
-      raw = await this.#client(window).context.callCua(request, 'get_browser_state', args);
-      failure = resultRefusal(raw);
-    } catch (error) {
-      failure = classifyFailure(error);
+    const inspect = async () => {
+      try {
+        raw = await this.#client(window).context.callCua(request, 'get_browser_state', args);
+        failure = resultRefusal(raw);
+      } catch (error) {
+        failure = classifyFailure(error);
+      }
+    };
+    await inspect();
+    if (
+      prepare &&
+      /\bsession_ended\b/.test(`${failure?.reason ?? ''} ${failure?.summary ?? ''}`)
+    ) {
+      // Only an acting website-open request may request fresh authority after expiry.
+      // The ended session is discarded, never revived, and no input is replayed.
+      this.#expire(window);
+      session = this.#client(window).session;
+      args = { pid: window.pid, window_id: window.windowId, session };
+      await inspect();
     }
     if (
       failure &&
@@ -330,11 +349,18 @@ export class MacBrowserControl {
     if (!Array.isArray(tabs)) return tabs;
     const tab = this.#choose(tabs, request);
     if (!tab || tab.navigationOnly) return this.#selection(window, tabs);
-    const result = await this.#client(window).actions.snapshot({
-      ...request,
-      name: 'browser_snapshot',
-      arguments: { tab_id: tab.nativeId },
-    });
+    let result: ActionExecutionResult;
+    try {
+      result = await this.#client(window).actions.snapshot({
+        ...request,
+        name: 'browser_snapshot',
+        arguments: { tab_id: tab.nativeId },
+      });
+    } catch (error) {
+      if (error instanceof Error && /\bsession_ended\b/.test(error.message))
+        this.#expire(window);
+      return classifyFailure(error);
+    }
     const id = asRecord(result.data)?.snapshot_id;
     const captured =
       typeof id === 'string'
@@ -350,6 +376,7 @@ export class MacBrowserControl {
         'The browser navigated during observation; no page content was returned for the expected URL.',
       );
     }
+    if (asRecord(result.data)?.observed_authentication === true) this.#revoke(window);
     return this.#wrap(window, tab, result);
   }
 
@@ -438,16 +465,28 @@ export class MacBrowserControl {
     } catch {
       return this.#unobservedNavigation(window);
     }
-    if (observed.outcome !== 'verified') return this.#unobservedNavigation(window);
+    if (observed.outcome !== 'verified') return this.#unobservedNavigation(window, observed);
     return this.#wrap(window, tab, observed);
   }
 
-  #unobservedNavigation(window: ComputerWindowBinding): ActionExecutionResult {
+  #unobservedNavigation(
+    window: ComputerWindowBinding,
+    observed?: ActionExecutionResult,
+  ): ActionExecutionResult {
+    const authentication = asRecord(observed?.data)?.observed_authentication === true;
     return {
       outcome: 'accepted_unverified',
-      summary:
-        'Browser navigation was accepted, but the resulting page could not be observed. Check the exact tab before continuing; do not claim the destination loaded or replay navigation blindly.',
-      data: { app_id: window.appId, window_id: window.id, input_delivery_uncertain: true },
+      summary: authentication
+        ? 'Browser navigation reached a protected sign-in page. The person must complete sign-in; no form controls or screenshots were returned. The requested account task remains incomplete.'
+        : 'Browser navigation was accepted, but the resulting page could not be observed. Check the exact tab before continuing; do not claim the destination loaded or replay navigation blindly.',
+      data: {
+        app_id: window.appId,
+        window_id: window.id,
+        input_delivery_uncertain: true,
+        ...(authentication
+          ? { observed_authentication: true, blocker_code: 'authentication_surface' }
+          : {}),
+      },
     };
   }
 
@@ -521,6 +560,7 @@ export class MacBrowserControl {
   }
 
   #deliveryFailure(window: ComputerWindowBinding, error: unknown): ActionExecutionResult {
+    if (error instanceof Error && /\bsession_ended\b/.test(error.message)) this.#expire(window);
     if (inputWasRefused(error)) return classifyFailure(error);
     return {
       outcome: 'accepted_unverified',
@@ -528,5 +568,14 @@ export class MacBrowserControl {
         'The browser may have received the action, but its acknowledgement was lost. Inspect the exact tab and semantic result before continuing; do not replay the action.',
       data: { app_id: window.appId, window_id: window.id, input_delivery_uncertain: true },
     };
+  }
+
+  #expire(window: ComputerWindowBinding): void {
+    this.#revoke(window);
+    const key = `${window.pid}:${window.windowId}`;
+    this.#clients.get(key)?.context.browser.reset();
+    this.#clients.delete(key);
+    for (const [id, tab] of this.#tabs) if (tab.window.id === window.id) this.#tabs.delete(id);
+    this.#preparationAttempted.delete(window.id);
   }
 }

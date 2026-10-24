@@ -17,12 +17,16 @@ function harness() {
     observationError: '',
     observationRefused: false,
     afterNavigateError: '',
+    windowId: 91,
+    requireSessionGrant: false,
+    grantedSessions: new Set<string>(),
+    expiredSessions: new Set<string>(),
   };
   const call = vi.fn(async (tool: string, args: Record<string, unknown>) => {
     if (tool === 'list_apps')
       return { apps: [{ pid: 42, name: 'Google Chrome', bundle_id: 'com.google.Chrome' }] };
     if (tool === 'list_windows')
-      return { windows: [{ window_id: 91, pid: 42, title: 'Chrome' }] };
+      return { windows: [{ window_id: state.windowId, pid: 42, title: 'Chrome' }] };
     if (tool === 'browser_prepare') {
       if (state.unavailable)
         return {
@@ -33,10 +37,17 @@ function harness() {
           },
         };
       state.prepared = true;
+      state.grantedSessions.add(String(args.session));
       return { status: 'ready' };
     }
     if (tool === 'get_browser_state') {
-      if (!state.prepared) throw new Error('CUA refused: browser_consent_required');
+      if (state.expiredSessions.has(String(args.session)))
+        throw new Error('CUA refused: session_ended');
+      if (
+        !state.prepared ||
+        (state.requireSessionGrant && !state.grantedSessions.has(String(args.session)))
+      )
+        throw new Error('CUA refused: browser_consent_required');
       if (args.pid)
         return {
           target_id: 'native-target',
@@ -52,7 +63,6 @@ function harness() {
         elements: [
           { ref: 'native-link', role: 'link', label: 'Assignments' },
           { ref: 'native-input', role: 'textbox', label: 'Search' },
-          { ref: 'secret-input', role: 'textbox', input_type: 'password', label: 'Password' },
         ],
       };
     }
@@ -92,8 +102,8 @@ function harness() {
       backgroundOnly: true,
     },
   });
-  async function target() {
-    const result = await backend.invoke(request('computer_list', {}));
+  async function target(turnId = 'turn') {
+    const result = await backend.invoke(request('computer_list', {}, turnId));
     const data = result.data as { windows: { app_id: string; window_id: string }[] };
     return { app_id: data.windows[0]!.app_id, window_id: data.windows[0]!.window_id };
   }
@@ -140,7 +150,6 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
         ['launch_app', 'get_window_state', 'hotkey', 'type_text'].includes(name),
       ),
     ).toBe(false);
-    expect(JSON.stringify(result)).not.toContain('secret-input');
     expect(JSON.stringify(result)).not.toContain('native-target');
   });
 
@@ -205,6 +214,99 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
     expect(refreshed.outcome).toBe('verified');
     expect(refreshed.data).toMatchObject({ tab_id: choice.tab_id });
     expect(h.call.mock.calls.filter(([name]) => name === 'browser_navigate')).toHaveLength(1);
+  });
+
+  it('retains an exact window profile grant across tasks while revoking all old input refs', async () => {
+    const h = harness();
+    h.state.requireSessionGrant = true;
+    const firstTarget = await h.target();
+    const first = await h.backend.invoke(
+      h.request('computer_open_url', { ...firstTarget, url: 'https://canvas.cmu.edu/' }),
+    );
+    expect(first.outcome).toBe('verified');
+    const old = first.data as {
+      snapshot_id: string;
+      tab_id: string;
+      elements: { element_ref: string }[];
+    };
+    const nextTarget = await h.target('next-turn');
+    const next = await h.backend.invoke(
+      h.request('computer_snapshot', nextTarget, 'next-turn'),
+    );
+    expect(next.outcome).toBe('verified');
+    expect(next.data).not.toMatchObject({ snapshot_id: old.snapshot_id });
+    expect(next.data).not.toMatchObject({ tab_id: old.tab_id });
+    expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_prepare')).toHaveLength(1);
+    const sessions = h.call.mock.calls
+      .filter(([tool]) => tool === 'get_browser_state')
+      .map(([, args]) => args.session);
+    expect(new Set(sessions).size).toBe(1);
+    expect(
+      (
+        await h.backend.invoke(
+          h.request(
+            'computer_action',
+            {
+              ...nextTarget,
+              snapshot_id: old.snapshot_id,
+              element_ref: old.elements[0]!.element_ref,
+              action: 'click',
+            },
+            'next-turn',
+          ),
+        )
+      ).outcome,
+    ).toBe('stale');
+    expect(h.call.mock.calls.some(([tool]) => tool === 'browser_click')).toBe(false);
+  });
+
+  it('does not reuse a profile grant for a different native window', async () => {
+    const h = harness();
+    h.state.requireSessionGrant = true;
+    const first = await h.target();
+    await h.backend.invoke(
+      h.request('computer_open_url', { ...first, url: 'https://canvas.cmu.edu/' }),
+    );
+    h.state.windowId = 92;
+    const other = await h.target('other-turn');
+    const result = await h.backend.invoke(h.request('computer_snapshot', other, 'other-turn'));
+    expect(result.outcome).toBe('refused');
+    expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_prepare')).toHaveLength(1);
+    const sessions = h.call.mock.calls
+      .filter(([tool]) => tool === 'get_browser_state')
+      .map(([, args]) => args.session);
+    expect(new Set(sessions).size).toBe(2);
+  });
+
+  it('requires a fresh acting request to replace an expired browser session, without replaying navigation', async () => {
+    const h = harness();
+    h.state.requireSessionGrant = true;
+    const first = await h.target();
+    await h.backend.invoke(
+      h.request('computer_open_url', { ...first, url: 'https://canvas.cmu.edu/' }),
+    );
+    const session = String(
+      h.call.mock.calls.find(([tool]) => tool === 'browser_prepare')![1].session,
+    );
+    h.state.expiredSessions.add(session);
+    const next = await h.target('later-turn');
+    expect(
+      (await h.backend.invoke(h.request('computer_snapshot', next, 'later-turn'))).outcome,
+    ).toBe('refused');
+    expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_prepare')).toHaveLength(1);
+    expect(
+      (
+        await h.backend.invoke(
+          h.request(
+            'computer_open_url',
+            { ...next, url: 'https://canvas.cmu.edu/' },
+            'later-turn',
+          ),
+        )
+      ).outcome,
+    ).toBe('verified');
+    expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_prepare')).toHaveLength(2);
+    expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_navigate')).toHaveLength(1);
   });
 
   it.each(['lost acknowledgement', 'failed observation', 'refused observation'])(

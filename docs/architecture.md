@@ -357,12 +357,23 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   strategy and background delivery; refusal never escalates to foreground. Preparation is
   not a guarantee of access: browser consent and the driver's supported routes still apply.
   Safe start tabs are navigation-only, and unrelated website tabs need explicit selection.
-  Browser bindings remain pinned for the turn instead of reminting tab choices on every read;
+  Browser tab choices remain pinned for the turn instead of reminting on every read;
   reads and actions verify the exact target/tab and consume stale input capabilities. This
   avoids Chromium's stale accessibility tree on another Space. Native browser keys, pointer
   input and off-Space AX fallback are unavailable on this Chromium route. Safari retains its
   native window route and the conservative active-app safeguard. Default-browser account
   identity is never assumed, and no cookie or login is copied.
+  The driver profile grant for the same exact native PID/window is reused across tasks, rather
+  than making each new conversation appear to lose browser consent. Public tab/snapshot/input
+  refs and local browser capabilities are still revoked at each turn boundary. The SDK retains
+  its process-identity and grant-expiry checks. An expired named session is never revived:
+  a fresh authorized website-open request may request a new profile grant after read-only
+  discovery; neither session renewal nor observation failure replays input. A different native
+  window does not inherit the grant. Closing Sia or driver expiry can require browser setup again.
+  Institutional login hosts, SAML/identity-provider routes and semantic login forms are protected
+  before returning screenshots, form content or input capabilities. A semantic password field
+  need not retain its HTML input type to be detected. Observed authentication is reported
+  separately from a generic URL-policy refusal; the person completes sign-in.
   A driver report that it restored the foreground app is an interruption even if before/after
   app samples match; the affected turn pauses with uncertain delivery rather than claiming
   background success.

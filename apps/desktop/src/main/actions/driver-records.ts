@@ -214,6 +214,31 @@ export function isProtectedElement(record: Record<string, unknown>): boolean {
   );
 }
 
+/** Semantic browser outlines can omit the password input type and its label on the ref. */
+export function browserHasAuthenticationControls(value: unknown): boolean {
+  const controls = findElementRecords(value, 'browser');
+  if (controls.some(isProtectedElement)) return true;
+  const editable = controls.some((record) =>
+    /^(?:textbox|combobox|AXTextField|AXTextArea|AXComboBox)$/i.test(
+      firstString(record, ['role', 'type']) ?? '',
+    ),
+  );
+  if (!editable) return false;
+  const loginButton = controls.some(
+    (record) =>
+      /^(?:button|AXButton)$/i.test(firstString(record, ['role', 'type']) ?? '') &&
+      /^(?:log[ -]?in|sign[ -]?in|authenticate|verify(?: code)?|reset password)$/i.test(
+        trustedElementLabel(record) ?? '',
+      ),
+  );
+  const outline = findString(value, ['outline', 'text', 'page_text']) ?? '';
+  const credentialLabel =
+    /(?:textbox|labeltext|statictext) ["'](?:password|passcode|verification code|one-time code|AndrewID|username)["']/i.test(
+      outline,
+    );
+  return loginButton && credentialLabel;
+}
+
 function passwordLabelIsProtected(role: string, label: string): boolean {
   if (!/password/i.test(label)) return false;
   if (/^AX(?:TextField|TextArea|ComboBox|SearchField)$/.test(role)) return true;

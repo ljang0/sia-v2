@@ -222,6 +222,14 @@ For an existing background Chrome/Edge/Brave window, `computer_open_url` can pre
 exact-tab browser route. This is part of Sia's authorized task, not a separate attached-Chrome
 test adapter. Keep browser setup refusals and foreground-restoration reports in the evidence.
 Safe browser start pages can be used only for navigation, not as proof of sign-in.
+Across fresh conversations, verify that an approved exact browser window retains its profile
+grant while every prior tab and input ref becomes unusable. Check a second native window
+independently. After expiry, a read-only snapshot must not perform setup or revive the old
+session; an explicitly authorized website-open request can acquire fresh authority without
+replaying a write. For institutional login redirects, require an authentication blocker with no
+form content, screenshots or input refs. Do not treat a new task's missing profile grant as
+proof that the website is signed out, or as a reason to ask the person to approve Chrome again
+before the acting setup route has been tried.
 Workspace `.ics` results are file-only checks: verify date, timezone and duration from the saved
 bytes. They attach as ordinary text results without importing into Calendar or sending anything.
 
