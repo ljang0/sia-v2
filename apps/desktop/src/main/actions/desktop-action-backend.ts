@@ -8,6 +8,7 @@ import { workspaceFileAction } from './background-files.js';
 import { isConnectionReconnectRequired } from '../cloud/cloud-client.js';
 import { macExecutionTools } from './mac-execution.js';
 import { MacWindowHistory } from './mac-window-history.js';
+import { MacBrowserControl } from './mac-browser-control.js';
 import { classifyFailure, refused } from './action-results.js';
 import { trustedApprovalTarget } from './approval-target.js';
 import { BrowserActions } from './browser-actions.js';
@@ -36,6 +37,7 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #observation: ComputerObservation;
   readonly #input: ComputerInput;
   readonly #browser: BrowserActions;
+  readonly #macBrowser: MacBrowserControl;
   readonly #connectors: ConnectorActions;
   readonly #messages: MessagesActions;
   readonly #schedules: ScheduleActions;
@@ -48,6 +50,7 @@ export class DesktopActionBackend implements ActionBackend {
     this.#observation = new ComputerObservation(this.#ctx, this.#inventory);
     this.#input = new ComputerInput(this.#ctx, this.#inventory, this.#observation);
     this.#browser = new BrowserActions(this.#ctx, this.#inventory);
+    this.#macBrowser = new MacBrowserControl(this.#ctx, this.#inventory);
     this.#connectors = new ConnectorActions(this.#ctx);
     this.#messages = new MessagesActions(options.messages, options.openFullDiskAccessSettings);
     this.#schedules = new ScheduleActions(options.schedules);
@@ -200,11 +203,35 @@ export class DesktopActionBackend implements ActionBackend {
         case 'computer_open_app':
           return await this.#inventory.openApp(request);
         case 'computer_open_url':
+          if (
+            this.#ctx.macBrowserAccess() &&
+            this.#ctx.macBackgroundControl() &&
+            request.arguments.delivery !== 'foreground' &&
+            (request.context.backgroundOnly === true ||
+              [...this.#ctx.computer.windows.values()].some((window) =>
+                this.#macBrowser.supports(window),
+              ))
+          )
+            return await this.#macBrowser.openUrl(request);
           return await this.#inventory.openUrl(request);
-        case 'computer_snapshot':
+        case 'computer_snapshot': {
+          const window = this.#ctx.computer.resolveWindow(
+            String(request.arguments.app_id),
+            String(request.arguments.window_id),
+          );
+          if (this.#macBrowser.supports(window))
+            return await this.#macBrowser.snapshot(window, request);
           return await this.#observation.snapshot(request);
-        case 'computer_action':
+        }
+        case 'computer_action': {
+          const window = this.#ctx.computer.resolveWindow(
+            String(request.arguments.app_id),
+            String(request.arguments.window_id),
+          );
+          if (this.#macBrowser.supports(window))
+            return await this.#macBrowser.act(window, request);
           return await this.#input.act(request);
+        }
         case 'browser_tabs':
           await this.#browser.attachOnDemand();
           return await this.#browser.tabs(request);

@@ -48,6 +48,8 @@ export type CuaAuthorizationContext =
       readonly threadId: string;
       readonly turnId: string;
       readonly backgroundOnly?: boolean;
+      /** Host-bound browser target; never supplied by model arguments. */
+      readonly backgroundTargetPid?: number;
     }
   | {
       readonly kind: 'direct_user';
@@ -110,6 +112,13 @@ const WINDOW_INPUT_TOOLS = new Set([
   'press_key',
   'hotkey',
   'scroll',
+]);
+const BROWSER_INPUT_TOOLS = new Set([
+  'browser_prepare',
+  'browser_navigate',
+  'browser_click',
+  'browser_type',
+  'browser_pointer',
 ]);
 
 interface CuaDriverImage {
@@ -375,11 +384,15 @@ export class CuaService {
     )
       throw new Error('CUA refused: background_unavailable');
     const protectDesktop =
-      context.kind === 'turn' && context.backgroundOnly && WINDOW_INPUT_TOOLS.has(tool);
+      context.kind === 'turn' &&
+      context.backgroundOnly &&
+      (WINDOW_INPUT_TOOLS.has(tool) || BROWSER_INPUT_TOOLS.has(tool));
     if (
       protectDesktop &&
       (args.delivery_mode === 'foreground' ||
-        (tool !== 'set_value' && args.delivery_mode !== 'background'))
+        (WINDOW_INPUT_TOOLS.has(tool) &&
+          tool !== 'set_value' &&
+          args.delivery_mode !== 'background'))
     )
       throw new Error('CUA refused: background_unavailable');
     const previous = this.#callTail;
@@ -439,16 +452,20 @@ export class CuaService {
                   ? { ...args, tree_format: 'elements', verbose: true }
                   : args;
               if (protectDesktop) {
+                const targetPid =
+                  context.kind === 'turn' && BROWSER_INPUT_TOOLS.has(tool)
+                    ? (context.backgroundTargetPid ?? args.pid)
+                    : args.pid;
                 const foreground = await readForegroundPid(driver!, operation.signal);
                 operation.signal.throwIfAborted();
                 if (
                   foreground === undefined ||
-                  typeof args.pid !== 'number' ||
-                  !Number.isInteger(args.pid) ||
-                  args.pid <= 0
+                  typeof targetPid !== 'number' ||
+                  !Number.isInteger(targetPid) ||
+                  targetPid <= 0
                 )
                   throw new Error('CUA refused: background_focus_unavailable');
-                if (foreground === args.pid)
+                if (foreground === targetPid)
                   throw new Error('CUA refused: foreground_app_in_use');
                 foregroundBefore = foreground;
               }

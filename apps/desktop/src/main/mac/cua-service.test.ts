@@ -62,6 +62,52 @@ it.each(['invoke_menu', 'launch_app'])(
 );
 
 it.each([
+  'browser_prepare',
+  'browser_navigate',
+  'browser_click',
+  'browser_type',
+  'browser_pointer',
+])('checks the host-bound browser process before %s', async (tool) => {
+  const driver = successfulDriver({ apps: [{ pid: 42, active: true }] });
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(
+      service.call(
+        tool,
+        { delivery_mode: 'background' },
+        {
+          kind: 'turn',
+          threadId: 'thread',
+          turnId: 'turn',
+          backgroundOnly: true,
+          backgroundTargetPid: 42,
+        },
+      ),
+    ).rejects.toThrow('CUA refused: foreground_app_in_use');
+    expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual(['list_apps']);
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it('refuses browser input without a host-owned process binding', async () => {
+  const driver = successfulDriver({ apps: [{ pid: 7, active: true }] });
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(
+      service.call(
+        'browser_click',
+        { target_id: 'model-guessed', tab_id: 'model-guessed' },
+        { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+      ),
+    ).rejects.toThrow('CUA refused: background_focus_unavailable');
+    expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual(['list_apps']);
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it.each([
   'click',
   'double_click',
   'drag',

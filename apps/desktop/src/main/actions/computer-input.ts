@@ -3,6 +3,7 @@ import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/acti
 import {
   actionResult,
   classifyFailure,
+  inputWasRefused,
   refused,
   resultRefusal,
   screenshotDimensions,
@@ -345,12 +346,7 @@ export class ComputerInput {
       const message = safeErrorMessage(error);
       // These explicit driver validation/authorization refusals prove no input was posted.
       // A generic timeout or broken transport does not: the app may already have committed.
-      if (
-        /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|background_focus_unavailable|foreground_app_in_use|window_not_key|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window)$/.test(
-          message,
-        )
-      )
-        return classifyFailure(error);
+      if (inputWasRefused(error)) return classifyFailure(error);
       this.ctx.computer.snapshots.delete(snapshotId);
       this.ctx.computer.latestSnapshot.delete(binding.id);
       return {

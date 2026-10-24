@@ -12,6 +12,13 @@ export function stale(reason: string): ActionExecutionResult {
   return { outcome: 'stale', summary: reason, reason };
 }
 
+/** Only these explicit validation/authorization refusals prove that no input was posted. */
+export function inputWasRefused(error: unknown): boolean {
+  return /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|background_focus_unavailable|foreground_app_in_use|window_not_key|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window|browser_ref_stale|browser_frame_changed|browser_tab_not_found|browser_binding_stale|browser_consent_required|browser_requires_setup)$/.test(
+    safeErrorMessage(error),
+  );
+}
+
 export function classifyFailure(error: unknown): ActionExecutionResult {
   const message = safeErrorMessage(error);
   const normalized = message.toLowerCase();
@@ -89,21 +96,23 @@ export function actionResult(
   options: { allowForeground?: boolean } = {},
 ): ActionExecutionResult {
   const record = asRecord(value);
+  const restoredFocus = !options.allowForeground && reportedFocusRestore(value);
   if (
     record?.background_focus_changed === true ||
-    record?.background_focus_unverified === true
+    record?.background_focus_unverified === true ||
+    restoredFocus
   ) {
     return {
       outcome: 'needs_foreground',
       summary:
-        record.background_focus_changed === true
+        record?.background_focus_changed === true || restoredFocus
           ? 'Desktop focus changed during background input. Its effect needs verification; Sia paused and will not replay it.'
           : 'Input may have been delivered, but desktop focus could not be verified afterward. Sia paused; inspect the result before retrying.',
       data: {
         background_interrupted: true,
         input_delivery_uncertain: true,
         blocker_code:
-          record.background_focus_changed === true
+          record?.background_focus_changed === true || restoredFocus
             ? 'background_focus_changed'
             : 'background_focus_unverified',
       },
@@ -164,6 +173,21 @@ export function actionResult(
         ? 'The background action may have had no effect.'
         : 'The driver could not prove the requested semantic postcondition.',
   };
+}
+
+function reportedFocusRestore(value: unknown): boolean {
+  let remaining = 256;
+  const visit = (input: unknown, depth: number): boolean => {
+    if (--remaining < 0 || depth > 6) return false;
+    if (Array.isArray(input)) return input.some((item) => visit(item, depth + 1));
+    const record = asRecord(input);
+    if (!record) return false;
+    return (
+      record.restored_frontmost_app === true ||
+      Object.values(record).some((item) => visit(item, depth + 1))
+    );
+  };
+  return visit(value, 0);
 }
 
 export function actionImages(value: unknown): Pick<ActionExecutionResult, 'images'> {

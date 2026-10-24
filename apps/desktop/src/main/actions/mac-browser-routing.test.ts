@@ -715,9 +715,11 @@ describe('Use my Mac browser routing', () => {
       context: { ...action.context, backgroundOnly: true },
     });
     expect(result.outcome).toBe('needs_foreground');
-    expect(dataRecord(result.data).blocker_code).toBe('background_launch_blocked');
+    expect(dataRecord(result.data).blocker_code).toBe('background_browser_target_required');
     expect(h.openUrl).not.toHaveBeenCalled();
-    expect(h.cua.call).not.toHaveBeenCalled();
+    expect(
+      h.cua.call.mock.calls.every(([tool]) => ['list_apps', 'list_windows'].includes(tool)),
+    ).toBe(true);
   });
 
   it('recovers a navigation race by observing again without replaying the click', async () => {

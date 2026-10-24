@@ -337,7 +337,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   not uncertain delivery, and never triggers an automatic foreground retry.
   An unexpected foreground acknowledgement remains uncertain, revokes the old snapshot, and
   records its driver operation. A new dialog cannot relabel that input as "not sent."
-  In strict background turns, each native input reads the live foreground application before
+  In strict background turns, each native input and Chromium browser mutation/setup reads the live foreground application before
   dispatch. Input into that application is refused, leaving the person's active work alone.
   A second read after input detects any foreground-app change or an unverifiable focus state;
   it preserves uncertainty and pauses the exact turn, including queued follow-ups. Sia does not
@@ -350,8 +350,22 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   non-activating `launch_app` route. Strict background turns refuse new app/document launches
   before the driver is initialized: an app may activate itself despite a background request.
   They can reuse an already-running app window or an exact already-open document. The system
-  URL opener is also refused before dispatch in strict mode; navigation uses supported Cua
-  controls in an existing browser window. Default-browser account identity is never assumed.
+  URL opener is also refused before dispatch in strict mode. Existing Chrome, Edge and Brave
+  windows use the bundled driver's exact-tab browser adapter through the same `computer_*`
+  tools and ActionGateway. Read-only snapshots never prepare a profile. An authorized
+  `computer_open_url` may request `browser_prepare` with the exact PID/window, existing-profile
+  strategy and background delivery; refusal never escalates to foreground. Preparation is
+  not a guarantee of access: browser consent and the driver's supported routes still apply.
+  Safe start tabs are navigation-only, and unrelated website tabs need explicit selection.
+  Browser bindings remain pinned for the turn instead of reminting tab choices on every read;
+  reads and actions verify the exact target/tab and consume stale input capabilities. This
+  avoids Chromium's stale accessibility tree on another Space. Native browser keys, pointer
+  input and off-Space AX fallback are unavailable on this Chromium route. Safari retains its
+  native window route and the conservative active-app safeguard. Default-browser account
+  identity is never assumed, and no cookie or login is copied.
+  A driver report that it restored the foreground app is an interruption even if before/after
+  app samples match; the affected turn pauses with uncertain delivery rather than claiming
+  background success.
   An optional
   `workspace_path` opens an existing ordinary text document in TextEdit, PDF/image in Preview, or
   directory in Finder. The host resolves it inside the pinned workspace and rejects URL schemes,

@@ -32,6 +32,9 @@ const computerOpenApp = z
 
 const computerOpenUrl = z
   .object({
+    app_id: id.optional(),
+    window_id: id.optional(),
+    tab_id: id.optional(),
     delivery: z.enum(['background', 'foreground']).optional(),
     url: z
       .url()
@@ -50,6 +53,7 @@ const computerSnapshot = z
   .object({
     app_id: id,
     window_id: id,
+    tab_id: id.optional(),
     wait_ms: z.number().int().min(0).max(3000).optional(),
     read_text: z.boolean().optional(),
     include_image: z.boolean().optional(),
@@ -139,7 +143,7 @@ const workspaceFileName = z
   .string()
   .min(1)
   .max(180)
-  .regex(/^[^./\\\x00-\x1f][^/\\\x00-\x1f]*\.(?:txt|md|csv|tsv|json)$/i);
+  .regex(/^[^./\\\x00-\x1f][^/\\\x00-\x1f]*\.(?:txt|md|csv|tsv|json|ics)$/i);
 
 export const computerReadFile = z.object({ name: workspaceFileName }).strict();
 

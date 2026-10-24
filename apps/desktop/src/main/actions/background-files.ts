@@ -34,10 +34,11 @@ async function readStable(file: FileHandle) {
   return { content, text: new TextDecoder('utf-8', { fatal: true }).decode(content), after };
 }
 const eligible = (name: string) =>
-  /^[^./\\\x00-\x1f][^/\\\x00-\x1f]*\.(txt|md|csv|tsv|json)$/i.test(name) &&
-  !/(?:credential|token|secret|password|keychain|(?:^|[._ -])(?:auth|session|keys?)(?:[._ -]|$))/i.test(
+  /^[^./\\\x00-\x1f][^/\\\x00-\x1f]*\.(txt|md|csv|tsv|json|ics)$/i.test(name) &&
+  !/(?:credential|token|secret|password|keychain|(?:^|[._ -])(?:auth|keys?)(?:[._ -]|$))/i.test(
     name,
-  );
+  ) &&
+  (/\.ics$/i.test(name) || !/(?:^|[._ -])session(?:[._ -]|$)/i.test(name));
 
 /** Only the host-pinned workspace's ordinary top-level data files. No model path grants. */
 export async function workspaceFileAction(

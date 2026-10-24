@@ -212,6 +212,19 @@ evidence: inspect actual app state, source URLs, saved bytes, input preservation
 Workspace-file actions alone do not establish GUI control; app cases require an observation of
 the requested real app.
 
+For explicitly authorized owner-account checks, use the existing assistant so its real memory
+is exercised; pin the admitted test model on the test conversations without changing the owner's
+default model. Keep private account results outside Git. Canvas acceptance inventories current
+courses and inspects assignments plus relevant course pages, with dates and per-course coverage;
+the calendar alone cannot establish completeness. Handshake acceptance distinguishes registered
+and waitlisted events from recommendations. An account-access blocker is not a successful task.
+For an existing background Chrome/Edge/Brave window, `computer_open_url` can prepare Cua's
+exact-tab browser route. This is part of Sia's authorized task, not a separate attached-Chrome
+test adapter. Keep browser setup refusals and foreground-restoration reports in the evidence.
+Safe browser start pages can be used only for navigation, not as proof of sign-in.
+Workspace `.ics` results are file-only checks: verify date, timezone and duration from the saved
+bytes. They attach as ordinary text results without importing into Calendar or sending anything.
+
 Strict background acceptance also verifies noninterference: no system URL opens or new
 app/document launches, no input into the app the person is using, and an exact-turn pause on a
 focus interruption. Prepare any disposable app windows before the run, with the person's

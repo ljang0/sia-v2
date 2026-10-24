@@ -9,6 +9,10 @@ it.each([
   },
   { name: 'observed focus change', result: { background_focus_changed: true } },
   { name: 'unknown focus after delivery', result: { background_focus_unverified: true } },
+  {
+    name: 'driver restoring focus after hidden activation',
+    result: { data: { effect: 'confirmed', restored_frontmost_app: true } },
+  },
 ])(
   'preserves uncertainty for $name even if a dialog opens, and revokes the old target',
   async ({ result: delivered }) => {

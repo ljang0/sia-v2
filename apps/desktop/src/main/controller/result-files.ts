@@ -15,6 +15,7 @@ const DOCUMENT_EXTENSIONS = new Set([
   '.txt',
   '.md',
   '.csv',
+  '.ics',
   '.tsv',
   '.json',
   '.pdf',

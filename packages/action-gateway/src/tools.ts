@@ -131,7 +131,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_list_files: {
     name: 'computer_list_files',
     description:
-      'List ordinary text/data files in this task’s workspace folder. Returns the workspace path and eligible top-level txt/md/csv/tsv/json files. Hidden files, credentials, links and subdirectories are excluded.',
+      'List ordinary text/data files in this task’s workspace folder. Returns the workspace path and eligible top-level txt/md/csv/tsv/json/ics files. Hidden files, credentials, links and subdirectories are excluded.',
     inputSchema: z.toJSONSchema(computerList),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },
@@ -145,7 +145,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_write_file: {
     name: 'computer_write_file',
     description:
-      'Create or edit a UTF-8 txt/md/csv/tsv/json report in the task workspace without opening an app. Pass its name and complete text (up to 256 KB). To edit an existing file, first read it and pass its returned sha256 as expected_sha256; a changed revision is refused. Without expected_sha256, an existing file is never overwritten. Returns data.path, data.sha256 and data.text read back from disk. Verify the content before reporting success or returning output_file.',
+      'Create or edit a UTF-8 txt/md/csv/tsv/json/ics file in the task workspace without opening an app. An ICS file is saved only; it is not imported into a calendar or sent. Pass its name and complete text (up to 256 KB). To edit an existing file, first read it and pass its returned sha256 as expected_sha256; a changed revision is refused. Without expected_sha256, an existing file is never overwritten. Returns data.path, data.sha256 and data.text read back from disk. Verify the content before reporting success or returning output_file.',
     inputSchema: z.toJSONSchema(computerWriteFile),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
   },
@@ -239,10 +239,13 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_open_url: {
     name: 'computer_open_url',
     description:
-      'Open an ordinary HTTP(S) website in the system default browser only when foreground recovery is permitted. Strict background turns refuse this OS opener before dispatch because it can take focus or replace the window the person is using. In strict mode, discover the existing signed-in browser and navigate through fresh supported computer_snapshot/computer_action controls instead; do not substitute another app launcher or ask for a Chrome connection. For permitted opening, inspect returned window ids with expected_url to verify the resulting page. Authentication and security URLs remain unavailable; sign-in belongs to the person.',
+      'Open an ordinary HTTP(S) website. In background Use my Mac, pass an exact existing Chrome/Edge/Brave app_id and window_id from computer_list; optional tab_id selects its task tab. Sia prepares the bundled Cua browser route in the background or refuses before foreground escalation. A safe start tab can be reused automatically; unrelated web tabs require explicit selection. No app launch, OS URL opener, copied logins or Chrome connection UI is needed. Account identity and the resulting page still need verification. Sensitive URLs remain blocked. Safari retains native controls; the system opener requires foreground recovery permission.',
     inputSchema: object(
       {
         url: string('Exact HTTP(S) website to open', { format: 'uri' }),
+        app_id: string('Background browser: exact existing application id'),
+        window_id: string('Background browser: exact existing window id'),
+        tab_id: string('Optional exact task tab id from computer_snapshot'),
         delivery: string('Background by default; explicitly choose foreground if needed.', {
           enum: ['background', 'foreground'],
         }),
@@ -259,6 +262,9 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
       {
         app_id: string('Exact application id'),
         window_id: string('Exact window id'),
+        tab_id: string(
+          'Chromium background browser: exact tab id when several task tabs are available',
+        ),
         expected_url: string(
           'Use my Mac browsers: require this exact page URL, including query parameters, before reading. Use for course/account-specific facts to avoid attributing the previous page to a new destination. The result includes a source_url with query and fragment removed.',
           { format: 'uri' },
