@@ -603,6 +603,12 @@ last step before continuing. This mode does not provide an isolated second deskt
 control of the same active app remains unavailable. **Allow brief foreground control** is an
 explicit alternative for tasks that need it.
 
+For an already-configured development profile, `pnpm --filter @sia/desktop preview --background`
+starts the real app without showing its window or raising the secure-workspace explanation.
+Encrypted storage and macOS permissions remain required; a missing Keychain grant can still need
+the person's approval. Open Sia normally to reveal the window later. A background relaunch of an
+already-running instance leaves its window alone.
+
 While an On my screen task works, a thin glowing border and a small “Sia is using your screen ·
 Press ⌃Esc to stop” pill sit on top of every display. They never take focus or clicks, are kept out of
 screenshots, and disappear when the task finishes, stops, waits for you, or pauses. ⌃Esc

@@ -218,8 +218,9 @@ focus interruption. Prepare any disposable app windows before the run, with the 
 agreement; setup is separate from agent execution. Requested delivery fields alone cannot prove
 that the person kept focus. The earlier hundred-request evidence predates these stronger checks
 and is not proof of concurrent use of signed-in personal accounts or current strict-mode support
-for every historical app-opening case. Never reopen or operate apps on a person's working desktop
-to finish a reliability test after they report interference.
+for every historical app-opening case. Stop testing when a person reports interference. Resume
+only after they ask to continue, using a background path that respects their active work; do not
+reopen foreground windows merely to finish a reliability test.
 
 Audit both top-level and nested delivery fields in every action result. Unexpected foreground
 input fails a background-only attempt even when its final answer is correct. An app-open result
