@@ -450,11 +450,17 @@ export class ComputerObservation {
       outcome: 'refused',
       summary: protectedPage
         ? 'This specific browser window contains a protected page or security control. It was not read. This does not establish that another window or the requested account needs login.'
-        : 'This specific browser window could not be identified or observed. This is not evidence of a login screen. Continue in the task window already observed, or bring the browser forward and inspect this window again.',
+        : 'This specific browser window could not be identified or observed. This is not evidence of a login screen. Continue with another authorized source or report this exact observation gap, respecting the selected foreground policy.',
       data: {
         app_id: binding.appId,
         window_id: binding.id,
         blocker_code: protectedPage ? 'protected_window' : 'window_unavailable',
+        ...(protectedPage
+          ? {
+              next_step:
+                'Do not interact with this protected document or attempt authentication. For public facts already in scope, reuse a known public subpage from saved source hints, memory or prior verified observations with computer_open_url, then take a fresh snapshot. A protected homepage does not establish that its public staff/syllabus pages are protected. This grants no access to private data and never substitutes public information for verified enrollment or account identity.',
+            }
+          : {}),
         ...(state.status !== 'ready' && state.reason ? { blocker_detail: state.reason } : {}),
       },
     };

@@ -366,6 +366,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   place: no browser profile, cookie, password or token is copied. The model is instructed to inspect
   visible tabs/account controls in the established window before opening a URL in a different
   default browser/profile.
+  A protected document is left untouched, but does not block an independently public staff or
+  syllabus page already in the requested scope. The host returns recent verified source paths as
+  navigation hints and explains how to open a known public URL and revalidate its new document.
+  This cannot open authentication paths, reuse stale input refs, establish private access or turn
+  public course information into evidence of the person's enrollment.
   Driver truncation and supplemental text limits are exposed as partial observations, not complete
   coverage. A response with no readable text, controls or image revokes the previous input snapshot
   and returns an explicit observation failure; it cannot mint a verified state or imply sign-out.

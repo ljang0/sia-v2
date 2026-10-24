@@ -499,6 +499,51 @@ describe('Use my Mac browser routing', () => {
     expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
   });
 
+  it('keeps a public source hint while blocking the protected document and stale input', async () => {
+    const h = browserHarness();
+    const original = await capture(h);
+    h.inspect.mockResolvedValue({ status: 'protected' });
+    const blocked = await h.backend.invoke(
+      request('computer_snapshot', {
+        app_id: original.app_id,
+        window_id: original.window_id,
+      }),
+    );
+    expect(blocked.outcome).toBe('refused');
+    expect(blocked.images).toBeUndefined();
+    expect(dataRecord(blocked.data).next_step).toContain('computer_open_url');
+    expect(dataRecord(blocked.data).previously_observed_windows).toEqual([
+      expect.objectContaining({ source_url: 'https://example.com/' }),
+    ]);
+    expect(
+      (
+        await h.backend.invoke(
+          request('computer_action', {
+            ...original,
+            action: 'click',
+          }),
+        )
+      ).outcome,
+    ).toBe('stale');
+    expect(h.cua.call.mock.calls.some(([name]) => name === 'click')).toBe(false);
+
+    const url = 'https://example.com/staff';
+    h.inspect.mockResolvedValue({ status: 'ready', url, bundleID: 'com.apple.Safari' });
+    expect((await h.backend.invoke(request('computer_open_url', { url }))).outcome).toBe(
+      'accepted_unverified',
+    );
+    const fresh = await h.backend.invoke(
+      request('computer_snapshot', {
+        app_id: original.app_id,
+        window_id: original.window_id,
+        expected_url: url,
+      }),
+    );
+    expect(fresh.outcome).toBe('verified');
+    expect(dataRecord(fresh.data).source_url).toBe(url);
+    expect(dataRecord(fresh.data).snapshot_id).not.toBe(original.snapshot_id);
+  });
+
   it('recovers a missing helper window through one exact CUA observation before allowing a background click', async () => {
     const h = browserHarness();
     h.inspect

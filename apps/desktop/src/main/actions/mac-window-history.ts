@@ -5,6 +5,7 @@ type ObservedWindow = {
   window_id: string;
   title?: string;
   browser_origin?: string;
+  source_url?: string;
 };
 
 /** Bounded recovery hints, isolated to a turn; no screen text or images are retained. */
@@ -56,6 +57,7 @@ export class MacWindowHistory {
       ...(typeof data.browser_origin === 'string'
         ? { browser_origin: data.browser_origin }
         : {}),
+      ...(typeof data.source_url === 'string' ? { source_url: data.source_url } : {}),
     });
     if (windows.size > 6) windows.delete(windows.keys().next().value!);
     return result;
