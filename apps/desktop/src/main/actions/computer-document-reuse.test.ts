@@ -60,13 +60,15 @@ it.each(['exact', 'other-path', 'protected', 'unavailable', 'wrong-app', 'non-fi
       ...action,
       context: { ...action.context, workspace, backgroundOnly: true },
     });
-    expect(result.outcome, JSON.stringify(result)).toBe('verified');
+    expect(result.outcome, JSON.stringify(result)).toBe(
+      variant === 'exact' ? 'verified' : 'needs_foreground',
+    );
     expect(readWindowContext).toHaveBeenCalledExactlyOnceWith(42, 91);
     const launches = cua.call.mock.calls.filter(([tool]) => tool === 'launch_app');
-    expect(launches).toHaveLength(variant === 'exact' ? 0 : 1);
+    expect(launches).toHaveLength(0);
     if (variant === 'exact')
       expect(dataRecord(result.data).reused_window_id).toMatch(/^window:/);
-    else expect(launches[0]?.[1]).toMatchObject({ urls: [document] });
+    else expect(dataRecord(result.data).blocker_code).toBe('background_launch_blocked');
     expect(dataRecord(result.data)).not.toHaveProperty('documentURL');
   },
 );

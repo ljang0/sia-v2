@@ -337,9 +337,22 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   not uncertain delivery, and never triggers an automatic foreground retry.
   An unexpected foreground acknowledgement remains uncertain, revokes the old snapshot, and
   records its driver operation. A new dialog cannot relabel that input as "not sent."
+  In strict background turns, each native input reads the live foreground application before
+  dispatch. Input into that application is refused, leaving the person's active work alone.
+  A second read after input detects any foreground-app change or an unverifiable focus state;
+  it preserves uncertainty and pauses the exact turn, including queued follow-ups. Sia does not
+  restore focus over a person's choice, replay the action, or automatically resume the pause.
+  These checks are conservative and cannot make the native desktop a fully isolated second Mac:
+  the person and Sia cannot simultaneously drive the same active app in strict mode.
   Browsers retain their existing page controls and permitted navigation shortcuts; the new native
   menu route cannot open browser file pickers, internal pages or developer tools.
-  Background app opening uses the bundled driver's non-activating `launch_app` route. An optional
+  With foreground recovery permitted, background app opening uses the bundled driver's
+  non-activating `launch_app` route. Strict background turns refuse new app/document launches
+  before the driver is initialized: an app may activate itself despite a background request.
+  They can reuse an already-running app window or an exact already-open document. The system
+  URL opener is also refused before dispatch in strict mode; navigation uses supported Cua
+  controls in an existing browser window. Default-browser account identity is never assumed.
+  An optional
   `workspace_path` opens an existing ordinary text document in TextEdit, PDF/image in Preview, or
   directory in Finder. The host resolves it inside the pinned workspace and rejects URL schemes,
   traversal, hidden/credential paths, links, executable bundles and app/type mismatches. No model

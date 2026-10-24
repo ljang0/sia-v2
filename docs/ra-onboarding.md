@@ -595,6 +595,14 @@ explicit On my screen choice is kept. The choice applies to the next typed or Fn
 background driver cannot load or lacks Accessibility or Screen Recording, the task stops before
 starting with a plain next step and a **Continue task** button.
 
+With **Pause and tell me**, background tasks use already-open apps and supported window controls.
+They do not launch apps/documents or use the system website opener, since those can take focus.
+If you are using the target app, Sia pauses before input rather than competing with you. It also
+pauses if desktop focus changes during input or focus cannot be checked. Review any uncertain
+last step before continuing. This mode does not provide an isolated second desktop; simultaneous
+control of the same active app remains unavailable. **Allow brief foreground control** is an
+explicit alternative for tasks that need it.
+
 While an On my screen task works, a thin glowing border and a small “Sia is using your screen ·
 Press ⌃Esc to stop” pill sit on top of every display. They never take focus or clicks, are kept out of
 screenshots, and disappear when the task finishes, stops, waits for you, or pauses. ⌃Esc

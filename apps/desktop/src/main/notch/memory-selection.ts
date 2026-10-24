@@ -6,11 +6,32 @@ const ignored = new Set(
 );
 const groups = [
   ['account', 'accounts', 'profile', 'identity', 'organization'],
-  ['calendar', 'calendars', 'schedule', 'scheduling', 'appointment', 'appointments'],
-  ['course', 'courses', 'class', 'classes', 'campus', 'school', 'university', 'semester'],
-  ['assignment', 'assignments', 'homework', 'coursework', 'deadline', 'deadlines'],
+  [
+    'calendar',
+    'calendars',
+    'schedule',
+    'scheduling',
+    'appointment',
+    'appointments',
+    'event',
+    'events',
+  ],
+  [
+    'course',
+    'courses',
+    'class',
+    'classes',
+    'campus',
+    'school',
+    'university',
+    'semester',
+    'canvas',
+    'instructure',
+  ],
+  ['assignment', 'assignments', 'homework', 'coursework', 'deadline', 'deadlines', 'due'],
   ['professor', 'professors', 'instructor', 'instructors', 'teaching'],
   ['cmu', 'carnegie', 'mellon'],
+  ['handshake', 'joinhandshake', 'career', 'careers', 'recruiting'],
 ];
 const tokens = (text: string) =>
   new Set(

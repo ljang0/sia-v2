@@ -15,6 +15,21 @@ export function stale(reason: string): ActionExecutionResult {
 export function classifyFailure(error: unknown): ActionExecutionResult {
   const message = safeErrorMessage(error);
   const normalized = message.toLowerCase();
+  if (/\b(?:foreground_app_in_use|background_focus_unavailable)\b/.test(normalized)) {
+    return {
+      outcome: 'needs_foreground',
+      summary: normalized.includes('foreground_app_in_use')
+        ? 'No input was sent because you are using this app. Sia paused to leave your work alone.'
+        : 'No input was sent because Sia could not verify which app you are using.',
+      reason: message,
+      data: {
+        background_interrupted: true,
+        blocker_code: normalized.includes('foreground_app_in_use')
+          ? 'foreground_app_in_use'
+          : 'background_focus_unavailable',
+      },
+    };
+  }
   if (
     normalized.includes('stale') ||
     normalized.includes('superseded') ||
@@ -73,6 +88,27 @@ export function actionResult(
   summary: string,
   options: { allowForeground?: boolean } = {},
 ): ActionExecutionResult {
+  const record = asRecord(value);
+  if (
+    record?.background_focus_changed === true ||
+    record?.background_focus_unverified === true
+  ) {
+    return {
+      outcome: 'needs_foreground',
+      summary:
+        record.background_focus_changed === true
+          ? 'Desktop focus changed during background input. Its effect needs verification; Sia paused and will not replay it.'
+          : 'Input may have been delivered, but desktop focus could not be verified afterward. Sia paused; inspect the result before retrying.',
+      data: {
+        background_interrupted: true,
+        input_delivery_uncertain: true,
+        blocker_code:
+          record.background_focus_changed === true
+            ? 'background_focus_changed'
+            : 'background_focus_unverified',
+      },
+    };
+  }
   const refusalResult = resultRefusal(value);
   if (refusalResult) return refusalResult;
   const effect = findString(value, ['effect']);
@@ -83,7 +119,12 @@ export function actionResult(
       outcome: 'needs_foreground',
       summary:
         'The driver reported unexpected foreground delivery for a background request. Its effect is uncertain; observe the window before doing anything else. Do not replay the action.',
-      data: { effect, delivery_mode: deliveryMode },
+      data: {
+        effect,
+        delivery_mode: deliveryMode,
+        background_interrupted: true,
+        input_delivery_uncertain: true,
+      },
       reason: 'Foreground delivery was not requested by Sia.',
     };
   }

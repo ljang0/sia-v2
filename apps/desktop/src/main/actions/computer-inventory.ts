@@ -202,6 +202,9 @@ export class ComputerInventory {
     const remaining = browserWindows.filter(
       (window) => !inspectedBrowsers.has(String(window.window_id)),
     ).length;
+    const unidentified = browserWindows.filter(
+      (window) => asRecord(window)?.browser_state !== 'ready',
+    ).length;
 
     return {
       outcome: 'verified',
@@ -213,14 +216,20 @@ export class ComputerInventory {
           ? {
               browser_route:
                 'Existing Mac browser sessions are reused in place; no account connection or login copying is needed. Select the task window using its observed page identity and saved account hints, then verify the live account with computer_snapshot. Inspect visible tabs and account-switcher controls in that window before opening a site in another default profile. Page metadata does not prove sign-in. Protected or unavailable windows do not establish that other accounts are blocked.',
-              browser_metadata_partial: browserWindows.length > inspected.length,
+              browser_metadata_partial: unidentified > 0,
               browser_windows_uninspected: remaining,
+              browser_windows_unidentified: unidentified,
               ...(remaining > 0
                 ? {
                     next_step:
                       'Some browser windows have not been identified yet. Repeat computer_list to inspect the next batch, or use computer_snapshot on a specific task window. Missing metadata is not evidence of sign-out.',
                   }
-                : {}),
+                : unidentified > 0
+                  ? {
+                      next_step:
+                        'Some browser windows could not be identified in this response. Inspect an available candidate with computer_snapshot, respecting protected-window refusals. Missing or unavailable observations do not establish sign-out or the absence of a signed-in account.',
+                    }
+                  : {}),
             }
           : {}),
         installed_apps: ((await this.ctx.options.installedApplications?.()) ?? [])
@@ -258,8 +267,11 @@ export class ComputerInventory {
       );
     }
     if (mac && background) {
+      const existingInventory = request.context.backgroundOnly
+        ? await this.list(request)
+        : undefined;
       if (document && this.ctx.options.readWindowContext) {
-        const inventory = await this.list(request);
+        const inventory = existingInventory ?? (await this.list(request));
         const candidates = [...this.ctx.computer.windows.values()]
           .filter(
             (window) =>
@@ -300,6 +312,39 @@ export class ComputerInventory {
             },
           };
         }
+      }
+      if (request.context.backgroundOnly) {
+        const existing = [...this.ctx.computer.windows.values()].some(
+          (window) =>
+            this.ctx.computer.apps.get(window.appId)?.identity ===
+            `bundle:${application.toLowerCase()}`,
+        );
+        if (!document && existing)
+          return {
+            outcome: 'verified',
+            summary:
+              'The app already has an open window. Reused its inventory without launching or activating it; inspect the exact task window next.',
+            data: {
+              ...asRecord(existingInventory?.data),
+              delivery_requested: 'background',
+              reused_running_app: true,
+            },
+            verification: {
+              evidence: 'Read the existing process and windows without opening the app.',
+            },
+          };
+        return {
+          outcome: 'needs_foreground',
+          summary:
+            'Opening an app or document can take focus, so strict background mode did not launch it.',
+          data: {
+            blocker_code: 'background_launch_blocked',
+            delivery_requested: 'background',
+            ...asRecord(existingInventory?.data),
+            next_step:
+              'Use an already-open task window with supported background controls. Do not open another app to evade this restriction. If the exact document is not available, report that gap; the person may open it when convenient.',
+          },
+        };
       }
       const launched = await this.ctx.callCua(request, 'launch_app', {
         bundle_id: application,
@@ -342,7 +387,7 @@ export class ComputerInventory {
   }
 
   async openUrl(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
-    if (!this.ctx.macBrowserAccess() || !this.ctx.options.openUrl)
+    if (!this.ctx.macBrowserAccess())
       return refused('Choose Use my Mac before opening a website through the default browser.');
     const value = requiredString(request.arguments.url, 'url');
     let url: URL;
@@ -357,10 +402,31 @@ export class ComputerInventory {
       url.password ||
       browserUrlLooksSensitive(url.toString())
     )
-      return refused(
-        'Authentication, credential, internal, and non-web addresses cannot be opened by Sia. Open that page yourself, finish the login, then continue this task.',
-      );
+      return {
+        outcome: 'refused',
+        summary:
+          'This address is outside website-navigation policy. No page was opened or inspected; this refusal does not establish that the account needs sign-in.',
+        data: {
+          blocker_code: 'url_policy_blocked',
+          observed_authentication: false,
+          next_step:
+            'Use an ordinary observed website link or an already-authorized browser window. Do not attempt authentication or infer account status from a blocked address.',
+        },
+      };
     const background = request.arguments.delivery !== 'foreground';
+    if (request.context.backgroundOnly)
+      return {
+        outcome: 'needs_foreground',
+        summary:
+          'Strict background mode did not ask macOS to open a website because that can activate the default browser or change the window you are using.',
+        data: {
+          blocker_code: 'background_launch_blocked',
+          delivery_requested: 'background',
+          next_step:
+            'Discover the existing signed-in browser with computer_list. Navigate only through its fresh, supported background window controls. Do not assume the system default browser has the right account. If no safe route exists, report the blocked step without opening or activating an app.',
+        },
+      };
+    if (!this.ctx.options.openUrl) return refused('Website opening is unavailable.');
     await this.ctx.options.openUrl(url.toString(), { background });
     await delay(350, undefined, { signal: request.context.signal });
     const inventory = await this.list(request);

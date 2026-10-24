@@ -12,7 +12,13 @@ import { SAFE_RESEARCH_ACTIONS } from './research-records.js';
 /** The parts of the controller context ActionHost uses. */
 type ActionHostContext = Pick<
   ControllerContext,
-  'assistant' | 'deps' | 'releaseAccessLocked' | 'researchCapture' | 'schedules' | 'state'
+  | 'assistant'
+  | 'deps'
+  | 'releaseAccessLocked'
+  | 'researchCapture'
+  | 'schedules'
+  | 'state'
+  | 'mac'
 >;
 
 /**
@@ -72,6 +78,21 @@ export class ActionHost {
         });
       }
       this.recordActionResult(notice);
+      const resultData = notice.result.data;
+      if (
+        notice.context.backgroundOnly &&
+        ['computer_action', 'computer_open_app', 'computer_open_url'].includes(notice.name) &&
+        resultData &&
+        typeof resultData === 'object' &&
+        'background_interrupted' in resultData &&
+        resultData.background_interrupted === true
+      ) {
+        this.ctx.mac.pauseBackgroundTurn(
+          notice.context.threadId,
+          notice.context.turnId,
+          'blocker_code' in resultData && resultData.blocker_code === 'foreground_app_in_use',
+        );
+      }
       if (GOOGLE_WORKSPACE_ACTION.test(notice.name)) return;
       this.ctx.researchCapture.stageRawResearchEvent({
         threadId: notice.context.threadId,

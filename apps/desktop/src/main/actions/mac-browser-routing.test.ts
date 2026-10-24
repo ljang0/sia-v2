@@ -204,7 +204,9 @@ describe('Use my Mac browser routing', () => {
     const nextWindows = next.windows as Record<string, unknown>[];
     expect(h.inspect).toHaveBeenCalledTimes(10);
     expect(next.browser_windows_uninspected).toBe(0);
-    expect(next.next_step).toBeUndefined();
+    expect(next.browser_metadata_partial).toBe(true);
+    expect(next.browser_windows_unidentified).toBe(8);
+    expect(next.next_step).toContain('do not establish sign-out');
     expect(nextWindows.slice(0, 8).every((window) => !window.browser_state)).toBe(true);
     expect(nextWindows.slice(8).map((window) => window.source_url)).toEqual([
       'https://campus.example/courses',
@@ -222,6 +224,31 @@ describe('Use my Mac browser routing', () => {
       'protected',
     );
     expect((refreshed.windows as Record<string, unknown>[])[0]!.source_url).toBeUndefined();
+  });
+
+  it('keeps account discovery incomplete when every window was attempted but unreadable', async () => {
+    const h = browserHarness();
+    h.inspect.mockResolvedValue({ status: 'unavailable', reason: 'window' });
+    const result = await h.backend.invoke(request('computer_list', {}));
+    expect(dataRecord(result.data)).toMatchObject({
+      browser_metadata_partial: true,
+      browser_windows_uninspected: 0,
+      browser_windows_unidentified: 1,
+      next_step: expect.stringContaining('do not establish sign-out'),
+    });
+  });
+
+  it('distinguishes blocking an address from observing a sign-in page', async () => {
+    const h = browserHarness();
+    const result = await h.backend.invoke(
+      request('computer_open_url', { url: 'https://canvas.cmu.edu/login' }),
+    );
+    expect(result.outcome).toBe('refused');
+    expect(dataRecord(result.data)).toMatchObject({
+      blocker_code: 'url_policy_blocked',
+      observed_authentication: false,
+    });
+    expect(h.openUrl).not.toHaveBeenCalled();
   });
 
   it('marks partial source coverage instead of treating a bounded observation as the full page', async () => {
@@ -678,6 +705,19 @@ describe('Use my Mac browser routing', () => {
     expect(h.openUrl).toHaveBeenCalledExactlyOnceWith('https://canvas.cmu.edu/', {
       background: false,
     });
+  });
+
+  it('never uses the system URL opener for a strict background request', async () => {
+    const h = browserHarness();
+    const action = request('computer_open_url', { url: 'https://canvas.cmu.edu/' });
+    const result = await h.backend.invoke({
+      ...action,
+      context: { ...action.context, backgroundOnly: true },
+    });
+    expect(result.outcome).toBe('needs_foreground');
+    expect(dataRecord(result.data).blocker_code).toBe('background_launch_blocked');
+    expect(h.openUrl).not.toHaveBeenCalled();
+    expect(h.cua.call).not.toHaveBeenCalled();
   });
 
   it('recovers a navigation race by observing again without replaying the click', async () => {

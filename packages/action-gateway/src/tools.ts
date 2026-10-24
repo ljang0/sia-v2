@@ -215,7 +215,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_open_app: {
     name: 'computer_open_app',
     description:
-      'Open a supported non-sensitive macOS app. Use my Mac defaults to native background opening. Optional workspace_path opens an existing ordinary working-folder document in TextEdit/Preview, or a folder in Finder, without a file picker. Use this for direct document/folder navigation instead of Cmd+O or Cmd+Shift+G. No URLs, scripts, links, credential files or paths outside the working folder. For new text documents, create the file with computer_write_file, then open it in TextEdit and inspect it. Foreground delivery requires permission. Use an application id from computer_list installed_apps and inspect the returned app/window ids.',
+      'Open or reuse a supported non-sensitive macOS app. Strict background turns only reuse an already-running app window or an exact already-open workspace document; they never launch an app or open a new document because apps can activate themselves. With foreground recovery permitted, optional workspace_path opens ordinary working-folder text in TextEdit, PDF/image in Preview, or a folder in Finder without a file picker. No URLs, scripts, links, credential files or paths outside the working folder. Use an application id from computer_list installed_apps and inspect fresh returned window ids.',
     inputSchema: object(
       {
         application: string(
@@ -239,7 +239,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_open_url: {
     name: 'computer_open_url',
     description:
-      'Open an ordinary HTTP(S) website directly in the person’s default browser. Prefer this over typing URLs through the address bar. Use my Mac defaults to background opening without requesting browser activation; use explicit foreground delivery only when needed. Inspect the returned window ids with computer_snapshot and expected_url to verify the resulting page. Do not ask the person to connect Chrome or open a site this tool can open. Authentication and security URLs remain unavailable; if the resulting page asks for login, let the person finish it and continue the same task.',
+      'Open an ordinary HTTP(S) website in the system default browser only when foreground recovery is permitted. Strict background turns refuse this OS opener before dispatch because it can take focus or replace the window the person is using. In strict mode, discover the existing signed-in browser and navigate through fresh supported computer_snapshot/computer_action controls instead; do not substitute another app launcher or ask for a Chrome connection. For permitted opening, inspect returned window ids with expected_url to verify the resulting page. Authentication and security URLs remain unavailable; sign-in belongs to the person.',
     inputSchema: object(
       {
         url: string('Exact HTTP(S) website to open', { format: 'uri' }),

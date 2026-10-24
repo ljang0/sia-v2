@@ -101,6 +101,16 @@ interface CuaServiceOptions {
 }
 
 const DEFAULT_CALL_TIMEOUT_MS = 60_000;
+const WINDOW_INPUT_TOOLS = new Set([
+  'click',
+  'double_click',
+  'drag',
+  'type_text',
+  'set_value',
+  'press_key',
+  'hotkey',
+  'scroll',
+]);
 
 interface CuaDriverImage {
   readonly mimeType: string;
@@ -355,10 +365,22 @@ export class CuaService {
   ): Promise<unknown> {
     if (!CUA_TOOLS.has(tool)) throw new Error(`CUA tool ${tool} is not exposed by Sia.`);
     signal?.throwIfAborted();
-    // Unlike explicit background key/pointer operations, the SDK's native menu
-    // operation has no delivery ceiling and can report foreground dispatch.
+    // Native menus have no delivery ceiling, and an app may activate itself
+    // after a background launch. Neither can guarantee background-only delivery.
     // Refuse before driver initialization, queueing or input, not after delivery.
-    if (tool === 'invoke_menu' && context.kind === 'turn' && context.backgroundOnly)
+    if (
+      ['invoke_menu', 'launch_app'].includes(tool) &&
+      context.kind === 'turn' &&
+      context.backgroundOnly
+    )
+      throw new Error('CUA refused: background_unavailable');
+    const protectDesktop =
+      context.kind === 'turn' && context.backgroundOnly && WINDOW_INPUT_TOOLS.has(tool);
+    if (
+      protectDesktop &&
+      (args.delivery_mode === 'foreground' ||
+        (tool !== 'set_value' && args.delivery_mode !== 'background'))
+    )
       throw new Error('CUA refused: background_unavailable');
     const previous = this.#callTail;
     const next = Promise.withResolvers<void>();
@@ -406,6 +428,7 @@ export class CuaService {
       driver = await waitForAbort(this.#getDriver(), operation.signal);
       for (let attempt = 0; ; attempt++) {
         try {
+          let foregroundBefore: number | undefined;
           const result = await waitForAbort(
             Promise.resolve().then(async () => {
               operation.signal.throwIfAborted();
@@ -415,6 +438,20 @@ export class CuaService {
                 tool === 'get_window_state'
                   ? { ...args, tree_format: 'elements', verbose: true }
                   : args;
+              if (protectDesktop) {
+                const foreground = await readForegroundPid(driver!, operation.signal);
+                operation.signal.throwIfAborted();
+                if (
+                  foreground === undefined ||
+                  typeof args.pid !== 'number' ||
+                  !Number.isInteger(args.pid) ||
+                  args.pid <= 0
+                )
+                  throw new Error('CUA refused: background_focus_unavailable');
+                if (foreground === args.pid)
+                  throw new Error('CUA refused: foreground_app_in_use');
+                foregroundBefore = foreground;
+              }
               return await driver!.callTool(tool, JSON.stringify(input), {
                 signal: operation.signal,
               });
@@ -436,6 +473,22 @@ export class CuaService {
             parsed.error_code === 'session_ended'
           )
             throw new Error('CUA refused: session_ended');
+          if (protectDesktop) {
+            const foreground = await readForegroundPid(driver, operation.signal);
+            operation.signal.throwIfAborted();
+            if (foreground === undefined || foreground !== foregroundBefore) {
+              const native =
+                typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+                  ? parsed
+                  : { native_result: parsed };
+              parsed = {
+                ...native,
+                ...(foreground === undefined
+                  ? { background_focus_unverified: true }
+                  : { background_focus_changed: true }),
+              };
+            }
+          }
           return withDriverImages(parsed, result.images);
         } catch (error) {
           // The SDK's implicit inspection session expires while Sia stays open.
@@ -565,6 +618,36 @@ export class CuaService {
           // The timed-out driver is already detached; cleanup must stay best effort.
         }
       });
+  }
+}
+
+/** Live native inventory only; never infer focus from a window title or cached snapshot. */
+async function readForegroundPid(
+  driver: DriverLike,
+  signal: AbortSignal,
+): Promise<number | undefined> {
+  try {
+    const result = await waitForAbort(driver.callTool('list_apps', '{}', { signal }), signal);
+    if (result.errorCode) return undefined;
+    const parsed: unknown = JSON.parse(result.structuredJson ?? result.rawJson);
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      !('apps' in parsed) ||
+      !Array.isArray(parsed.apps)
+    )
+      return undefined;
+    const active = (parsed.apps as unknown[]).filter(
+      (value): value is Record<string, unknown> =>
+        !!value && typeof value === 'object' && 'active' in value && value.active === true,
+    );
+    if (active.length !== 1) return undefined;
+    const pid: unknown = active[0]?.pid;
+    return typeof pid === 'number' && Number.isInteger(pid) && pid > 0 && pid <= 2_147_483_647
+      ? pid
+      : undefined;
+  } catch {
+    return undefined;
   }
 }
 

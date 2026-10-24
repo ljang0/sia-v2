@@ -212,6 +212,15 @@ evidence: inspect actual app state, source URLs, saved bytes, input preservation
 Workspace-file actions alone do not establish GUI control; app cases require an observation of
 the requested real app.
 
+Strict background acceptance also verifies noninterference: no system URL opens or new
+app/document launches, no input into the app the person is using, and an exact-turn pause on a
+focus interruption. Prepare any disposable app windows before the run, with the person's
+agreement; setup is separate from agent execution. Requested delivery fields alone cannot prove
+that the person kept focus. The earlier hundred-request evidence predates these stronger checks
+and is not proof of concurrent use of signed-in personal accounts or current strict-mode support
+for every historical app-opening case. Never reopen or operate apps on a person's working desktop
+to finish a reliability test after they report interference.
+
 Audit both top-level and nested delivery fields in every action result. Unexpected foreground
 input fails a background-only attempt even when its final answer is correct. An app-open result
 that reports it could not restore the previous frontmost app also fails that constraint. Preserve

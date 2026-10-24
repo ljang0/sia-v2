@@ -40,22 +40,118 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-it('refuses an unbounded native-menu delivery before creating a driver in a background-only turn', async () => {
-  const driverFactory = vi.fn(() => successfulDriver({}));
-  const service = new CuaService(authorization(), { driverFactory });
-  await expect(
-    service.call(
-      'invoke_menu',
-      { pid: 42, window_id: 91, path: ['File', 'Save'] },
-      {
-        kind: 'turn',
-        threadId: 'thread',
-        turnId: 'turn',
-        backgroundOnly: true,
-      },
-    ),
-  ).rejects.toThrow('CUA refused: background_unavailable');
-  expect(driverFactory).not.toHaveBeenCalled();
+it.each(['invoke_menu', 'launch_app'])(
+  'refuses unbounded %s before creating a driver in a background-only turn',
+  async (tool) => {
+    const driverFactory = vi.fn(() => successfulDriver({}));
+    const service = new CuaService(authorization(), { driverFactory });
+    await expect(
+      service.call(
+        tool,
+        { pid: 42, window_id: 91, path: ['File', 'Save'] },
+        {
+          kind: 'turn',
+          threadId: 'thread',
+          turnId: 'turn',
+          backgroundOnly: true,
+        },
+      ),
+    ).rejects.toThrow('CUA refused: background_unavailable');
+    expect(driverFactory).not.toHaveBeenCalled();
+  },
+);
+
+it.each([
+  'click',
+  'double_click',
+  'drag',
+  'type_text',
+  'set_value',
+  'press_key',
+  'hotkey',
+  'scroll',
+])('does not deliver %s into the app the person is using', async (tool) => {
+  const driver = successfulDriver({ apps: [{ pid: 42, active: true }] });
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(
+      service.call(
+        tool,
+        { pid: 42, window_id: 91, delivery_mode: 'background' },
+        { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+      ),
+    ).rejects.toThrow('CUA refused: foreground_app_in_use');
+    expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual(['list_apps']);
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it.each([
+  'unchanged',
+  'became-active',
+  'other-app-became-active',
+  'unknown-after',
+  'unknown-before',
+])('checks real app focus around background input: %s', async (scenario) => {
+  let inventories = 0;
+  const driver = {
+    callTool: vi.fn(async (name: string) => {
+      if (name !== 'list_apps')
+        return {
+          rawJson: JSON.stringify({ effect: 'confirmed', delivery: { mode: 'background' } }),
+        };
+      inventories++;
+      const unknown =
+        scenario === 'unknown-before' || (scenario === 'unknown-after' && inventories === 2);
+      return {
+        rawJson: JSON.stringify({
+          apps: unknown
+            ? []
+            : [
+                {
+                  pid:
+                    inventories !== 2
+                      ? 7
+                      : scenario === 'became-active'
+                        ? 42
+                        : scenario === 'other-app-became-active'
+                          ? 99
+                          : 7,
+                  active: true,
+                },
+              ],
+        }),
+      };
+    }),
+    shutdown: vi.fn(async () => undefined),
+  };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    const action = service.call(
+      'click',
+      { pid: 42, window_id: 91, delivery_mode: 'background' },
+      { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+    );
+    if (scenario === 'unknown-before') {
+      await expect(action).rejects.toThrow('CUA refused: background_focus_unavailable');
+      expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual(['list_apps']);
+    } else {
+      const result = await action;
+      expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual([
+        'list_apps',
+        'click',
+        'list_apps',
+      ]);
+      if (scenario === 'became-active' || scenario === 'other-app-became-active')
+        expect(result).toMatchObject({ background_focus_changed: true });
+      else if (scenario === 'unknown-after')
+        expect(result).toMatchObject({ background_focus_unverified: true });
+      else expect(result).toMatchObject({ effect: 'confirmed' });
+    }
+  } finally {
+    await service.shutdown();
+  }
 });
 
 it.each([

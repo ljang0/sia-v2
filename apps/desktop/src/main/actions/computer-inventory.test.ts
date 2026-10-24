@@ -350,3 +350,34 @@ it.each([undefined, 'background', 'foreground'] as const)(
     expect(dataRecord(result.data).delivery_requested).toBe(delivery ?? 'background');
   },
 );
+
+it.each([true, false])(
+  'strict background reuses an existing app without launching; window exists: %s',
+  async (exists) => {
+    const cua = fakeCua(async (tool) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Notes', bundle_id: 'com.apple.Notes' }] };
+      if (tool === 'list_windows')
+        return {
+          windows: exists
+            ? [{ pid: 42, window_id: 91, app_name: 'Notes', title: 'Notes' }]
+            : [],
+        };
+      throw new Error(`Unexpected ${tool}`);
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    const action = request('computer_open_app', { application: 'notes' });
+    const result = await backend.invoke({
+      ...action,
+      context: { ...action.context, backgroundOnly: true },
+    });
+    expect(result.outcome).toBe(exists ? 'verified' : 'needs_foreground');
+    expect(cua.call.mock.calls.some(([tool]) => tool === 'launch_app')).toBe(false);
+    if (exists) expect(dataRecord(result.data).reused_running_app).toBe(true);
+    else expect(dataRecord(result.data).blocker_code).toBe('background_launch_blocked');
+  },
+);

@@ -1,6 +1,21 @@
 import { expect, it } from 'vitest';
 import { memoryExcerpt, selectMemoryNotes } from './memory-selection.js';
 
+it('retrieves saved service hints for natural weekly questions without requiring their stored wording', () => {
+  expect(
+    selectMemoryNotes(
+      'What events do I have through Handshake this week?',
+      '- [[campus-tools]] — Career fair registrations at cmu.joinhandshake.com\n- [[recipes]] — cooking',
+      ['campus-tools.md', 'recipes.md'],
+    ),
+  ).toEqual(['campus-tools.md']);
+  expect(
+    selectMemoryNotes('What is due this week?', '- [[work]] — assignments and deadlines', [
+      'work.md',
+    ]),
+  ).toEqual(['work.md']);
+});
+
 it('loads institutional/account hints from the index without relying on the model to open links', () => {
   expect(
     selectMemoryNotes(

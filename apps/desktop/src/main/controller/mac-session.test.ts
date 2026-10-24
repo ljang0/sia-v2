@@ -325,6 +325,45 @@ describe('Use my Mac power and lock handling', () => {
     await controller.shutdown();
   });
 
+  it('pauses the exact background turn on a foreground conflict without releasing queued follow-ups', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, keepAwake, threadId, status } = await macThread({ runtime });
+    await controller.invoke('threads.send', { threadId, text: 'Read my coursework this week' });
+    await vi.waitFor(() => expect(requests).toHaveLength(1));
+    const turnId = controller.snapshot().timeline.find((item) => item.kind === 'user')!.turnId!;
+    await controller.invoke('threads.send', {
+      threadId,
+      text: 'Then read my registered events',
+    });
+    const notice = {
+      name: 'computer_action' as const,
+      context: {
+        sessionId: 'session',
+        threadId,
+        turnId,
+        provider: 'codex' as const,
+        workspace: '/tmp/sia-workspace',
+        backgroundOnly: true,
+      },
+      result: {
+        outcome: 'needs_foreground' as const,
+        summary: 'Blocked before input',
+        data: { background_interrupted: true, blocker_code: 'foreground_app_in_use' },
+      },
+    };
+    const observe = controller.actionResultObserver();
+    await observe({ ...notice, context: { ...notice.context, turnId: 'old-turn' } });
+    expect(status()).toBe('running');
+    expect(runtime.cancel).not.toHaveBeenCalled();
+    await observe(notice);
+    expect(status()).toBe('failed');
+    expect(runtime.cancel).toHaveBeenCalledWith(threadId, turnId);
+    expect(controller.snapshot().timeline.at(-1)?.text).toContain('using the target app');
+    await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+    expect(requests).toHaveLength(1);
+    await controller.shutdown();
+  });
+
   it('pauses a Mac task when the screen locks and continues it after unlock', async () => {
     const { runtime, requests } = holdingRuntime();
     const { controller, keepAwake, threadId, status } = await macThread({ runtime });
