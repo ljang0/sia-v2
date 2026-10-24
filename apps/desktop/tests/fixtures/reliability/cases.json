@@ -264,7 +264,7 @@
         }
       }
     },
-    "fields": "due_local: string",
+    "fields": "due_local: string; Use HH:mm for time fields, without extra prose",
     "expected": {
       "due_local": "13:00"
     },
@@ -490,7 +490,7 @@
         }
       }
     },
-    "fields": "start_local: string",
+    "fields": "start_local: string; Use HH:mm for time fields, without extra prose",
     "expected": {
       "start_local": "10:30"
     },
@@ -510,7 +510,7 @@
         }
       }
     },
-    "fields": "leave_local: string",
+    "fields": "leave_local: string; Use HH:mm for time fields, without extra prose",
     "expected": {
       "leave_local": "16:30"
     },
@@ -530,7 +530,7 @@
         }
       }
     },
-    "fields": "new_york: string; los_angeles: string",
+    "fields": "new_york: string; los_angeles: string; Use HH:mm for time fields, without extra prose",
     "expected": {
       "new_york": "13:00",
       "los_angeles": "10:00"
@@ -599,7 +599,7 @@
         }
       }
     },
-    "fields": "dates: string[] in the listed/source order",
+    "fields": "dates: string[] in the listed/source order; Use YYYY-MM-DD for date fields, without extra prose",
     "expected": {
       "dates": ["2026-10-22"]
     },
@@ -728,7 +728,7 @@
         }
       }
     },
-    "fields": "deadline: string",
+    "fields": "deadline: string; Use YYYY-MM-DD for date fields, without extra prose",
     "expected": {
       "deadline": "2026-10-28"
     },
@@ -795,7 +795,7 @@
         }
       }
     },
-    "fields": "expected_date: string; delivered: boolean",
+    "fields": "expected_date: string; delivered: boolean; Use YYYY-MM-DD for date fields, without extra prose",
     "expected": {
       "expected_date": "2026-10-27",
       "delivered": false
@@ -868,7 +868,7 @@
         }
       }
     },
-    "fields": "cancelled: boolean; active_date: string",
+    "fields": "cancelled: boolean; active_date: string; Use YYYY-MM-DD for date fields, without extra prose",
     "expected": {
       "cancelled": false,
       "active_date": "2026-10-27"
@@ -1088,7 +1088,7 @@
         }
       }
     },
-    "fields": "launch_date: string",
+    "fields": "launch_date: string; Use YYYY-MM-DD for date fields, without extra prose",
     "expected": {
       "launch_date": "2026-11-05"
     },
@@ -1296,7 +1296,7 @@
         }
       }
     },
-    "fields": "return_by: string",
+    "fields": "return_by: string; Use YYYY-MM-DD for date fields, without extra prose",
     "expected": {
       "return_by": "2026-10-31"
     },
@@ -2389,7 +2389,7 @@
         }
       }
     },
-    "fields": "local_time: string",
+    "fields": "local_time: string; Use HH:mm for time fields, without extra prose",
     "expected": {
       "local_time": "13:00"
     },

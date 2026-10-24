@@ -27,6 +27,23 @@ it('keeps exactly 100 distinct tasks with valid sources across ten domains', asy
         if (button.goto) expect(item.app.pages[button.goto], item.id).toBeDefined();
     }
     expect(Object.keys(item.expected).length).toBeGreaterThan(0);
+    const values = Object.values(item.expected).flat();
+    if (values.some((value) => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)))
+      expect(item.fields, `${item.id}: strict date grading needs an explicit format`).toContain(
+        'YYYY-MM-DD',
+      );
+    if (
+      values.some(
+        (value) =>
+          typeof value === 'string' &&
+          /^(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday) \d{2}:\d{2}$/.test(
+            value,
+          ),
+      )
+    )
+      expect(item.fields, `${item.id}: strict time grading needs an explicit format`).toContain(
+        'weekday HH:mm',
+      );
   }
 });
 

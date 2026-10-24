@@ -161,6 +161,8 @@ recovery, memory/context and scope boundaries. Every task runs through the actua
 Codex harness and action gateway, with foreground fallback disabled. Each uses a disposable agent
 workspace. Independent graders check facts, source coverage, saved app records, duplicate writes,
 immutable inputs and output files. A model's own success flag never determines a pass.
+Schemas state the exact date/time formats that their strict graders require; a correct date in
+equivalent prose must be triaged as a schema mismatch rather than reported as a product error.
 
 Run the model/host matrix without touching the desktop:
 
