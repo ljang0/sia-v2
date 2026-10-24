@@ -22,6 +22,7 @@ const contextResult = z.discriminatedUnion('status', [
     title: z.string().max(300),
     text: z.string().max(12000),
     partial: z.boolean().optional(),
+    documentURL: z.string().max(8192).optional(),
   }),
   z.object({ status: z.enum(['protected', 'unavailable']) }),
 ]);

@@ -8,6 +8,16 @@ enum WindowContext {
     // Rich course/calendar pages can exceed four thousand AX nodes. Batched
     // metadata keeps this bounded walk inside the existing wall-clock budget.
     static let maximumScanNodes = 16000
+    static func localDocumentURL(_ value: Any?) -> String? {
+        let url: URL?
+        if let value = value as? URL { url = value }
+        else if let value = value as? String { url = URL(string: value) }
+        else { url = nil }
+        guard let url, url.isFileURL, url.user == nil, url.password == nil,
+              url.query == nil, url.fragment == nil,
+              url.host == nil || url.host == "" || url.host == "localhost" else { return nil }
+        return url.absoluteString
+    }
     static func hasPasswordMetadata(role: String, label: String) -> Bool {
         guard label.range(of: "password", options: .caseInsensitive) != nil else { return false }
         if ["AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"].contains(role) {
@@ -220,6 +230,13 @@ enum WindowContext {
         guard NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == bundle,
               let live = resolve(pid: pid, windowID: windowID), CFEqual(window, live), Date() < deadline else { return ["status": "unavailable"] }
         let title: String = attribute(window, kAXTitleAttribute) ?? ""
-        return ["status": "ready", "bundleID": bundle, "title": FnContext.bounded(title, 300), "text": FnContext.bounded(lines.joined(separator: "\n"), 12000), "partial": partial]
+        var result: [String: Any] = ["status": "ready", "bundleID": bundle, "title": FnContext.bounded(title, 300), "text": FnContext.bounded(lines.joined(separator: "\n"), 12000), "partial": partial]
+        // Host-only identity for reusing an already-open authorized document.
+        // This follows the same exact-window and protected-content checks above.
+        let document: Any? = attribute(window, kAXDocumentAttribute)
+        if let url = localDocumentURL(document), url.utf16.count <= 8192 {
+            result["documentURL"] = url
+        }
+        return result
     }
 }

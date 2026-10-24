@@ -345,6 +345,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   traversal, hidden/credential paths, links, executable bundles and app/type mismatches. No model
   launch arguments, inspector ports or arbitrary file grants are exposed. Opening is followed by
   inventory; the task must still inspect and verify its exact document.
+  Before reopening a workspace document, the host can reuse an existing window whose live native
+  file URL and app identity exactly match the authorized target. Titles only select a bounded set
+  of candidates; they never prove file identity. Protected/unavailable context, other paths and
+  non-file URLs cannot establish reuse. The native URL stays in the main process; fresh snapshots
+  are still required before acting. This avoids unnecessary app activation when a file is open.
   Native computer calls use a fresh opaque CUA session for each active turn, separate from the
   reusable Codex conversation and explicitly attached browser sessions. A new turn revokes prior
   app/window/snapshot refs and discovers fresh ones; an aborted old call cannot clear current refs.

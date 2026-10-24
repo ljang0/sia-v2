@@ -3,6 +3,13 @@ import AppKit
 import CoreGraphics
 import ApplicationServices
 
+precondition(WindowContext.localDocumentURL("file:///tmp/ordinary%20note.txt") == "file:///tmp/ordinary%20note.txt")
+precondition(WindowContext.localDocumentURL(URL(fileURLWithPath: "/tmp/ordinary.pdf")) == "file:///tmp/ordinary.pdf")
+for invalid in ["https://example.org/document.pdf", "file://remote-host/tmp/note.txt", "file://user:secret@localhost/tmp/note.txt", "file:///tmp/note.txt?token=omitted", "file:///tmp/note.txt#secret"] {
+    precondition(WindowContext.localDocumentURL(invalid) == nil)
+}
+precondition(WindowContext.localDocumentURL(nil) == nil)
+
 precondition(!WindowContext.hasPasswordMetadata(role: "AXLink", label: "ZipFile.setpassword(pwd)"))
 precondition(!WindowContext.hasPasswordMetadata(role: "AXLink", label: "setpassword()"))
 precondition(WindowContext.hasPasswordMetadata(role: "AXTextField", label: "setpassword()"))

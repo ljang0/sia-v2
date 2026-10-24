@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
+import { basename } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   isSensitiveComputerApp,
   type ActionExecutionResult,
@@ -256,6 +258,49 @@ export class ComputerInventory {
       );
     }
     if (mac && background) {
+      if (document && this.ctx.options.readWindowContext) {
+        const inventory = await this.list(request);
+        const candidates = [...this.ctx.computer.windows.values()]
+          .filter(
+            (window) =>
+              this.ctx.computer.apps.get(window.appId)?.identity ===
+                `bundle:${application.toLowerCase()}` && window.title === basename(document),
+          )
+          .slice(0, 4);
+        for (const window of candidates) {
+          request.context.signal?.throwIfAborted();
+          const context = await this.ctx.options
+            .readWindowContext(window.pid, window.windowId)
+            .catch(() => undefined);
+          if (
+            context?.status !== 'ready' ||
+            context.bundleID.toLowerCase() !== application.toLowerCase()
+          )
+            continue;
+          let exact = false;
+          try {
+            exact = !!context.documentURL && fileURLToPath(context.documentURL) === document;
+          } catch {
+            // A title or malformed/non-file URL never proves document identity.
+          }
+          if (!exact || !(await this.windowStillValid(window, request))) continue;
+          return {
+            outcome: 'verified',
+            summary:
+              'The exact working-folder document is already open. Reused its window without launching or activating the app; inspect fresh state before acting.',
+            data: {
+              ...asRecord(inventory.data),
+              delivery_requested: 'background',
+              opened_workspace_path: document,
+              reused_window_id: window.id,
+            },
+            verification: {
+              evidence:
+                'Matched the live exact-window local document URL to the authorized path.',
+            },
+          };
+        }
+      }
       const launched = await this.ctx.callCua(request, 'launch_app', {
         bundle_id: application,
         session: this.ctx.computer.session(request),
