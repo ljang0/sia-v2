@@ -15,17 +15,9 @@ enum WindowContext {
         }
         // API identifiers such as setpassword() are not authentication surfaces.
         // Literal password labels, including static disclosures, remain blocked.
-        let literal = label.replacingOccurrences(of: "\\b(?:[a-z_]\\w*\\.)+[a-z_]\\w*password\\w*(?=\\s*\\()",
+        let literal = label.replacingOccurrences(of: "\\b(?:[a-z_]\\w*\\.)*[a-z_]\\w*password\\w*(?=\\s*\\()",
                                                 with: "", options: [.regularExpression, .caseInsensitive])
-        guard literal.range(of: "password", options: .caseInsensitive) != nil else { return false }
-        if role != "AXStaticText" { return true }
-        // Static documentation prose cannot receive input. Credential labels
-        // and disclosures still protect the entire window.
-        return ["^[\\w.-]*password\\w*$", "^(?:[\\w.-]+\\s+){0,3}passwords?\\s*:?\\s*$",
-                "password[\"']?[\\w .-]{0,40}(?::|=|\\bis\\b)\\s*\\S",
-                "^(?:(?:your|user|account|current|new|shared)\\s+)?password\\s+\\S+$"].contains {
-            literal.trimmingCharacters(in: .whitespacesAndNewlines).range(of: $0, options: [.regularExpression, .caseInsensitive]) != nil
-        }
+        return literal.range(of: "password", options: .caseInsensitive) != nil
     }
     struct Metadata {
         let role: String

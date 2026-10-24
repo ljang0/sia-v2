@@ -382,9 +382,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   surface. Both native and structured-control readers exclude that identifier from password-label
   matching while preserving conservative checks on editable controls, literal/compound password
   labels, credential assignments, secure roles and authentication pages.
-  Non-interactive static prose describing archive passwords is data, rather than a credential
-  control. Literal labels and disclosures still block the window. Structural checks inspect every
-  role, subrole, input type and autocomplete marker; an ordinary role cannot hide a password type.
+  Unqualified API calls such as `setpassword()` use the same rule; editable controls never receive
+  that exemption. Structural checks inspect every role, subrole, input type and autocomplete
+  marker; an ordinary role cannot hide a password type. Protected native reads expose only a
+  fixed role/rule category and label length/word count for diagnosis, never the matching label.
   Background also exposes `computer_list_files`, `computer_read_file` and `computer_write_file`
   through ActionGateway. They read bounded UTF-8 data files and create new txt/md/csv/tsv/json
   reports in the host-pinned task workspace. Updating an existing file requires the SHA-256 from

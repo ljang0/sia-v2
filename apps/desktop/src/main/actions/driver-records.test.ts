@@ -3,6 +3,8 @@ import { windowHasProtectedControls } from './driver-records.js';
 
 it.each([
   ['AXLink', 'ZipFile.setpassword(pwd)', false],
+  ['AXLink', 'setpassword()', false],
+  ['AXTextField', 'setpassword()', true],
   ['AXHeading', 'ZipFile.setpassword()', false],
   ['AXTextField', 'UserPassword', true],
   ['AXTextArea', 'AccountPassword', true],
@@ -18,9 +20,9 @@ it.each([
   [
     'AXStaticText',
     'pwd is the password used to decrypt encrypted ZIP files as a bytes object.',
-    false,
+    true,
   ],
-  ['AXStaticText', 'Set pwd as the default password to extract encrypted files.', false],
+  ['AXStaticText', 'Set pwd as the default password to extract encrypted files.', true],
   ['AXStaticText', 'Your password is [omitted]', true],
   ['AXStaticText', 'The username is student and the password is [omitted]', true],
   ['AXStaticText', 'Account password', true],

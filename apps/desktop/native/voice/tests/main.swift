@@ -4,6 +4,8 @@ import CoreGraphics
 import ApplicationServices
 
 precondition(!WindowContext.hasPasswordMetadata(role: "AXLink", label: "ZipFile.setpassword(pwd)"))
+precondition(!WindowContext.hasPasswordMetadata(role: "AXLink", label: "setpassword()"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXTextField", label: "setpassword()"))
 precondition(!WindowContext.hasPasswordMetadata(role: "AXHeading", label: "ZipFile.setpassword()"))
 precondition(WindowContext.hasPasswordMetadata(role: "AXTextField", label: "UserPassword"))
 precondition(WindowContext.hasPasswordMetadata(role: "AXTextArea", label: "AccountPassword"))
@@ -13,8 +15,8 @@ precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "Use
 precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "account.user_password"))
 precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "account.user_password: [omitted]"))
 precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "account.user_password = [omitted]"))
-precondition(!WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "pwd is the password used to decrypt encrypted ZIP files as a bytes object."))
-precondition(!WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "Set pwd as the default password to extract encrypted files."))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "pwd is the password used to decrypt encrypted ZIP files as a bytes object."))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "Set pwd as the default password to extract encrypted files."))
 precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "Your password is [omitted]"))
 precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "The username is student and the password is [omitted]"))
 precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "Account password"))

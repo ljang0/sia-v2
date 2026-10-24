@@ -217,17 +217,8 @@ export function isProtectedElement(record: Record<string, unknown>): boolean {
 function passwordLabelIsProtected(role: string, label: string): boolean {
   if (!/password/i.test(label)) return false;
   if (/^AX(?:TextField|TextArea|ComboBox|SearchField)$/.test(role)) return true;
-  const literal = label.replace(/\b(?:[a-z_]\w*\.)+[a-z_]\w*password\w*(?=\s*\()/gi, '').trim();
-  if (!/password/i.test(literal)) return false;
-  if (role !== 'AXStaticText') return true;
-  // Non-interactive documentation prose is data, not an authentication control.
-  // Literal labels and credential disclosures still protect the entire window.
-  return (
-    /^[\w.-]*password\w*$/i.test(literal) ||
-    /^(?:[\w.-]+\s+){0,3}passwords?\s*:?\s*$/i.test(literal) ||
-    /password["']?[\w .-]{0,40}(?::|=|\bis\b)\s*\S/i.test(literal) ||
-    /^(?:(?:your|user|account|current|new|shared)\s+)?password\s+\S+$/i.test(literal)
-  );
+  const literal = label.replace(/\b(?:[a-z_]\w*\.)*[a-z_]\w*password\w*(?=\s*\()/gi, '');
+  return /password/i.test(literal);
 }
 
 export function windowHasProtectedControls(value: unknown): boolean {

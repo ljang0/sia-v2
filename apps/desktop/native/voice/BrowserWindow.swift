@@ -28,6 +28,10 @@ enum BrowserWindow {
         let title: String = attr(window, kAXTitleAttribute) ?? ""
         var url: String? = attr(window, kAXDocumentAttribute)
         var protected = false
+        var protectedRole = "unknown"
+        var protectedKind = "unknown"
+        var protectedLabelLength = 0
+        var protectedLabelWords = 0
         var complete = true
         var nodes = 0
         var webAreas = 0
@@ -49,7 +53,13 @@ enum BrowserWindow {
             let description = metadata.description
             let label = (role + " " + subrole + " " + name + " " + description).lowercased()
             if role.isEmpty { complete = false; return }
-            if [name, description].contains(where: { WindowContext.hasPasswordMetadata(role: role, label: $0) }) || ["securetextfield", "passkey", "verification code", "private browsing", "private window", "incognito", "developer tools", "web inspector"].contains(where: label.contains) {
+            let passwordLabel = [name, description].first(where: { WindowContext.hasPasswordMetadata(role: role, label: $0) })
+            let structural = ["securetextfield", "passkey", "verification code", "private browsing", "private window", "incognito", "developer tools", "web inspector"].first(where: label.contains)
+            if passwordLabel != nil || structural != nil {
+                protectedRole = ["AXWindow", "AXLink", "AXButton", "AXStaticText", "AXHeading", "AXTextField", "AXTextArea", "AXSecureTextField", "AXComboBox", "AXSearchField", "AXGroup", "AXWebArea"].contains(role) ? role : "other"
+                protectedKind = passwordLabel != nil ? "password_metadata" : structural!
+                protectedLabelLength = passwordLabel?.count ?? 0
+                protectedLabelWords = passwordLabel?.split(whereSeparator: { $0.isWhitespace }).count ?? 0
                 protected = true; return
             }
             if ["AXTextField", "AXComboBox", "AXSearchField"].contains(role) {
@@ -69,7 +79,9 @@ enum BrowserWindow {
             for child in metadata.children { walk(child, depth + 1) }
         }
         walk(window, 0)
-        if protected { return ["status": "protected"] }
+        if protected { return ["status": "protected", "protected_role": protectedRole,
+                               "protected_kind": protectedKind, "protected_label_length": protectedLabelLength,
+                               "protected_label_words": protectedLabelWords] }
         guard complete, Date() < deadline, NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == bundle,
               let live = WindowContext.resolve(pid: pid, windowID: windowID), CFEqual(window, live),
               Date() < deadline else { return ["status": "unavailable", "reason": "incomplete", "scan_stop": stop ?? "revalidation", "scan_nodes": nodes] }
