@@ -8,6 +8,17 @@ enum WindowContext {
     // Rich course/calendar pages can exceed four thousand AX nodes. Batched
     // metadata keeps this bounded walk inside the existing wall-clock budget.
     static let maximumScanNodes = 16000
+    static func hasPasswordMetadata(role: String, label: String) -> Bool {
+        guard label.range(of: "password", options: .caseInsensitive) != nil else { return false }
+        if ["AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"].contains(role) {
+            return true
+        }
+        // API identifiers such as setpassword() are not authentication surfaces.
+        // Literal password labels, including static disclosures, remain blocked.
+        let literal = label.replacingOccurrences(of: "\\b(?:[a-z_]\\w*\\.)+[a-z_]\\w*password\\w*(?=\\s*\\()",
+                                                with: "", options: [.regularExpression, .caseInsensitive])
+        return literal.range(of: "password", options: .caseInsensitive) != nil
+    }
     struct Metadata {
         let role: String
         let subrole: String
@@ -180,7 +191,7 @@ enum WindowContext {
             let title = metadata.title
             let description = metadata.description
             let identity = (role + " " + subrole + " " + title + " " + description).lowercased()
-            if ["securetextfield", "password", "passkey", "verification code", "private browsing", "incognito"].contains(where: identity.contains) { protected = true; return }
+            if hasPasswordMetadata(role: role, label: identity) || ["securetextfield", "passkey", "verification code", "private browsing", "incognito"].contains(where: identity.contains) { protected = true; return }
             nodes.append((element, role, title.isEmpty ? description : title))
             for child in metadata.children { inspect(child, depth + 1) }
         }

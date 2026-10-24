@@ -84,6 +84,26 @@ describe('Use my Mac browser routing', () => {
     };
   }
 
+  it.each([
+    ['File', 'Open File…'],
+    ['Develop', 'Show Web Inspector'],
+  ])(
+    'does not expose native browser menus that bypass file/internal-page navigation restrictions: %j',
+    async (...menu_path) => {
+      const h = browserHarness();
+      const { element_ref: _ref, ...target } = await capture(h);
+      const result = await h.backend.invoke(
+        request('computer_action', {
+          ...target,
+          action: 'menu',
+          menu_path,
+        }),
+      );
+      expect(result.outcome).toBe('refused');
+      expect(h.cua.call.mock.calls.some(([tool]) => tool === 'invoke_menu')).toBe(false);
+    },
+  );
+
   it('discovers existing browser page identities without page contents or query/fragment data', async () => {
     const h = browserHarness();
     h.navigate('https://canvas.cmu.edu/courses?view=active#section');

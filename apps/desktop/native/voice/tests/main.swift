@@ -3,6 +3,16 @@ import AppKit
 import CoreGraphics
 import ApplicationServices
 
+precondition(!WindowContext.hasPasswordMetadata(role: "AXLink", label: "ZipFile.setpassword(pwd)"))
+precondition(!WindowContext.hasPasswordMetadata(role: "AXHeading", label: "ZipFile.setpassword()"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXTextField", label: "UserPassword"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXTextArea", label: "AccountPassword"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "password: [omitted]"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "UserPassword"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "account.user_password"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "account.user_password: [omitted]"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "account.user_password = [omitted]"))
+
 // A missing optional attribute is a leaf; a failed children read is not proof
 // that a potentially protected subtree is empty. These checks never query an app.
 let emptyMetadata: [AnyObject] = ["AXStaticText" as NSString, NSNull(), "Title" as NSString,

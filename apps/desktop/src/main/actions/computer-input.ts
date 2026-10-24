@@ -59,6 +59,10 @@ export class ComputerInput {
       return stale('The window snapshot is missing, superseded, or belongs to another window.');
     }
     if (this.inventory.isNativeBrowser(binding)) {
+      if (args.action === 'menu')
+        return refused(
+          'Use visible browser page controls or a permitted navigation shortcut. Native menus are available only for ordinary non-browser apps.',
+        );
       const current = await this.inventory.nativeBrowserState(binding);
       if (current.status !== 'ready' || current.url !== capability.browserUrl)
         return stale(

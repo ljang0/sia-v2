@@ -332,6 +332,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   retain snapshot, protected-window, route and authorization checks; authentication, credential,
   terminal and scripting menus are refused. `window_not_key` is an explicit no-input refusal,
   not uncertain delivery, and never triggers an automatic foreground retry.
+  Browsers retain their existing page controls and permitted navigation shortcuts; the new native
+  menu route cannot open browser file pickers, internal pages or developer tools.
   Background app opening uses the bundled driver's non-activating `launch_app` route. An optional
   `workspace_path` opens an existing ordinary text document in TextEdit, PDF/image in Preview, or
   directory in Finder. The host resolves it inside the pinned workspace and rejects URL schemes,
@@ -376,6 +378,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   parent snapshot is inspected first: native AXSheet controls often belong to that document even
   when WindowServer lists an auxiliary panel that cannot be controlled. Only fresh parent refs and
   explicitly available routes may be used; a driver's refusal is never overridden.
+  A public API identifier such as `ZipFile.setpassword()` does not by itself identify a password
+  surface. Both native and structured-control readers exclude that identifier from password-label
+  matching while preserving conservative checks on editable controls, literal/compound password
+  labels, credential assignments, secure roles and authentication pages.
   Background also exposes `computer_list_files`, `computer_read_file` and `computer_write_file`
   through ActionGateway. They read bounded UTF-8 data files and create new txt/md/csv/tsv/json
   reports in the host-pinned task workspace. Updating an existing file requires the SHA-256 from

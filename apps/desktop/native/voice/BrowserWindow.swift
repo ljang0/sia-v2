@@ -49,7 +49,7 @@ enum BrowserWindow {
             let description = metadata.description
             let label = (role + " " + subrole + " " + name + " " + description).lowercased()
             if role.isEmpty { complete = false; return }
-            if ["securetextfield", "password", "passkey", "verification code", "private browsing", "private window", "incognito", "developer tools", "web inspector"].contains(where: label.contains) {
+            if WindowContext.hasPasswordMetadata(role: role, label: label) || ["securetextfield", "passkey", "verification code", "private browsing", "private window", "incognito", "developer tools", "web inspector"].contains(where: label.contains) {
                 protected = true; return
             }
             if ["AXTextField", "AXComboBox", "AXSearchField"].contains(role) {

@@ -220,16 +220,27 @@ export function windowHasProtectedControls(value: unknown): boolean {
   return ['elements', 'nodes']
     .flatMap((key) => findRecordArray(value, key))
     .filter((record) => !isHiddenWindowStructure(record))
-    .some(
-      (record) =>
+    .some((record) => {
+      const label = [record.role, record.subrole, record.title, record.label]
+        .filter((item) => typeof item === 'string')
+        .join(' ');
+      // Public API links such as ZipFile.setpassword() are not password fields.
+      // Editable controls retain the conservative substring check; literal
+      // password labels/prose and secure roles remain protected everywhere.
+      const passwordLabel = /^AX(?:TextField|TextArea|ComboBox|SearchField)$/.test(
+        String(record.role),
+      )
+        ? label
+        : label.replace(/\b(?:[a-z_]\w*\.)+[a-z_]\w*password\w*(?=\s*\()/gi, '');
+      return (
         isProtectedElement(record) ||
+        /password/i.test(passwordLabel) ||
         // Match authentication words, not "signing"/"blogging" in public page labels.
-        /(?:secure|password|\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat|verification code|passkey|api.?key|access.?token)/i.test(
-          [record.role, record.subrole, record.title, record.label]
-            .filter((item) => typeof item === 'string')
-            .join(' '),
-        ),
-    );
+        /(?:secure|\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat|verification code|passkey|api.?key|access.?token)/i.test(
+          label,
+        )
+      );
+    });
 }
 
 export function positiveInteger(value: unknown, maximum: number): number | undefined {
