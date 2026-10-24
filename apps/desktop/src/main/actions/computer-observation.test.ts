@@ -3,6 +3,66 @@ import { describe, expect, it, vi } from 'vitest';
 import { DesktopActionBackend } from './desktop-action-backend.js';
 import { dataRecord, fakeCua, grantedComputerTarget, request } from './test-support.js';
 
+it.each(['partial', 'complete', 'protected', 'no-image'] as const)(
+  'supplements a partial document excerpt with current-viewport OCR only when safe: %s',
+  async (variant) => {
+    const readImageText = vi.fn(async () => 'Late policy: 3 days total, 1 per assignment.');
+    const cua = fakeCua(async (name, args) => {
+      if (name === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Preview', bundle_id: 'com.apple.Preview' }] };
+      if (name === 'list_windows')
+        return {
+          windows: [{ pid: 42, window_id: 91, app_name: 'Preview', title: 'Syllabus' }],
+        };
+      if (name === 'get_window_state')
+        return {
+          value: {
+            elements: [
+              {
+                element_token: 's00000001:0',
+                role: variant === 'protected' ? 'AXSecureTextField' : 'AXStaticText',
+                label: 'Document',
+              },
+            ],
+          },
+          ...(args.include_screenshot
+            ? { images: [{ mimeType: 'image/png', dataBase64: 'current-viewport' }] }
+            : {}),
+        };
+      throw new Error(`Unexpected ${name}`);
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+      readImageText,
+      readWindowContext: async () => ({
+        status: 'ready',
+        bundleID: 'com.apple.Preview',
+        title: 'Syllabus',
+        text: 'Beginning of the long document.',
+        partial: variant !== 'complete',
+      }),
+    });
+    const target = await grantedComputerTarget(backend);
+    const observed = await backend.invoke(
+      request('computer_snapshot', {
+        app_id: target.appId,
+        window_id: target.windowId,
+        include_image: variant !== 'no-image',
+      }),
+    );
+    if (variant === 'partial') {
+      expect(readImageText).toHaveBeenCalledExactlyOnceWith('current-viewport');
+      expect(dataRecord(observed.data).image_text).toContain('3 days total');
+      expect(dataRecord(observed.data).observation_partial).toBe(true);
+    } else {
+      expect(readImageText).not.toHaveBeenCalled();
+      expect(dataRecord(observed.data).image_text).toBeUndefined();
+    }
+  },
+);
+
 // These fixtures advance app state with explicit mock observations. Real settle
 // sleeps add load and timing failures without exercising an application's timing.
 vi.mock('node:timers/promises', async (original) => ({
@@ -212,7 +272,7 @@ describe('DesktopActionBackend computer boundary', () => {
       ).outcome,
     ).toBe('stale');
     const ref = (data.elements as Record<string, unknown>[])[0]!.element_ref;
-    expect(() =>
+    expect(
       parseActionArguments('computer_action', {
         ...ids,
         snapshot_id: data.snapshot_id,
@@ -220,7 +280,7 @@ describe('DesktopActionBackend computer boundary', () => {
         element_ref: ref,
         count: 2,
       }),
-    ).toThrow();
+    ).toMatchObject({ count: 2, element_ref: ref });
     const clicked = await backend.invoke(
       request('computer_action', {
         ...ids,

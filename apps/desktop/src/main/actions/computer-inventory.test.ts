@@ -332,9 +332,21 @@ it.each([undefined, 'background', 'foreground'] as const)(
       request('computer_open_app', { application: 'notes', ...(delivery ? { delivery } : {}) }),
     );
     expect(result.outcome).toBe('verified');
-    expect(openApplication).toHaveBeenCalledExactlyOnceWith('notes', {
-      background: delivery !== 'foreground',
-    });
+    if (delivery === 'foreground') {
+      expect(openApplication).toHaveBeenCalledExactlyOnceWith('notes', { background: false });
+      expect(cua.call.mock.calls.some(([tool]) => tool === 'launch_app')).toBe(false);
+    } else {
+      expect(openApplication).not.toHaveBeenCalled();
+      expect(cua.call).toHaveBeenCalledWith(
+        'launch_app',
+        {
+          bundle_id: 'com.apple.Notes',
+          session: expect.any(String),
+        },
+        expect.anything(),
+        undefined,
+      );
+    }
     expect(dataRecord(result.data).delivery_requested).toBe(delivery ?? 'background');
   },
 );

@@ -326,6 +326,18 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   markdown default cannot support Sia's protected-field checks or input grants. Actions use only
   observed snapshot-bound element tokens, without the retired index/snapshot input arguments.
   `set_value` is an exact accessibility operation and does not accept a delivery-mode argument.
+  Element double-clicks use the driver's `double_click`/AXOpen route, while pixel double-clicks
+  retain the bounded screenshot route. Exact native menu paths use `invoke_menu` on the granted
+  window rather than the global menu bar or a key shortcut requiring foreground focus. Menu calls
+  retain snapshot, protected-window, route and authorization checks; authentication, credential,
+  terminal and scripting menus are refused. `window_not_key` is an explicit no-input refusal,
+  not uncertain delivery, and never triggers an automatic foreground retry.
+  Background app opening uses the bundled driver's non-activating `launch_app` route. An optional
+  `workspace_path` opens an existing ordinary text document in TextEdit, PDF/image in Preview, or
+  directory in Finder. The host resolves it inside the pinned workspace and rejects URL schemes,
+  traversal, hidden/credential paths, links, executable bundles and app/type mismatches. No model
+  launch arguments, inspector ports or arbitrary file grants are exposed. Opening is followed by
+  inventory; the task must still inspect and verify its exact document.
   Native computer calls use a fresh opaque CUA session for each active turn, separate from the
   reusable Codex conversation and explicitly attached browser sessions. A new turn revokes prior
   app/window/snapshot refs and discovers fresh ones; an aborted old call cannot clear current refs.
@@ -355,6 +367,15 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Driver truncation and supplemental text limits are exposed as partial observations, not complete
   coverage. A response with no readable text, controls or image revokes the previous input snapshot
   and returns an explicit observation failure; it cannot mint a verified state or imply sign-out.
+  Native text readers batch role/subrole/title/description/children metadata per AX node before
+  reading content, retaining a complete protected-surface prepass. Their 16,000-node bound keeps
+  the existing depth/time limits; missing or unreadable child metadata fails closed. Partial
+  supplemental text also requests OCR of the same permitted window image, giving the current
+  viewport after scrolling without claiming that the whole document has been read. Image-free
+  and protected observations never invoke OCR. After an action opens a Save/Open panel, a fresh
+  parent snapshot is inspected first: native AXSheet controls often belong to that document even
+  when WindowServer lists an auxiliary panel that cannot be controlled. Only fresh parent refs and
+  explicitly available routes may be used; a driver's refusal is never overridden.
   Background also exposes `computer_list_files`, `computer_read_file` and `computer_write_file`
   through ActionGateway. They read bounded UTF-8 data files and create new txt/md/csv/tsv/json
   reports in the host-pinned task workspace. Updating an existing file requires the SHA-256 from

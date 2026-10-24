@@ -40,6 +40,34 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+it.each([
+  ['launch_app', { bundle_id: 'com.apple.TextEdit', session: 'task-session' }],
+  ['invoke_menu', { pid: 42, window_id: 91, path: ['File', 'Save'], session: 'task-session' }],
+  [
+    'double_click',
+    {
+      pid: 42,
+      window_id: 91,
+      element_token: 's00000001:3',
+      delivery_mode: 'background',
+      session: 'task-session',
+    },
+  ],
+] as const)(
+  'authorizes and forwards the bundled %s primitive without adding unsupported arguments',
+  async (name, args) => {
+    const broker = { authorize: vi.fn(async () => 'allow' as const) };
+    const driver = successfulDriver({ effect: 'unverifiable' });
+    const service = new CuaService(broker, { driverFactory: () => driver });
+    try {
+      await service.call(name, args, { kind: 'turn', threadId: 'thread', turnId: 'turn' });
+      expect(JSON.parse(driver.callTool.mock.calls[0]![1])).toEqual(args);
+    } finally {
+      await service.shutdown();
+    }
+  },
+);
+
 it('requests structured controls and background grants instead of the compact markdown default', async () => {
   const observed = {
     elements: [{ role: 'AXSecureTextField', element_token: 's00000001:9' }],

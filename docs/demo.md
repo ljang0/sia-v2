@@ -195,6 +195,32 @@ the repository: append-only `attempts.jsonl`, per-attempt traces, code/harness h
 and distinguish native/simulated drivers and correctly incomplete tasks. Keep environment triage
 separate from product failures; do not convert blocked native checks into simulated passes.
 
+### Ordinary app acceptance
+
+Controlled-window checks are a regression gate, not a substitute for normal app work. Run the
+signed Sia app with real services, a separate disposable agent and working folder, the admitted
+model, **Work in background**, and foreground fallback disabled. Submit each request through
+Sia's normal typed conversation bridge. Do not replace its controller, inventory, driver or app
+openers with a test adapter. Keep the owner's existing agent, conversations and permissions.
+
+Use ordinary Safari research, Calculator, TextEdit, Finder, Preview, file reconciliation and
+memory across new conversations. Public official sources and disposable documents permit live
+verification without mutating personal accounts. Verify current web/PDF facts independently before
+grading. Count distinct requests separately from retries, preserve the original prompt and raw
+attempt, and record the model plus loaded main/helper hashes. A successful final message is not
+evidence: inspect actual app state, source URLs, saved bytes, input preservation and delivery mode.
+Workspace-file actions alone do not establish GUI control; app cases require an observation of
+the requested real app.
+
+Keep the manifest, append-only attempt log, trajectories, screenshots and report in a private
+evidence directory outside Git. If a checker rejects a correct answer because its oracle dropped
+part of the request or imposed an unspecified format, retain the failed grade and record a
+separate correction against the original artifact. Do not silently change facts, count regrading
+as another executed task, or mix these results with the controlled/simulated matrices. Report
+protected-page and unsupported-route blockers explicitly; never enable foreground fallback to
+make a background test pass. The hundred-request run is an explicit operator exercise, not an
+app-startup test or part of the default unit gate.
+
 ## First launch
 
 ### Pilot setup

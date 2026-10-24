@@ -6,11 +6,12 @@ import {
   type ValidatedActionInvocation,
 } from '@sia/action-gateway';
 import { MAC_BROWSER_BUNDLES, type BrowserWindowState } from '../mac/browser-window.js';
-import { refused } from './action-results.js';
+import { refused, resultRefusal } from './action-results.js';
 import { requiredString } from './arguments.js';
 import { browserUrlLooksSensitive } from './browser-urls.js';
 import type { ComputerAppBinding, ComputerWindowBinding } from './computer-grants.js';
 import type { ActionBackendContext } from './context.js';
+import { workspaceOpenTarget } from './workspace-open-target.js';
 import {
   asRecord,
   compact,
@@ -235,11 +236,7 @@ export class ComputerInventory {
     const application = requested === 'notes' ? 'com.apple.Notes' : requested;
     const installed = await this.ctx.options.installedApplications?.();
     const entry = installed?.find((app) => app.id === application);
-    if (
-      !this.ctx.options.openApplication ||
-      (installed && !entry) ||
-      this.#appBlocked(entry?.name, application)
-    ) {
+    if ((installed && !entry) || this.#appBlocked(entry?.name, application)) {
       return refused('Choose a permitted installed application from computer_list.');
     }
     if (!installed && requested !== 'notes')
@@ -248,7 +245,36 @@ export class ComputerInventory {
     const background =
       request.arguments.delivery === 'background' ||
       (mac && request.arguments.delivery !== 'foreground');
-    await this.ctx.options.openApplication(installed ? application : requested, { background });
+    let document: string | undefined;
+    if (typeof request.arguments.workspace_path === 'string') {
+      if (!mac || !background)
+        return refused('Working-folder documents use the background Mac route.');
+      document = await workspaceOpenTarget(
+        request.context.workspace,
+        request.arguments.workspace_path,
+        application,
+      );
+    }
+    if (mac && background) {
+      const launched = await this.ctx.callCua(request, 'launch_app', {
+        bundle_id: application,
+        session: this.ctx.computer.session(request),
+        ...(document ? { urls: [document] } : {}),
+      });
+      const refusal = resultRefusal(launched);
+      if (refusal) return refusal;
+      if (asRecord(launched)?.self_activation_suppressed === false)
+        return {
+          outcome: 'needs_foreground',
+          summary:
+            'The app opened, but the driver could not keep it behind your current app. No further input was sent.',
+        };
+    } else {
+      if (!this.ctx.options.openApplication) return refused('App opening is unavailable.');
+      await this.ctx.options.openApplication(installed ? application : requested, {
+        background,
+      });
+    }
     if (!mac) this.ctx.computer.reset();
     if (mac) await delay(350, undefined, { signal: request.context.signal });
     const inventory = mac ? await this.list(request) : undefined;
@@ -258,10 +284,13 @@ export class ComputerInventory {
       data: {
         ...asRecord(inventory?.data),
         delivery_requested: background ? 'background' : 'foreground',
+        ...(document ? { opened_workspace_path: document } : {}),
       },
       verification: {
         evidence:
-          'The trusted desktop host submitted the installed application to LaunchServices; inspect its current windows next.',
+          mac && background
+            ? 'The bundled native driver requested background app opening; inspect the exact document or window next.'
+            : 'The trusted desktop host submitted the installed application to LaunchServices; inspect its current windows next.',
       },
     };
   }

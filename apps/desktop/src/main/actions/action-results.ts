@@ -24,7 +24,7 @@ export function classifyFailure(error: unknown): ActionExecutionResult {
     return stale(message);
   }
   if (
-    /\b(off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity)\b/.test(
+    /\b(off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|window_not_key)\b/.test(
       normalized,
     ) ||
     normalized.includes('foreground') ||

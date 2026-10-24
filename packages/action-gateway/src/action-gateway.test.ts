@@ -926,6 +926,47 @@ it('accepts bounded pixel gestures but rejects ambiguous or incomplete addresses
   ).toThrow();
 });
 
+it('accepts exact native menus and element double-clicks without mixed targets or launch arguments', () => {
+  const base = { app_id: 'app:1', window_id: 'window:1', snapshot_id: 'snapshot:1' };
+  expect(
+    parseActionArguments('computer_action', {
+      ...base,
+      action: 'menu',
+      menu_path: ['File', 'Save'],
+    }),
+  ).toMatchObject({ menu_path: ['File', 'Save'] });
+  expect(
+    parseActionArguments('computer_action', {
+      ...base,
+      action: 'click',
+      element_ref: 'w:1',
+      count: 2,
+    }),
+  ).toMatchObject({ count: 2 });
+  for (const args of [
+    { action: 'menu' },
+    { action: 'menu', menu_path: [] },
+    { action: 'menu', menu_path: ['File'], element_ref: 'w:1' },
+    { action: 'menu', menu_path: ['File'], x: 10, y: 20 },
+    { action: 'click', element_ref: 'w:1', menu_path: ['File'] },
+    { action: 'click', element_ref: 'w:1', count: 2, button: 'right' },
+  ])
+    expect(() => parseActionArguments('computer_action', { ...base, ...args })).toThrow();
+  expect(
+    parseActionArguments('computer_open_app', {
+      application: 'com.apple.Preview',
+      workspace_path: 'Calendar.pdf',
+    }),
+  ).toMatchObject({ workspace_path: 'Calendar.pdf' });
+  for (const field of ['urls', 'additional_arguments', 'webkit_inspector_port'])
+    expect(() =>
+      parseActionArguments('computer_open_app', {
+        application: 'com.apple.Preview',
+        [field]: ['untrusted'],
+      }),
+    ).toThrow();
+});
+
 it.each([
   {
     name: 'computer_action',

@@ -215,11 +215,15 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_open_app: {
     name: 'computer_open_app',
     description:
-      'Open a supported non-sensitive macOS app. Use my Mac defaults to background opening. When foreground recovery is permitted, explicitly pass delivery:"foreground" to bring an app forward if its window is off-Space or cannot accept background input. Then inspect the exact intended window again before acting. Use an application id from computer_list installed_apps. In Use my Mac the result includes fresh app/window ids; inspect those directly. In Connected apps, call computer_list after opening.',
+      'Open a supported non-sensitive macOS app. Use my Mac defaults to native background opening. Optional workspace_path opens an existing ordinary working-folder document in TextEdit/Preview, or a folder in Finder, without a file picker. Use this for direct document/folder navigation instead of Cmd+O or Cmd+Shift+G. No URLs, scripts, links, credential files or paths outside the working folder. For new text documents, create the file with computer_write_file, then open it in TextEdit and inspect it. Foreground delivery requires permission. Use an application id from computer_list installed_apps and inspect the returned app/window ids.',
     inputSchema: object(
       {
         application: string(
           'Installed application bundle id from computer_list installed_apps',
+        ),
+        workspace_path: string(
+          'Existing path inside this task’s working folder; text for TextEdit, PDF/image for Preview, folder for Finder.',
+          { maxLength: 4096 },
         ),
         delivery: string(
           'Background by default in Use my Mac; foreground requires permission.',
@@ -293,7 +297,17 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         y: { type: 'number', minimum: 0, maximum: 32768 },
         to_x: { type: 'number', minimum: 0, maximum: 32768 },
         to_y: { type: 'number', minimum: 0, maximum: 32768 },
-        action: string('Action', { enum: ['click', 'type', 'set', 'scroll', 'key', 'drag'] }),
+        action: string('Action', {
+          enum: ['click', 'type', 'set', 'scroll', 'key', 'drag', 'menu'],
+        }),
+        menu_path: {
+          type: 'array',
+          minItems: 1,
+          maxItems: 16,
+          items: { type: 'string', minLength: 1, maxLength: 200 },
+          description:
+            'For menu: exact native app menu labels, e.g. ["File", "Save"]. Uses the native menu API on this exact window; never click the global menu bar or use pixels as fallback.',
+        },
         button: string('For click: left (default) or right to open a context menu', {
           enum: ['left', 'right'],
         }),
@@ -301,7 +315,8 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
           type: 'integer',
           minimum: 1,
           maximum: 2,
-          description: 'For pixel click only: 2 double-clicks. Element clicks support count 1.',
+          description:
+            '2 double-clicks; prefer an exact element ref for native files/folders. Pixel double-click requires a fresh screenshot.',
         },
         include_image: {
           type: 'boolean',

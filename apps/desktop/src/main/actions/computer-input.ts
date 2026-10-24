@@ -21,6 +21,7 @@ import type { ActionBackendContext } from './context.js';
 import {
   asRecord,
   compact,
+  findElementRecords,
   findRecordArray,
   positiveInteger,
   windowHasProtectedControls,
@@ -195,7 +196,11 @@ export class ComputerInput {
       )
         return stale('The window geometry changed. Capture a fresh screenshot before acting.');
     }
-    if (!address && !pixel && !['type', 'key', 'scroll'].includes(String(args.action))) {
+    if (
+      !address &&
+      !pixel &&
+      !['type', 'key', 'scroll', 'menu'].includes(String(args.action))
+    ) {
       return refused('This computer action requires an exact element reference.');
     }
     const base = compact({
@@ -218,7 +223,7 @@ export class ComputerInput {
     let input: Record<string, unknown>;
     switch (args.action) {
       case 'click':
-        tool = 'click';
+        tool = !pixel && args.count === 2 ? 'double_click' : 'click';
         input = pixel
           ? {
               pid: binding.pid,
@@ -229,9 +234,38 @@ export class ComputerInput {
               y: args.y,
             }
           : base;
-        if (args.button !== undefined) input.button = args.button;
-        if (args.count !== undefined) input.count = args.count;
+        if (tool === 'click') {
+          if (args.button !== undefined) input.button = args.button;
+          if (args.count !== undefined) input.count = args.count;
+        }
         break;
+      case 'menu': {
+        const path = args.menu_path;
+        if (
+          !this.ctx.macBrowserAccess() ||
+          !Array.isArray(path) ||
+          path.length < 1 ||
+          path.length > 16 ||
+          path.some(
+            (part) =>
+              typeof part !== 'string' ||
+              !part.trim() ||
+              part.length > 200 ||
+              /password|keychain|credential|\b(?:api|access)\s*key|\btoken\b|\bsign.?in\b|\blog.?in\b|authenticat|passkey|verification|private window|incognito|developer tools|web inspector|terminal|console|\bscript\b/i.test(
+                part,
+              ),
+          )
+        )
+          return refused('Choose an ordinary exact native menu path for this app window.');
+        tool = 'invoke_menu';
+        input = {
+          pid: binding.pid,
+          window_id: binding.windowId,
+          session: this.ctx.computer.session(request),
+          path,
+        };
+        break;
+      }
       case 'drag':
         if (!pixel) return refused('Drag requires screenshot coordinates.');
         tool = 'drag';
@@ -308,7 +342,7 @@ export class ComputerInput {
       // These explicit driver validation/authorization refusals prove no input was posted.
       // A generic timeout or broken transport does not: the app may already have committed.
       if (
-        /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window)$/.test(
+        /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|window_not_key|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window)$/.test(
           message,
         )
       )
@@ -358,22 +392,13 @@ export class ComputerInput {
       return native;
     }
     let after: ActionExecutionResult;
+    let openedWindows: Record<string, unknown>[] = [];
     try {
       // Notch waits before observing the result. A successful post is not proof
       // that the application has processed the input yet. Never replay input here.
       if (this.ctx.macBrowserAccess()) {
         await delay(350, undefined, { signal: request.context.signal });
-        const newWindows = await this.newWindows(binding, knownWindows, request);
-        if (newWindows.length)
-          return {
-            outcome: 'accepted_unverified',
-            summary: `${native.summary} New windows appeared. Inspect a new_window before continuing; the previous snapshot belongs to the original window. Do not repeat the action that opened it.`,
-            data: {
-              observation_pending: true,
-              new_windows: newWindows,
-              previous_window_id: binding.id,
-            },
-          };
+        openedWindows = await this.newWindows(binding, knownWindows, request);
       }
       after = this.ctx.macBrowserAccess()
         ? await this.observation.captureSettledWindow(binding, request)
@@ -386,6 +411,23 @@ export class ComputerInput {
         summary: 'The post-action observation was interrupted or unavailable.',
       };
     }
+    // WindowServer lists native Save/Open panels separately, while their usable
+    // AXSheet controls belong to the original AXWindow. Inspect that exact parent
+    // before sending the model to an auxiliary window the driver cannot resolve.
+    // This never changes a driver's refusal or reuses a pre-action capability.
+    const attachedSheet =
+      after.outcome === 'verified' &&
+      findElementRecords(after.data, 'window').some((row) => row.role === 'AXSheet');
+    if (openedWindows.length && !attachedSheet)
+      return {
+        outcome: 'accepted_unverified',
+        summary: `${native.summary} New windows appeared. Inspect a new_window before continuing; the previous snapshot belongs to the original window. Do not repeat the action that opened it.`,
+        data: {
+          observation_pending: true,
+          new_windows: openedWindows,
+          previous_window_id: binding.id,
+        },
+      };
     if (after.outcome !== 'verified') {
       if (!this.ctx.macBrowserAccess()) return after;
       return {
@@ -408,9 +450,13 @@ export class ComputerInput {
       ...(after.images ? { images: after.images } : {}),
       data: {
         ...(asRecord(after.data) ?? {}),
+        ...(openedWindows.length
+          ? { new_windows: openedWindows, previous_window_id: binding.id }
+          : {}),
         delivery: native.data,
-        next_step:
-          'Inspect this fresh state to verify the requested result. Do not repeat a write to test delivery.',
+        next_step: attachedSheet
+          ? 'The attached sheet is exposed in this fresh parent-window snapshot. Use only its current element refs and available driver routes; auxiliary panel windows may be observation-only. Do not reuse old refs or repeat the action that opened the sheet.'
+          : 'Inspect this fresh state to verify the requested result. Do not repeat a write to test delivery.',
         recovery_observation_limit: 2,
       },
       verification: compact({

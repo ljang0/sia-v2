@@ -208,7 +208,7 @@ export class ComputerObservation {
     const image = actionImages(raw)?.images?.[0];
     const imageText =
       this.ctx.macBrowserAccess() &&
-      request.arguments.read_text === true &&
+      (request.arguments.read_text === true || readableContext?.partial === true) &&
       image &&
       !windowHasProtectedControls(raw)
         ? await this.ctx.options.readImageText?.(image.dataBase64)

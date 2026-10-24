@@ -1,6 +1,40 @@
 import ImageIO
 import AppKit
 import CoreGraphics
+import ApplicationServices
+
+// A missing optional attribute is a leaf; a failed children read is not proof
+// that a potentially protected subtree is empty. These checks never query an app.
+let emptyMetadata: [AnyObject] = ["AXStaticText" as NSString, NSNull(), "Title" as NSString,
+                                NSNull(), [] as NSArray]
+precondition(WindowContext.metadataValues(emptyMetadata)?.role == "AXStaticText")
+precondition(WindowContext.metadataValues(Array(emptyMetadata.dropLast())) == nil)
+var malformedMetadata = emptyMetadata
+malformedMetadata[0] = NSNull()
+precondition(WindowContext.metadataValues(malformedMetadata) == nil)
+malformedMetadata = emptyMetadata
+malformedMetadata[4] = "not a child list" as NSString
+precondition(WindowContext.metadataValues(malformedMetadata) == nil)
+var missingChildren = AXError.attributeUnsupported
+var failedChildren = AXError.cannotComplete
+var noChildren = AXError.noValue
+var leafMetadata = emptyMetadata
+leafMetadata[4] = AXValueCreate(.axError, &missingChildren)!
+precondition(WindowContext.metadataValues(leafMetadata)?.children.isEmpty == true)
+leafMetadata[4] = AXValueCreate(.axError, &noChildren)!
+precondition(WindowContext.metadataValues(leafMetadata)?.children.isEmpty == true)
+leafMetadata[4] = AXValueCreate(.axError, &failedChildren)!
+precondition(WindowContext.metadataValues(leafMetadata) == nil)
+// An unreadable secure subrole/title must not be treated as an absent label.
+for index in 1...3 {
+    var unreadable = emptyMetadata
+    unreadable[index] = AXValueCreate(.axError, &failedChildren)!
+    precondition(WindowContext.metadataValues(unreadable) == nil)
+    unreadable[index] = AXValueCreate(.axError, &missingChildren)!
+    precondition(WindowContext.metadataValues(unreadable) != nil)
+    unreadable[index] = NSNumber(value: true)
+    precondition(WindowContext.metadataValues(unreadable) == nil)
+}
 
 // Exercises the real Notch-derived monitor without installing an OS tap or posting input.
 // Bulk permission setup must not reopen Finder or any already-running app.
