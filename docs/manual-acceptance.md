@@ -228,6 +228,10 @@ brief driver-reported activation, and live permission grants that need no extra 
 
 Background startup must also expose a hidden document to the renderer: animated effects must
 pause before the first explicit open, and opening Sia later must restore visibility normally.
+Check this without Playwright renderer attachment: its default focus emulation can report the
+hidden page as visible. An isolated real-Electron startup with only main-process inspection
+verified both the native window and renderer document hidden; this is startup evidence, not
+a computer-task success.
 Native MCP error envelopes must fail safely, never appear as empty successful observations or
 release their text/images. Failed input acknowledgements remain uncertain and must not trigger
 replay. The browser identity helper distinguishes its bounded timeout, native failure and invalid
