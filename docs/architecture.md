@@ -369,12 +369,25 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   its process-identity and grant-expiry checks. An expired named session is never revived:
   a fresh authorized website-open request may request a new profile grant after read-only
   discovery; neither session renewal nor observation failure replays input. A different native
-  window does not inherit the grant. Closing Sia or driver expiry can require browser setup again.
+  window does not inherit the grant. Host-only inventory and focus checks use a separate named
+  session; idle expiry rotates only that read-only session, without restarting the driver or
+  discarding live browser grants. A timeout still retires a hung runtime. Closing Sia or browser
+  grant expiry can require setup again. Browser clicks use trusted Cua input with explicit
+  background delivery, not synthetic DOM clicks that trust-gated controls can ignore. There is
+  no automatic synthetic or foreground retry.
+  Semantic snapshots preserve page completeness. A read_more_from capability can be passed as
+  continue_from to the next snapshot of that exact tab; the native continuation stays host-only,
+  and older, cross-tab or cross-turn capabilities cannot continue a read. Each segment rotates
+  action refs. A complete segment never proves coverage of other pages or accounts. Navigation
+  is not verified until the observed URL matches the requested page; a mismatched page is
+  withheld and the result retains the exact tab for observation, without automatic re-navigation.
+  Chromium snapshots honor the same bounded wait_ms as native snapshots. Callers can
+  explicitly omit images when semantic content suffices; partial/missing content stays explicit.
   Institutional login hosts, SAML/identity-provider routes and semantic login forms are protected
   before returning screenshots, form content or input capabilities. A semantic password field
   need not retain its HTML input type to be detected. Observed authentication is reported
   separately from a generic URL-policy refusal; the person completes sign-in.
-  A driver report that it restored the foreground app is an interruption even if before/after
+  A driver report that it foregrounded a window or restored the foreground app is an interruption even if before/after
   app samples match; the affected turn pauses with uncertain delivery rather than claiming
   background success.
   An optional

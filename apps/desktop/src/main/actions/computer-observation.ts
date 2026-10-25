@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import type { BrowserWindowState } from '../mac/browser-window.js';
-import { actionImages, resultRefusal, screenshotDimensions, stale } from './action-results.js';
+import {
+  actionImages,
+  refused,
+  resultRefusal,
+  screenshotDimensions,
+  stale,
+} from './action-results.js';
 import { requiredString } from './arguments.js';
 import { windowBackgroundInput, windowInputRecovery } from './background-input.js';
 import { samePageUrl } from './browser-urls.js';
@@ -48,6 +54,10 @@ export class ComputerObservation {
   ) {}
 
   async snapshot(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
+    if (request.arguments.continue_from !== undefined)
+      return refused(
+        'Page continuations require the same granted Chromium tab. This native window has no browser page continuation.',
+      );
     const appId = requiredString(request.arguments.app_id, 'app_id');
     const windowId = requiredString(request.arguments.window_id, 'window_id');
     const binding = this.ctx.computer.resolveWindow(appId, windowId);

@@ -331,7 +331,8 @@ describe('DesktopActionBackend browser boundary', () => {
       target_id: 'target-secret',
       tab_id: 'tab-1',
       ref: 'p1:1',
-      input_route: process.platform === 'darwin' ? 'dom_event' : 'trusted',
+      input_route: 'trusted',
+      delivery_mode: 'background',
     });
     expect(JSON.stringify(result)).not.toContain('target-secret');
     expect(JSON.stringify(result)).not.toContain('p1:1');

@@ -265,6 +265,9 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         tab_id: string(
           'Chromium background browser: exact tab id when several task tabs are available',
         ),
+        continue_from: string(
+          'Read the next page segment using read_more_from from the latest snapshot of this exact tab. Older segments and other tabs are invalid; each read replaces action refs.',
+        ),
         expected_url: string(
           'Use my Mac browsers: require this exact page URL, including query parameters, before reading. Use for course/account-specific facts to avoid attributing the previous page to a new destination. The result includes a source_url with query and fragment removed.',
           { format: 'uri' },
@@ -370,7 +373,20 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   browser_snapshot: {
     name: 'browser_snapshot',
     description: 'Read the accessible state of one granted browser tab.',
-    inputSchema: object({ tab_id: string('Granted tab id') }, ['tab_id']),
+    inputSchema: object(
+      {
+        tab_id: string('Granted tab id'),
+        continue_from: string(
+          'Read the next segment using read_more_from from the latest snapshot of this tab. Each read replaces action refs.',
+        ),
+        include_image: {
+          type: 'boolean',
+          description:
+            'Include a screenshot for visual verification. Defaults to true; false reads semantic content only.',
+        },
+      },
+      ['tab_id'],
+    ),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },
   browser_navigate: {

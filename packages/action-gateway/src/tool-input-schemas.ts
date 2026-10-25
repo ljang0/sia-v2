@@ -54,6 +54,7 @@ const computerSnapshot = z
     app_id: id,
     window_id: id,
     tab_id: id.optional(),
+    continue_from: id.optional(),
     wait_ms: z.number().int().min(0).max(3000).optional(),
     read_text: z.boolean().optional(),
     include_image: z.boolean().optional(),
@@ -158,7 +159,9 @@ export const computerWriteFile = z
   })
   .strict();
 
-const browserSnapshot = z.object({ tab_id: id }).strict();
+const browserSnapshot = z
+  .object({ tab_id: id, continue_from: id.optional(), include_image: z.boolean().optional() })
+  .strict();
 
 const browserNavigate = z
   .object({ tab_id: id, url: z.url().max(8_192), private: z.boolean().optional() })

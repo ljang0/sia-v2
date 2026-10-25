@@ -20,6 +20,8 @@ export interface BrowserSnapshotCapability {
   readonly session: string;
   readonly origin: string;
   readonly url: string;
+  /** Driver-owned read continuation; never sent directly to the model. */
+  readonly continuation?: string;
   readonly elements: ReadonlyMap<
     string,
     { readonly nativeRef: string; readonly label?: string; readonly role?: string }

@@ -171,19 +171,32 @@ export class BrowserActions {
     if (binding.origin && !this.ctx.browser.bindingOriginAllowed(binding)) {
       return refused('The tab origin is outside the current browser grant.');
     }
-    return this.#captureBrowser(binding, request);
+    let continuation: string | undefined;
+    if (request.arguments.continue_from !== undefined) {
+      const previous = await this.ctx.browser.capability(
+        tabId,
+        request.arguments.continue_from,
+      );
+      if ('outcome' in previous) return previous;
+      continuation = previous.continuation;
+      if (!continuation)
+        return stale('This snapshot has no remaining page segment. Observe the tab again.');
+    }
+    return this.#captureBrowser(binding, request, continuation);
   }
 
   async #captureBrowser(
     binding: BrowserBinding,
     request: ValidatedActionInvocation,
+    continuation?: string,
   ): Promise<ActionExecutionResult> {
     const raw = await this.ctx.callCua(request, 'get_browser_state', {
       session: binding.session,
       target_id: binding.targetId,
       tab_id: binding.tabId,
       snapshot_format: 'semantic_v2',
-      include_screenshot: true,
+      include_screenshot: request.arguments.include_image !== false,
+      ...(continuation ? { continuation } : {}),
     });
     const refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
@@ -239,6 +252,9 @@ export class BrowserActions {
         return sanitizeElement(record, ref);
       })
       .filter(isDefined);
+    const semantic = asRecord(asRecord(raw)?.snapshot);
+    const next = firstString(semantic ?? {}, ['continuation']);
+    const nextContinuation = next && next.length <= 16384 ? next : undefined;
     const capability: BrowserSnapshotCapability = {
       id: snapshotId,
       targetId: binding.targetId,
@@ -246,6 +262,7 @@ export class BrowserActions {
       session: binding.session,
       origin,
       url: liveUrl,
+      ...(nextContinuation ? { continuation: nextContinuation } : {}),
       elements: elementMap,
     };
     this.ctx.browser.rememberSnapshot(capability);
@@ -261,6 +278,21 @@ export class BrowserActions {
         url: modelVisibleBrowserUrl(liveUrl),
         elements,
         text: findString(raw, ['outline', 'text', 'page_text']),
+        ...(semantic
+          ? {
+              page_complete: semantic.complete === true,
+              ...(nextContinuation ? { read_more_from: snapshotId } : {}),
+              coverage_note: nextContinuation
+                ? 'This is one segment of the current rendered page. Read the next segment with the same tab and continue_from:read_more_from before claiming complete coverage. Each read replaces older action refs.'
+                : semantic.complete === true
+                  ? 'The current rendered page segment is complete. This does not cover other pages, filters, courses or accounts.'
+                  : 'This rendered page is partial. Inspect other views or scroll in the same tab; missing content is not evidence that no items exist.',
+            }
+          : {
+              page_complete: false,
+              coverage_note:
+                'Page completeness was not reported. Verify the requested scope before claiming that all items were checked.',
+            }),
       }),
       verification: {
         snapshotId,
@@ -328,7 +360,8 @@ export class BrowserActions {
         input = {
           ...base,
           ref: nativeRef,
-          input_route: process.platform === 'darwin' ? 'dom_event' : 'trusted',
+          input_route: 'trusted',
+          delivery_mode: 'background',
         };
         break;
       case 'type': {
@@ -343,6 +376,7 @@ export class BrowserActions {
           text,
           mode: 'insert_text',
           replace: args.replace === true,
+          delivery_mode: 'background',
         };
         break;
       }
@@ -358,6 +392,7 @@ export class BrowserActions {
           ...base,
           action: 'scroll',
           input_route: 'trusted',
+          delivery_mode: 'background',
           ref: nativeRef,
           delta_x: direction === 'left' ? -amount : direction === 'right' ? amount : 0,
           delta_y: direction === 'up' ? -amount : direction === 'down' ? amount : 0,

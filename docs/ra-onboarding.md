@@ -603,6 +603,13 @@ last step before continuing. This mode does not provide an isolated second deskt
 control of the same active app remains unavailable. **Allow brief foreground control** is an
 explicit alternative for tasks that need it.
 
+Existing browser access is reused across conversations while its grant remains valid. An idle
+app-inventory check does not reset browser access or ask you to connect again. Browser consent
+and website sign-in remain separate: a window that cannot be inspected does not mean you are
+logged out. When macOS reports both grants as allowed, a failed window check no longer tells you
+to turn permissions off and on. Long browser pages report missing segments so the agent can keep
+reading before claiming it checked everything.
+
 For an already-configured development profile, `pnpm --filter @sia/desktop preview --background`
 starts the real app without showing its window or raising the secure-workspace explanation.
 Encrypted storage and macOS permissions remain required; a missing Keychain grant can still need

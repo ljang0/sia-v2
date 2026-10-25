@@ -13,6 +13,10 @@ it.each([
     name: 'driver restoring focus after hidden activation',
     result: { data: { effect: 'confirmed', restored_frontmost_app: true } },
   },
+  {
+    name: 'driver reporting a brief window activation between focus checks',
+    result: { side_effects: { foregrounded_window: true }, effect: 'confirmed' },
+  },
 ])(
   'preserves uncertainty for $name even if a dialog opens, and revokes the old target',
   async ({ result: delivered }) => {

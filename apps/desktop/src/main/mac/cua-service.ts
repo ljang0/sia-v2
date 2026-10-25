@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { ComputerPermissionsView as ComputerView } from '../../shared/bridge.js';
 
 const CUA_TOOLS = new Set([
@@ -151,6 +152,8 @@ export class CuaService {
   readonly #freshPermissions: CuaServiceOptions['freshPermissions'];
   #driver: DriverLike | undefined;
   #driverGeneration = 0;
+  /** Inventory may expire independently; renewing it must not drop live browser grants. */
+  #inventorySession = `sia-inventory-${randomUUID()}`;
   #permissionRequest: Promise<ComputerView> | undefined;
   #verification:
     | { result: 'confirmed' | 'unconfirmed' }
@@ -229,7 +232,7 @@ export class CuaService {
           ...(verified === 'failed'
             ? {
                 detail:
-                  'macOS lists Sia as allowed, but Sia could not read the screen yet. Reopen Sia; if that does not help, turn Accessibility and Screen Recording off and on again for Sia.',
+                  'Mac access is allowed, but Sia could not verify screen access with the available window. Try your task; if it cannot continue, Sia will explain the specific issue. Your permissions have not been reset.',
               }
             : {}),
         };
@@ -439,91 +442,71 @@ export class CuaService {
       this.#authorizationContext = context;
       this.#callClock = clock;
       driver = await waitForAbort(this.#getDriver(), operation.signal);
-      for (let attempt = 0; ; attempt++) {
-        try {
-          let foregroundBefore: number | undefined;
-          const result = await waitForAbort(
-            Promise.resolve().then(async () => {
-              operation.signal.throwIfAborted();
-              // The driver's compact default omits structured controls and route metadata.
-              // Both are required for protected-field checks and exact background grants.
-              const input =
-                tool === 'get_window_state'
-                  ? { ...args, tree_format: 'elements', verbose: true }
-                  : args;
-              if (protectDesktop) {
-                const targetPid =
-                  context.kind === 'turn' && BROWSER_INPUT_TOOLS.has(tool)
-                    ? (context.backgroundTargetPid ?? args.pid)
-                    : args.pid;
-                const foreground = await readForegroundPid(driver!, operation.signal);
-                operation.signal.throwIfAborted();
-                if (
-                  foreground === undefined ||
-                  typeof targetPid !== 'number' ||
-                  !Number.isInteger(targetPid) ||
-                  targetPid <= 0
-                )
-                  throw new Error('CUA refused: background_focus_unavailable');
-                if (foreground === targetPid)
-                  throw new Error('CUA refused: foreground_app_in_use');
-                foregroundBefore = foreground;
-              }
-              return await driver!.callTool(tool, JSON.stringify(input), {
-                signal: operation.signal,
-              });
-            }),
-            operation.signal,
-          );
-          if (result.errorCode) throw new Error(`CUA refused: ${result.errorCode}`);
-          const json = result.structuredJson ?? result.rawJson;
-          let parsed: unknown;
-          try {
-            parsed = JSON.parse(json) as unknown;
-          } catch {
-            parsed = { text: json };
-          }
-          if (
-            typeof parsed === 'object' &&
-            parsed !== null &&
-            'error_code' in parsed &&
-            parsed.error_code === 'session_ended'
-          )
-            throw new Error('CUA refused: session_ended');
+      let foregroundBefore: number | undefined;
+      const result = await waitForAbort(
+        Promise.resolve().then(async () => {
+          operation.signal.throwIfAborted();
+          // The driver's compact default omits structured controls and route metadata.
+          // Both are required for protected-field checks and exact background grants.
+          const input =
+            tool === 'get_window_state'
+              ? { ...args, tree_format: 'elements', verbose: true }
+              : args;
           if (protectDesktop) {
-            const foreground = await readForegroundPid(driver, operation.signal);
+            const targetPid =
+              context.kind === 'turn' && BROWSER_INPUT_TOOLS.has(tool)
+                ? (context.backgroundTargetPid ?? args.pid)
+                : args.pid;
+            const foreground = await this.#foregroundPid(driver!, operation.signal);
             operation.signal.throwIfAborted();
-            if (foreground === undefined || foreground !== foregroundBefore) {
-              const native =
-                typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
-                  ? parsed
-                  : { native_result: parsed };
-              parsed = {
-                ...native,
-                ...(foreground === undefined
-                  ? { background_focus_unverified: true }
-                  : { background_focus_changed: true }),
-              };
-            }
+            if (
+              foreground === undefined ||
+              typeof targetPid !== 'number' ||
+              !Number.isInteger(targetPid) ||
+              targetPid <= 0
+            )
+              throw new Error('CUA refused: background_focus_unavailable');
+            if (foreground === targetPid) throw new Error('CUA refused: foreground_app_in_use');
+            foregroundBefore = foreground;
           }
-          return withDriverImages(parsed, result.images);
-        } catch (error) {
-          // The SDK's implicit inspection session expires while Sia stays open.
-          // Renew only unscoped, read-only inventory. Never replay input or revive
-          // an explicitly ended named/browser session under a new authority.
-          if (
-            attempt !== 0 ||
-            !['list_apps', 'list_windows'].includes(tool) ||
-            args.session !== undefined ||
-            operation.signal.aborted ||
-            !(error instanceof Error) ||
-            !/^(?:CUA refused: )?session_ended$/.test(error.message)
-          )
-            throw error;
-          this.#retireDriver(driver);
-          driver = await waitForAbort(this.#getDriver(), operation.signal);
+          return ['list_apps', 'list_windows'].includes(tool) && args.session === undefined
+            ? this.#readInventory(driver!, tool, input, operation.signal)
+            : driver!.callTool(tool, JSON.stringify(input), { signal: operation.signal });
+        }),
+        operation.signal,
+      );
+      if (result.errorCode) throw new Error(`CUA refused: ${result.errorCode}`);
+      const json = result.structuredJson ?? result.rawJson;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(json) as unknown;
+      } catch {
+        parsed = { text: json };
+      }
+      if (
+        typeof parsed === 'object' &&
+        parsed !== null &&
+        'error_code' in parsed &&
+        parsed.error_code === 'session_ended'
+      )
+        throw new Error('CUA refused: session_ended');
+      if (protectDesktop) {
+        const foreground = await this.#foregroundPid(driver, operation.signal);
+        operation.signal.throwIfAborted();
+        if (foreground === undefined || foreground !== foregroundBefore) {
+          const native =
+            typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+              ? parsed
+              : { native_result: parsed };
+          parsed = {
+            ...native,
+            ...(foreground === undefined
+              ? { background_focus_unverified: true }
+              : { background_focus_changed: true }),
+          };
         }
       }
+      return withDriverImages(parsed, result.images);
     } finally {
       clock.pause();
       signal?.removeEventListener('abort', abortFromCaller);
@@ -549,6 +532,58 @@ export class CuaService {
     if (!driver) return;
     await driver.shutdown();
     driver.uniffiDestroy?.();
+  }
+
+  async #readInventory(
+    driver: DriverLike,
+    tool: string,
+    args: Record<string, unknown>,
+    signal: AbortSignal,
+  ): Promise<DriverResult> {
+    for (let attempt = 0; ; attempt++) {
+      signal.throwIfAborted();
+      try {
+        const result = await driver.callTool(
+          tool,
+          JSON.stringify({ ...args, session: this.#inventorySession }),
+          { signal },
+        );
+        let ended = result.errorCode === 'session_ended';
+        try {
+          const value: unknown = JSON.parse(result.structuredJson ?? result.rawJson);
+          ended ||=
+            !!value &&
+            typeof value === 'object' &&
+            'error_code' in value &&
+            value.error_code === 'session_ended';
+        } catch {
+          /* Leave malformed responses to the ordinary result parser. */
+        }
+        if (ended) throw new Error('CUA refused: session_ended');
+        return result;
+      } catch (error) {
+        if (
+          attempt ||
+          signal.aborted ||
+          !(error instanceof Error) ||
+          !/^(?:CUA refused: )?session_ended$/.test(error.message)
+        )
+          throw error;
+        // Only host-owned, read-only inventory is renewed. Browser/window sessions
+        // and input are never retried, and the shared runtime stays alive.
+        this.#inventorySession = `sia-inventory-${randomUUID()}`;
+      }
+    }
+  }
+
+  async #foregroundPid(driver: DriverLike, signal: AbortSignal): Promise<number | undefined> {
+    try {
+      return readForegroundPid(
+        await waitForAbort(this.#readInventory(driver, 'list_apps', {}, signal), signal),
+      );
+    } catch {
+      return undefined;
+    }
   }
 
   async #getDriver(): Promise<DriverLike> {
@@ -639,12 +674,8 @@ export class CuaService {
 }
 
 /** Live native inventory only; never infer focus from a window title or cached snapshot. */
-async function readForegroundPid(
-  driver: DriverLike,
-  signal: AbortSignal,
-): Promise<number | undefined> {
+function readForegroundPid(result: DriverResult): number | undefined {
   try {
-    const result = await waitForAbort(driver.callTool('list_apps', '{}', { signal }), signal);
     if (result.errorCode) return undefined;
     const parsed: unknown = JSON.parse(result.structuredJson ?? result.rawJson);
     if (

@@ -216,6 +216,16 @@ when text is insufficient, context menus and screenshot double-clicks where supp
 refusal must stop the affected skill/action without replay. These checks are opt-in; none run when
 Sia launches.
 
+The opt-in [runtime-session check](../apps/desktop/src/main/mac/cua-session.smoke.test.ts)
+runs the real bundled Cua runtime without a model turn, window capture, browser access, input,
+app launch or permission prompt. Run
+`SIA_REAL_CUA_SESSION_PROBE=1 pnpm --filter @sia/desktop exec vitest run src/main/mac/cua-session.smoke.test.ts`.
+It explicitly ends only its own inventory session, checks bounded renewal, and proves a separate
+named read session survives in the same runtime. This check passed locally with Cua 0.37.0;
+it does not establish private-account or GUI-task success. Unit cases additionally cover trusted
+background clicks without silent synthetic fallback, long-page continuations, consumed refs,
+brief driver-reported activation, and live permission grants that need no extra setup restart.
+
 The opt-in [background workflow smoke](../apps/desktop/src/main/actions/background-workflows.smoke.test.ts)
 uses a real Codex model and real workspace files/sandboxed Bash, with GUI calls denied. Run it with
 `SIA_CODEX_REAL_SMOKE=1 SIA_BACKGROUND_WORKFLOWS_SMOKE=1` and an offered `SIA_SMOKE_MODEL`.

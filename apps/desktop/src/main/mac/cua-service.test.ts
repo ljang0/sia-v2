@@ -362,7 +362,7 @@ describe('confirming granted access through the driver', () => {
     await expect(cua.permissions()).resolves.toMatchObject({
       status: 'ready',
       verified: 'failed',
-      detail: expect.stringContaining('could not read the screen'),
+      detail: expect.stringContaining('Your permissions have not been reset'),
     });
   });
 
@@ -467,25 +467,91 @@ it('keeps simulated permission setup away from the native permission API', async
 });
 
 describe('CuaService call boundaries', () => {
+  it('renews an idle focus check without resetting browser authority or replaying input', async () => {
+    let reads = 0;
+    const driver = successfulDriver({});
+    driver.callTool.mockImplementation(async (name) => {
+      if (name === 'list_apps' && ++reads === 1)
+        return { rawJson: JSON.stringify({ error_code: 'session_ended' }) };
+      return {
+        rawJson: JSON.stringify(
+          name === 'list_apps' ? { apps: [{ pid: 7, active: true }] } : { effect: 'confirmed' },
+        ),
+      };
+    });
+    const factory = vi.fn(() => driver);
+    const service = new CuaService(authorization(), { driverFactory: factory });
+    expect(
+      await service.call(
+        'browser_click',
+        {
+          session: 'approved-browser',
+          target_id: 'exact-target',
+          tab_id: 'exact-tab',
+          delivery_mode: 'background',
+        },
+        {
+          kind: 'turn',
+          threadId: 't',
+          turnId: 'u',
+          backgroundOnly: true,
+          backgroundTargetPid: 42,
+        },
+      ),
+    ).toMatchObject({ effect: 'confirmed' });
+    expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual([
+      'list_apps',
+      'list_apps',
+      'browser_click',
+      'list_apps',
+    ]);
+    expect(factory).toHaveBeenCalledOnce();
+    expect(driver.shutdown).not.toHaveBeenCalled();
+    const calls = driver.callTool.mock.calls.map(
+      ([, args]) => JSON.parse(args) as { session: string },
+    );
+    expect(calls[2]!.session).toBe('approved-browser');
+    expect(calls[1]!.session).toBe(calls[3]!.session);
+    expect(calls[0]!.session).not.toBe(calls[1]!.session);
+  });
+
   it.each(['errorCode', 'structured', 'thrown'] as const)(
-    'renews an expired implicit inventory session once: %s',
+    'renews only expired inventory without dropping live browser grants: %s',
     async (shape) => {
-      const expired = successfulDriver({ error_code: 'session_ended' });
+      const driver = successfulDriver({ apps: [{ pid: 42, name: 'Calculator' }] });
       if (shape === 'errorCode')
-        expired.callTool.mockResolvedValue({ rawJson: '{}', errorCode: 'session_ended' } as {
+        driver.callTool.mockResolvedValueOnce({ rawJson: '{}', errorCode: 'session_ended' } as {
           rawJson: string;
         });
-      if (shape === 'thrown')
-        expired.callTool.mockRejectedValue(new Error('CUA refused: session_ended'));
-      const healthy = successfulDriver({ apps: [{ pid: 42, name: 'Calculator' }] });
-      const factory = vi.fn().mockReturnValueOnce(expired).mockReturnValueOnce(healthy);
+      else if (shape === 'thrown')
+        driver.callTool.mockRejectedValueOnce(new Error('CUA refused: session_ended'));
+      else
+        driver.callTool.mockResolvedValueOnce({
+          rawJson: JSON.stringify({ error_code: 'session_ended' }),
+        });
+      const factory = vi.fn(() => driver);
       const service = new CuaService(authorization(), { driverFactory: factory });
       expect(await service.call('list_apps', {}, directContext)).toEqual({
         apps: [{ pid: 42, name: 'Calculator' }],
       });
-      expect(expired.callTool).toHaveBeenCalledOnce();
-      expect(healthy.callTool).toHaveBeenCalledOnce();
-      expect(expired.shutdown).toHaveBeenCalledOnce();
+      expect(driver.callTool).toHaveBeenCalledTimes(2);
+      const sessions = driver.callTool.mock.calls.map(
+        ([, args]) => JSON.parse(args).session as string,
+      );
+      expect(sessions[0]).toMatch(/^sia-inventory-/);
+      expect(sessions[1]).toMatch(/^sia-inventory-/);
+      expect(sessions[1]).not.toBe(sessions[0]);
+      expect(factory).toHaveBeenCalledOnce();
+      expect(driver.shutdown).not.toHaveBeenCalled();
+      await service.call(
+        'get_browser_state',
+        { session: 'existing-browser-grant', target_id: 'target', tab_id: 'tab' },
+        directContext,
+      );
+      expect(JSON.parse(driver.callTool.mock.calls[2]![1]).session).toBe(
+        'existing-browser-grant',
+      );
+      expect(factory).toHaveBeenCalledOnce();
     },
   );
 
@@ -505,12 +571,15 @@ describe('CuaService call boundaries', () => {
   });
 
   it('bounds recovery when a replacement inventory session is also ended', async () => {
-    const factory = vi.fn(() => successfulDriver({ error_code: 'session_ended' }));
+    const driver = successfulDriver({ error_code: 'session_ended' });
+    const factory = vi.fn(() => driver);
     const service = new CuaService(authorization(), { driverFactory: factory });
     await expect(service.call('list_windows', {}, directContext)).rejects.toThrow(
       'session_ended',
     );
-    expect(factory).toHaveBeenCalledTimes(2);
+    expect(factory).toHaveBeenCalledOnce();
+    expect(driver.callTool).toHaveBeenCalledTimes(2);
+    expect(driver.shutdown).not.toHaveBeenCalled();
   });
 
   it('cancels a queued call promptly without letting a later call overtake the active one', async () => {
@@ -613,17 +682,16 @@ describe('CuaService call boundaries', () => {
     expect(old.shutdown).toHaveBeenCalledOnce();
   });
 
-  it('also retires initialization that times out while replacing an expired session', async () => {
+  it('retires a hung inventory renewal while keeping its retry budget bounded', async () => {
     vi.useFakeTimers();
-    const late = Promise.withResolvers<ReturnType<typeof successfulDriver>>();
+    const hung = Promise.withResolvers<{ rawJson: string }>();
     const expired = successfulDriver({ error_code: 'session_ended' });
-    const stale = successfulDriver({ stale: true });
+    expired.callTool.mockResolvedValueOnce({
+      rawJson: JSON.stringify({ error_code: 'session_ended' }),
+    });
+    expired.callTool.mockImplementationOnce(() => hung.promise);
     const healthy = successfulDriver({ healthy: true });
-    const factory = vi
-      .fn()
-      .mockReturnValueOnce(expired)
-      .mockReturnValueOnce(late.promise)
-      .mockReturnValueOnce(healthy);
+    const factory = vi.fn().mockReturnValueOnce(expired).mockReturnValueOnce(healthy);
     const service = new CuaService(authorization(), {
       callTimeoutMs: 25,
       driverFactory: factory,
@@ -632,10 +700,12 @@ describe('CuaService call boundaries', () => {
     const failure = expect(pending).rejects.toThrow('timed out');
     await vi.advanceTimersByTimeAsync(25);
     await failure;
-    late.resolve(stale);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(stale.shutdown).toHaveBeenCalledOnce();
+    expect(expired.callTool).toHaveBeenCalledTimes(2);
+    expect(expired.shutdown).toHaveBeenCalledOnce();
     expect(await service.call('list_apps', {}, directContext)).toEqual({ healthy: true });
+    hung.resolve({ rawJson: '{}' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(await service.call('list_windows', {}, directContext)).toEqual({ healthy: true });
   });
   it('does not count time waiting on the person to approve toward the call timeout', async () => {
     vi.useFakeTimers();

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import {
   actionResult,
@@ -343,6 +344,9 @@ export class MacBrowserControl {
     window: ComputerWindowBinding,
     request: ValidatedActionInvocation,
   ): Promise<ActionExecutionResult> {
+    const wait = request.arguments.wait_ms;
+    if (typeof wait === 'number' && wait > 0)
+      await delay(Math.min(3000, wait), undefined, { signal: request.context.signal });
     if (!(await this.inventory.windowStillValid(window, request)))
       return stale('The browser window changed.');
     const tabs = await this.#read(window, request, false);
@@ -354,7 +358,15 @@ export class MacBrowserControl {
       result = await this.#client(window).actions.snapshot({
         ...request,
         name: 'browser_snapshot',
-        arguments: { tab_id: tab.nativeId },
+        arguments: {
+          tab_id: tab.nativeId,
+          ...(request.arguments.continue_from
+            ? { continue_from: request.arguments.continue_from }
+            : {}),
+          ...(request.arguments.include_image !== undefined
+            ? { include_image: request.arguments.include_image }
+            : {}),
+        },
       });
     } catch (error) {
       if (error instanceof Error && /\bsession_ended\b/.test(error.message))
@@ -426,15 +438,16 @@ export class MacBrowserControl {
         : undefined;
     if (!tab) return this.#selection(window, tabs);
     if (samePageUrl(tab.url, url))
-      return this.#wrap(
-        window,
-        tab,
-        await this.#client(window).actions.snapshot({
-          ...request,
-          name: 'browser_snapshot',
-          arguments: { tab_id: tab.nativeId },
-        }),
-      );
+      return this.snapshot(window, {
+        ...request,
+        name: 'computer_snapshot',
+        arguments: {
+          app_id: window.appId,
+          window_id: window.id,
+          tab_id: tab.id,
+          expected_url: url,
+        },
+      });
     this.#revoke(window);
     let raw: unknown;
     try {
@@ -463,15 +476,33 @@ export class MacBrowserControl {
         arguments: { tab_id: tab.nativeId },
       });
     } catch {
-      return this.#unobservedNavigation(window);
+      return this.#unobservedNavigation(window, undefined, tab.id);
     }
-    if (observed.outcome !== 'verified') return this.#unobservedNavigation(window, observed);
+    if (observed.outcome !== 'verified')
+      return this.#unobservedNavigation(window, observed, tab.id);
+    const snapshotId = asRecord(observed.data)?.snapshot_id;
+    const captured =
+      typeof snapshotId === 'string'
+        ? this.#client(window).context.browser.snapshots.get(snapshotId)
+        : undefined;
+    if (!captured || !samePageUrl(captured.url, url)) {
+      if (captured) {
+        this.#client(window).context.browser.snapshots.delete(captured.id);
+        this.#client(window).context.browser.latestSnapshot.delete(captured.tabId);
+      }
+      return {
+        ...this.#unobservedNavigation(window, undefined, tab.id),
+        summary:
+          'Navigation was accepted, but the observed page is not the requested destination yet. No mismatched page content was returned. Observe this exact tab again and verify any redirect; do not navigate again blindly.',
+      };
+    }
     return this.#wrap(window, tab, observed);
   }
 
   #unobservedNavigation(
     window: ComputerWindowBinding,
     observed?: ActionExecutionResult,
+    tabId?: string,
   ): ActionExecutionResult {
     const authentication = asRecord(observed?.data)?.observed_authentication === true;
     return {
@@ -482,7 +513,11 @@ export class MacBrowserControl {
       data: {
         app_id: window.appId,
         window_id: window.id,
+        ...(tabId ? { tab_id: tabId } : {}),
         input_delivery_uncertain: true,
+        next_step: authentication
+          ? 'The person completes sign-in in this browser; leave the protected page untouched.'
+          : 'Use computer_snapshot with these app/window/tab ids and wait_ms:500. Verify the live page and any redirect before continuing; do not repeat navigation blindly.',
         ...(authentication
           ? { observed_authentication: true, blocker_code: 'authentication_surface' }
           : {}),
