@@ -237,6 +237,9 @@ release their text/images. Failed input acknowledgements remain uncertain and mu
 replay. The browser identity helper distinguishes its bounded timeout, native failure and invalid
 output from a genuine unavailable/protected page; none of these alone proves sign-out. Its
 identity recheck must not re-enable AX features and rebuild the page's accessibility tree.
+One incomplete/timed-out identity scan may repeat its fixed read once. The retry must start a
+fresh security scan, preserve the exact target and stop on a protected/permanent failure. No
+input is replayed, partial content is never reused, and the per-read deadline stays bounded.
 Keep an inactive CMU login tab beside an ordinary signed-in Safari page. Its native unselected
 tab label must not turn the ordinary page into an authentication refusal. Selecting the actual
 login tab must still suppress its content, screenshot and input capabilities. Secure fields,

@@ -109,6 +109,19 @@ View that PNG with view_image. Use the returned image-to-screen transform; do no
   async inspect(pid: number, windowId: number): Promise<BrowserWindowState> {
     if (![pid, windowId].every((value) => Number.isInteger(value) && value > 0))
       return { status: 'unavailable', reason: 'window' };
+    for (let attempt = 0; ; attempt++) {
+      const state = await this.#inspectOnce(pid, windowId);
+      if (
+        attempt ||
+        state.status !== 'unavailable' ||
+        !['incomplete', 'helper_timeout'].includes(state.reason ?? '')
+      )
+        return state;
+      // A cold or rebuilding AX tree can miss one bounded scan. Repeat only
+      // this fixed read, not input; no partial content or old identity is reused.
+    }
+  }
+  async #inspectOnce(pid: number, windowId: number): Promise<BrowserWindowState> {
     let stdout: string;
     try {
       ({ stdout } = await exec(
