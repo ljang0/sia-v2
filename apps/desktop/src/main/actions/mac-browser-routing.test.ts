@@ -467,6 +467,49 @@ describe('Use my Mac browser routing', () => {
     expect(h.cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(true);
   });
 
+  it('reads an ordinary Safari page beside an inactive login tab but never reads the login destination', async () => {
+    const h = browserHarness();
+    h.navigate('https://autolab.andrew.cmu.edu/courses/15122-f26');
+    const implementation = h.cua.call.getMockImplementation()!;
+    h.cua.call.mockImplementation(async (tool, args) =>
+      tool === 'get_window_state'
+        ? {
+            elements: [
+              {
+                element_token: 's00000001:1',
+                role: 'AXLink',
+                label: 'Assessments',
+              },
+              {
+                element_token: 's00000001:2',
+                role: 'AXRadioButton',
+                label: 'login.cmu.edu',
+                selected: false,
+                actions: ['Name:close tab\nTarget:0x123abc\nSelector:_closeButtonClicked:'],
+              },
+            ],
+          }
+        : implementation(tool, args),
+    );
+    const ids = await capture(h);
+    expect(ids.snapshot_id).toBeTypeOf('string');
+    expect(
+      (await h.backend.invoke(request('computer_action', { ...ids, action: 'click' }))).outcome,
+    ).toBe('accepted_unverified');
+    const reads = h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state').length;
+    h.navigate('https://login.cmu.edu/idp/profile/');
+    const login = await h.backend.invoke(
+      request('computer_snapshot', { app_id: ids.app_id, window_id: ids.window_id }),
+    );
+    expect(login.outcome).toBe('refused');
+    expect(login.images).toBeUndefined();
+    expect(dataRecord(login.data).elements).toBeUndefined();
+    expect(dataRecord(login.data).blocker_code).toBe('protected_window');
+    expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(
+      reads,
+    );
+  });
+
   it('preserves live window ids through refresh and activation but revokes a closed window', async () => {
     const h = browserHarness();
     const args = await capture(h);

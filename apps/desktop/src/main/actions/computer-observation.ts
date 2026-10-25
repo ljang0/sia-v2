@@ -91,6 +91,10 @@ export class ComputerObservation {
   ): Promise<ActionExecutionResult> {
     const browser = this.inventory.isNativeBrowser(binding);
     let browserState = browser ? await this.inventory.nativeBrowserState(binding) : undefined;
+    const hasProtectedControls = (value: unknown) =>
+      windowHasProtectedControls(value, {
+        browserBundleId: browserState?.status === 'ready' ? browserState.bundleID : undefined,
+      });
     // A missing helper AX window is not a driver refusal. Let CUA resolve and
     // initialize the exact window once, then revalidate browser metadata before
     // releasing any captured content or minting an input capability.
@@ -142,7 +146,7 @@ export class ComputerObservation {
     let refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
     if (browserState?.status === 'unavailable') {
-      if (windowHasProtectedControls(raw))
+      if (hasProtectedControls(raw))
         return this.#browserObservationRefused(binding, { status: 'protected' });
       browserState = await this.inventory.nativeBrowserState(binding);
       if (browserState.status !== 'ready') {
@@ -178,7 +182,7 @@ export class ComputerObservation {
       !includeImage &&
       request.arguments.include_image === undefined &&
       this.ctx.macBackgroundControl() &&
-      !windowHasProtectedControls(raw) &&
+      !hasProtectedControls(raw) &&
       findElementRecords(raw, 'window').length === 0
     ) {
       try {
@@ -196,7 +200,7 @@ export class ComputerObservation {
     }
 
     const context =
-      this.ctx.macBrowserAccess() && !windowHasProtectedControls(raw)
+      this.ctx.macBrowserAccess() && !hasProtectedControls(raw)
         ? await this.ctx.options.readWindowContext?.(binding.pid, binding.windowId)
         : undefined;
     const readableContext =
@@ -220,15 +224,15 @@ export class ComputerObservation {
       this.ctx.macBrowserAccess() &&
       (request.arguments.read_text === true || readableContext?.partial === true) &&
       image &&
-      !windowHasProtectedControls(raw)
+      !hasProtectedControls(raw)
         ? await this.ctx.options.readImageText?.(image.dataBase64)
         : undefined;
     if (browser) {
       const after = await this.inventory.nativeBrowserState(binding);
-      if (windowHasProtectedControls(raw) || after.status !== 'ready')
+      if (hasProtectedControls(raw) || after.status !== 'ready')
         return this.#browserObservationRefused(
           binding,
-          windowHasProtectedControls(raw) ? { status: 'protected' } : after,
+          hasProtectedControls(raw) ? { status: 'protected' } : after,
         );
       if (after.url !== browserUrl)
         return {
@@ -245,7 +249,7 @@ export class ComputerObservation {
     if (title) this.ctx.computer.windows.set(binding.id, { ...binding, title });
     const snapshotId = randomUUID();
     const pixels =
-      !includeImage || windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
+      !includeImage || hasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
     const elementMap = new Map<string, NativeElementAddress>();
     const elements = findElementRecords(raw, 'window')
       .map((record, position) => {
@@ -284,7 +288,7 @@ export class ComputerObservation {
       .filter(isDefined);
     if (
       this.ctx.macBrowserAccess() &&
-      !windowHasProtectedControls(raw) &&
+      !hasProtectedControls(raw) &&
       !elements.length &&
       !pixels &&
       !readableContext?.text &&
@@ -343,7 +347,7 @@ export class ComputerObservation {
       ...(backgroundInput ? { backgroundInput } : {}),
       ...(browserUrl ? { browserUrl } : {}),
       capturedAt: Date.now(),
-      protectedControls: windowHasProtectedControls(raw),
+      protectedControls: hasProtectedControls(raw),
       ...(pixels ? { pixels } : {}),
       id: snapshotId,
       appId: binding.appId,
@@ -356,7 +360,7 @@ export class ComputerObservation {
     return {
       outcome: 'verified',
       summary: 'Captured a fresh state for the permitted window.',
-      ...(!includeImage || windowHasProtectedControls(raw) ? {} : actionImages(raw)),
+      ...(!includeImage || hasProtectedControls(raw) ? {} : actionImages(raw)),
       data: compact({
         snapshot_id: snapshotId,
         app_id: binding.appId,

@@ -41,3 +41,66 @@ it.each([
 ])('honors every structural credential marker alongside an ordinary role: %j', (element) => {
   expect(windowHasProtectedControls({ elements: [element] })).toBe(true);
 });
+
+const inactiveSafariLoginTab = {
+  role: 'AXRadioButton',
+  label: 'login.cmu.edu',
+  selected: false,
+  actions: ['AXPress', 'Name:close tab\nTarget:0x123abc\nSelector:_closeButtonClicked:'],
+};
+const safari = { browserBundleId: 'com.apple.Safari' };
+
+it('does not mistake an inactive native Safari tab title for the current page login form', () => {
+  expect(windowHasProtectedControls({ elements: [inactiveSafariLoginTab] }, safari)).toBe(
+    false,
+  );
+  for (const options of [{}, { browserBundleId: 'com.google.Chrome' }])
+    expect(windowHasProtectedControls({ elements: [inactiveSafariLoginTab] }, options)).toBe(
+      true,
+    );
+});
+
+it.each([
+  { selected: true },
+  { selected: undefined },
+  { selected: 'false' },
+  { role: 'AXButton' },
+  { actions: ['AXPress'] },
+  { actions: ['close tab'] },
+])('keeps active or ambiguous authentication controls blocked: %j', (change) => {
+  expect(
+    windowHasProtectedControls(
+      { elements: [{ ...inactiveSafariLoginTab, ...change }] },
+      safari,
+    ),
+  ).toBe(true);
+});
+
+it.each([
+  { subrole: 'AXSecureTextField' },
+  { label: 'password: [omitted]' },
+  { label: 'API key: [omitted]' },
+  { label: 'Verification code' },
+])('never exempts sensitive metadata even on an inactive native tab: %j', (change) => {
+  expect(
+    windowHasProtectedControls(
+      { elements: [{ ...inactiveSafariLoginTab, ...change }] },
+      safari,
+    ),
+  ).toBe(true);
+});
+
+it('still blocks a current login form beside inactive tab chrome', () => {
+  expect(
+    windowHasProtectedControls(
+      {
+        elements: [
+          inactiveSafariLoginTab,
+          { role: 'AXTextField', input_type: 'password' },
+          { role: 'AXButton', label: 'Sign in' },
+        ],
+      },
+      safari,
+    ),
+  ).toBe(true);
+});

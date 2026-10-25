@@ -59,6 +59,7 @@ export class ComputerInput {
     ) {
       return stale('The window snapshot is missing, superseded, or belongs to another window.');
     }
+    let verifiedBrowserBundleId: string | undefined;
     if (this.inventory.isNativeBrowser(binding)) {
       if (args.action === 'menu')
         return refused(
@@ -69,6 +70,7 @@ export class ComputerInput {
         return stale(
           'The browser page changed or needs login. Capture a fresh browser window state before continuing; do not replay the previous action.',
         );
+      verifiedBrowserBundleId = current.bundleID;
       if (
         typeof args.text === 'string' &&
         /(?:javascript|data|file|chrome|safari|about|devtools|view-source|vbscript)\s*:/i.test(
@@ -182,7 +184,7 @@ export class ComputerInput {
       });
       const denied = resultRefusal(current);
       if (denied) return denied;
-      if (windowHasProtectedControls(current))
+      if (windowHasProtectedControls(current, { browserBundleId: verifiedBrowserBundleId }))
         return refused('Pixel actions are blocked on windows containing protected controls.');
       if (backgroundDelivery) {
         const availability = windowBackgroundInput(current, binding);

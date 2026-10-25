@@ -246,7 +246,10 @@ function passwordLabelIsProtected(role: string, label: string): boolean {
   return /password/i.test(literal);
 }
 
-export function windowHasProtectedControls(value: unknown): boolean {
+export function windowHasProtectedControls(
+  value: unknown,
+  options: { browserBundleId?: string | undefined } = {},
+): boolean {
   return ['elements', 'nodes']
     .flatMap((key) => findRecordArray(value, key))
     .filter((record) => !isHiddenWindowStructure(record))
@@ -261,13 +264,27 @@ export function windowHasProtectedControls(value: unknown): boolean {
         (text) =>
           typeof text === 'string' && passwordLabelIsProtected(String(record.role), text),
       );
+      // Safari exposes inactive tab titles as AXRadioButtons. A tab named
+      // login.example.edu is navigation chrome, not the current page's login
+      // form. Require Safari's native close-tab action and explicit unselected
+      // state; a web radio control or missing state must not gain this exception.
+      const inactiveSafariTab =
+        options.browserBundleId?.toLowerCase() === 'com.apple.safari' &&
+        record.role === 'AXRadioButton' &&
+        record.selected === false &&
+        Array.isArray(record.actions) &&
+        record.actions.some(
+          (action: unknown) =>
+            typeof action === 'string' &&
+            /^Name:close tab\nTarget:0x[0-9a-f]+\nSelector:_closeButtonClicked:$/i.test(action),
+        );
       return (
         isProtectedElement(record) ||
         password ||
+        /(?:secure|verification code|passkey|api.?key|access.?token)/i.test(label) ||
         // Match authentication words, not "signing"/"blogging" in public page labels.
-        /(?:secure|\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat|verification code|passkey|api.?key|access.?token)/i.test(
-          label,
-        )
+        (!inactiveSafariTab &&
+          /(?:\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat)/i.test(label))
       );
     });
 }

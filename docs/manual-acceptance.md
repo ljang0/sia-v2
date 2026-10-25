@@ -237,6 +237,10 @@ release their text/images. Failed input acknowledgements remain uncertain and mu
 replay. The browser identity helper distinguishes its bounded timeout, native failure and invalid
 output from a genuine unavailable/protected page; none of these alone proves sign-out. Its
 identity recheck must not re-enable AX features and rebuild the page's accessibility tree.
+Keep an inactive CMU login tab beside an ordinary signed-in Safari page. Its native unselected
+tab label must not turn the ordinary page into an authentication refusal. Selecting the actual
+login tab must still suppress its content, screenshot and input capabilities. Secure fields,
+credential disclosures and active or ambiguous authentication controls remain blocked.
 
 The opt-in [background workflow smoke](../apps/desktop/src/main/actions/background-workflows.smoke.test.ts)
 uses a real Codex model and real workspace files/sandboxed Bash, with GUI calls denied. Run it with
