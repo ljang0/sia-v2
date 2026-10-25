@@ -16,6 +16,7 @@ it('prefers the newest admitted installation and excludes future, broken and mis
     'modern',
     'sol61',
     'currentDesktop',
+    'latestDesktop',
   ];
   try {
     for (const name of names) {
@@ -31,6 +32,7 @@ it('prefers the newest admitted installation and excludes future, broken and mis
       modern: '0.160.0',
       sol61: '0.162.0-alpha.2',
       currentDesktop: '0.163.0-alpha.11.2',
+      latestDesktop: '0.164.0-alpha.11.1',
     };
     const options = {
       environment: { PATH: root },
@@ -44,6 +46,8 @@ it('prefers the newest admitted installation and excludes future, broken and mis
         return `codex-cli ${versions[name]}`;
       },
     };
+    expect(await discoverCodexInstallation(options)).toBe(join(root, 'latestDesktop'));
+    await rm(join(root, 'latestDesktop'));
     expect(await discoverCodexInstallation(options)).toBe(join(root, 'currentDesktop'));
     await rm(join(root, 'currentDesktop'));
     expect(await discoverCodexInstallation(options)).toBe(join(root, 'sol61'));

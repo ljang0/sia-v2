@@ -252,6 +252,97 @@ it('requests structured controls and background grants instead of the compact ma
   }
 });
 
+it.each(['get_window_state', 'list_windows'])(
+  'does not turn an MCP %s error into an empty successful observation or leak its content',
+  async (tool) => {
+    const driver = successfulDriver({
+      isError: true,
+      content: [{ type: 'text', text: 'private page text and native internals' }],
+      apps: [{ pid: 7, active: true }],
+    });
+    const service = new CuaService(authorization(), { driverFactory: () => driver });
+    try {
+      await expect(
+        service.call(tool, { pid: 42, window_id: 91 }, directContext),
+      ).rejects.toThrow(`CUA tool ${tool} failed without a structured result.`);
+      expect(driver.callTool).toHaveBeenCalledTimes(1);
+    } finally {
+      await service.shutdown();
+    }
+  },
+);
+
+it.each(['unchanged', 'changed', 'unknown'])(
+  'preserves input uncertainty and the focus check after an MCP error: %s',
+  async (focus) => {
+    let inventories = 0;
+    const driver = {
+      ...successfulDriver({}),
+      callTool: vi.fn(async (tool: string) => ({
+        rawJson: JSON.stringify(
+          tool === 'list_apps'
+            ? {
+                apps:
+                  ++inventories === 2 && focus === 'unknown'
+                    ? []
+                    : [
+                        {
+                          pid: inventories === 2 && focus === 'changed' ? 42 : 7,
+                          active: true,
+                        },
+                      ],
+              }
+            : { isError: true, content: [{ type: 'text', text: 'private native error' }] },
+        ),
+        images: [{ mimeType: 'image/png', dataBase64: 'private-error-image' }],
+      })),
+    };
+    const service = new CuaService(authorization(), { driverFactory: () => driver });
+    try {
+      const call = service.call(
+        'click',
+        { pid: 42, window_id: 91, delivery_mode: 'background' },
+        { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+      );
+      if (focus === 'unchanged')
+        await expect(call).rejects.toThrow(
+          'CUA tool click failed without a structured result.',
+        );
+      else
+        expect(await call).toEqual({
+          native_tool_error: true,
+          ...(focus === 'changed'
+            ? { background_focus_changed: true }
+            : { background_focus_unverified: true }),
+        });
+      expect(driver.callTool.mock.calls.map(([tool]) => tool)).toEqual([
+        'list_apps',
+        'click',
+        'list_apps',
+      ]);
+    } finally {
+      await service.shutdown();
+    }
+  },
+);
+
+it('does not trust focus metadata supplied with an MCP inventory error', async () => {
+  const driver = successfulDriver({ isError: true, apps: [{ pid: 7, active: true }] });
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(
+      service.call(
+        'click',
+        { pid: 42, window_id: 91, delivery_mode: 'background' },
+        { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+      ),
+    ).rejects.toThrow('CUA refused: background_focus_unavailable');
+    expect(driver.callTool.mock.calls.map(([tool]) => tool)).toEqual(['list_apps']);
+  } finally {
+    await service.shutdown();
+  }
+});
+
 it.each(['ready', 'unavailable'] as const)(
   'does not request permissions again when computer access is %s',
   async (status) => {

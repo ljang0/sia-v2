@@ -226,6 +226,14 @@ it does not establish private-account or GUI-task success. Unit cases additional
 background clicks without silent synthetic fallback, long-page continuations, consumed refs,
 brief driver-reported activation, and live permission grants that need no extra setup restart.
 
+Background startup must also expose a hidden document to the renderer: animated effects must
+pause before the first explicit open, and opening Sia later must restore visibility normally.
+Native MCP error envelopes must fail safely, never appear as empty successful observations or
+release their text/images. Failed input acknowledgements remain uncertain and must not trigger
+replay. The browser identity helper distinguishes its bounded timeout, native failure and invalid
+output from a genuine unavailable/protected page; none of these alone proves sign-out. Its
+identity recheck must not re-enable AX features and rebuild the page's accessibility tree.
+
 The opt-in [background workflow smoke](../apps/desktop/src/main/actions/background-workflows.smoke.test.ts)
 uses a real Codex model and real workspace files/sandboxed Bash, with GUI calls denied. Run it with
 `SIA_CODEX_REAL_SMOKE=1 SIA_BACKGROUND_WORKFLOWS_SMOKE=1` and an offered `SIA_SMOKE_MODEL`.

@@ -12,7 +12,18 @@ const result = z.discriminatedUnion('status', [
   }),
   z.object({
     status: z.enum(['protected', 'unavailable']),
-    reason: z.enum(['accessibility', 'window', 'ambiguous', 'incomplete', 'page']).optional(),
+    reason: z
+      .enum([
+        'accessibility',
+        'window',
+        'ambiguous',
+        'incomplete',
+        'page',
+        'helper_timeout',
+        'helper_error',
+        'invalid_response',
+      ])
+      .optional(),
   }),
 ]);
 const contextResult = z.discriminatedUnion('status', [
@@ -97,16 +108,27 @@ View that PNG with view_image. Use the returned image-to-screen transform; do no
   }
   async inspect(pid: number, windowId: number): Promise<BrowserWindowState> {
     if (![pid, windowId].every((value) => Number.isInteger(value) && value > 0))
-      return { status: 'unavailable' };
+      return { status: 'unavailable', reason: 'window' };
+    let stdout: string;
     try {
-      const { stdout } = await exec(
+      ({ stdout } = await exec(
         this.helperPath,
         ['--browser-window', String(pid), String(windowId)],
         { timeout: 5000, maxBuffer: 16384, env: { PATH: '/usr/bin:/bin' } },
-      );
+      ));
+    } catch (error) {
+      return {
+        status: 'unavailable',
+        reason:
+          error instanceof Error && 'killed' in error && error.killed === true
+            ? 'helper_timeout'
+            : 'helper_error',
+      };
+    }
+    try {
       return result.parse(JSON.parse(stdout));
     } catch {
-      return { status: 'unavailable' };
+      return { status: 'unavailable', reason: 'invalid_response' };
     }
   }
 }

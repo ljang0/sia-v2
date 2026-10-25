@@ -490,6 +490,10 @@ export class CuaService {
         parsed.error_code === 'session_ended'
       )
         throw new Error('CUA refused: session_ended');
+      // Some driver failures use an MCP envelope instead of errorCode. Its text
+      // can contain app content, so never release it as an observation or error.
+      const nativeToolError = isNativeToolError(parsed);
+      if (nativeToolError) parsed = { native_tool_error: true };
       if (protectDesktop) {
         const foreground = await this.#foregroundPid(driver, operation.signal);
         operation.signal.throwIfAborted();
@@ -504,8 +508,13 @@ export class CuaService {
               ? { background_focus_unverified: true }
               : { background_focus_changed: true }),
           };
+          // Preserve the desktop interruption even when the native input also
+          // failed. Its delivery is unknown; it must not be retried as unsent.
+          if (nativeToolError) return parsed;
         }
       }
+      if (nativeToolError)
+        throw new Error(`CUA tool ${tool} failed without a structured result.`);
       return withDriverImages(parsed, result.images);
     } finally {
       clock.pause();
@@ -678,6 +687,7 @@ function readForegroundPid(result: DriverResult): number | undefined {
   try {
     if (result.errorCode) return undefined;
     const parsed: unknown = JSON.parse(result.structuredJson ?? result.rawJson);
+    if (isNativeToolError(parsed)) return undefined;
     if (
       !parsed ||
       typeof parsed !== 'object' ||
@@ -697,6 +707,10 @@ function readForegroundPid(result: DriverResult): number | undefined {
   } catch {
     return undefined;
   }
+}
+
+function isNativeToolError(value: unknown): boolean {
+  return !!value && typeof value === 'object' && 'isError' in value && value.isError === true;
 }
 
 async function waitForAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {

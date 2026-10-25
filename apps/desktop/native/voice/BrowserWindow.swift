@@ -82,9 +82,12 @@ enum BrowserWindow {
         if protected { return ["status": "protected", "protected_role": protectedRole,
                                "protected_kind": protectedKind, "protected_label_length": protectedLabelLength,
                                "protected_label_words": protectedLabelWords] }
-        guard complete, Date() < deadline, NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == bundle,
-              let live = WindowContext.resolve(pid: pid, windowID: windowID), CFEqual(window, live),
-              Date() < deadline else { return ["status": "unavailable", "reason": "incomplete", "scan_stop": stop ?? "revalidation", "scan_nodes": nodes] }
+        guard complete, Date() < deadline else { return ["status": "unavailable", "reason": "incomplete", "scan_stop": stop ?? "time", "scan_nodes": nodes] }
+        guard NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == bundle,
+              WindowContext.stillMatches(window, pid: pid, windowID: windowID) else {
+            return ["status": "unavailable", "reason": "incomplete", "scan_stop": "identity_changed", "scan_nodes": nodes]
+        }
+        guard Date() < deadline else { return ["status": "unavailable", "reason": "incomplete", "scan_stop": "time", "scan_nodes": nodes] }
         // An empty browser window can be navigated without exposing a web account.
         if url == nil, webAreas == 0, ["Start Page", "New Tab", "Safari"].contains(title) { url = "about:blank" }
         guard let url, url.utf8.count <= 8192 else { return ["status": "unavailable", "reason": "page"] }

@@ -11,5 +11,6 @@ export const CODEX_SUPPORTED_VERSIONS = {
     '0.160.0',
     '0.162.0-alpha.2',
     '0.163.0-alpha.11.2',
+    '0.164.0-alpha.11.1',
   ],
 } as const;

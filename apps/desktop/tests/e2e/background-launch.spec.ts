@@ -23,6 +23,9 @@ test('a background launch serves the typed bridge without showing its window', a
         BrowserWindow.getAllWindows().every((window) => !window.isVisible()),
       ),
     ).toBe(true);
+    // A never-shown Electron window otherwise reports visible and keeps its
+    // graphics timers running despite consuming no screen space.
+    await expect.poll(() => harness.page.evaluate(() => document.hidden)).toBe(true);
     // Reopening in the background must not reveal an already-running instance either.
     await harness.application.evaluate(({ app }) => {
       app.emit('second-instance', {} as never, ['sia', '--background'], '', {});
@@ -43,6 +46,9 @@ test('a background launch serves the typed bridge without showing its window', a
         ),
       )
       .toBe(true);
+    await expect
+      .poll(() => harness.page.evaluate(() => document.visibilityState))
+      .toBe('visible');
     expect(harness.rendererErrors).toEqual([]);
   } finally {
     await harness.close();

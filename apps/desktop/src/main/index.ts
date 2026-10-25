@@ -299,6 +299,10 @@ async function performApplicationCreation(): Promise<void> {
     ...WINDOW_SIZE,
     ...(savedBounds ?? {}),
     show: false,
+    // Electron otherwise marks a never-shown window visible: its animations
+    // keep drawing and conversations can be marked read during background work.
+    // Quiet startup never waits for ready-to-show; an explicit open still shows it.
+    paintWhenInitiallyHidden: !keepWindowHidden,
     backgroundColor: windowBackgroundColor(nativeTheme.shouldUseDarkColors),
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },

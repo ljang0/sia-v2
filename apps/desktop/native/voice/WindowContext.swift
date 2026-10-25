@@ -129,7 +129,7 @@ enum WindowContext {
     }
 
     /// Resolve only a window owned by the requested process; never substitute focus.
-    static func resolve(pid: pid_t, windowID: CGWindowID) -> AXUIElement? {
+    static func resolve(pid: pid_t, windowID: CGWindowID, prepareAccessibility: Bool = true) -> AXUIElement? {
         guard AXIsProcessTrusted(),
               let info = (CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID) as? [[String: Any]])?.first,
               (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid,
@@ -139,8 +139,14 @@ enum WindowContext {
         let target = Identity(frame: frame, title: info[kCGWindowName as String] as? String, windowID: windowID)
         let root = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(root, 0.08)
-        AXUIElementSetAttributeValue(root, "AXManualAccessibility" as CFString, kCFBooleanTrue)
-        AXUIElementSetAttributeValue(root, "AXEnhancedUserInterface" as CFString, kCFBooleanTrue)
+        // Revalidation must only read identity: setting these again can rebuild
+        // the app's AX tree while we are verifying the captured window.
+        if prepareAccessibility {
+            for name in ["AXManualAccessibility", "AXEnhancedUserInterface"] {
+                let enabled: Bool? = attribute(root, name)
+                if enabled != true { AXUIElementSetAttributeValue(root, name as CFString, kCFBooleanTrue) }
+            }
+        }
         var windows: [AXUIElement] = attribute(root, kAXWindowsAttribute) ?? []
         // Chromium can omit AXWindows while exposing its window through focus or
         // root children. These are candidates only: every route must still match
@@ -170,6 +176,20 @@ enum WindowContext {
         }
         guard let index = matchingIndex(target: target, candidates: candidates.map(\.identity)) else { return nil }
         return candidates[index].element
+    }
+
+    /// Revalidate the already-resolved AX object directly. Re-enumerating every
+    /// window can consume the scan budget or create a new AX representation.
+    /// The strict public-AX fallback remains for systems without native IDs.
+    static func stillMatches(_ window: AXUIElement, pid: pid_t, windowID: CGWindowID) -> Bool {
+        if let nativeID = nativeWindowID(window, pid: pid) {
+            guard nativeID == windowID,
+                  let info = (CGWindowListCopyWindowInfo(.optionIncludingWindow, windowID) as? [[String: Any]])?.first else { return false }
+            return (info[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value == pid &&
+                (info[kCGWindowNumber as String] as? NSNumber)?.uint32Value == windowID
+        }
+        guard let live = resolve(pid: pid, windowID: windowID, prepareAccessibility: false) else { return false }
+        return CFEqual(window, live)
     }
 
     /// Notch reads static text as well as controls, converts NSNumber values, and
@@ -228,7 +248,7 @@ enum WindowContext {
             if !line.isEmpty, lines.last != line { lines.append(line); chars += line.utf16.count + 1 }
         }
         guard NSRunningApplication(processIdentifier: pid)?.bundleIdentifier == bundle,
-              let live = resolve(pid: pid, windowID: windowID), CFEqual(window, live), Date() < deadline else { return ["status": "unavailable"] }
+              stillMatches(window, pid: pid, windowID: windowID), Date() < deadline else { return ["status": "unavailable"] }
         let title: String = attribute(window, kAXTitleAttribute) ?? ""
         var result: [String: Any] = ["status": "ready", "bundleID": bundle, "title": FnContext.bounded(title, 300), "text": FnContext.bounded(lines.joined(separator: "\n"), 12000), "partial": partial]
         // Host-only identity for reusing an already-open authorized document.
