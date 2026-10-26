@@ -5,6 +5,7 @@ import {
   readFileSync,
   readdirSync,
   rmSync,
+  statSync,
   symlinkSync,
   utimesSync,
   writeFileSync,
@@ -174,6 +175,101 @@ describe('TrajectoryRecorder', () => {
     expect(readFileSync(join(active, 'events.jsonl'), 'utf8')).toContain('active history');
     expect(readFileSync(join(active, 'events.jsonl'), 'utf8')).toContain('new event');
     expect(existsSync(other)).toBe(false);
+  });
+
+  it('bounds a long active conversation without deleting its earlier evidence', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-trajectory-active-budget-'));
+    roots.push(root);
+    const recorder = new TrajectoryRecorder({
+      rootDirectory: root,
+      enabled: () => true,
+      maxBytes: 512,
+    });
+    recorder.record({ type: 'user_message', threadId: 'active', text: 'keep this request' });
+    const path = join(root, 'active', 'events.jsonl');
+    const first = readFileSync(path, 'utf8');
+    for (let index = 0; index < 20; index++) {
+      recorder.record({
+        type: 'action_result',
+        threadId: 'active',
+        text: 'fixture'.repeat(12),
+      });
+    }
+
+    const retained = readFileSync(path, 'utf8');
+    expect(Buffer.byteLength(retained)).toBeLessThanOrEqual(512);
+    expect(retained.startsWith(first)).toBe(true);
+    expect(
+      retained
+        .trim()
+        .split('\n')
+        .every((line) => JSON.parse(line)),
+    ).toBe(true);
+  });
+
+  it('rejects an oversized image event without orphaning images or evicting other evidence', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-trajectory-oversized-'));
+    roots.push(root);
+    const recorder = new TrajectoryRecorder({
+      rootDirectory: root,
+      enabled: () => true,
+      maxBytes: 512,
+    });
+    recorder.record({ type: 'user_message', threadId: 'other', text: 'keep' });
+    const previous = readFileSync(join(root, 'other', 'events.jsonl'), 'utf8');
+    recorder.record({ type: 'action_result', threadId: 'active' }, [
+      { mimeType: 'image/png', dataBase64: Buffer.alloc(1024).toString('base64') },
+    ]);
+
+    expect(readFileSync(join(root, 'other', 'events.jsonl'), 'utf8')).toBe(previous);
+    expect(existsSync(join(root, 'active'))).toBe(false);
+    recorder.record({ type: 'user_message', threadId: 'active', text: 'small event' });
+    expect(readdirSync(join(root, 'active'))).toEqual(['events.jsonl']);
+  });
+
+  it('does not grow an already oversized legacy active log', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-trajectory-legacy-budget-'));
+    roots.push(root);
+    mkdirSync(join(root, 'active'));
+    const path = join(root, 'active', 'events.jsonl');
+    const original = 'legacy evidence'.repeat(100);
+    writeFileSync(path, original);
+    const recorder = new TrajectoryRecorder({
+      rootDirectory: root,
+      enabled: () => true,
+      maxBytes: 512,
+    });
+
+    expect(() => recorder.record({ type: 'notice', threadId: 'active' })).not.toThrow();
+    expect(readFileSync(path, 'utf8')).toBe(original);
+  });
+
+  it('recounts partial image writes before admitting another event', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-trajectory-partial-write-'));
+    roots.push(root);
+    const active = join(root, 'active');
+    mkdirSync(join(active, 'events.jsonl'), { recursive: true });
+    const recorder = new TrajectoryRecorder({
+      rootDirectory: root,
+      enabled: () => true,
+      maxBytes: 512,
+    });
+    const image = { mimeType: 'image/png', dataBase64: Buffer.alloc(200).toString('base64') };
+    // The image succeeds but appending the row fails: an interrupted write must
+    // not leave the cached size smaller than the actual on-disk evidence.
+    expect(() =>
+      recorder.record({ type: 'action_result', threadId: 'active' }, [image]),
+    ).not.toThrow();
+    rmSync(join(active, 'events.jsonl'), { recursive: true });
+    recorder.record({ type: 'action_result', threadId: 'active' }, [image]);
+
+    const bytes = readdirSync(active).reduce(
+      (total, name) => total + statSync(join(active, name)).size,
+      0,
+    );
+    expect(bytes).toBeLessThanOrEqual(512);
+    recorder.record({ type: 'notice', threadId: 'active' });
+    expect(readFileSync(join(active, 'events.jsonl'), 'utf8')).toContain('notice');
   });
 
   it('does not follow symbolic links while pruning app-owned trajectory directories', () => {

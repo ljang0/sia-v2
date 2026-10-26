@@ -19,8 +19,10 @@ import { join } from 'node:path';
  * JSONL rows. Google Workspace connector turns are removed and suppressed. The remaining exact
  * plain files stay on this Mac. When versioned raw research consent is
  * active, equivalent observed turn events are separately queued in encrypted research bundles.
- * Complete local thread directories roll off after 90 days or when this store exceeds 128 MiB;
- * the separately encrypted research outbox follows its own acknowledged-upload retention rules.
+ * Complete local thread directories roll off after 90 days or to make room within 128 MiB.
+ * If an event cannot fit without deleting the current thread, it is omitted, including images;
+ * the local diagnostic log is best effort, not a complete research export.
+ * The separately encrypted research outbox follows its own acknowledged-upload retention rules.
  */
 export interface TrajectoryEvent {
   readonly type: string;
@@ -116,7 +118,7 @@ export class TrajectoryRecorder {
         Buffer.byteLength(line) +
         preparedImages.reduce((total, image) => total + image.bytes.byteLength, 0);
       const directory = this.#threadDirectoryPath(event.threadId);
-      this.#maintainStorage(at.getTime(), incomingBytes, directory);
+      if (!this.#maintainStorage(at.getTime(), incomingBytes, directory)) return;
       mkdirSync(directory, { recursive: true });
       for (const image of preparedImages) {
         writeFileSync(join(directory, image.reference.file), image.bytes);
@@ -125,6 +127,8 @@ export class TrajectoryRecorder {
       this.#estimatedBytes = (this.#estimatedBytes ?? 0) + incomingBytes;
     } catch {
       // The log is best-effort evidence; a disk hiccup must never break the turn.
+      // An image or part of a row may have reached disk before the failure.
+      this.#estimatedBytes = undefined;
     }
   }
 
@@ -179,30 +183,38 @@ export class TrajectoryRecorder {
     }
   }
 
-  #maintainStorage(nowMs: number, incomingBytes: number, protectedDirectory: string): void {
+  #maintainStorage(nowMs: number, incomingBytes: number, protectedDirectory: string): boolean {
+    // Never evict other evidence for an event that cannot fit by itself.
+    if (incomingBytes > this.#maxBytes) return false;
     const due = nowMs - this.#lastMaintenanceMs >= this.#maintenanceIntervalMs;
     const overBudget =
       this.#estimatedBytes !== undefined &&
       this.#estimatedBytes + incomingBytes > this.#maxBytes;
-    if (this.#estimatedBytes !== undefined && !due && !overBudget) return;
+    if (this.#estimatedBytes !== undefined && !due && !overBudget) return true;
 
     mkdirSync(this.#root, { recursive: true });
     const cutoff = nowMs - this.#maxAgeMs;
     const groups = this.#storageGroups();
+    const retained = [];
+    let protectedBytes = 0;
     for (const group of groups) {
-      if (group.path === protectedDirectory) continue;
-      if (group.latestModifiedMs < cutoff) rmSync(group.path, { recursive: true, force: true });
+      if (group.path === protectedDirectory) {
+        protectedBytes = group.bytes;
+      } else if (group.latestModifiedMs < cutoff) {
+        rmSync(group.path, { recursive: true, force: true });
+      } else retained.push(group);
     }
-
-    const retained = this.#storageGroups()
-      .filter((group) => group.path !== protectedDirectory)
-      .sort((first, second) => first.latestModifiedMs - second.latestModifiedMs);
-    const protectedBytes = this.#storageGroups().find(
-      (group) => group.path === protectedDirectory,
-    )?.bytes;
+    retained.sort((first, second) => first.latestModifiedMs - second.latestModifiedMs);
+    // A long active conversation must not grow without bound. Preserve its
+    // existing rows rather than truncate history or remove referenced images.
+    if (protectedBytes + incomingBytes > this.#maxBytes) {
+      this.#estimatedBytes =
+        protectedBytes + retained.reduce((total, group) => total + group.bytes, 0);
+      this.#lastMaintenanceMs = nowMs;
+      return false;
+    }
     const availableBytes = Math.max(0, this.#maxBytes - incomingBytes);
-    let totalBytes =
-      (protectedBytes ?? 0) + retained.reduce((total, group) => total + group.bytes, 0);
+    let totalBytes = protectedBytes + retained.reduce((total, group) => total + group.bytes, 0);
     for (const group of retained) {
       if (totalBytes <= availableBytes) break;
       rmSync(group.path, { recursive: true, force: true });
@@ -210,6 +222,7 @@ export class TrajectoryRecorder {
     }
     this.#estimatedBytes = totalBytes;
     this.#lastMaintenanceMs = nowMs;
+    return true;
   }
 
   #storageGroups(): Array<{ path: string; bytes: number; latestModifiedMs: number }> {
