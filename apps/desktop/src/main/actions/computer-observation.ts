@@ -114,7 +114,14 @@ export class ComputerObservation {
       tabsOnly &&
       (browserState?.status !== 'navigation' || browserState.surface !== 'safari-tabs')
     )
-      return refused('The native Safari tab bar could not be verified. No webpage was read.');
+      return {
+        ...refused('The native Safari tab bar could not be verified. No webpage was read.'),
+        data: {
+          blocker_code: 'tab_bar_unavailable',
+          next_step:
+            'This refusal applies only to native tab discovery. It grants no page or input access. A single-tab Safari window may have no tab bar. Request fresh normal state for this exact window; only its separately verified, unprotected page and available routes may authorize ordinary navigation. Do not type from a tab-only or refused snapshot. A protected page remains blocked.',
+        },
+      };
     if (
       browserState?.status === 'ready' &&
       request.arguments.expected_url &&

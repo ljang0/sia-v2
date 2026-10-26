@@ -329,14 +329,37 @@ it.each([
   },
 );
 
-it('fails closed when the separate native tab-bar check is unavailable', async () => {
-  const h = await fixture();
-  h.setState({ status: 'protected', reason: 'page' });
-  h.setTabsState({ status: 'unavailable' });
-  const { result } = await h.capture({ tabs_only: true });
-  expect(result.outcome).toBe('refused');
-  expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
-});
+it.each([true, false])(
+  'scopes an unavailable tab-bar check without granting input; protected page: %s',
+  async (protectedPage) => {
+    const h = await fixture();
+    h.setState(
+      protectedPage
+        ? { status: 'protected', reason: 'page' }
+        : { status: 'ready', url: 'about:blank', bundleID: 'com.apple.Safari' },
+    );
+    h.setTabsState({ status: 'unavailable' });
+    const { result } = await h.capture({ tabs_only: true });
+    expect(result.outcome).toBe('refused');
+    const data = dataRecord(result.data);
+    expect(data.blocker_code).toBe('tab_bar_unavailable');
+    expect(data.next_step).toContain('fresh normal');
+    expect(data.snapshot_id).toBeUndefined();
+    expect(data.elements).toBeUndefined();
+    expect(result.images).toBeUndefined();
+    expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
+    const normal = await h.capture();
+    expect(normal.result.outcome).toBe(protectedPage ? 'refused' : 'verified');
+    if (protectedPage)
+      expect(dataRecord(normal.result.data).blocker_code).toBe('protected_window');
+    else expect(normal.data.snapshot_id).toEqual(expect.any(String));
+    expect(
+      h.cua.call.mock.calls.some(([tool]) =>
+        ['click', 'press_key', 'set_value'].includes(tool),
+      ),
+    ).toBe(false);
+  },
+);
 
 it('does not route a tab-only request into a Chromium webpage read', async () => {
   const cua = fakeCua(async (tool) => {

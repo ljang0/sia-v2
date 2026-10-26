@@ -14,19 +14,25 @@ const live =
     ? it
     : it.skip;
 
-live(
-  'uses separate tab authority to leave a protected page and preserve the selected profile',
-  async () => {
+live.each(['protected', 'start-page'] as const)(
+  'uses available Safari navigation from %s and preserves the selected profile',
+  async (initial) => {
     const workspace = await mkdtemp(join(tmpdir(), 'sia-safari-recovery-'));
     const origin = 'https://canvas.university.example';
     const ids = { app_id: 'app:fixture', window_id: 'window:fixture' };
-    let page: 'protected' | 'ordinary' | 'new' | 'dashboard' | 'courses' = 'protected';
+    let page: 'protected' | 'ordinary' | 'new' | 'dashboard' | 'courses' =
+      initial === 'protected' ? 'protected' : 'new';
     let address = '';
     let revision = 0;
     let calls = 0;
     const history: string[] = [];
     const protectedInputs: string[] = [];
     const observe = (tabsOnly = false) => {
+      if (tabsOnly && initial === 'start-page')
+        return {
+          outcome: 'refused' as const,
+          summary: 'The native Safari tab bar could not be verified. No webpage was read.',
+        };
       if (tabsOnly)
         return {
           outcome: 'verified' as const,
@@ -67,6 +73,7 @@ live(
         summary: 'Read the selected tab in the existing Safari window.',
         data: {
           ...ids,
+          title: page === 'new' ? 'Start Page' : 'University course page',
           snapshot_id: `state:${++revision}`,
           pixel_actions_available: false,
           background_input: {
@@ -129,7 +136,11 @@ live(
               data: {
                 apps: [{ app_id: ids.app_id, name: 'Safari' }],
                 windows: [
-                  { ...ids, title: 'Account settings', source_url: origin + '/profile' },
+                  {
+                    ...ids,
+                    title: initial === 'protected' ? 'Account settings' : 'Start Page',
+                    source_url: initial === 'protected' ? origin + '/profile' : 'about:blank',
+                  },
                 ],
               },
             };
@@ -155,7 +166,12 @@ live(
                 (args.action === 'key' && cmd && args.value === 'l'))
             )
               return observe();
-            if (page === 'ordinary' && args.action === 'key' && cmd && args.value === 't') {
+            if (
+              ['ordinary', 'new'].includes(page) &&
+              args.action === 'key' &&
+              cmd &&
+              args.value === 't'
+            ) {
               page = 'new';
               history.push('new-tab');
               return {
@@ -249,8 +265,13 @@ live(
       expect(signal.aborted).toBe(false);
       expect(result?.success).toBe(true);
       expect(protectedInputs).toEqual([]);
-      expect(history.slice(0, 2)).toEqual(['select-ordinary-tab', 'new-tab']);
-      expect(history.filter((step) => step === 'new-tab')).toHaveLength(1);
+      if (initial === 'protected') {
+        expect(history.slice(0, 2)).toEqual(['select-ordinary-tab', 'new-tab']);
+        expect(history.filter((step) => step === 'new-tab')).toHaveLength(1);
+      } else {
+        expect(history).not.toContain('select-ordinary-tab');
+        expect(history.filter((step) => step === 'new-tab').length).toBeLessThanOrEqual(1);
+      }
       expect(history.at(-1)).toBe('courses');
       expect(result!.response).toContain('Field Studies');
       expect(result!.response).toContain('Geometry');
