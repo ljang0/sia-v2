@@ -354,6 +354,28 @@ export class ControllerContext {
     this.emit();
   }
 
+  /** The task has already ended; a local save cannot undo its result or escape
+   * the unattended runner promise. Publish it with the same save-health recovery
+   * used by autosaves. Explicit IPC commits still report write failures. */
+  commitTurnResult(): void {
+    this.revision += 1;
+    this.mac.syncKeepAwake();
+    this.cancelStreamCommit();
+    this.persistWithRecovery();
+    this.emit();
+  }
+
+  private persistWithRecovery(): void {
+    try {
+      this.persist();
+    } catch {
+      // Catch only repository/cipher errors, without exposing their payloads.
+      // Keep current RAM and the previous encrypted checkpoint intact.
+      this.localSaveFailed = true;
+      this.persistSoon(SAVE_RETRY_MS);
+    }
+  }
+
   persistSoon(delayMs = 500): void {
     if (this.streamPersistTimer || this.shuttingDown) return;
     this.streamPersistTimer = setTimeout(
@@ -361,18 +383,8 @@ export class ControllerContext {
         this.streamPersistTimer = undefined;
         if (this.shuttingDown) return;
         const recovering = this.localSaveFailed;
-        let failed = false;
-        try {
-          this.persist();
-        } catch {
-          // Repository/cipher errors must not escape an unattended timer. Keep
-          // the latest state in RAM, warn without exposing the error payload,
-          // and retry this idempotent encrypted snapshot at a bounded rate.
-          this.localSaveFailed = true;
-          failed = true;
-          this.persistSoon(SAVE_RETRY_MS);
-        }
-        if (failed !== recovering) {
+        this.persistWithRecovery();
+        if (this.localSaveFailed !== recovering) {
           // Health changes need their own revision so an older bridge response
           // cannot replace the warning or bring it back after recovery.
           this.revision += 1;

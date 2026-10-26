@@ -28,6 +28,7 @@ type TurnRunnerContext = Pick<
   | 'approvals'
   | 'assistant'
   | 'commit'
+  | 'commitTurnResult'
   | 'computerAccess'
   | 'deps'
   | 'providers'
@@ -640,7 +641,7 @@ export class TurnRunner {
       this.ctx.approvals.revokeApprovalsForTurn(turn.threadId, turn.id);
       lease?.release();
       this.ctx.turns.releaseTurn(turn.threadId);
-      this.ctx.commit();
+      this.ctx.commitTurnResult();
     }
   }
 

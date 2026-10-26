@@ -101,9 +101,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   displays a non-dismissible warning to keep Sia open and retries the encrypted checkpoint at
   most once per 30s. More typing or streaming does not shorten that retry interval. Recovery clears
   the warning with a fresh snapshot revision; an explicit successful save cancels the pending
-  retry, and shutdown cancels its timer. Synchronous save failures still reach their caller.
-  Other non-streaming changes, completion and graceful shutdown persist immediately. An abrupt
-  termination may lose the last checkpoint interval of an unfinished response or draft.
+  retry, and shutdown cancels its timer. Explicit IPC save failures still reach their caller.
+  An unattended final turn checkpoint attempts an immediate save through the same recovery path:
+  failure publishes the finished result and warning, preserves its outcome, and never replays its
+  actions. It must not reject an unobserved runner promise. Other non-streaming changes and
+  graceful shutdown persist immediately. An abrupt termination may lose the last checkpoint
+  interval of an unfinished response or draft.
   While saving is unavailable, changes since the last successful checkpoint remain volatile.
 - A bridge call that returns the snapshot it just pushed sends a marker instead of a second
   copy; the preload restores the pushed snapshot and the renderer skips re-rendering it.

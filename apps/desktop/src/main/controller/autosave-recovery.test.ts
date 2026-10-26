@@ -90,6 +90,50 @@ it('bounds retries despite more typing and saves the latest draft when storage r
   if (last?.type === 'snapshot') expect(last.snapshot.localSaveFailed).toBeUndefined();
 });
 
+it('keeps a finished reply visible when its unattended final checkpoint cannot be saved', async () => {
+  const h = await fixture();
+  await h.controller.invoke('threads.send', {
+    threadId: h.threadId,
+    text: 'Reply to this disposable check',
+  });
+  // The request itself is already accepted and saved. Fail only the later
+  // desktop checkpoint, not the task's optional journals or ratings.
+  const put = h.repository.put.bind(h.repository);
+  const failed = vi.spyOn(h.repository, 'put').mockImplementation((scope, id, value) => {
+    if (scope === 'desktop') throw new Error('Synthetic final-checkpoint failure');
+    return put(scope, id, value);
+  });
+  await vi.advanceTimersByTimeAsync(1000);
+  const snapshot = h.controller.snapshot();
+  expect(snapshot.threads.find((thread) => thread.id === h.threadId)?.status).toBe('idle');
+  expect(snapshot.timeline).toContainEqual(
+    expect.objectContaining({ threadId: h.threadId, kind: 'assistant', status: 'complete' }),
+  );
+  expect(snapshot.localSaveFailed).toBe(true);
+  expect(
+    h.repository.get<{ timeline: Array<{ kind: string }> }>('desktop', 'state')?.timeline,
+  ).not.toContainEqual(expect.objectContaining({ kind: 'assistant' }));
+  expect(h.events.at(-1)).toMatchObject({
+    type: 'snapshot',
+    snapshot: { localSaveFailed: true },
+  });
+  expect(JSON.stringify(h.events)).not.toContain('Synthetic final-checkpoint failure');
+  failed.mockRestore();
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(h.controller.snapshot().localSaveFailed).toBeUndefined();
+  expect(
+    h.repository.get<{ timeline: Array<{ kind: string; threadId: string }> }>(
+      'desktop',
+      'state',
+    )?.timeline,
+  ).toContainEqual(expect.objectContaining({ threadId: h.threadId, kind: 'assistant' }));
+  expect(
+    h.controller
+      .snapshot()
+      .timeline.filter((item) => item.threadId === h.threadId && item.kind === 'assistant'),
+  ).toHaveLength(1);
+});
+
 it('clears the warning after an explicit successful save and cancels its redundant retry', async () => {
   const h = await fixture();
   const failed = h.fail();

@@ -72,11 +72,13 @@ not just that element. Neighbouring text and controls must not escape an authent
 no older grant may survive the refused refresh. Structural role, subrole, input-type and autocomplete
 fixtures cover this independently of broad lexical matches in public document prose.
 
-Deferred local-save failures must not escape timer callbacks. Retain unsaved state in memory,
-show a typed warning without exposing storage error details, and retry at a limited rate.
-Draft acceptance is not a durability acknowledgement. Isolated encrypted in-memory tests cover
-repository failures, retained drafts, retry timing, recovery revisions and shutdown; they do not
-simulate an actual full disk or establish all synchronous/background storage-failure behavior.
+Deferred local-save failures must not escape timer callbacks, and a failed final turn checkpoint
+must not reject an unattended runner promise or hide its already-finished result. Retain state in
+memory, show a typed warning without exposing storage error details, and retry at a limited rate.
+Draft acceptance is not a durability acknowledgement. Retry storage only, never the task's actions.
+Isolated encrypted in-memory tests cover repository failures, retained drafts and final replies,
+retry timing, recovery revisions and shutdown. Explicit save failures still reach their caller;
+these tests do not simulate an actual full disk or establish every storage-failure path.
 
 ## Repository-wide continuation
 
