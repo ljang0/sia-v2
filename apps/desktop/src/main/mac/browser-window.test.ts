@@ -5,6 +5,27 @@ import { WindowObservationError } from './window-observer.js';
 const run = vi.fn();
 const observer = { read: run, close: vi.fn() };
 
+it('reads only a live process ID for foreground checks and rejects malformed helper results', async () => {
+  const service = new BrowserWindowService('/helper', observer);
+  run.mockReset();
+  run.mockResolvedValueOnce({ status: 'ready', pid: 1552 });
+  expect(await service.foregroundPid()).toBe(1552);
+  expect(run).toHaveBeenCalledExactlyOnceWith('foreground', 0, 0);
+  for (const value of [
+    { status: 'ready', pid: 0 },
+    { status: 'ready', pid: 1.5 },
+    { status: 'ready', pid: 2147483648 },
+    { status: 'ready', pid: '1552' },
+    { status: 'ready', pid: 1552, text: 'unexpected content' },
+    { status: 'unavailable' },
+  ]) {
+    run.mockResolvedValueOnce(value);
+    expect(await service.foregroundPid()).toBeUndefined();
+  }
+  run.mockRejectedValueOnce(new Error('private helper error'));
+  expect(await service.foregroundPid()).toBeUndefined();
+});
+
 it('routes tab-only inspection to its fixed operation without reading the current webpage', async () => {
   const service = new BrowserWindowService('/helper', observer);
   run.mockReset();

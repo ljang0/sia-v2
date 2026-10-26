@@ -84,6 +84,8 @@ export interface CorePermissionStatus {
 }
 
 interface CuaServiceOptions {
+  /** Production uses macOS's live frontmost PID, including non-regular utility apps. */
+  readonly readForegroundPid?: () => Promise<number | undefined>;
   readonly fakePermissions?: boolean;
   readonly platform?: NodeJS.Platform;
   /** Test seam for this process's own TCC view; production reads the Cua driver. */
@@ -145,6 +147,7 @@ export function isCuaCallResult(value: unknown): value is CuaCallResult {
 }
 
 export class CuaService {
+  readonly #readForegroundPid: (() => Promise<number | undefined>) | undefined;
   readonly #authorization: AuthorizationBroker;
   readonly #fakePermissions: boolean;
   readonly #callTimeoutMs: number;
@@ -172,6 +175,7 @@ export class CuaService {
 
   constructor(authorization: AuthorizationBroker, options: CuaServiceOptions = {}) {
     this.#authorization = authorization;
+    this.#readForegroundPid = options.readForegroundPid;
     this.#fakePermissions = options.fakePermissions ?? false;
     const callTimeoutMs = options.callTimeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
     if (!Number.isFinite(callTimeoutMs) || callTimeoutMs <= 0) {
@@ -614,6 +618,12 @@ export class CuaService {
     refreshUnavailable = false,
   ): Promise<number | undefined> {
     try {
+      if (this.#readForegroundPid) {
+        const pid = await waitForAbort(this.#readForegroundPid(), signal);
+        return typeof pid === 'number' && Number.isInteger(pid) && pid > 0 && pid <= 2147483647
+          ? pid
+          : undefined;
+      }
       let focus = readForegroundInventory(
         await waitForAbort(this.#readInventory(driver, 'list_apps', {}, signal), signal),
       );

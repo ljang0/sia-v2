@@ -11,10 +11,14 @@ func observationLine(_ changes: [String: Any] = [:]) -> String {
 precondition(WindowObserver.request(observationLine())?.pid == 42)
 precondition(WindowObserver.request(observationLine(["operation": "context"]))?.window_id == 91)
 precondition(WindowObserver.request(observationLine(["operation": "tabs"]))?.operation == "tabs")
+precondition(WindowObserver.request(observationLine(["operation": "foreground", "pid": 0, "window_id": 0]))?.operation == "foreground")
 let invalidObservationRequests: [[String: Any]] = [
     ["operation": "execute"], ["id": "invalid"], ["pid": 0], ["pid": -1],
     ["pid": true], ["pid": 2147483648], ["window_id": 0],
     ["window_id": 4294967296], ["path": "/tmp/not-allowed"],
+    ["operation": "foreground"],
+    ["operation": "foreground", "pid": 0, "window_id": 1],
+    ["operation": "foreground", "pid": 1, "window_id": 0],
 ]
 for changes in invalidObservationRequests { precondition(WindowObserver.request(observationLine(changes)) == nil) }
 precondition(WindowObserver.request(String(repeating: "x", count: 1025)) == nil)

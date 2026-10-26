@@ -16,8 +16,10 @@ enum WindowObserver {
               Set(fields.keys) == Set(["id", "operation", "pid", "window_id"]),
               let request = try? JSONDecoder().decode(Request.self, from: data),
               UUID(uuidString: request.id) != nil,
-              ["browser", "context", "tabs"].contains(request.operation),
-              request.pid > 0, request.window_id > 0 else { return nil }
+              ["browser", "context", "tabs", "foreground"].contains(request.operation),
+              request.operation == "foreground"
+                ? request.pid == 0 && request.window_id == 0
+                : request.pid > 0 && request.window_id > 0 else { return nil }
         return request
     }
 
@@ -28,6 +30,10 @@ enum WindowObserver {
                 guard let request = request(line) else { exit(2) }
                 let result = DispatchQueue.main.sync {
                     switch request.operation {
+                    case "foreground":
+                        guard let app = NSWorkspace.shared.frontmostApplication,
+                              app.processIdentifier > 0, !app.isTerminated else { return ["status": "unavailable"] as [String: Any] }
+                        return ["status": "ready", "pid": app.processIdentifier] as [String: Any]
                     case "browser": return BrowserWindow.inspect(pid: request.pid, windowID: request.window_id)
                     case "tabs": return BrowserWindow.inspectTabs(pid: request.pid, windowID: request.window_id)
                     default: return WindowContext.capture(pid: request.pid, windowID: request.window_id)

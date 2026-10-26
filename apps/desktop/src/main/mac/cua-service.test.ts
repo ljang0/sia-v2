@@ -267,6 +267,51 @@ it('still refuses input when the refreshed focus is the target app', async () =>
   }
 });
 
+it.each(['other', 'target', 'unknown', 'error', 'changed', 'unknown-after'])(
+  'uses the authoritative host focus reader, including utility apps: %s',
+  async (scenario) => {
+    const driver = successfulDriver({ effect: 'confirmed' });
+    const readForegroundPid = vi.fn(async (): Promise<number | undefined> =>
+      scenario === 'target' ? 42 : scenario === 'unknown' ? undefined : 1552,
+    );
+    if (scenario === 'error')
+      readForegroundPid.mockRejectedValueOnce(new Error('private error'));
+    if (scenario === 'changed' || scenario === 'unknown-after') {
+      readForegroundPid.mockResolvedValueOnce(1552);
+      readForegroundPid.mockResolvedValueOnce(scenario === 'changed' ? 99 : undefined);
+    }
+    const service = new CuaService(authorization(), {
+      driverFactory: () => driver,
+      readForegroundPid,
+    });
+    try {
+      const call = service.call(
+        'click',
+        { pid: 42, window_id: 91, delivery_mode: 'background' },
+        { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+      );
+      if (scenario === 'target' || scenario === 'unknown' || scenario === 'error') {
+        await expect(call).rejects.toThrow(
+          scenario === 'target' ? 'foreground_app_in_use' : 'background_focus_unavailable',
+        );
+        expect(driver.callTool).not.toHaveBeenCalled();
+      } else {
+        expect(await call).toMatchObject(
+          scenario === 'changed'
+            ? { background_focus_changed: true, background_other_app_changed: true }
+            : scenario === 'unknown-after'
+              ? { background_focus_unverified: true }
+              : { effect: 'confirmed' },
+        );
+        expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual(['click']);
+        expect(readForegroundPid).toHaveBeenCalledTimes(2);
+      }
+    } finally {
+      await service.shutdown();
+    }
+  },
+);
+
 it.each([
   ['launch_app', { bundle_id: 'com.apple.TextEdit', session: 'task-session' }],
   ['invoke_menu', { pid: 42, window_id: 91, path: ['File', 'Save'], session: 'task-session' }],

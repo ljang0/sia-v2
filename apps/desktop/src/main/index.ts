@@ -476,12 +476,19 @@ async function performApplicationCreation(): Promise<void> {
         )
       : undefined;
     let activeController!: DesktopController;
+    const browserWindows = new BrowserWindowService(
+      app.isPackaged
+        ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
+        : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
+    );
+    app.once('will-quit', () => browserWindows.close());
     const computer = new CuaService(
       {
         authorize: (request, context) => activeController.authorizeComputer(request, context),
       },
       {
         fakePermissions: fakeServices,
+        ...(!fakeServices ? { readForegroundPid: () => browserWindows.foregroundPid() } : {}),
         verifyAccess: true,
         freshPermissions: freshPermissionProbe({
           executable: process.execPath,
@@ -497,12 +504,6 @@ async function performApplicationCreation(): Promise<void> {
       enabled: () => activeController?.trajectoryLogEnabled() ?? true,
     });
     const messagesService = new MessagesService();
-    const browserWindows = new BrowserWindowService(
-      app.isPackaged
-        ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
-        : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
-    );
-    app.once('will-quit', () => browserWindows.close());
     const automationPermissions = new AutomationPermissionService({
       helperPath: app.isPackaged
         ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')

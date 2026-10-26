@@ -244,9 +244,14 @@ live(
     let inspected = 0;
     let calls = 0;
     const windows = {
-      apps: [{ app_id: 'app:fixture', name: 'Safari' }],
+      apps: [{ app_id: 'app:fixture', name: 'Google Chrome' }],
       windows: [
-        { app_id: 'app:fixture', window_id: 'window:fixture', title: 'Untitled document' },
+        {
+          app_id: 'app:fixture',
+          window_id: 'window:fixture',
+          title: 'New Tab',
+          source_url: 'about:blank',
+        },
       ],
     };
     const gateway = new ActionGateway({
@@ -270,6 +275,14 @@ live(
           if (request.name === 'computer_list')
             return { outcome: 'verified', summary: 'Available window.', data: windows };
           if (request.name === 'computer_open_url') {
+            if (
+              request.arguments.app_id !== 'app:fixture' ||
+              request.arguments.window_id !== 'window:fixture'
+            )
+              return {
+                outcome: 'refused',
+                summary: 'Background navigation requires the exact existing Chrome window.',
+              };
             opened.push(String(request.arguments.url));
             return {
               outcome: 'accepted_unverified',

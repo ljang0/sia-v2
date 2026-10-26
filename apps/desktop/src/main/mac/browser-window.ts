@@ -67,6 +67,19 @@ export class BrowserWindowService {
   close(): void {
     this.observer.close();
   }
+  async foregroundPid(): Promise<number | undefined> {
+    try {
+      return z
+        .object({
+          status: z.literal('ready'),
+          pid: z.number().int().positive().max(2147483647),
+        })
+        .strict()
+        .parse(await this.observer.read('foreground', 0, 0)).pid;
+    } catch {
+      return undefined;
+    }
+  }
   async macContext(): Promise<string> {
     const helper = "'" + this.helperPath.replaceAll("'", "'\"'\"'") + "'";
     const command = `${helper} --mac-context [pid]\nRunning-app inventory (names, bundle IDs and process IDs only): ${helper} --mac-apps\nOmit [pid] for foreground context, or pass a process ID from that inventory to inspect that exact app without activating it. Targeted context has a larger reading budget. A partial snapshot is not the entire page; scroll or inspect the relevant view to continue reading.`;

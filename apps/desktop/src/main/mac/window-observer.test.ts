@@ -31,6 +31,27 @@ function fixture() {
 
 afterEach(() => vi.useRealTimers());
 
+it('uses a fixed content-free foreground request and rejects window arguments on it', async () => {
+  const f = fixture();
+  try {
+    const pid = f.observer.read('foreground', 0, 0);
+    await vi.waitFor(() => expect(f.children).toHaveLength(1));
+    expect(f.children[0]!.requests[0]).toMatchObject({
+      operation: 'foreground',
+      pid: 0,
+      window_id: 0,
+    });
+    f.reply(0, { status: 'ready', pid: 1552 });
+    expect(await pid).toEqual({ status: 'ready', pid: 1552 });
+    await expect(f.observer.read('foreground', 42, 91)).rejects.toMatchObject({
+      reason: 'helper_error',
+    });
+    expect(f.children[0]!.requests).toHaveLength(1);
+  } finally {
+    f.observer.close();
+  }
+});
+
 it('reuses one private helper and excludes queue waiting from each read budget', async () => {
   vi.useFakeTimers();
   const f = fixture();

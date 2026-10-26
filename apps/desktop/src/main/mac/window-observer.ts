@@ -1,7 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
-type Observation = 'browser' | 'context' | 'tabs';
+type Observation = 'browser' | 'context' | 'tabs' | 'foreground';
 export class WindowObservationError extends Error {
   constructor(readonly reason: 'helper_error' | 'helper_timeout' | 'invalid_response') {
     super(`Window observation failed: ${reason}`);
@@ -43,13 +43,12 @@ export class WindowObserver {
   #read(operation: Observation, pid: number, windowId: number): Promise<unknown> {
     if (
       this.#closed ||
-      !['browser', 'context', 'tabs'].includes(operation) ||
+      !['browser', 'context', 'tabs', 'foreground'].includes(operation) ||
       !Number.isInteger(pid) ||
-      pid <= 0 ||
       pid > 2_147_483_647 ||
       !Number.isInteger(windowId) ||
-      windowId <= 0 ||
-      windowId > 4_294_967_295
+      windowId > 4_294_967_295 ||
+      (operation === 'foreground' ? pid !== 0 || windowId !== 0 : pid <= 0 || windowId <= 0)
     )
       return Promise.reject(new WindowObservationError('helper_error'));
     return new Promise((resolve, reject) => {
