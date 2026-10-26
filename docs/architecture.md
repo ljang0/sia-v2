@@ -350,6 +350,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   only a PID, no window content. An unavailable or malformed host response refuses input without
   falling back to an app list. Standalone SDK clients without the host reader use live inventory;
   a well-formed inventory with no active app gets one fresh preflight read. No input is retried.
+  If delivered input is followed by a protected observation, its result retains a separate
+  `observation_blocker_code` and safe recovery hint. It is never relabeled as unsent. Safari may
+  obtain a new native tab-only grant, select an ordinary tab and open a task tab in that same
+  profile; a refused tab read or input route remains binding. This does not authorize the
+  protected page, sign-in or credentials.
   A second read after input detects any foreground-app change or an unverifiable focus state;
   it preserves uncertainty and pauses the exact turn, including queued follow-ups. Sia does not
   restore focus over a person's choice, replay the action, or automatically resume the pause.

@@ -236,7 +236,10 @@ it('selects a login tab without exposing or authorizing its protected destinatio
   expect(dataRecord(result.data)).toMatchObject({
     observation_pending: true,
     observation_outcome: 'refused',
+    observation_blocker_code: 'protected_window',
   });
+  expect(dataRecord(result.data).next_step).toContain('tabs_only');
+  expect(dataRecord(result.data).blocker_code).toBeUndefined();
   expect(dataRecord(result.data).elements).toBeUndefined();
   expect(result.images).toBeUndefined();
   expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(

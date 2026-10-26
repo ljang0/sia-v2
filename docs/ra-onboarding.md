@@ -675,6 +675,14 @@ real browser or account, and is also opt-in:
 SIA_CODEX_REAL_SMOKE=1 SIA_ACCOUNT_SCOPE_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/actions/account-scope.smoke.test.ts
 ```
 
+The fictional Safari recovery probe checks separate tab-only authority, leaving a protected page
+untouched, preserving the same profile and existing tabs, and observing a new tab after uncertain
+navigation acknowledgement. It accepts both direct All Courses navigation and the Dashboard link:
+
+```sh
+SIA_CODEX_REAL_SMOKE=1 SIA_SAFARI_RECOVERY_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/actions/safari-tab-recovery.smoke.test.ts
+```
+
 GPT-6 Astra is available in the model picker when the connected Codex account lists it. Use my
 Mac setup selects it by default when available; an explicit model choice takes precedence. Sia
 checks both PATH and the official installed Mac app for a supported Codex version. Existing

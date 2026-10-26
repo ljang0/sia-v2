@@ -483,6 +483,7 @@ export class ComputerInput {
       };
     if (after.outcome !== 'verified') {
       if (!this.ctx.macBrowserAccess()) return after;
+      const protectedDestination = asRecord(after.data)?.blocker_code === 'protected_window';
       return {
         outcome: 'accepted_unverified',
         summary: `${native.summary} The resulting page could not yet be observed. Do not repeat the action. Capture fresh state to check its result.`,
@@ -490,6 +491,16 @@ export class ComputerInput {
           observation_pending: true,
           observation_outcome: after.outcome,
           observation_detail: after.summary,
+          ...(protectedDestination
+            ? {
+                // This is the observation's refusal, not evidence that input was unsent.
+                observation_blocker_code: 'protected_window',
+                next_step:
+                  verifiedBrowserBundleId?.toLowerCase() === 'com.apple.safari'
+                    ? 'Do not replay the input or interact with the protected page. A separate computer_snapshot with tabs_only:true can inspect only native tab selection controls. Select an ordinary existing tab under that new grant, then capture fresh normal state before any typing. A refused tabs-only read remains a refusal.'
+                    : 'Do not replay the input or interact with the protected window. Use another independently authorized source when available; otherwise report this exact observation gap.',
+              }
+            : {}),
         },
       };
     }
