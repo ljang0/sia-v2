@@ -54,6 +54,54 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
+it('blocks new access-bearing links in vault notes', () => {
+  const { vault, view } = fixture();
+  vault.initialize(view);
+  const url = 'https://meeting.example/j/123?pwd=fixture-private';
+  expect(() => vault.write('meeting.md', url, '')).toThrow('Credentials');
+});
+
+it.each([0, 60_000])(
+  'withholds an access-bearing legacy note before slicing at %i',
+  (offset) => {
+    const { vault, view } = fixture();
+    vault.initialize(view);
+    const url = 'https://meeting.example/j/123?pwd=fixture-private';
+    writeFileSync(join(vault.root, 'legacy.md'), 'Ordinary history.\n'.repeat(4000) + url);
+    expect(() => vault.readSlice('legacy.md', offset)).toThrow('Credentials');
+  },
+);
+
+it('omits an access-bearing legacy note from the vault listing', () => {
+  const { vault, view } = fixture();
+  vault.initialize(view);
+  writeFileSync(
+    join(vault.root, 'legacy.md'),
+    'https://meeting.example/j/123?pwd=fixture-private',
+  );
+  expect(vault.list().some((note) => note.name === 'legacy.md')).toBe(false);
+});
+
+it.runIf(process.platform === 'darwin')(
+  'withholds a prepared native prompt containing an access-bearing legacy core note',
+  async () => {
+    const { vault, view } = fixture();
+    vault.initialize(view);
+    writeFileSync(
+      join(vault.root, 'MOC.md'),
+      'Legacy source: https://meeting.example/j/123?pwd=fixture-private',
+    );
+    const result = await vault.engine(helper, {
+      operation: 'prepare',
+      request: 'Find my saved meeting source',
+      learning: false,
+      nativeLearning: false,
+    });
+    expect(result.prompt).toBeUndefined();
+    expect(JSON.stringify(result)).not.toContain('fixture-private');
+  },
+);
+
 it('migrates only this agent’s history and legacy scripts once, and keeps preference deletion authoritative', () => {
   const { workspace, agentId, vault, view } = fixture();
   mkdirSync(join(workspace, '.sia-mac', 'skills'), { recursive: true });

@@ -49,3 +49,25 @@ it('includes relevant preferences beyond the old prefix without cutting entries 
     ).toBe(true);
   expect(JSON.stringify(selected)).not.toMatch(/OTHER PERSON|DISABLED|synthetic-private/);
 });
+
+it.each([
+  'https://meeting.example/j/123?pwd=fixture-private',
+  'https://files.example/doc?X-Amz-Signature=fixture-private',
+  'https://files.example/doc?accessToken=fixture-private',
+  'https://fixture-user:fixture-private@files.example/doc',
+  'https://files.example/redirect?next=https%3A%2F%2Ffiles.example%2Fdoc%3Fpwd%3Dfixture-private',
+])('omits an access-bearing link from derived saved context: %s', (url) => {
+  const memories: AssistantMemory[] = [
+    { id: 'private', agentId: 'agent', title: 'Saved source', text: url, enabled: true },
+    {
+      id: 'safe',
+      agentId: 'agent',
+      title: 'Public source',
+      text: 'https://campus.example/courses?term=fall',
+      enabled: true,
+    },
+  ];
+  expect(promptMemories(memories, 'agent', 'Find my saved source')).toEqual([
+    { title: 'Public source', text: memories[1]!.text },
+  ]);
+});

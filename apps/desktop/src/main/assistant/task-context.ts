@@ -1,6 +1,6 @@
 import { parseActionArguments, type TaskCheckpointState } from '@sia/action-gateway';
 import type { RecordRepository } from '../storage/persistence.js';
-import { memoryCredentialMarker as sensitive } from './memory-privacy.js';
+import { containsMemoryCredentials as sensitive } from './memory-privacy.js';
 
 interface TaskRecord {
   turnId: string;
@@ -9,6 +9,7 @@ interface TaskRecord {
   updatedAt: string;
   status: 'working' | 'complete' | 'paused';
   state?: TaskCheckpointState;
+  stateWithheld?: true;
 }
 interface TaskHistory {
   agentId: string;
@@ -29,7 +30,15 @@ export class TaskContextStore {
 
   private history(threadId: string, agentId: string): TaskHistory {
     const history = this.repository.get<TaskHistory>(scope, threadId);
-    return history?.agentId === agentId ? history : { agentId, records: [] };
+    if (history?.agentId !== agentId) return { agentId, records: [] };
+    for (const record of history.records) {
+      if (sensitive(record.request)) record.request = '[sensitive request omitted]';
+      if (record.state && sensitive(JSON.stringify(record.state))) {
+        delete record.state;
+        record.stateWithheld = true;
+      }
+    }
+    return history;
   }
 
   begin(threadId: string, agentId: string, turnId: string, request: string): void {
@@ -40,9 +49,7 @@ export class TaskContextStore {
     } else {
       history.records.push({
         turnId,
-        request: sensitive.test(request)
-          ? '[sensitive request omitted]'
-          : request.slice(0, 20_000),
+        request: sensitive(request) ? '[sensitive request omitted]' : request.slice(0, 20_000),
         revision: 0,
         status: 'working',
         updatedAt: new Date().toISOString(),
@@ -68,7 +75,7 @@ export class TaskContextStore {
     )
       throw new Error('This checkpoint changed. Read its current revision before updating.');
     if (
-      sensitive.test(JSON.stringify(args.state)) ||
+      sensitive(JSON.stringify(args.state)) ||
       args.state.associations.some(({ name }) =>
         /\b(?:password|api[_ -]?key|access[_ -]?token|refresh[_ -]?token|secret|credential|cookie)\b/i.test(
           name,
@@ -90,6 +97,7 @@ export class TaskContextStore {
         'Preserve known sources and actions. Use excluded or reverted with evidence for corrections.',
       );
     record.state = args.state;
+    delete record.stateWithheld;
     record.revision++;
     record.updatedAt = new Date().toISOString();
     this.repository.put(scope, threadId, history);
@@ -105,7 +113,12 @@ export class TaskContextStore {
   }
 
   remaining(threadId: string, agentId: string, turnId: string): string[] {
-    const state = this.read(threadId, agentId, turnId)?.state;
+    const record = this.read(threadId, agentId, turnId);
+    if (record?.stateWithheld)
+      return [
+        'Re-establish task scope and coverage; the saved checkpoint was withheld for privacy',
+      ];
+    const state = record?.state;
     if (!state) return [];
     return [
       ...(!state.scope_complete ? ['establish the full requested scope'] : []),

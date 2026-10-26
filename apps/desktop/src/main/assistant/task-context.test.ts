@@ -19,6 +19,81 @@ const state = (): TaskCheckpointState => ({
   next_steps: ['Read the remaining course and inspect the calendar before retrying the write'],
 });
 
+it('omits access-bearing checkpoint requests and refuses them as source associations', () => {
+  const repository = new SqliteRecordRepository(':memory:', new EphemeralPayloadCipher());
+  try {
+    const store = new TaskContextStore(repository);
+    const url = 'https://meeting.example/j/123?pwd=fixture-private';
+    store.begin('thread', 'agent', 'turn', `Remember this source: ${url}`);
+    expect(store.read('thread', 'agent', 'turn')?.request).toBe('[sensitive request omitted]');
+    expect(() =>
+      store.update('thread', 'agent', 'turn', {
+        operation: 'update',
+        expected_revision: 0,
+        state: {
+          ...state(),
+          associations: [{ name: 'Source', value: url, source: 'fixture' }],
+        },
+      }),
+    ).toThrow('Credentials');
+    store.update('thread', 'agent', 'turn', {
+      operation: 'update',
+      expected_revision: 0,
+      state: {
+        ...state(),
+        associations: [
+          {
+            name: 'Source',
+            value: 'https://campus.example/courses?term=fall',
+            source: 'fixture',
+          },
+        ],
+      },
+    });
+    expect(store.prompt('thread', 'agent', 'turn')).not.toContain('fixture-private');
+    expect(store.prompt('thread', 'agent', 'turn')).toContain('courses?term=fall');
+  } finally {
+    repository.close();
+  }
+});
+
+it('withholds unsafe legacy checkpoint state until fresh coverage replaces it', () => {
+  const repository = new SqliteRecordRepository(':memory:', new EphemeralPayloadCipher());
+  try {
+    const legacy = state();
+    legacy.summary = 'Legacy link https://meeting.example/j/123?pwd=fixture-private';
+    repository.put('task-context', 'thread', {
+      agentId: 'agent',
+      records: [
+        {
+          turnId: 'turn',
+          request: 'Check my meeting',
+          revision: 0,
+          updatedAt: new Date().toISOString(),
+          status: 'working',
+          state: legacy,
+        },
+      ],
+    });
+    const store = new TaskContextStore(repository);
+    expect(store.read('thread', 'agent', 'turn')).toMatchObject({ stateWithheld: true });
+    expect(store.prompt('thread', 'agent', 'turn')).not.toContain('fixture-private');
+    expect(store.searchContext('thread', 'agent', 'turn')).toBe('');
+    expect(store.remaining('thread', 'agent', 'turn')).toEqual([
+      expect.stringContaining('Re-establish'),
+    ]);
+    store.update('thread', 'agent', 'turn', {
+      operation: 'update',
+      expected_revision: 0,
+      state: state(),
+    });
+    expect(store.read('thread', 'agent', 'turn')?.stateWithheld).toBeUndefined();
+    expect(store.remaining('thread', 'agent', 'turn')).toContain('Course B syllabus (pending)');
+  } finally {
+    repository.close();
+  }
+});
+
 it('persists task constraints and uncertain writes through a real encrypted database reopen', () => {
   const directory = mkdtempSync(join(tmpdir(), 'sia-task-context-'));
   const path = join(directory, 'state.sqlite');

@@ -114,6 +114,13 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   graceful shutdown persist immediately. An abrupt termination may lose the last checkpoint
   interval of an unfinished response or draft.
   While saving is unavailable, changes since the last successful checkpoint remain volatile.
+- Derived preferences, task checkpoints and the native memory adapter use the observation
+  layer's access-bearing-link classifier alongside credential markers. Vault writes reject these
+  values; model-facing listings and sliced reads withhold legacy sensitive notes before slicing.
+  An assembled native prompt containing sensitive legacy core content is withheld so the normal
+  request fallback can continue. Privacy reads do not rewrite legacy note files, and canonical
+  owner records remain editable. This is bounded detection
+  of known credential forms, not a claim to recognize arbitrary secrets in prose.
 - A bridge call that returns the snapshot it just pushed sends a marker instead of a second
   copy; the preload restores the pushed snapshot and the renderer skips re-rendering it.
   Delayed bridge replies cannot replace a newer renderer snapshot, including the cleared

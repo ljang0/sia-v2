@@ -20,7 +20,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import type { AssistantLibraryView } from '../../shared/assistant-library.js';
-import { memoryCredentialMarker as sensitive } from '../assistant/memory-privacy.js';
+import { containsMemoryCredentials as sensitive } from '../assistant/memory-privacy.js';
 import { notchVaultRoot } from './foreground.js';
 import {
   hasMemoryQuery,
@@ -39,8 +39,7 @@ export interface VaultNote {
 // link count, size, and nanosecond modification/change times before reusing text or its digest.
 const noteCache = new Map<string, { version: string; note: VaultNote }>();
 const digest = (value: string) => createHash('sha256').update(value).digest('hex');
-const safeText = (text: string) =>
-  sensitive.test(text) ? '[sensitive content omitted]' : text;
+const safeText = (text: string) => (sensitive(text) ? '[sensitive content omitted]' : text);
 const validName =
   /^(?:[a-zA-Z0-9][a-zA-Z0-9_-]{0,100}\.(?:md|log)|skills\/[a-z0-9][a-z0-9-]{0,79}\.sh)$/;
 
@@ -88,7 +87,7 @@ export class NotchVault {
       noteCache.delete(path);
       const text = readFileSync(fd, 'utf8');
       const note = { name, text, revision: digest(text), readOnly: name === 'preferences.md' };
-      if (info.size <= 64_000n && !sensitive.test(text)) {
+      if (info.size <= 64_000n && !sensitive(text)) {
         if (noteCache.size >= 128) noteCache.delete(noteCache.keys().next().value!);
         noteCache.set(path, { version, note });
       }
@@ -116,6 +115,7 @@ export class NotchVault {
       .flatMap((name) => {
         try {
           const note = this.read(name);
+          if (sensitive(name + '\n' + note.text)) return [];
           return [
             {
               ...note,
@@ -131,7 +131,7 @@ export class NotchVault {
   write(name: string, text: string, revision: string, managed = false): VaultNote {
     if (name === 'preferences.md' && !managed)
       throw new Error('Edit saved preferences in Sia’s Memory settings.');
-    if (sensitive.test(text))
+    if (sensitive(name + '\n' + text))
       throw new Error('Credentials cannot be stored in the memory vault.');
     if (
       Buffer.byteLength(text) >
@@ -169,6 +169,8 @@ export class NotchVault {
   }
   readSlice(name: string, offset?: number) {
     const note = this.read(name);
+    if (sensitive(name + '\n' + note.text))
+      throw new Error('Credentials cannot be read from the memory vault.');
     const start =
       offset ??
       (['journal.md', 'failures.log'].includes(name)
@@ -195,7 +197,12 @@ export class NotchVault {
   initialize(view: AssistantLibraryView): void {
     this.ensure();
     const preferences = view.memories
-      .filter((entry) => entry.agentId === this.agentId && entry.enabled)
+      .filter(
+        (entry) =>
+          entry.agentId === this.agentId &&
+          entry.enabled &&
+          !sensitive(entry.title + '\n' + entry.text),
+      )
       .map((entry) => `## ${entry.title}\n${safeText(entry.text)}`)
       .join('\n\n');
     const text =
@@ -256,7 +263,7 @@ export class NotchVault {
           )
             continue;
           const source = readFileSync(path, 'utf8');
-          if (!sensitive.test(source)) this.write('skills/' + name, source, '');
+          if (!sensitive(source)) this.write('skills/' + name, source, '');
         }
       }
       writeFileSync(marker, '1\n', { flag: 'wx', mode: 0o600 });
@@ -336,7 +343,7 @@ export class NotchVault {
           try {
             const note = this.read(name, Math.min(256_000, searchBudget));
             searchBudget -= Buffer.byteLength(note.text);
-            if (!sensitive.test(note.text)) contents.set(name, note.text);
+            if (!sensitive(note.text)) contents.set(name, note.text);
           } catch {
             // An oversized/replaced/unsafe file does not block the task or enter retrieval.
           }
@@ -346,7 +353,7 @@ export class NotchVault {
       const relevantNotes = names.flatMap((name) => {
         try {
           const text = contents.get(name) ?? this.read(name, 256_000).text;
-          if (!text || sensitive.test(text) || remaining <= 0) return [];
+          if (!text || sensitive(text) || remaining <= 0) return [];
           const excerpt = memoryExcerpt(text, request, context, Math.min(4000, remaining));
           remaining -= excerpt.text.length;
           return [{ name, ...excerpt }];
@@ -375,7 +382,19 @@ export class NotchVault {
               new Error('Sia’s native memory engine could not complete the request.'),
             );
           try {
-            resolve(JSON.parse(stdout));
+            const result: unknown = JSON.parse(stdout);
+            if (!result || typeof result !== 'object' || Array.isArray(result))
+              throw new Error('Invalid native memory response.');
+            const value = result as { prompt?: unknown; recorded?: unknown };
+            // Legacy core notes are also read by the copied Swift engine. Do
+            // not release a sensitive assembled prompt; absence uses the
+            // caller's ordinary request path, without rewriting the vault.
+            resolve({
+              ...(typeof value.prompt === 'string' && !sensitive(value.prompt)
+                ? { prompt: value.prompt }
+                : {}),
+              ...(typeof value.recorded === 'boolean' ? { recorded: value.recorded } : {}),
+            });
           } catch {
             reject(new Error('Invalid native memory engine response.'));
           }

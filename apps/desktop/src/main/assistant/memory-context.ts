@@ -1,6 +1,6 @@
 import type { AssistantMemory } from '../../shared/assistant-library.js';
 import { memoryMatchScore } from '../notch/memory-selection.js';
-import { memoryCredentialMarker } from './memory-privacy.js';
+import { containsMemoryCredentials } from './memory-privacy.js';
 
 /** Select whole entries within a budget; never cut JSON or a preference halfway through. */
 export function promptMemories(
@@ -15,7 +15,7 @@ export function promptMemories(
       (entry) =>
         entry.enabled &&
         entry.agentId === agentId &&
-        !memoryCredentialMarker.test(entry.title + '\n' + entry.text),
+        !containsMemoryCredentials(entry.title + '\n' + entry.text),
     )
     .map((entry, index) => ({
       entry,

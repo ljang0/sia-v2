@@ -9,6 +9,73 @@ import { NotchVault } from '../notch/vault.js';
 import type { RuntimeTurnInput } from '../providers/runtime-coordinator.js';
 import { createController, createHarness } from './test-support.js';
 
+it('keeps legacy private links out of model-facing library reads without deleting owner records', async () => {
+  const { controller, repository } = await createHarness();
+  try {
+    await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Disposable privacy check',
+      instructions: '',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    const url = 'https://meeting.example/j/123?pwd=fixture-private';
+    const service = new AssistantLibrary(repository);
+    repository.put('assistant', 'library', {
+      ...service.view(),
+      learningAgents: [agentId],
+      memories: [
+        { id: randomUUID(), agentId, title: 'Legacy source', text: url, enabled: true },
+        {
+          id: randomUUID(),
+          agentId,
+          title: 'Safe source',
+          text: 'Public course information',
+          enabled: true,
+        },
+      ],
+      journal: [
+        {
+          id: randomUUID(),
+          agentId,
+          threadId,
+          turnId: randomUUID(),
+          timestamp: new Date().toISOString(),
+          kind: 'task',
+          title: 'Legacy meeting',
+          text: url,
+          outcome: 'complete',
+        },
+      ],
+    });
+    const { turnId } = await controller.invoke('threads.send', {
+      threadId,
+      text: 'Read my saved context',
+    });
+    const result = await controller.assistantAction(
+      {
+        name: 'assistant_library',
+        arguments: {},
+        descriptor: getActionToolDescriptor('assistant_library')!,
+        context: {
+          sessionId: 'fixture',
+          threadId,
+          turnId,
+          provider: 'codex',
+          workspace: '/tmp/sia-workspace',
+        },
+      },
+      vi.fn(),
+    );
+    expect(JSON.stringify(result)).not.toContain('fixture-private');
+    expect(JSON.stringify(result)).toContain('Public course information');
+    expect(service.view().memories).toHaveLength(2);
+  } finally {
+    await controller.shutdown();
+  }
+});
+
 it('runs a saved workflow through the canonical turn queue and persists editable memory separately', async () => {
   const { controller, repository } = await createHarness({
     defaultWorkspaceRoot: '/tmp/Sia/Agents',

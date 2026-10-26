@@ -87,6 +87,13 @@ Check absence of dispatch and replay when storage recovers, and that a title rec
 another model call. Never suppress a claim error to make a schedule appear reliable. Storage error
 payloads must not enter the scheduled-task notice.
 
+Memory privacy must cover both new writes and legacy reads. Reuse the access-bearing URL
+classifier for saved preferences and task checkpoints, and check the whole vault note before
+returning any slice or listing. Native preparation reads core notes itself, so verify its assembled
+prompt at the host boundary and withhold an unsafe prompt without rewriting the vault or losing
+the ordinary request fallback. Synthetic legacy files, nested links and public source controls
+cover these paths; never inspect a person's vault to look for real credentials.
+
 ## Repository-wide continuation
 
 The continuation from `fa97fc6` inventories all 880 tracked files, including tests, documentation,
