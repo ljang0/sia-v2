@@ -25,6 +25,30 @@ precondition(WindowObserver.request(String(repeating: "x", count: 1025)) == nil)
 import CoreGraphics
 import ApplicationServices
 
+precondition(BrowserWindow.pageURL(URL(string: "https://library.example/calendar.pdf")!) == "https://library.example/calendar.pdf")
+precondition(BrowserWindow.pageURL("https://library.example/calendar.pdf") == "https://library.example/calendar.pdf")
+precondition(BrowserWindow.pageURL(nil) == nil)
+precondition(BrowserWindow.pageURL(NSNumber(value: 42)) == nil)
+let pdfURL = "https://library.example/calendar.pdf"
+func pdfIdentity(bundle: String = "com.apple.Safari", plugin: Bool = true, webAreas: Int = 0,
+                 title: String = pdfURL, address: String? = pdfURL, focused: Bool? = false, loading: Bool = false) -> String? {
+    BrowserWindow.pdfPageURL(bundle: bundle, hasPDFPlugin: plugin, webAreas: webAreas,
+                             title: title, address: address, addressFocused: focused, loading: loading)
+}
+precondition(pdfIdentity() == pdfURL)
+precondition(pdfIdentity(bundle: "com.google.Chrome") == nil)
+precondition(pdfIdentity(plugin: false) == nil)
+precondition(pdfIdentity(webAreas: 1) == nil)
+precondition(pdfIdentity(loading: true) == nil)
+precondition(pdfIdentity(focused: true) == nil)
+precondition(pdfIdentity(focused: nil) == nil)
+precondition(pdfIdentity(address: nil) == nil)
+precondition(pdfIdentity(address: "https://other.example/calendar.pdf") == nil)
+precondition(pdfIdentity(title: "Calendar") == nil)
+for invalid in ["file:///tmp/calendar.pdf", "javascript:alert(1)", "https://user:secret@library.example/calendar.pdf", pdfURL + "?token=omitted", pdfURL + "#omitted"] {
+    precondition(pdfIdentity(title: invalid, address: invalid) == nil)
+}
+
 precondition(WindowContext.localDocumentURL("file:///tmp/ordinary%20note.txt") == "file:///tmp/ordinary%20note.txt")
 precondition(WindowContext.localDocumentURL(URL(fileURLWithPath: "/tmp/ordinary.pdf")) == "file:///tmp/ordinary.pdf")
 for invalid in ["https://example.org/document.pdf", "file://remote-host/tmp/note.txt", "file://user:secret@localhost/tmp/note.txt", "file:///tmp/note.txt?token=omitted", "file:///tmp/note.txt#secret"] {

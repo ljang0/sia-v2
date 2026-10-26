@@ -6,6 +6,27 @@ import ApplicationServices
 enum BrowserWindow {
     static let bundles: Set<String> = ["com.apple.safari", "com.google.chrome", "org.chromium.chromium", "com.brave.browser", "com.microsoft.edgemac", "org.mozilla.firefox", "company.thebrowser.browser"]
 
+    static func pageURL(_ value: Any?) -> String? {
+        if let url = value as? URL { return url.absoluteString }
+        return value as? String
+    }
+
+    /// Safari's native PDF plugin has no AXWebArea, AXURL or window AXDocument.
+    /// Its full document URL is also the window title. Require agreement with
+    /// the non-editing native address field; never infer identity from one alone.
+    static func pdfPageURL(bundle: String, hasPDFPlugin: Bool, webAreas: Int,
+                           title: String, address: String?, addressFocused: Bool?, loading: Bool) -> String? {
+        guard bundle.lowercased() == "com.apple.safari", hasPDFPlugin, webAreas == 0, !loading,
+              addressFocused == false, let address,
+              let titleURL = URLComponents(string: title),
+              let addressURL = URLComponents(string: address),
+              ["http", "https"].contains(titleURL.scheme?.lowercased() ?? ""),
+              titleURL.host != nil, titleURL.user == nil, titleURL.password == nil,
+              titleURL.query == nil, titleURL.fragment == nil,
+              titleURL.url?.absoluteString == addressURL.url?.absoluteString else { return nil }
+        return titleURL.url?.absoluteString
+    }
+
     /// Native tab bar only. Web areas and their descendants are never inspected;
     /// an authentication page must not prevent choosing a different existing tab.
     static func inspectTabs(pid: pid_t, windowID: CGWindowID) -> [String: Any] {
@@ -61,7 +82,8 @@ enum BrowserWindow {
             return value as? T
         }
         let title: String = attr(window, kAXTitleAttribute) ?? ""
-        var url: String? = attr(window, kAXDocumentAttribute)
+        let document: Any? = attr(window, kAXDocumentAttribute)
+        var url = pageURL(document)
         var protected = false
         var protectedRole = "unknown"
         var protectedKind = "unknown"
@@ -71,6 +93,10 @@ enum BrowserWindow {
         var nodes = 0
         var webAreas = 0
         var tabOverview = false
+        var hasPDFPlugin = false
+        var address: String?
+        var addressFocused: Bool?
+        var loading = false
         var stop: String?
         var visited = Set<CFHashCode>()
         func walk(_ node: AXUIElement, _ depth: Int, insideWebArea: Bool = false) {
@@ -87,6 +113,8 @@ enum BrowserWindow {
             let subrole = metadata.subrole
             let name = metadata.title
             let description = metadata.description
+            if !insideWebArea, role == "AXGroup", subrole == "AXPDFPluginSubrole" { hasPDFPlugin = true }
+            if !insideWebArea, role == "AXProgressIndicator" { loading = true }
             let label = (role + " " + subrole + " " + name + " " + description).lowercased()
             if role.isEmpty { complete = false; return }
             let passwordLabel = [name, description].first(where: { WindowContext.hasPasswordMetadata(role: role, label: $0) })
@@ -105,6 +133,11 @@ enum BrowserWindow {
                 if label.contains("address") || label.contains("smart search") || identifier == "WEB_BROWSER_ADDRESS_AND_SEARCH_FIELD" {
                     let value: String = attr(node, kAXValueAttribute) ?? ""
                     if unsafeAddress(value) { protected = true; return }
+                    if bundle.lowercased() == "com.apple.safari", !insideWebArea,
+                       identifier == "WEB_BROWSER_ADDRESS_AND_SEARCH_FIELD" {
+                        address = value
+                        addressFocused = attr(node, kAXFocusedAttribute)
+                    }
                 }
             }
             if role == "AXWebArea" {
@@ -134,6 +167,10 @@ enum BrowserWindow {
         }
         // An empty browser window can be navigated without exposing a web account.
         if url == nil, webAreas == 0, ["Start Page", "New Tab", "Safari"].contains(title) { url = "about:blank" }
+        if url == nil {
+            url = pdfPageURL(bundle: bundle, hasPDFPlugin: hasPDFPlugin, webAreas: webAreas,
+                             title: title, address: address, addressFocused: addressFocused, loading: loading)
+        }
         guard let url, url.utf8.count <= 8192 else { return ["status": "unavailable", "reason": "page"] }
         return ["status": "ready", "url": url, "bundleID": bundle, "title": FnContext.bounded(title, 300)]
     }

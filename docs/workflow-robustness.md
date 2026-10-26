@@ -21,6 +21,12 @@ Apply these rules to new apps and workflows. Test paths below are relative to
 | Grade outcomes rather than tool acknowledgements.    | A click receipt is not proof the requested result happened. Check source coverage, verify semantic results and read back created files. Retain failed attempts. Label synthetic/model probes, file-only results, assisted preparation and real GUI tasks separately; none substitutes for another.                                                                                                                                                                                                        |
 
 These host-tool rules do not claim to enforce the foreground provider's native shell; that route retains its provider approval boundary. The opt-in model probes use fictional accounts and cannot establish live cross-app reliability.
+Safari's native PDF viewer can omit both `AXWebArea` and document URL attributes. Its identity
+fallback requires the native PDF plugin outside web content, a non-editing native address field,
+and the same full HTTP(S) URL in the native window title. It refuses mismatches, credentials,
+queries, fragments, missing focus metadata and loading indicators; the existing complete security
+scan and exact-window revalidation still apply. Native pure tests cover these boundaries. A
+successful identity diagnostic is separate from verifying a complete task or all PDF content.
 Normal checks never require a personal account or run those probes at app startup. Real-account
 evidence stays outside Git, and research collection requires separate consent. Manual permission,
 fresh-install and physical-phone acceptance remain separate gates in [manual-acceptance.md](./manual-acceptance.md).
