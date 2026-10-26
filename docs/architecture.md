@@ -345,6 +345,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   records its driver operation. A new dialog cannot relabel that input as "not sent."
   In strict background turns, each native input and Chromium browser mutation/setup reads the live foreground application before
   dispatch. Input into that application is refused, leaving the person's active work alone.
+  A well-formed inventory with no active app gets one fresh read before input; malformed or error
+  responses do not. If focus remains unknown, input is refused. No input is retried by this check.
   A second read after input detects any foreground-app change or an unverifiable focus state;
   it preserves uncertainty and pauses the exact turn, including queued follow-ups. Sia does not
   restore focus over a person's choice, replay the action, or automatically resume the pause.

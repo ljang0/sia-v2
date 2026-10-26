@@ -469,7 +469,7 @@ export class CuaService {
               context.kind === 'turn' && BROWSER_INPUT_TOOLS.has(tool)
                 ? (context.backgroundTargetPid ?? args.pid)
                 : args.pid;
-            const foreground = await this.#foregroundPid(driver!, operation.signal);
+            const foreground = await this.#foregroundPid(driver!, operation.signal, true);
             operation.signal.throwIfAborted();
             if (
               foreground === undefined ||
@@ -608,11 +608,24 @@ export class CuaService {
     }
   }
 
-  async #foregroundPid(driver: DriverLike, signal: AbortSignal): Promise<number | undefined> {
+  async #foregroundPid(
+    driver: DriverLike,
+    signal: AbortSignal,
+    refreshUnavailable = false,
+  ): Promise<number | undefined> {
     try {
-      return readForegroundPid(
+      let focus = readForegroundInventory(
         await waitForAbort(this.#readInventory(driver, 'list_apps', {}, signal), signal),
       );
+      // A transient empty inventory before input is safe to observe once more.
+      // Never retry input, reuse old focus, or erase uncertainty AFTER delivery.
+      if (focus.status === 'empty' && refreshUnavailable) {
+        signal.throwIfAborted();
+        focus = readForegroundInventory(
+          await waitForAbort(this.#readInventory(driver, 'list_apps', {}, signal), signal),
+        );
+      }
+      return focus.status === 'ready' ? focus.pid : undefined;
     } catch {
       return undefined;
     }
@@ -706,29 +719,38 @@ export class CuaService {
 }
 
 /** Live native inventory only; never infer focus from a window title or cached snapshot. */
-function readForegroundPid(result: DriverResult): number | undefined {
+function readForegroundInventory(
+  result: DriverResult,
+): { status: 'ready'; pid: number } | { status: 'empty' | 'unavailable' } {
   try {
-    if (result.errorCode) return undefined;
+    if (result.errorCode) return { status: 'unavailable' };
     const parsed: unknown = JSON.parse(result.structuredJson ?? result.rawJson);
-    if (isNativeToolError(parsed)) return undefined;
+    if (isNativeToolError(parsed)) return { status: 'unavailable' };
     if (
       !parsed ||
       typeof parsed !== 'object' ||
       !('apps' in parsed) ||
       !Array.isArray(parsed.apps)
     )
-      return undefined;
+      return { status: 'unavailable' };
+    if (
+      parsed.apps.every(
+        (value: unknown) =>
+          !!value && typeof value === 'object' && 'active' in value && value.active === false,
+      )
+    )
+      return { status: 'empty' };
     const active = (parsed.apps as unknown[]).filter(
       (value): value is Record<string, unknown> =>
         !!value && typeof value === 'object' && 'active' in value && value.active === true,
     );
-    if (active.length !== 1) return undefined;
+    if (active.length !== 1) return { status: 'unavailable' };
     const pid: unknown = active[0]?.pid;
     return typeof pid === 'number' && Number.isInteger(pid) && pid > 0 && pid <= 2_147_483_647
-      ? pid
-      : undefined;
+      ? { status: 'ready', pid }
+      : { status: 'unavailable' };
   } catch {
-    return undefined;
+    return { status: 'unavailable' };
   }
 }
 

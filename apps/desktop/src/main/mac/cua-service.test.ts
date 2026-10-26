@@ -181,7 +181,10 @@ it.each([
     );
     if (scenario === 'unknown-before') {
       await expect(action).rejects.toThrow('CUA refused: background_focus_unavailable');
-      expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual(['list_apps']);
+      expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual([
+        'list_apps',
+        'list_apps',
+      ]);
     } else {
       const result = await action;
       expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual([
@@ -198,6 +201,67 @@ it.each([
         expect(result).toMatchObject({ background_focus_unverified: true });
       else expect(result).toMatchObject({ effect: 'confirmed' });
     }
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it('refreshes one unavailable preflight focus read before delivering input', async () => {
+  let inventories = 0;
+  const driver = {
+    ...successfulDriver({}),
+    callTool: vi.fn(async (name: string) => ({
+      rawJson: JSON.stringify(
+        name === 'list_apps'
+          ? { apps: ++inventories === 1 ? [] : [{ pid: 7, active: true }] }
+          : { effect: 'confirmed', delivery: { mode: 'background' } },
+      ),
+    })),
+  };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(
+      service.call(
+        'click',
+        { pid: 42, window_id: 91, delivery_mode: 'background' },
+        { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+      ),
+    ).resolves.toMatchObject({ effect: 'confirmed' });
+    expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual([
+      'list_apps',
+      'list_apps',
+      'click',
+      'list_apps',
+    ]);
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it('still refuses input when the refreshed focus is the target app', async () => {
+  let reads = 0;
+  const driver = {
+    ...successfulDriver({}),
+    callTool: vi.fn(async (name: string) => {
+      expect(name).toBe('list_apps');
+      return {
+        rawJson: JSON.stringify({ apps: ++reads === 1 ? [] : [{ pid: 42, active: true }] }),
+      };
+    }),
+  };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(
+      service.call(
+        'click',
+        { pid: 42, window_id: 91, delivery_mode: 'background' },
+        { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+      ),
+    ).rejects.toThrow('CUA refused: foreground_app_in_use');
+    expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual([
+      'list_apps',
+      'list_apps',
+    ]);
   } finally {
     await service.shutdown();
   }
