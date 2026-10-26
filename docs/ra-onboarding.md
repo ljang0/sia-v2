@@ -666,10 +666,10 @@ reads a real account or runs native commands; it is skipped by normal checks and
 SIA_CODEX_REAL_SMOKE=1 SIA_COURSE_INVESTIGATION_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/actions/course-investigation.smoke.test.ts
 ```
 
-The separate account-scope probe uses fictional signed-in course inventories. A selected session
-without a display name must still complete the requested read; an explicitly conflicting account
-must not. Neither case may open protected security settings. It uses a real model turn, but no
-real browser or account, and is also opt-in:
+The separate account-scope probe covers both fictional course inventories and project documents.
+A selected session without a display name must still complete the requested read; an explicitly
+conflicting account must not. None may open protected security settings. These use real model
+turns, but no real browser or account, and are also opt-in:
 
 ```sh
 SIA_CODEX_REAL_SMOKE=1 SIA_ACCOUNT_SCOPE_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/actions/account-scope.smoke.test.ts

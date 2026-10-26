@@ -3,6 +3,28 @@
 This is a continuing source and deterministic-test audit of the major user workflows. It is not an
 all-app live acceptance result. The public release remains gated by [public-release.md](./public-release.md).
 
+## Shared reliability practices
+
+Personal-account testing must produce shared fixes, rather than defaults tailored to the tester.
+Apply these rules to new apps and workflows. Test paths below are relative to
+`apps/desktop/src/main`:
+
+| Lesson                                               | Product behavior and regression coverage                                                                                                                                                                                                                                                                                                                                          |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Keep personal context separate from shared behavior. | Institution, account, preferred sources and working folders come from the person's agent-scoped memory and live app context. Do not embed a tester's identity, campus default, enrollment, credentials or paths in the runtime. `assistant/task-context.test.ts` and `assistant/memory-context.test.ts` check retained context and isolation.                                     |
+| Verify what the request actually requires.           | A live read in the explicitly selected signed-in profile can complete without an unrequested display name. A visible conflict, named-account requirement, uncertain destination or write still requires resolution. The opt-in `actions/account-scope.smoke.test.ts` checks both course inventories and project documents, with and without an account conflict.                  |
+| Treat remembered facts as hints.                     | Reuse established service origins and navigation lessons, then verify current account contents, dates and source coverage. A previous access failure does not prove a current sign-in requirement. Resolve ambiguous names from that person's context; ask when it remains ambiguous.                                                                                             |
+| Preserve the meaning of a failure.                   | Unreadable, incomplete, stale or ambiguous observations do not establish sign-out or absence. A delivered action followed by a refused read remains delivered but unverified, with a separate observation blocker. `actions/computer-browser-navigation.test.ts` and the opt-in Safari recovery probe cover this distinction.                                                     |
+| Keep observation and input authority separate.       | Native Safari tab-only reads skip webpage content and grant only tab selection. Sia-hosted typing requires a fresh normal snapshot of an unprotected tab. Neither tab recovery nor another public page authorizes credentials or a protected document.                                                                                                                            |
+| Keep concurrent windows and attempts isolated.       | Serialize the whole observation/action transaction per physical window, including supplemental reads and capability publication. Cancelled waiters cannot overtake active work. Explicit continuation receives new execution authority; it cannot revive old input references. `actions/window-operations.test.ts` and `actions/computer-window-order.test.ts` cover those races. |
+| Protect the person's active work.                    | In strict background mode, production checks macOS's actual frontmost PID, including utility panels. Unknown focus refuses input; a change after delivery preserves uncertainty. Do not restore focus, replay input or exceed the turn's chosen foreground policy. Native helper and `mac/cua-service.test.ts` regressions cover these boundaries.                                |
+| Grade outcomes rather than tool acknowledgements.    | A click receipt is not proof the requested result happened. Check source coverage, verify semantic results and read back created files. Retain failed attempts. Label synthetic/model probes, file-only results, assisted preparation and real GUI tasks separately; none substitutes for another.                                                                                |
+
+These host-tool rules do not claim to enforce the foreground provider's native shell; that route retains its provider approval boundary. The opt-in model probes use fictional accounts and cannot establish live cross-app reliability.
+Normal checks never require a personal account or run those probes at app startup. Real-account
+evidence stays outside Git, and research collection requires separate consent. Manual permission,
+fresh-install and physical-phone acceptance remain separate gates in [manual-acceptance.md](./manual-acceptance.md).
+
 ## Repository-wide continuation
 
 The continuation from `fa97fc6` inventories all 880 tracked files, including tests, documentation,
