@@ -104,7 +104,13 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   retry, and shutdown cancels its timer. Explicit IPC save failures still reach their caller.
   An unattended final turn checkpoint attempts an immediate save through the same recovery path:
   failure publishes the finished result and warning, preserves its outcome, and never replays its
-  actions. It must not reject an unobserved runner promise. Other non-streaming changes and
+  actions. The same recovery covers optional AI titles and periodic schedule housekeeping; it
+  must not reject an unobserved runner promise. Schedule dispatch claims remain throwing,
+  durable-before-dispatch saves. A failed automatic claim prevents execution and pauses the
+  schedule. A failed Run now removes its newly created claim so a later timer cannot silently
+  run it early; the regular cadence stays unchanged. Storage recovery does not replay either
+  failed request, and storage error details stay private. Explicit user
+  saves retain their failure boundary. Other non-streaming changes and
   graceful shutdown persist immediately. An abrupt termination may lose the last checkpoint
   interval of an unfinished response or draft.
   While saving is unavailable, changes since the last successful checkpoint remain volatile.

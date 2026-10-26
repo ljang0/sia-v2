@@ -1,5 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import type { DesktopPushEvent } from '../../shared/bridge.js';
+import type { RuntimeTurnInput } from '../providers/runtime-coordinator.js';
 import { EphemeralPayloadCipher, SqliteRecordRepository } from '../storage/persistence.js';
 import { createHarness } from './test-support.js';
 
@@ -132,6 +133,129 @@ it('keeps a finished reply visible when its unattended final checkpoint cannot b
       .snapshot()
       .timeline.filter((item) => item.threadId === h.threadId && item.kind === 'assistant'),
   ).toHaveLength(1);
+});
+
+it.each(['timer', 'manual', 'after-dispatch'] as const)(
+  'does not replay a %s run or expose failed schedule checkpoints',
+  async (mode) => {
+    vi.useFakeTimers();
+    const repository = new SqliteRecordRepository(':memory:', new EphemeralPayloadCipher());
+    const { controller } = await createHarness({ repository });
+    close.push(() => controller.shutdown());
+    const { agentId } = await controller.invoke('agents.save', {
+      name: 'Disposable scheduled check',
+      instructions: '',
+      provider: 'codex',
+      model: 'gpt-5.6-sol',
+      workspace: '/tmp/sia-workspace',
+    });
+    const { threadId } = await controller.invoke('threads.create', { agentId });
+    const schedule = controller.createScheduleFromAction(threadId, {
+      task: 'Reply to this disposable scheduled check',
+      cadence: 'once',
+      firstRunAt: new Date(Date.now() + 60_000).toISOString(),
+    });
+    const put = repository.put.bind(repository);
+    const failed = vi.spyOn(repository, 'put').mockImplementation((scope, id, value) => {
+      const timeline = (value as { timeline?: Array<{ kind: string }> }).timeline;
+      if (
+        scope === 'desktop' &&
+        (mode !== 'after-dispatch' || timeline?.some((item) => item.kind === 'user'))
+      )
+        throw new Error('Synthetic schedule checkpoint failure');
+      return put(scope, id, value);
+    });
+    if (mode !== 'manual') await vi.advanceTimersByTimeAsync(60_000);
+    else
+      await expect(
+        controller.invoke('schedules.runNow', { scheduleId: schedule.id }),
+      ).rejects.toThrow('Sia could not save or start this scheduled run.');
+    const snapshot = controller.snapshot();
+    if (mode !== 'manual') expect(snapshot.localSaveFailed).toBe(true);
+    const current = snapshot.schedules?.find((entry) => entry.id === schedule.id);
+    expect(current?.enabled).toBe(mode === 'manual');
+    expect(current?.activeRun).toBeUndefined();
+    expect(JSON.stringify(snapshot)).not.toContain('Synthetic schedule checkpoint failure');
+    const dispatched = mode === 'after-dispatch' ? 1 : 0;
+    expect(snapshot.timeline.filter((item) => item.kind === 'user')).toHaveLength(dispatched);
+    failed.mockRestore();
+    await vi.advanceTimersByTimeAsync(mode === 'manual' ? 31_000 : 60_000);
+    expect(controller.snapshot().localSaveFailed).toBeUndefined();
+    expect(controller.snapshot().timeline.filter((item) => item.kind === 'user')).toHaveLength(
+      dispatched,
+    );
+    expect(
+      repository.get<{ schedules: Array<{ id: string; enabled: boolean }> }>('desktop', 'state')
+        ?.schedules,
+    ).toContainEqual(expect.objectContaining({ id: schedule.id, enabled: mode === 'manual' }));
+  },
+);
+
+it('retains an automatically generated title and retries storage without another model call', async () => {
+  const started = Promise.withResolvers<void>();
+  const title = Promise.withResolvers<string>();
+  const generateThreadTitle = vi.fn(() => {
+    started.resolve();
+    return title.promise;
+  });
+  const runtime = {
+    async *runTurn(input: RuntimeTurnInput) {
+      yield {
+        id: 'fixture-completion',
+        threadId: input.thread.id,
+        turnId: input.turnId,
+        provider: 'codex' as const,
+        timestamp: new Date().toISOString(),
+        sequence: 1,
+        type: 'completion' as const,
+        payload: { status: 'completed' as const },
+      };
+    },
+    generateThreadTitle,
+    dispose: vi.fn(async () => undefined),
+    cancel: vi.fn(async () => undefined),
+  };
+  const repository = new SqliteRecordRepository(':memory:', new EphemeralPayloadCipher());
+  const { controller } = await createHarness({ repository, fakeServices: false, runtime });
+  close.push(() => controller.shutdown());
+  await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+  const { agentId } = await controller.invoke('agents.save', {
+    name: 'Disposable title check',
+    instructions: '',
+    provider: 'codex',
+    model: 'gpt-5.6-sol',
+    workspace: '/tmp/sia-workspace',
+  });
+  const { threadId } = await controller.invoke('threads.create', { agentId });
+  await controller.invoke('threads.send', { threadId, text: 'Plan a simple picnic' });
+  await started.promise;
+  vi.useFakeTimers();
+  const put = repository.put.bind(repository);
+  const failed = vi.spyOn(repository, 'put').mockImplementation((scope, id, value) => {
+    if (scope === 'desktop') throw new Error('Synthetic title checkpoint failure');
+    return put(scope, id, value);
+  });
+  title.resolve('Simple picnic plan');
+  await vi.advanceTimersByTimeAsync(0);
+  expect(controller.snapshot().localSaveFailed).toBe(true);
+  expect(controller.snapshot().threads.find((thread) => thread.id === threadId)?.title).toBe(
+    'Simple picnic plan',
+  );
+  expect(JSON.stringify(controller.snapshot())).not.toContain(
+    'Synthetic title checkpoint failure',
+  );
+  expect(
+    repository.get<{ threads: Array<{ id: string; title: string }> }>('desktop', 'state')
+      ?.threads,
+  ).not.toContainEqual(expect.objectContaining({ id: threadId, title: 'Simple picnic plan' }));
+  failed.mockRestore();
+  await vi.advanceTimersByTimeAsync(30_000);
+  expect(controller.snapshot().localSaveFailed).toBeUndefined();
+  expect(
+    repository.get<{ threads: Array<{ id: string; title: string }> }>('desktop', 'state')
+      ?.threads,
+  ).toContainEqual(expect.objectContaining({ id: threadId, title: 'Simple picnic plan' }));
+  expect(generateThreadTitle).toHaveBeenCalledOnce();
 });
 
 it('clears the warning after an explicit successful save and cancels its redundant retry', async () => {

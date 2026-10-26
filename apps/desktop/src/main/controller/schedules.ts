@@ -20,12 +20,18 @@ import {
 } from './schedule-rules.js';
 import type { QueuedTurn } from './types.js';
 
+const dispatchFailure = () =>
+  new Error(
+    'Sia could not save or start this scheduled run. Check its task activity before trying again.',
+  );
+
 /** The parts of the controller context Schedules uses. */
 type SchedulesContext = Pick<
   ControllerContext,
   | 'account'
   | 'appendTimeline'
   | 'commit'
+  | 'commitBackgroundState'
   | 'providers'
   | 'releaseAccessLocked'
   | 'requireThread'
@@ -287,7 +293,7 @@ export class Schedules {
           });
         }
       }
-      if (changed) this.ctx.commit();
+      if (changed) this.ctx.commitBackgroundState();
     } finally {
       this.runInFlight = false;
     }
@@ -320,19 +326,33 @@ export class Schedules {
       schedule.activeRun = claim;
       // The claim reaches disk before the user turn. Recovery can now distinguish a crash before
       // dispatch from a crash after dispatch by searching for this stable scheduleRunId.
-      this.ctx.commit();
+      try {
+        this.commitDispatchState();
+      } catch (error) {
+        // A failed Run now must not leave a new in-memory claim that the next
+        // timer could silently dispatch before the regular scheduled time.
+        delete schedule.activeRun;
+        throw error;
+      }
     }
     const dispatched = this.ctx.state.timeline.find(
       (item) => item.scheduleRunId === claim.id && item.kind === 'user' && item.turnId,
     );
-    const result = dispatched?.turnId
-      ? { turnId: dispatched.turnId, snapshot: this.ctx.resultSnapshot() }
-      : this.ctx.turns.sendTurn(
-          { threadId: schedule.threadId, text: schedule.prompt },
-          'schedule',
-          undefined,
-          claim.id,
-        );
+    let result: BridgeResultMap['schedules.runNow'];
+    try {
+      result = dispatched?.turnId
+        ? { turnId: dispatched.turnId, snapshot: this.ctx.resultSnapshot() }
+        : this.ctx.turns.sendTurn(
+            { threadId: schedule.threadId, text: schedule.prompt },
+            'schedule',
+            undefined,
+            claim.id,
+          );
+    } catch {
+      // sendTurn may have accepted the request before its save failed. Do not
+      // replay it or copy a storage error into the scheduled-task notice.
+      throw dispatchFailure();
+    }
     const startedAt = dispatched?.timestamp ?? now.toISOString();
     schedule.lastRunAt = startedAt;
     schedule.lastRun = { id: claim.id, startedAt, outcome: 'started' };
@@ -343,8 +363,18 @@ export class Schedules {
       schedule.enabled = false;
     }
     delete schedule.activeRun;
-    this.ctx.commit();
+    this.commitDispatchState();
     return result;
+  }
+
+  private commitDispatchState(): void {
+    try {
+      this.ctx.commit();
+    } catch {
+      // Claims remain durable-before-dispatch. Do not turn a failed claim into
+      // a storage retry that also starts work, or expose a storage error payload.
+      throw dispatchFailure();
+    }
   }
 
   markScheduleRunFinished(

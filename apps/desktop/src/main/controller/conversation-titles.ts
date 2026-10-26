@@ -2,7 +2,7 @@ import type { ThreadView, TimelineItemView } from '../../shared/bridge.js';
 import { conversationTitle, UNTITLED_THREAD_TITLE } from '../../shared/plain-text.js';
 import type { ControllerContext } from './context.js';
 
-type TitleContext = Pick<ControllerContext, 'commit' | 'remoteAccessAllowed'> & {
+type TitleContext = Pick<ControllerContext, 'commitBackgroundState' | 'remoteAccessAllowed'> & {
   state: Pick<ControllerContext['state'], 'threads' | 'timeline'>;
   deps: Pick<ControllerContext['deps'], 'fakeServices'>;
   runtime?: Pick<NonNullable<ControllerContext['runtime']>, 'generateThreadTitle'> | undefined;
@@ -128,7 +128,7 @@ export class ConversationTitles {
             continue;
           current.title = title;
           current.titleSource = 'ai';
-          this.ctx.commit();
+          this.ctx.commitBackgroundState();
         } catch {
           // Keep the immediate request preview when naming is unavailable. Retry on a later visit.
         } finally {

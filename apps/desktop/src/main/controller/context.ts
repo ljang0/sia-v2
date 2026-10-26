@@ -354,10 +354,10 @@ export class ControllerContext {
     this.emit();
   }
 
-  /** The task has already ended; a local save cannot undo its result or escape
-   * the unattended runner promise. Publish it with the same save-health recovery
-   * used by autosaves. Explicit IPC commits still report write failures. */
-  commitTurnResult(): void {
+  /** Publish already-applied background state with save-health recovery. Never
+   * use this for a pre-action durability claim: those saves must still throw and
+   * prevent dispatch. Explicit IPC saves also keep their failure boundary. */
+  commitBackgroundState(): void {
     this.revision += 1;
     this.mac.syncKeepAwake();
     this.cancelStreamCommit();

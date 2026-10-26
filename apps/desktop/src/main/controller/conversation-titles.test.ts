@@ -38,7 +38,7 @@ function fixture(titleSource?: ThreadView['titleSource']) {
     },
     runtime: { generateThreadTitle: generate },
     providers: { requireReadyProvider: vi.fn() },
-    commit: vi.fn(),
+    commitBackgroundState: vi.fn(),
     remoteAccessAllowed: vi.fn(() => true),
   };
   return { thread, ctx, generate, titles: new ConversationTitles(ctx) };
@@ -121,7 +121,7 @@ describe('automatic conversation titles', () => {
       if (change === 'account') ctx.state = structuredClone(ctx.state);
       finish('CMU professor lookup');
       await new Promise((resolve) => setTimeout(resolve, 0));
-      expect(ctx.commit).not.toHaveBeenCalled();
+      expect(ctx.commitBackgroundState).not.toHaveBeenCalled();
       expect(thread.titleSource).not.toBe('ai');
     },
   );

@@ -79,6 +79,13 @@ Draft acceptance is not a durability acknowledgement. Retry storage only, never 
 Isolated encrypted in-memory tests cover repository failures, retained drafts and final replies,
 retry timing, recovery revisions and shutdown. Explicit save failures still reach their caller;
 these tests do not simulate an actual full disk or establish every storage-failure path.
+Optional title persistence and schedule housekeeping use that same background-state recovery.
+Schedule claims remain synchronous durability gates: if saving an automatic claim fails, do not
+dispatch the task, pause its schedule, and retry only the paused state. A failed Run now must remove
+its new claim without changing the regular cadence or causing an early retry on the next timer.
+Check absence of dispatch and replay when storage recovers, and that a title recovers without
+another model call. Never suppress a claim error to make a schedule appear reliable. Storage error
+payloads must not enter the scheduled-task notice.
 
 ## Repository-wide continuation
 

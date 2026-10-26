@@ -19,6 +19,7 @@ type ThreadsContext = Pick<
   | 'attachments'
   | 'assistant'
   | 'commit'
+  | 'commitBackgroundState'
   | 'deps'
   | 'persistSoon'
   | 'providers'
