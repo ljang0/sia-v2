@@ -493,10 +493,42 @@ describe('CloudClient', () => {
       ),
     );
     vi.stubGlobal('fetch', pendingFetch);
-    await expect(
-      client.deleteResearchData({ timeoutMs: 2, pollIntervalMs: 0 }),
-    ).rejects.toThrow('safety timeout');
+    // Exercise the poll-count bound independently of host scheduling. A real
+    // two-millisecond deadline can expire after either one or two GETs on CI.
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(1_000);
+    try {
+      await expect(
+        client.deleteResearchData({ timeoutMs: 2, pollIntervalMs: 0 }),
+      ).rejects.toThrow('safety timeout');
+    } finally {
+      clock.mockRestore();
+    }
     expect(pendingFetch).toHaveBeenCalledTimes(3);
+  });
+
+  it('stops deletion polling when its wall-clock deadline expires before the poll-count bound', async () => {
+    let now = 1_000;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const fetchMock = vi.fn(async (_input: URL | RequestInfo, init?: RequestInit) => {
+      if (init?.method === 'POST')
+        return Response.json({ id: 'deletion-1', scope: 'research', state: 'requested' });
+      now += 100;
+      return Response.json({
+        deletion: { id: 'deletion-1', scope: 'research', state: 'processing' },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const client = new CloudClient('https://api.example.test', {
+      read: async () => 'test-id-token',
+    });
+    try {
+      await expect(
+        client.deleteResearchData({ timeoutMs: 100, pollIntervalMs: 0 }),
+      ).rejects.toThrow('safety timeout');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      clock.mockRestore();
+    }
   });
 
   it('requires the exact accepted account deletion job to complete', async () => {
