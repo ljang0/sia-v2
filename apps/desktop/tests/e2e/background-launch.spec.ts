@@ -14,6 +14,7 @@ test('a background launch serves the typed bridge without showing its window', a
   const harness = await launchIsolatedSia({
     testRoot,
     arguments: ['--background'],
+    preserveNativeVisibility: true,
     environment: { SIA_TEST_QUIET: '0' },
   });
   try {
@@ -23,6 +24,9 @@ test('a background launch serves the typed bridge without showing its window', a
         BrowserWindow.getAllWindows().every((window) => !window.isVisible()),
       ),
     ).toBe(true);
+    await expect
+      .poll(() => harness.page.evaluate(() => document.visibilityState))
+      .toBe('hidden');
     // Reopening in the background must not reveal an already-running instance either.
     await harness.application.evaluate(({ app }) => {
       app.emit('second-instance', {} as never, ['sia', '--background'], '', {});
@@ -32,6 +36,9 @@ test('a background launch serves the typed bridge without showing its window', a
         BrowserWindow.getAllWindows().every((window) => !window.isVisible()),
       ),
     ).toBe(true);
+    await expect
+      .poll(() => harness.page.evaluate(() => document.visibilityState))
+      .toBe('hidden');
     // An explicit normal open still restores the app rather than leaving it inaccessible.
     await harness.application.evaluate(({ app }) => {
       app.emit('second-instance', {} as never, ['sia'], '', {});
@@ -43,6 +50,9 @@ test('a background launch serves the typed bridge without showing its window', a
         ),
       )
       .toBe(true);
+    await expect
+      .poll(() => harness.page.evaluate(() => document.visibilityState))
+      .toBe('visible');
     expect(harness.rendererErrors).toEqual([]);
   } finally {
     await harness.close();

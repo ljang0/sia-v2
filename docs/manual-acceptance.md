@@ -228,10 +228,17 @@ brief driver-reported activation, and live permission grants that need no extra 
 
 Background startup must also expose a hidden document to the renderer: animated effects must
 pause before the first explicit open, and opening Sia later must restore visibility normally.
-Check this without Playwright renderer attachment: its default focus emulation can report the
+A default Playwright renderer attachment cannot verify this: its focus emulation can report the
 hidden page as visible. An isolated real-Electron startup with only main-process inspection
 verified both the native window and renderer document hidden; this is startup evidence, not
 a computer-task success.
+The isolated background-launch regression uses the test harness's
+`preserveNativeVisibility: true`: it retains native throttling and clears focus emulation on
+Playwright's original Electron page session. Clearing a separate CDP session is insufficient.
+The pinned local adapter fails if that original session cannot be reached; keep it verified when
+upgrading Playwright. Additional read-only observers of the test app should attach with
+`connectOverCDP(..., { noDefaults: true })`. Record native window visibility separately from
+renderer visibility; neither alone proves successful background computer input.
 Native MCP error envelopes must fail safely, never appear as empty successful observations or
 release their text/images. Failed input acknowledgements remain uncertain and must not trigger
 replay. The browser identity helper distinguishes its bounded timeout, native failure and invalid

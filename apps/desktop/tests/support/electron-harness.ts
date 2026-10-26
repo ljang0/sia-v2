@@ -11,6 +11,8 @@ export interface IsolatedSiaOptions {
   readonly arguments?: readonly string[];
   readonly executablePath?: string;
   readonly fakeServices?: boolean;
+  /** Keep native visibility/throttling rather than Playwright's rendering overrides. */
+  readonly preserveNativeVisibility?: boolean;
   readonly environment?: Readonly<Record<string, string>>;
   readonly attachmentNames?: readonly string[];
   readonly prefix?: string;
@@ -68,9 +70,9 @@ export async function launchIsolatedSia(
       ...options.environment,
     },
   });
-  if (options.fakeServices !== false) {
+  if (options.fakeServices !== false && !options.preserveNativeVisibility) {
     // Deterministic fixtures must keep rendering when another app or the lock
-    // screen occludes them. Real-app probes retain production visibility behavior.
+    // screen occludes them. Native visibility checks explicitly opt out below.
     await application.evaluate(({ app, BrowserWindow }) => {
       for (const window of BrowserWindow.getAllWindows())
         window.webContents.setBackgroundThrottling(false);
@@ -80,6 +82,14 @@ export async function launchIsolatedSia(
     });
   }
   const page = await readyPage(application);
+  if (options.preserveNativeVisibility) {
+    try {
+      await disableOriginalFocusEmulation(page);
+    } catch (error) {
+      await closeElectronApplication(application);
+      throw error;
+    }
+  }
   if (options.fakeServices !== false && process.env.SIA_TEST_QUIET === '1') {
     expect(
       await application.evaluate(({ BrowserWindow }) =>
@@ -134,6 +144,32 @@ export async function launchIsolatedSia(
       }
     },
   };
+}
+
+/**
+ * Playwright 1.62.1 enables focus emulation on Electron's original page session.
+ * Clearing a second CDP session leaves that original override active. Its public
+ * Electron launch API has no noDefaults option, so isolate this pinned local
+ * transport adapter and fail rather than silently claim native visibility.
+ */
+async function disableOriginalFocusEmulation(page: Page): Promise<void> {
+  const local = page as unknown as {
+    _connection?: {
+      toImpl?: (page: Page) => {
+        delegate?: {
+          _mainFrameSession?: {
+            _client?: {
+              send(method: string, parameters: { enabled: boolean }): Promise<unknown>;
+            };
+          };
+        };
+      };
+    };
+  };
+  const client = local._connection?.toImpl?.(page)?.delegate?._mainFrameSession?._client;
+  if (!client)
+    throw new Error('The installed Playwright cannot verify native Electron visibility.');
+  await client.send('Emulation.setFocusEmulationEnabled', { enabled: false });
 }
 
 async function closeElectronApplication(application: ElectronApplication): Promise<void> {
