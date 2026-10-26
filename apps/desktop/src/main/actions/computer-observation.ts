@@ -91,7 +91,16 @@ export class ComputerObservation {
     request: ValidatedActionInvocation,
   ): Promise<ActionExecutionResult> {
     const browser = this.inventory.isNativeBrowser(binding);
-    let browserState = browser ? await this.inventory.nativeBrowserState(binding) : undefined;
+    const tabsOnly = request.arguments.tabs_only === true;
+    if (
+      tabsOnly &&
+      (!this.ctx.macBrowserAccess() ||
+        this.ctx.computer.apps.get(binding.appId)?.identity !== 'bundle:com.apple.safari')
+    )
+      return refused('Tab-only snapshots require an existing Safari window in Use my Mac.');
+    let browserState = browser
+      ? await this.inventory.nativeBrowserState(binding, tabsOnly)
+      : undefined;
     const hasProtectedControls = (value: unknown) =>
       windowHasProtectedControls(value, {
         browserBundleId: browserState?.status === 'ready' ? browserState.bundleID : undefined,
@@ -101,6 +110,11 @@ export class ComputerObservation {
     // releasing any captured content or minting an input capability.
     if (browserState?.status === 'protected')
       return this.#browserObservationRefused(binding, browserState);
+    if (
+      tabsOnly &&
+      (browserState?.status !== 'navigation' || browserState.surface !== 'safari-tabs')
+    )
+      return refused('The native Safari tab bar could not be verified. No webpage was read.');
     if (
       browserState?.status === 'ready' &&
       request.arguments.expected_url &&
@@ -120,6 +134,7 @@ export class ComputerObservation {
         window_id: binding.windowId,
         session: this.ctx.computer.session(request),
         include_screenshot: includeScreenshot,
+        ...(browserState?.status === 'navigation' ? { max_depth: 2 } : {}),
       });
       const after = before ? await this.#readWindowFrame(binding, request) : undefined;
       capturedFrame = sameWindowFrame(before, after) ? before : undefined;
@@ -148,7 +163,14 @@ export class ComputerObservation {
     let refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
     if (browserState?.status === 'navigation')
-      return captureBrowserNavigation(this.ctx, this.inventory, binding, request, raw);
+      return captureBrowserNavigation(
+        this.ctx,
+        this.inventory,
+        binding,
+        request,
+        raw,
+        browserState.surface,
+      );
     if (browserState?.status === 'unavailable') {
       if (hasProtectedControls(raw))
         return this.#browserObservationRefused(binding, { status: 'protected' });
@@ -476,7 +498,10 @@ export class ComputerObservation {
         ...(protectedPage
           ? {
               next_step:
-                'Do not interact with this protected document or attempt authentication. For public facts already in scope, reuse a known public subpage from saved source hints, memory or prior verified observations with computer_open_url, then take a fresh snapshot. A protected homepage does not establish that its public staff/syllabus pages are protected. This grants no access to private data and never substitutes public information for verified enrollment or account identity.',
+                this.ctx.computer.apps.get(binding.appId)?.identity ===
+                'bundle:com.apple.safari'
+                  ? 'Do not interact with this protected page or attempt authentication. To choose another already-open Safari tab, request computer_snapshot with tabs_only:true on this exact app/window. That returns only native tab labels and selection controls, never page content or authentication fields. Then select the intended tab and verify its live page.'
+                  : 'Do not interact with this protected document or attempt authentication. For public facts already in scope, reuse a known public subpage from saved source hints, memory or prior verified observations with computer_open_url, then take a fresh snapshot. A protected homepage does not establish that its public staff/syllabus pages are protected. This grants no access to private data and never substitutes public information for verified enrollment or account identity.',
             }
           : {}),
         ...('reason' in state && state.reason ? { blocker_detail: state.reason } : {}),

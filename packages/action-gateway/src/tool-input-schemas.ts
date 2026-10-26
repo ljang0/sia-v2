@@ -57,6 +57,7 @@ const computerSnapshot = z
     continue_from: id.optional(),
     wait_ms: z.number().int().min(0).max(3000).optional(),
     read_text: z.boolean().optional(),
+    tabs_only: z.boolean().optional(),
     include_image: z.boolean().optional(),
     expected_url: computerOpenUrl.shape.url.optional(),
   })

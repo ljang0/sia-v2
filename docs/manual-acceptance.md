@@ -252,6 +252,13 @@ search fields or a borrowed URL. Only selecting one returned tab or Escape may r
 snapshot. A fresh native surface check must reject old refs after the view changes. Selecting
 an authentication tab must still suppress its protected page; successful tab navigation does
 not prove sign-in or correct course coverage.
+With a login page selected, an ordinary page snapshot must remain blocked. Request
+`computer_snapshot` with `tabs_only:true`: the native check skips web areas entirely and
+the Cua read is text-only with depth two. Return only verified Safari tab controls, with
+no field values, previews, screenshots or page URL. A single returned tab may be selected;
+keyboard input (including Escape), pixels and arbitrary controls stay unavailable from
+this grant. Verify the destination with a new ordinary page observation. Other browsers
+and a missing native tab bar must fail this route without reading a webpage.
 If focus changes between unrelated apps during a background scroll, input is quarantined
 before the native queue advances. Sia may take two read-only snapshots of the original
 window, pinned to its previous browser URL, to reconcile the scroll and finish an answer.

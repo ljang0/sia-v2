@@ -13,7 +13,7 @@ const result = z.discriminatedUnion('status', [
   }),
   z.object({
     status: z.literal('navigation'),
-    surface: z.literal('safari-tab-overview'),
+    surface: z.enum(['safari-tab-overview', 'safari-tabs']),
     bundleID: z.string(),
     title: z.string().max(300).optional(),
   }),
@@ -116,11 +116,11 @@ View that PNG with view_image. Use the returned image-to-screen transform; do no
       return { status: 'unavailable' };
     }
   }
-  async inspect(pid: number, windowId: number): Promise<BrowserWindowState> {
+  async inspect(pid: number, windowId: number, tabsOnly = false): Promise<BrowserWindowState> {
     if (![pid, windowId].every((value) => Number.isInteger(value) && value > 0))
       return { status: 'unavailable', reason: 'window' };
     for (let attempt = 0; ; attempt++) {
-      const state = await this.#inspectOnce(pid, windowId);
+      const state = await this.#inspectOnce(pid, windowId, tabsOnly);
       if (
         attempt ||
         state.status !== 'unavailable' ||
@@ -131,10 +131,14 @@ View that PNG with view_image. Use the returned image-to-screen transform; do no
       // this fixed read, not input; no partial content or old identity is reused.
     }
   }
-  async #inspectOnce(pid: number, windowId: number): Promise<BrowserWindowState> {
+  async #inspectOnce(
+    pid: number,
+    windowId: number,
+    tabsOnly: boolean,
+  ): Promise<BrowserWindowState> {
     let value: unknown;
     try {
-      value = await this.observer.read('browser', pid, windowId);
+      value = await this.observer.read(tabsOnly ? 'tabs' : 'browser', pid, windowId);
     } catch (error) {
       return {
         status: 'unavailable',

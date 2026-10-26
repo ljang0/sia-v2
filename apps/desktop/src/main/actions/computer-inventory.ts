@@ -454,10 +454,15 @@ export class ComputerInventory {
     );
   }
 
-  async nativeBrowserState(binding: ComputerWindowBinding): Promise<BrowserWindowState> {
+  async nativeBrowserState(
+    binding: ComputerWindowBinding,
+    tabsOnly = false,
+  ): Promise<BrowserWindowState> {
     if (!this.ctx.macBrowserAccess() || !this.ctx.options.inspectBrowserWindow)
       return { status: 'unavailable' };
-    const state = await this.ctx.options.inspectBrowserWindow(binding.pid, binding.windowId);
+    const state = tabsOnly
+      ? await this.ctx.options.inspectBrowserWindow(binding.pid, binding.windowId, true)
+      : await this.ctx.options.inspectBrowserWindow(binding.pid, binding.windowId);
     if (state.status !== 'ready' && state.status !== 'navigation') return state;
     if (
       `bundle:${state.bundleID.toLowerCase()}` !==

@@ -5,6 +5,21 @@ import { WindowObservationError } from './window-observer.js';
 const run = vi.fn();
 const observer = { read: run, close: vi.fn() };
 
+it('routes tab-only inspection to its fixed operation without reading the current webpage', async () => {
+  const service = new BrowserWindowService('/helper', observer);
+  run.mockReset();
+  run.mockResolvedValueOnce({
+    status: 'navigation',
+    surface: 'safari-tabs',
+    bundleID: 'com.apple.Safari',
+  });
+  expect(await service.inspect(42, 91, true)).toMatchObject({
+    status: 'navigation',
+    surface: 'safari-tabs',
+  });
+  expect(run).toHaveBeenCalledExactlyOnceWith('tabs', 42, 91);
+});
+
 it('distinguishes identity-helper failures without exposing app content or native errors', async () => {
   const service = new BrowserWindowService('/helper', observer);
   for (const [failure, reason] of [

@@ -581,7 +581,7 @@ describe('Use my Mac browser routing', () => {
     );
     expect(blocked.outcome).toBe('refused');
     expect(blocked.images).toBeUndefined();
-    expect(dataRecord(blocked.data).next_step).toContain('computer_open_url');
+    expect(dataRecord(blocked.data).next_step).toContain('tabs_only:true');
     expect(dataRecord(blocked.data).previously_observed_windows).toEqual([
       expect.objectContaining({ source_url: 'https://example.com/' }),
     ]);

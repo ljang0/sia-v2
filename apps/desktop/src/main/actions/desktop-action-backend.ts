@@ -227,6 +227,8 @@ export class DesktopActionBackend implements ActionBackend {
             return await this.#macBrowser.openUrl(request);
           return await this.#inventory.openUrl(request);
         case 'computer_snapshot': {
+          if (request.arguments.tabs_only === true)
+            return await this.#observation.snapshot(request);
           const window = this.#ctx.computer.resolveWindow(
             String(request.arguments.app_id),
             String(request.arguments.window_id),

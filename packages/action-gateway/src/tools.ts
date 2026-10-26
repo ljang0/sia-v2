@@ -277,6 +277,11 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
           description:
             'Use my Mac: read text from this screenshot locally, for PDFs or images without usable accessibility text.',
         },
+        tabs_only: {
+          type: 'boolean',
+          description:
+            'Use my Mac Safari only: read native tab labels and single-click tab-selection refs, without reading the selected webpage, screenshots, previews, fields or credentials. Use to find another existing tab when the current page is protected or unavailable. The page remains blocked; a tab label does not prove sign-in. Only exact tab selection is permitted from this snapshot.',
+        },
         include_image: {
           type: 'boolean',
           description:

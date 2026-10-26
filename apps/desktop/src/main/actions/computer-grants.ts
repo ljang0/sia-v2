@@ -29,7 +29,7 @@ export interface ComputerWindowBinding {
 export interface WindowSnapshotCapability {
   readonly backgroundInput?: BackgroundInputStatus;
   readonly browserUrl?: string;
-  readonly browserSurface?: 'safari-tab-overview';
+  readonly browserSurface?: 'safari-tab-overview' | 'safari-tabs';
   readonly capturedAt: number;
   readonly protectedControls: boolean;
   readonly pixels?: { width: number; height: number };

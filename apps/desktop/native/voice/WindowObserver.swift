@@ -16,7 +16,7 @@ enum WindowObserver {
               Set(fields.keys) == Set(["id", "operation", "pid", "window_id"]),
               let request = try? JSONDecoder().decode(Request.self, from: data),
               UUID(uuidString: request.id) != nil,
-              ["browser", "context"].contains(request.operation),
+              ["browser", "context", "tabs"].contains(request.operation),
               request.pid > 0, request.window_id > 0 else { return nil }
         return request
     }
@@ -27,9 +27,11 @@ enum WindowObserver {
             while let line = readLine() {
                 guard let request = request(line) else { exit(2) }
                 let result = DispatchQueue.main.sync {
-                    request.operation == "browser"
-                        ? BrowserWindow.inspect(pid: request.pid, windowID: request.window_id)
-                        : WindowContext.capture(pid: request.pid, windowID: request.window_id)
+                    switch request.operation {
+                    case "browser": return BrowserWindow.inspect(pid: request.pid, windowID: request.window_id)
+                    case "tabs": return BrowserWindow.inspectTabs(pid: request.pid, windowID: request.window_id)
+                    default: return WindowContext.capture(pid: request.pid, windowID: request.window_id)
+                    }
                 }
                 guard let data = try? JSONSerialization.data(withJSONObject: ["id": request.id, "result": result]) else { exit(2) }
                 FileHandle.standardOutput.write(data + Data([10]))

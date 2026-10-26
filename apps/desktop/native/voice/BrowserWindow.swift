@@ -6,6 +6,41 @@ import ApplicationServices
 enum BrowserWindow {
     static let bundles: Set<String> = ["com.apple.safari", "com.google.chrome", "org.chromium.chromium", "com.brave.browser", "com.microsoft.edgemac", "org.mozilla.firefox", "company.thebrowser.browser"]
 
+    /// Native tab bar only. Web areas and their descendants are never inspected;
+    /// an authentication page must not prevent choosing a different existing tab.
+    static func inspectTabs(pid: pid_t, windowID: CGWindowID) -> [String: Any] {
+        guard AXIsProcessTrusted(),
+              NSRunningApplication(processIdentifier: pid)?.bundleIdentifier?.lowercased() == "com.apple.safari",
+              let window = WindowContext.resolve(pid: pid, windowID: windowID) else { return ["status": "unavailable"] }
+        let deadline = Date().addingTimeInterval(WindowContext.securityScanSeconds)
+        var visited = Set<CFHashCode>()
+        var complete = true
+        var protected = false
+        var found = false
+        func walk(_ node: AXUIElement, _ depth: Int) {
+            guard complete, !protected else { return }
+            guard Date() < deadline, depth <= 20, visited.count < 2000 else { complete = false; return }
+            guard visited.insert(CFHash(node)).inserted else { return }
+            let role: String? = WindowContext.attribute(node, kAXRoleAttribute)
+            guard let role else { complete = false; return }
+            if role == "AXWebArea" { return }
+            guard let metadata = WindowContext.metadata(node) else { complete = false; return }
+            if [metadata.title, metadata.description].contains(where: { WindowContext.hasPasswordMetadata(role: role, label: $0) }) || metadata.subrole.lowercased().contains("secure") {
+                protected = true; return
+            }
+            if ["AXTabGroup", "AXOpaqueProviderGroup"].contains(role) {
+                let identifier: String = WindowContext.attribute(node, kAXIdentifierAttribute) ?? ""
+                if identifier.hasPrefix("TabBar?") { found = true }
+            }
+            for child in metadata.children { walk(child, depth + 1) }
+        }
+        walk(window, 0)
+        if protected { return ["status": "protected"] }
+        guard complete, found, Date() < deadline,
+              WindowContext.stillMatches(window, pid: pid, windowID: windowID) else { return ["status": "unavailable"] }
+        return ["status": "navigation", "surface": "safari-tabs", "bundleID": "com.apple.Safari"]
+    }
+
     static func unsafeAddress(_ value: String) -> Bool {
         // Browsers strip whitespace/control characters from pasted schemes. Inspect the
         // actual field, not just each proposed text chunk, before allowing the next key.

@@ -728,7 +728,8 @@ async function performApplicationCreation(): Promise<void> {
       ensureBrowserAttached: () => activeController.ensureBrowserAttachedForActions(),
       macBrowserAccess: () => activeController.computerAccessMode() === 'mac',
       macBackgroundControl: () => activeController.macBackgroundControl(),
-      inspectBrowserWindow: (pid, windowId) => browserWindows.inspect(pid, windowId),
+      inspectBrowserWindow: (pid, windowId, tabsOnly) =>
+        browserWindows.inspect(pid, windowId, tabsOnly),
       readImageText: (dataBase64) => browserWindows.imageText(dataBase64),
       readWindowContext: (pid, windowId) => browserWindows.context(pid, windowId),
       ...(localConnectors ? { localConnectors } : {}),

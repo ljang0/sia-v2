@@ -65,8 +65,11 @@ export class ComputerInput {
         return refused(
           'Use visible browser page controls or a permitted navigation shortcut. Native menus are available only for ordinary non-browser apps.',
         );
-      const current = await this.inventory.nativeBrowserState(binding);
-      const navigationOnly = capability.browserSurface === 'safari-tab-overview';
+      const current = await this.inventory.nativeBrowserState(
+        binding,
+        capability.browserSurface === 'safari-tabs',
+      );
+      const navigationOnly = capability.browserSurface !== undefined;
       if (
         navigationOnly
           ? current.status !== 'navigation' || current.surface !== capability.browserSurface
@@ -86,11 +89,14 @@ export class ComputerInput {
             (args.count === undefined || args.count === 1) &&
             (args.button === undefined || args.button === 'left')) ||
           (args.action === 'key' &&
+            capability.browserSurface === 'safari-tab-overview' &&
             /^(?:escape|esc)$/i.test(String(args.value)) &&
             (!Array.isArray(args.modifiers) || args.modifiers.length === 0))
         )
       )
-        return refused('Tab Overview permits only selecting an observed tab or Escape.');
+        return refused(
+          'Native tab navigation permits only selecting an observed tab; Tab Overview also allows Escape.',
+        );
       verifiedBrowserBundleId =
         current.status === 'ready' || current.status === 'navigation'
           ? current.bundleID

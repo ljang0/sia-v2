@@ -21,12 +21,13 @@ export async function captureBrowserNavigation(
   binding: ComputerWindowBinding,
   request: ValidatedActionInvocation,
   raw: unknown,
+  surface: 'safari-tab-overview' | 'safari-tabs',
 ): Promise<ActionExecutionResult> {
   if (request.arguments.expected_url)
-    return stale('Safari is showing Tab Overview, not the requested webpage.');
-  const after = await inventory.nativeBrowserState(binding);
-  if (after.status !== 'navigation' || after.surface !== 'safari-tab-overview')
-    return stale('Safari left Tab Overview during observation. Capture its fresh state.');
+    return stale('This snapshot contains Safari tab labels, not the requested webpage.');
+  const after = await inventory.nativeBrowserState(binding, surface === 'safari-tabs');
+  if (after.status !== 'navigation' || after.surface !== surface)
+    return stale('Safari tab navigation changed during observation. Capture its fresh state.');
   const snapshotId = randomUUID();
   const addresses = new Map<string, NativeElementAddress>();
   const elements = findElementRecords(raw, 'window').flatMap((record, position) => {
@@ -46,7 +47,7 @@ export async function captureBrowserNavigation(
     return [element];
   });
   if (!elements.length)
-    return refused('Safari Tab Overview returned no verified tab-selection controls.');
+    return refused('Safari returned no verified native tab-selection controls.');
   const backgroundInput = windowBackgroundInput(raw, binding);
   ctx.computer.rememberSnapshot({
     id: snapshotId,
@@ -75,12 +76,12 @@ export async function captureBrowserNavigation(
       pixel_actions_available: false,
       observation_partial: true,
       coverage_note:
-        'Native tab labels only; they do not establish page content or sign-in. Select the intended tab by its element_ref, then verify its live page. Only a single left click on a returned tab or Escape is allowed. Screenshots, previews, text fields and other controls are excluded.',
+        'Native tab labels only; they do not establish page content or sign-in. Select the intended tab by its element_ref, then verify its live page. Only a single left click on a returned tab is allowed; Tab Overview also allows Escape. Screenshots, previews, text fields and other controls are excluded.',
     },
     verification: {
       snapshotId,
       evidence:
-        'Exact Safari window and native Tab Overview verified before and after capture.',
+        'Exact Safari window and native tab navigation verified before and after capture.',
     },
   };
 }

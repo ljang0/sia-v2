@@ -10,6 +10,7 @@ func observationLine(_ changes: [String: Any] = [:]) -> String {
 }
 precondition(WindowObserver.request(observationLine())?.pid == 42)
 precondition(WindowObserver.request(observationLine(["operation": "context"]))?.window_id == 91)
+precondition(WindowObserver.request(observationLine(["operation": "tabs"]))?.operation == "tabs")
 let invalidObservationRequests: [[String: Any]] = [
     ["operation": "execute"], ["id": "invalid"], ["pid": 0], ["pid": -1],
     ["pid": true], ["pid": 2147483648], ["window_id": 0],
