@@ -91,6 +91,9 @@ export class ComputerObservation {
     binding: ComputerWindowBinding,
     request: ValidatedActionInvocation,
   ): Promise<ActionExecutionResult> {
+    // Refresh is an authority boundary even if the new observation is refused,
+    // incomplete or bound to a different URL. Only a successful read can replace it.
+    this.ctx.computer.invalidateSnapshot(binding.id);
     const browser = this.inventory.isNativeBrowser(binding);
     const tabsOnly = request.arguments.tabs_only === true;
     if (

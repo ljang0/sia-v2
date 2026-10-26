@@ -51,6 +51,14 @@ or "all" still needs every in-scope item, and missing opening hours remain missi
 The opt-in fictional research-scope probes cover these three boundaries without real app access.
 They are model checks, not evidence of completed GUI tasks.
 
+A failed fresh observation cannot preserve older input authority. Starting a native-window
+refresh revokes that window's previous snapshot; protection, expected-source mismatch or an
+unavailable observation never revives it. Browser preflight also revokes the grant when its
+surface changes and refuses input when signed metadata detects authentication controls at the
+same URL. A later ordinary page still needs a fresh successful observation. The refusal of an
+unsupported action itself is separate: for example, refused PDF address editing preserves its
+current grant for the explicitly permitted native new-tab route.
+
 ## Repository-wide continuation
 
 The continuation from `fa97fc6` inventories all 880 tracked files, including tests, documentation,

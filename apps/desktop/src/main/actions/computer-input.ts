@@ -75,10 +75,26 @@ export class ComputerInput {
         navigationOnly
           ? current.status !== 'navigation' || current.surface !== capability.browserSurface
           : current.status !== 'ready' || current.url !== capability.browserUrl
-      )
+      ) {
+        this.ctx.computer.invalidateSnapshot(windowId);
         return stale(
           'The browser surface changed or could not be verified. Capture a fresh browser window state before continuing; do not replay the previous action. This alone does not establish sign-out.',
         );
+      }
+      if (
+        !navigationOnly &&
+        !capability.passiveAuthenticationNotice &&
+        current.status === 'ready' &&
+        current.authenticationControlsPresent === true
+      ) {
+        this.ctx.computer.invalidateSnapshot(windowId);
+        return {
+          ...refused(
+            'Authentication controls appeared in this exact browser window. No input was sent. Obtain fresh state; a separate native tab-only grant may permit navigation without touching this page.',
+          ),
+          data: { blocker_code: 'protected_window' },
+        };
+      }
       if (
         navigationOnly &&
         !(
@@ -118,10 +134,12 @@ export class ComputerInput {
           current.status !== 'ready' ||
           current.pageHasNonSearchEditableControls !== false ||
           current.authenticationControlsPresent !== false
-        )
+        ) {
+          this.ctx.computer.invalidateSnapshot(windowId);
           return stale(
             'The read-only access-notice proof changed. Capture fresh state; no input was sent.',
           );
+        }
         const newTab =
           args.action === 'key' &&
           String(args.value).toLowerCase() === 't' &&

@@ -109,11 +109,17 @@ export class ComputerGrants {
 
   rememberSnapshot(capability: WindowSnapshotCapability): void {
     const key = capability.publicWindowId;
-    const previous = this.latestSnapshot.get(key);
-    if (previous) this.snapshots.delete(previous);
+    this.invalidateSnapshot(key);
     this.latestSnapshot.set(key, capability.id);
     this.snapshots.set(capability.id, capability);
     trimMap(this.snapshots, MAX_CAPABILITIES);
+  }
+
+  /** A failed fresh observation must never leave older input authority usable. */
+  invalidateSnapshot(windowId: string): void {
+    const previous = this.latestSnapshot.get(windowId);
+    if (previous) this.snapshots.delete(previous);
+    this.latestSnapshot.delete(windowId);
   }
 
   elementAddress(

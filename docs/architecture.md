@@ -331,6 +331,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   requests structured `elements` and verbose background-route metadata; the driver's compact
   markdown default cannot support Sia's protected-field checks or input grants. Actions use only
   observed snapshot-bound element tokens, without the retired index/snapshot input arguments.
+  Starting a fresh window observation revokes its previous input snapshot even if the new read
+  is protected, unavailable or fails its expected-URL check. Browser preflight revokes changed
+  surface grants and refuses newly detected authentication controls even at an unchanged URL.
+  Returning to an ordinary document does not revive an old grant; a fresh successful snapshot is
+  required. Other windows keep their own authority.
   `set_value` is an exact accessibility operation and does not accept a delivery-mode argument.
   Element double-clicks use the driver's `double_click`/AXOpen route, while pixel double-clicks
   retain the bounded screenshot route. When foreground recovery is permitted, exact native menu
