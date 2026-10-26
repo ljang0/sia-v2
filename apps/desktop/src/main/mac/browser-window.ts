@@ -1,15 +1,19 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
+import { WindowObserver, WindowObservationError } from './window-observer.js';
 
 const exec = promisify(execFile);
-// Includes cold helper startup, exact-window binding, the four-second security
-// walk and identity revalidation. A failed scan never releases partial content.
-const WINDOW_READ_TIMEOUT_MS = 8000;
 const result = z.discriminatedUnion('status', [
   z.object({
     status: z.literal('ready'),
     url: z.string().max(8192),
+    bundleID: z.string(),
+    title: z.string().max(300).optional(),
+  }),
+  z.object({
+    status: z.literal('navigation'),
+    surface: z.literal('safari-tab-overview'),
     bundleID: z.string(),
     title: z.string().max(300).optional(),
   }),
@@ -54,7 +58,15 @@ export const MAC_BROWSER_BUNDLES = new Set([
 
 /** Fixed native read operation; URLs remain in the main process. */
 export class BrowserWindowService {
-  constructor(private readonly helperPath: string) {}
+  constructor(
+    private readonly helperPath: string,
+    private readonly observer: Pick<WindowObserver, 'read' | 'close'> = new WindowObserver(
+      helperPath,
+    ),
+  ) {}
+  close(): void {
+    this.observer.close();
+  }
   async macContext(): Promise<string> {
     const helper = "'" + this.helperPath.replaceAll("'", "'\"'\"'") + "'";
     const command = `${helper} --mac-context [pid]\nRunning-app inventory (names, bundle IDs and process IDs only): ${helper} --mac-apps\nOmit [pid] for foreground context, or pass a process ID from that inventory to inspect that exact app without activating it. Targeted context has a larger reading budget. A partial snapshot is not the entire page; scroll or inspect the relevant view to continue reading.`;
@@ -99,12 +111,7 @@ View that PNG with view_image. Use the returned image-to-screen transform; do no
     if (![pid, windowId].every((value) => Number.isInteger(value) && value > 0))
       return { status: 'unavailable' };
     try {
-      const { stdout } = await exec(
-        this.helperPath,
-        ['--window-context', String(pid), String(windowId)],
-        { timeout: WINDOW_READ_TIMEOUT_MS, maxBuffer: 100000, env: { PATH: '/usr/bin:/bin' } },
-      );
-      return contextResult.parse(JSON.parse(stdout));
+      return contextResult.parse(await this.observer.read('context', pid, windowId));
     } catch {
       return { status: 'unavailable' };
     }
@@ -125,24 +132,17 @@ View that PNG with view_image. Use the returned image-to-screen transform; do no
     }
   }
   async #inspectOnce(pid: number, windowId: number): Promise<BrowserWindowState> {
-    let stdout: string;
+    let value: unknown;
     try {
-      ({ stdout } = await exec(
-        this.helperPath,
-        ['--browser-window', String(pid), String(windowId)],
-        { timeout: WINDOW_READ_TIMEOUT_MS, maxBuffer: 16384, env: { PATH: '/usr/bin:/bin' } },
-      ));
+      value = await this.observer.read('browser', pid, windowId);
     } catch (error) {
       return {
         status: 'unavailable',
-        reason:
-          error instanceof Error && 'killed' in error && error.killed === true
-            ? 'helper_timeout'
-            : 'helper_error',
+        reason: error instanceof WindowObservationError ? error.reason : 'helper_error',
       };
     }
     try {
-      return result.parse(JSON.parse(stdout));
+      return result.parse(value);
     } catch {
       return { status: 'unavailable', reason: 'invalid_response' };
     }

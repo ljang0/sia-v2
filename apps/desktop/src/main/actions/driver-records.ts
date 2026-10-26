@@ -214,6 +214,20 @@ export function isProtectedElement(record: Record<string, unknown>): boolean {
   );
 }
 
+/** Safari's native tab action; a webpage radio button cannot provide this selector. */
+export function isSafariTabControl(record: Record<string, unknown>): boolean {
+  return (
+    record.role === 'AXRadioButton' &&
+    typeof record.selected === 'boolean' &&
+    Array.isArray(record.actions) &&
+    record.actions.some(
+      (action: unknown) =>
+        typeof action === 'string' &&
+        /^Name:close tab\nTarget:0x[0-9a-f]+\nSelector:_closeButtonClicked:$/i.test(action),
+    )
+  );
+}
+
 /** Semantic browser outlines can omit the password input type and its label on the ref. */
 export function browserHasAuthenticationControls(value: unknown): boolean {
   const controls = findElementRecords(value, 'browser');
@@ -270,14 +284,8 @@ export function windowHasProtectedControls(
       // state; a web radio control or missing state must not gain this exception.
       const inactiveSafariTab =
         options.browserBundleId?.toLowerCase() === 'com.apple.safari' &&
-        record.role === 'AXRadioButton' &&
         record.selected === false &&
-        Array.isArray(record.actions) &&
-        record.actions.some(
-          (action: unknown) =>
-            typeof action === 'string' &&
-            /^Name:close tab\nTarget:0x[0-9a-f]+\nSelector:_closeButtonClicked:$/i.test(action),
-        );
+        isSafariTabControl(record);
       return (
         isProtectedElement(record) ||
         password ||

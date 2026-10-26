@@ -35,9 +35,10 @@ enum BrowserWindow {
         var complete = true
         var nodes = 0
         var webAreas = 0
+        var tabOverview = false
         var stop: String?
         var visited = Set<CFHashCode>()
-        func walk(_ node: AXUIElement, _ depth: Int) {
+        func walk(_ node: AXUIElement, _ depth: Int, insideWebArea: Bool = false) {
             guard complete, !protected else { return }
             guard Date() < deadline, depth < 50, nodes < WindowContext.maximumScanNodes else {
                 complete = false
@@ -64,6 +65,8 @@ enum BrowserWindow {
             }
             if ["AXTextField", "AXComboBox", "AXSearchField"].contains(role) {
                 let identifier: String = attr(node, kAXIdentifierAttribute) ?? ""
+                if bundle.lowercased() == "com.apple.safari", !insideWebArea,
+                   identifier == "TabOverviewSearchField" { tabOverview = true }
                 if label.contains("address") || label.contains("smart search") || identifier == "WEB_BROWSER_ADDRESS_AND_SEARCH_FIELD" {
                     let value: String = attr(node, kAXValueAttribute) ?? ""
                     if unsafeAddress(value) { protected = true; return }
@@ -76,7 +79,7 @@ enum BrowserWindow {
                     else if let value: String = attr(node, "AXURL") { url = value }
                 }
             }
-            for child in metadata.children { walk(child, depth + 1) }
+            for child in metadata.children { walk(child, depth + 1, insideWebArea: insideWebArea || role == "AXWebArea") }
         }
         walk(window, 0)
         if protected { return ["status": "protected", "protected_role": protectedRole,
@@ -88,6 +91,12 @@ enum BrowserWindow {
             return ["status": "unavailable", "reason": "incomplete", "scan_stop": "identity_changed", "scan_nodes": nodes]
         }
         guard Date() < deadline else { return ["status": "unavailable", "reason": "incomplete", "scan_stop": "time", "scan_nodes": nodes] }
+        // Tab Overview is native navigation chrome, not a webpage. Never assign
+        // its previews the previous tab's URL or expose them as page content.
+        if tabOverview, webAreas == 0 {
+            return ["status": "navigation", "surface": "safari-tab-overview", "bundleID": bundle,
+                    "title": FnContext.bounded(title, 300)]
+        }
         // An empty browser window can be navigated without exposing a web account.
         if url == nil, webAreas == 0, ["Start Page", "New Tab", "Safari"].contains(title) { url = "about:blank" }
         guard let url, url.utf8.count <= 8192 else { return ["status": "unavailable", "reason": "page"] }

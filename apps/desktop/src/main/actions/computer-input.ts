@@ -66,11 +66,35 @@ export class ComputerInput {
           'Use visible browser page controls or a permitted navigation shortcut. Native menus are available only for ordinary non-browser apps.',
         );
       const current = await this.inventory.nativeBrowserState(binding);
-      if (current.status !== 'ready' || current.url !== capability.browserUrl)
+      const navigationOnly = capability.browserSurface === 'safari-tab-overview';
+      if (
+        navigationOnly
+          ? current.status !== 'navigation' || current.surface !== capability.browserSurface
+          : current.status !== 'ready' || current.url !== capability.browserUrl
+      )
         return stale(
-          'The browser page changed or needs login. Capture a fresh browser window state before continuing; do not replay the previous action.',
+          'The browser surface changed or could not be verified. Capture a fresh browser window state before continuing; do not replay the previous action. This alone does not establish sign-out.',
         );
-      verifiedBrowserBundleId = current.bundleID;
+      if (
+        navigationOnly &&
+        !(
+          (args.action === 'click' &&
+            typeof args.element_ref === 'string' &&
+            capability.elements.has(args.element_ref) &&
+            args.x === undefined &&
+            args.y === undefined &&
+            (args.count === undefined || args.count === 1) &&
+            (args.button === undefined || args.button === 'left')) ||
+          (args.action === 'key' &&
+            /^(?:escape|esc)$/i.test(String(args.value)) &&
+            (!Array.isArray(args.modifiers) || args.modifiers.length === 0))
+        )
+      )
+        return refused('Tab Overview permits only selecting an observed tab or Escape.');
+      verifiedBrowserBundleId =
+        current.status === 'ready' || current.status === 'navigation'
+          ? current.bundleID
+          : undefined;
       if (
         typeof args.text === 'string' &&
         /(?:javascript|data|file|chrome|safari|about|devtools|view-source|vbscript)\s*:/i.test(

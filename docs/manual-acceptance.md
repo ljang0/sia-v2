@@ -240,9 +240,18 @@ identity recheck must not re-enable AX features and rebuild the page's accessibi
 One incomplete/timed-out identity scan may repeat its fixed read once. The retry must start a
 fresh security scan, preserve the exact target and stop on a protected/permanent failure. No
 input is replayed, partial content is never reused, and the per-read deadline stays bounded.
-The shared native security walk has four seconds, with eight seconds for helper startup,
-binding, scanning and revalidation. This covers the observed Canvas failures at roughly
-900–1,000 nodes under the former two-second budget without dropping any security checks.
+The shared native security walk has four seconds, with eight seconds for each helper read,
+binding, scanning and revalidation. Increasing that budget alone did not resolve the live
+Canvas failures; it is not account-task acceptance. One nonactivating signed helper handles
+the fixed browser/context reads over private pipes, with no arbitrary commands or cached
+page content. Queue waiting does not consume a read's deadline; malformed output or a timeout
+retires that helper, and quitting Sia closes it.
+Open Safari Tab Overview during a background task. This native surface has no webpage URL.
+Sia must return only native tab labels and selection refs, never preview images, page text,
+search fields or a borrowed URL. Only selecting one returned tab or Escape may run from this
+snapshot. A fresh native surface check must reject old refs after the view changes. Selecting
+an authentication tab must still suppress its protected page; successful tab navigation does
+not prove sign-in or correct course coverage.
 If focus changes between unrelated apps during a background scroll, input is quarantined
 before the native queue advances. Sia may take two read-only snapshots of the original
 window, pinned to its previous browser URL, to reconcile the scroll and finish an answer.

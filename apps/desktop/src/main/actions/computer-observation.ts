@@ -12,6 +12,7 @@ import {
 import { requiredString } from './arguments.js';
 import { windowBackgroundInput, windowInputRecovery } from './background-input.js';
 import { samePageUrl } from './browser-urls.js';
+import { captureBrowserNavigation } from './computer-browser-navigation.js';
 import type {
   ComputerWindowBinding,
   NativeElementAddress,
@@ -125,12 +126,13 @@ export class ComputerObservation {
       return result;
     };
     let includeImage =
-      request.arguments.read_text === true ||
-      request.arguments.include_image === true ||
-      (request.arguments.include_image !== false &&
-        (!this.ctx.macBackgroundControl() || browser)) ||
-      ['type', 'set'].includes(String(request.arguments.action)) ||
-      typeof request.arguments.x === 'number';
+      browserState?.status !== 'navigation' &&
+      (request.arguments.read_text === true ||
+        request.arguments.include_image === true ||
+        (request.arguments.include_image !== false &&
+          (!this.ctx.macBackgroundControl() || browser)) ||
+        ['type', 'set'].includes(String(request.arguments.action)) ||
+        typeof request.arguments.x === 'number');
     let raw: unknown;
     try {
       raw = await capture(includeImage);
@@ -145,6 +147,8 @@ export class ComputerObservation {
     }
     let refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
+    if (browserState?.status === 'navigation')
+      return captureBrowserNavigation(this.ctx, this.inventory, binding, request, raw);
     if (browserState?.status === 'unavailable') {
       if (hasProtectedControls(raw))
         return this.#browserObservationRefused(binding, { status: 'protected' });
@@ -475,7 +479,7 @@ export class ComputerObservation {
                 'Do not interact with this protected document or attempt authentication. For public facts already in scope, reuse a known public subpage from saved source hints, memory or prior verified observations with computer_open_url, then take a fresh snapshot. A protected homepage does not establish that its public staff/syllabus pages are protected. This grants no access to private data and never substitutes public information for verified enrollment or account identity.',
             }
           : {}),
-        ...(state.status !== 'ready' && state.reason ? { blocker_detail: state.reason } : {}),
+        ...('reason' in state && state.reason ? { blocker_detail: state.reason } : {}),
       },
     };
   }

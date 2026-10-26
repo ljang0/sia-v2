@@ -502,6 +502,7 @@ async function performApplicationCreation(): Promise<void> {
         ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
         : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
     );
+    app.once('will-quit', () => browserWindows.close());
     const automationPermissions = new AutomationPermissionService({
       helperPath: app.isPackaged
         ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')

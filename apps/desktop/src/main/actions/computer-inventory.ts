@@ -187,6 +187,8 @@ export class ComputerInventory {
           if (request.context.signal?.aborted || this.ctx.computer.sessionId !== sessionId)
             return;
           Object.assign(window, { browser_state: state.status });
+          if (state.status === 'navigation')
+            Object.assign(window, { browser_surface: state.surface });
           inspectedBrowsers.add(binding.id);
           if (state.status === 'ready' && state.url !== 'about:blank') {
             const page = new URL(state.url);
@@ -203,7 +205,7 @@ export class ComputerInventory {
       (window) => !inspectedBrowsers.has(String(window.window_id)),
     ).length;
     const unidentified = browserWindows.filter(
-      (window) => asRecord(window)?.browser_state !== 'ready',
+      (window) => !['ready', 'navigation'].includes(String(asRecord(window)?.browser_state)),
     ).length;
 
     return {
@@ -456,12 +458,16 @@ export class ComputerInventory {
     if (!this.ctx.macBrowserAccess() || !this.ctx.options.inspectBrowserWindow)
       return { status: 'unavailable' };
     const state = await this.ctx.options.inspectBrowserWindow(binding.pid, binding.windowId);
-    if (state.status !== 'ready') return state;
+    if (state.status !== 'ready' && state.status !== 'navigation') return state;
     if (
       `bundle:${state.bundleID.toLowerCase()}` !==
       this.ctx.computer.apps.get(binding.appId)?.identity
     )
       return { status: 'unavailable', reason: 'window' };
+    if (state.status === 'navigation')
+      return state.bundleID.toLowerCase() === 'com.apple.safari'
+        ? state
+        : { status: 'unavailable', reason: 'window' };
     if (state.url === 'about:blank') return state;
     try {
       if (

@@ -1,5 +1,22 @@
 import ImageIO
 import AppKit
+import Foundation
+
+let observationID = "08E364E9-ED45-459B-895C-0508CA680E53"
+func observationLine(_ changes: [String: Any] = [:]) -> String {
+    var fields: [String: Any] = ["id": observationID, "operation": "browser", "pid": 42, "window_id": 91]
+    fields.merge(changes) { _, value in value }
+    return String(data: try! JSONSerialization.data(withJSONObject: fields), encoding: .utf8)!
+}
+precondition(WindowObserver.request(observationLine())?.pid == 42)
+precondition(WindowObserver.request(observationLine(["operation": "context"]))?.window_id == 91)
+let invalidObservationRequests: [[String: Any]] = [
+    ["operation": "execute"], ["id": "invalid"], ["pid": 0], ["pid": -1],
+    ["pid": true], ["pid": 2147483648], ["window_id": 0],
+    ["window_id": 4294967296], ["path": "/tmp/not-allowed"],
+]
+for changes in invalidObservationRequests { precondition(WindowObserver.request(observationLine(changes)) == nil) }
+precondition(WindowObserver.request(String(repeating: "x", count: 1025)) == nil)
 import CoreGraphics
 import ApplicationServices
 

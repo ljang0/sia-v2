@@ -212,6 +212,10 @@ if CommandLine.arguments == [CommandLine.arguments[0], "--notch-engine"] {
 }
 let application = NSApplication.shared
 application.setActivationPolicy(.accessory)
+if CommandLine.arguments == [CommandLine.arguments[0], "--window-observer"] {
+    WindowObserver.run(application)
+    exit(0)
+}
 if CommandLine.arguments == [CommandLine.arguments[0], "--remote-qr"] {
     remoteQRCode()
     exit(0)
@@ -276,20 +280,6 @@ if CommandLine.arguments == [CommandLine.arguments[0], "--image-text"] {
     if let output = try? JSONSerialization.data(withJSONObject: result) { FileHandle.standardOutput.write(output) }
     exit(0)
 }
-if CommandLine.arguments.contains("--window-context") {
-    guard CommandLine.arguments.count == 4, let pid = Int32(CommandLine.arguments[2]),
-          let windowID = UInt32(CommandLine.arguments[3]), pid > 0, windowID > 0 else { exit(2) }
-    let result = WindowContext.capture(pid: pid, windowID: windowID)
-    if let data = try? JSONSerialization.data(withJSONObject: result) { FileHandle.standardOutput.write(data) }
-    exit(0)
-}
-if CommandLine.arguments.contains("--browser-window") {
-    guard CommandLine.arguments.count == 4, let pid = Int32(CommandLine.arguments[2]),
-          let windowID = UInt32(CommandLine.arguments[3]), pid > 0, windowID > 0 else { exit(2) }
-    let result = BrowserWindow.inspect(pid: pid, windowID: windowID)
-    if let data = try? JSONSerialization.data(withJSONObject: result) { FileHandle.standardOutput.write(data) }
-    exit(0)
-}
 if CommandLine.arguments.contains("--automation-check") {
     runAutomationPermissions(request: nil)
     application.run()
@@ -301,7 +291,8 @@ if CommandLine.arguments.contains("--automation-request") {
     application.run()
     exit(0)
 }
-let speechMode = CommandLine.arguments.contains("--speech")
+let speechMode = CommandLine.arguments == [CommandLine.arguments[0], "--speech"]
+guard speechMode || CommandLine.arguments.count == 1 else { exit(2) }
 let helper = MainActor.assumeIsolated { speechMode ? nil : VoiceHelper() }
 let speech = MainActor.assumeIsolated { speechMode ? MacSpeech() : nil }
 DispatchQueue.global(qos: .userInitiated).async {
