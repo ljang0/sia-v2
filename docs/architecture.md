@@ -488,6 +488,14 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   authority. Its short-lived exact-window capability permits only scrolling or Cmd+T, with fresh
   native proof and the normal foreground guard; a new tab needs its own normal observation.
   An access notice does not verify private account access or establish sign-out.
+  Displayed URLs containing credentials, access tokens, signatures, meeting passcodes or userinfo
+  are omitted from window/tab titles, control labels/values/descriptions, supplemental document
+  text and OCR. Ordinary public query permalinks are preserved in text. When such a link is
+  detected in the observed display fields or text, that observation withholds screenshots and
+  native pixel authority; opaque host selectors remain available for otherwise permitted controls.
+  Invisible link-target metadata alone does not suppress an image. This is bounded URL sanitation,
+  not a guarantee of detecting arbitrary secrets in prose or pixels; authentication/secure-field
+  refusals remain independent and are never relaxed by redaction.
   Background also exposes `computer_list_files`, `computer_read_file` and `computer_write_file`
   through ActionGateway. They read bounded UTF-8 data files and create new txt/md/csv/tsv/json
   reports in the host-pinned task workspace. Updating an existing file requires the SHA-256 from

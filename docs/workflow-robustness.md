@@ -59,6 +59,15 @@ same URL. A later ordinary page still needs a fresh successful observation. The 
 unsupported action itself is separate: for example, refused PDF address editing preserves its
 current grant for the explicitly permitted native new-tab route.
 
+Sanitize links across every observation channel, rather than only the page-location field.
+Native and browser titles, control display fields, supplemental document text and OCR omit
+credential-bearing URLs. A detected access-bearing link also withholds that snapshot's image
+and native pixel authority, preserving otherwise permitted semantic refs. Invisible link-target
+metadata alone does not suppress images. Synthetic fixtures exercise meeting passcodes, signed
+URLs, userinfo, encoded query keys and nested redirects without reading actual credentials.
+This bounded URL rule does not detect arbitrary secrets in images/prose or authorize an
+authentication surface; the existing protection checks still apply.
+
 ## Repository-wide continuation
 
 The continuation from `fa97fc6` inventories all 880 tracked files, including tests, documentation,

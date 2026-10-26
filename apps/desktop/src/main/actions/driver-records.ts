@@ -1,4 +1,5 @@
 import { isCuaCallResult } from '../mac/cua-service.js';
+import { redactObservationLinks } from './observation-text.js';
 
 // Cua Driver payloads are untrusted, loosely shaped JSON. These readers walk them with fixed
 // depth limits and return only the plain fields Sia needs; nothing here mints capabilities.
@@ -168,11 +169,11 @@ export function sanitizeElement(
     value:
       firstString(record, ['role', 'type']) === 'AXHeading'
         ? undefined
-        : (firstString(record, ['value', 'text']) ??
+        : (redactOptionalText(firstString(record, ['value', 'text'])) ??
           (typeof record.value === 'number' && Number.isFinite(record.value)
             ? String(record.value)
             : undefined)),
-    description: firstString(record, ['description']),
+    description: redactOptionalText(firstString(record, ['description'])),
     frame: sanitizeFrame(record.frame ?? record.bounds),
     disabled: firstBoolean(record, ['disabled']) ?? firstBoolean(states ?? {}, ['disabled']),
     selected: firstBoolean(record, ['selected']) ?? firstBoolean(states ?? {}, ['selected']),
@@ -344,11 +345,15 @@ export function computerAppIdentity(
 
 export function trustedDisplayText(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  const normalized = value
+  const normalized = redactObservationLinks(value)
     .replace(/[\u0000-\u001f\u007f]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   return normalized ? normalized.slice(0, 160) : undefined;
+}
+
+export function redactOptionalText(value: string | undefined): string | undefined {
+  return value === undefined ? undefined : redactObservationLinks(value);
 }
 
 export function trustedElementLabel(record: Record<string, unknown>): string | undefined {

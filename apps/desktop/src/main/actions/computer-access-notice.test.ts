@@ -70,7 +70,10 @@ async function fixture(
       status: 'ready' as const,
       bundleID: 'com.apple.Safari',
       title: 'Public guide',
-      text: 'Public library opening hours:09:00-17:00.',
+      text:
+        typeof proof.documentText === 'string'
+          ? proof.documentText
+          : 'Public library opening hours:09:00-17:00.',
       partial: false,
     };
   });
@@ -104,6 +107,21 @@ async function fixture(
     },
   };
 }
+
+it('redacts private access links from the limited document text without granting controls', async () => {
+  const h = await fixture(
+    {},
+    {
+      documentText: 'Hours09:00-17:00. https://meeting.example/j/123?pwd=fixture-private-value',
+    },
+  );
+  const result = await h.capture();
+  expect(result.outcome).toBe('verified');
+  expect(JSON.stringify(result)).not.toContain('fixture-private-value');
+  expect(dataRecord(result.data).visible_text).toContain('Hours09:00-17:00');
+  expect(dataRecord(result.data).elements).toEqual([]);
+  expect(result.images).toBeUndefined();
+});
 
 it('reads only public text and withholds page controls and images for a signed passive-notice proof', async () => {
   const h = await fixture();

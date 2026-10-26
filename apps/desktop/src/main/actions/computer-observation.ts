@@ -32,11 +32,16 @@ import {
   isProtectedElement,
   nonNegativeInteger,
   positiveInteger,
+  redactOptionalText,
   sanitizeElement,
   trustedDisplayText,
   trustedElementLabel,
   windowHasProtectedControls,
 } from './driver-records.js';
+import {
+  observationHasPrivateLinks,
+  observationRecordHasPrivateLinks,
+} from './observation-text.js';
 import {
   sameWindowFrame,
   windowFrame,
@@ -282,14 +287,20 @@ export class ComputerObservation {
           data: { observation_pending: true },
         };
     }
-    const title =
+    const rawTitle =
       readableContext?.title ||
       (browserState?.status === 'ready' ? browserState.title : undefined) ||
       binding.title;
+    const title = redactOptionalText(rawTitle);
+    const privateLinks =
+      [rawTitle, readableContext?.text, imageText].some(observationHasPrivateLinks) ||
+      findElementRecords(raw, 'window').some(observationRecordHasPrivateLinks);
     if (title) this.ctx.computer.windows.set(binding.id, { ...binding, title });
     const snapshotId = randomUUID();
     const pixels =
-      !includeImage || hasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
+      !includeImage || privateLinks || hasProtectedControls(raw)
+        ? undefined
+        : screenshotDimensions(raw);
     const elementMap = new Map<string, NativeElementAddress>();
     const elements = findElementRecords(raw, 'window')
       .map((record, position) => {
@@ -400,7 +411,7 @@ export class ComputerObservation {
     return {
       outcome: 'verified',
       summary: 'Captured a fresh state for the permitted window.',
-      ...(!includeImage || hasProtectedControls(raw) ? {} : actionImages(raw)),
+      ...(!includeImage || privateLinks || hasProtectedControls(raw) ? {} : actionImages(raw)),
       data: compact({
         snapshot_id: snapshotId,
         app_id: binding.appId,
@@ -421,7 +432,14 @@ export class ComputerObservation {
                 'Read and scroll this native PDF in place. For another website, use Cmd+T and observe the new tab before navigation; directly editing this PDF’s address bar invalidates its independent page identity.',
             }
           : {}),
-        visible_text: readableContext?.text || undefined,
+        visible_text: redactOptionalText(readableContext?.text) || undefined,
+        ...(privateLinks
+          ? {
+              private_links_omitted: true,
+              image_note:
+                'Access-bearing links were omitted. Images and pixel input are withheld for this observation; use permitted text and semantic controls.',
+            }
+          : {}),
         ...(projectedControls ? { control_projection_partial: true } : {}),
         ...(windowTextComplete ? { window_text_complete: true } : {}),
         ...(partial
@@ -436,7 +454,7 @@ export class ComputerObservation {
                   'Available text in this exact accessibility window was read without truncation. The driver projects controls; that does not mean this text is missing. This covers only the current window state, not other pages, filters, accounts or hidden app data. Inspect other requested views when needed.',
               }
             : {}),
-        image_text: imageText,
+        image_text: redactOptionalText(imageText),
         ...(request.arguments.read_text === true
           ? {
               image_text_status: imageText ? 'read' : 'unavailable',

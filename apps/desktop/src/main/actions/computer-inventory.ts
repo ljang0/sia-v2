@@ -24,6 +24,7 @@ import {
   isDefined,
   nonNegativeInteger,
   positiveInteger,
+  redactOptionalText,
   sanitizeFrame,
   trustedDisplayText,
 } from './driver-records.js';
@@ -127,7 +128,7 @@ export class ComputerInventory {
           app_id: binding.appId,
           window_id: binding.id,
           app_name: app.name,
-          title: mac ? title : firstString(record, ['title']),
+          title: mac ? title : redactOptionalText(firstString(record, ['title'])),
           ...(mac ? { z_order: nonNegativeInteger(record.z_index) } : {}),
           bounds: sanitizeFrame(record.bounds),
           is_on_screen: isOnScreen,

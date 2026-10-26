@@ -1,6 +1,7 @@
 /** URL and origin checks that keep authentication pages and private URLs away from the model. */
 
 import { collectTabRecords, findString, firstString } from './driver-records.js';
+import { linkContainsCredentials } from './observation-text.js';
 
 const SENSITIVE_BROWSER_HOST =
   /(?:^|\.)(?:accounts\.google\.com|login\.microsoftonline\.com|appleid\.apple\.com|id\.apple\.com|auth0\.com|okta\.com|1password\.com|bitwarden\.com|lastpass\.com|dashlane\.com|keepersecurity\.com)$/i;
@@ -9,8 +10,6 @@ const AUTHENTICATION_BROWSER_PATH =
   /(?:^|\/)(?:login|log-in|signin|sign-in|signup|sign-up|oauth|authorize|authorization|auth|idp|saml[0-9]*|sso|mfa|2fa|webauthn|passkey|password|reset|reset-password|magic|magic-link)(?:\/|$)/i;
 const SENSITIVE_BROWSER_PATH =
   /(?:^|\/)(?:tokens?|access[-_]?tokens?|personal[-_]?access[-_]?tokens?|api[-_]?keys?|credentials?|secrets?|security)(?:\/|$)/i;
-const SENSITIVE_BROWSER_QUERY_KEY =
-  /(?:^|[^a-z0-9])(?:api[-_]?key|access[-_]?token|auth|authorization|code|credentials?|jwt|key|password|refresh[-_]?token|secret|session|signature|sig|token)(?:$|[^a-z0-9])/i;
 
 export function browserUrlLooksSensitive(value: string | undefined): boolean {
   if (!value) return true;
@@ -22,8 +21,7 @@ export function browserUrlLooksSensitive(value: string | undefined): boolean {
       AUTHENTICATION_BROWSER_HOST.test(url.hostname) ||
       AUTHENTICATION_BROWSER_PATH.test(url.pathname) ||
       SENSITIVE_BROWSER_PATH.test(url.pathname) ||
-      [...url.searchParams.keys()].some((key) => SENSITIVE_BROWSER_QUERY_KEY.test(key)) ||
-      SENSITIVE_BROWSER_QUERY_KEY.test(url.hash.slice(1))
+      linkContainsCredentials(value)
     );
   } catch {
     return true;

@@ -16,7 +16,13 @@ import { browserUrlLooksSensitive, safeHttpUrl, samePageUrl } from './browser-ur
 import { ComputerInventory } from './computer-inventory.js';
 import type { ComputerWindowBinding } from './computer-grants.js';
 import { ActionBackendContext } from './context.js';
-import { asRecord, collectTabRecords, firstBoolean, firstString } from './driver-records.js';
+import {
+  asRecord,
+  collectTabRecords,
+  firstBoolean,
+  firstString,
+  redactOptionalText,
+} from './driver-records.js';
 
 const CHROMIUM = new Set([
   'bundle:com.google.chrome',
@@ -274,7 +280,7 @@ export class MacBrowserControl {
         browser_route: 'cua_browser',
         tabs: tabs.map((t) => ({
           tab_id: t.id,
-          title: t.title,
+          title: redactOptionalText(t.title),
           active: t.active,
           ...(t.navigationOnly
             ? { navigation_only: true }

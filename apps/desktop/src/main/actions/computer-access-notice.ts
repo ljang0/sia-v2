@@ -11,6 +11,7 @@ import {
   findElementRecords,
   firstString,
   isPassiveAuthenticationNotice,
+  redactOptionalText,
   windowHasProtectedControls,
 } from './driver-records.js';
 
@@ -132,7 +133,7 @@ export async function captureAccessNotice(
       app_id: binding.appId,
       window_id: binding.id,
       source_url: url.origin + url.pathname,
-      ...(text ? { visible_text: text } : {}),
+      ...(text ? { visible_text: redactOptionalText(text) } : {}),
       elements: [],
       read_only_access_notice: true,
       observation_partial: true,

@@ -36,10 +36,15 @@ import {
   firstString,
   isDefined,
   isProtectedElement,
+  redactOptionalText,
   sanitizeElement,
   trustedDisplayText,
   trustedElementLabel,
 } from './driver-records.js';
+import {
+  observationHasPrivateLinks,
+  observationRecordHasPrivateLinks,
+} from './observation-text.js';
 
 /**
  * Tabs, snapshots, navigation, input and uploads in the attached Chrome session. Every
@@ -148,7 +153,7 @@ export class BrowserActions {
         }
         return compact({
           tab_id: tabId,
-          title: firstString(record, ['title', 'name']),
+          title: redactOptionalText(firstString(record, ['title', 'name'])),
           url: modelVisibleBrowserUrl(url),
           active: firstBoolean(record, ['active', 'selected']),
         });
@@ -235,6 +240,11 @@ export class BrowserActions {
       return refused('The tab origin is outside the current browser grant.');
     }
     const snapshotId = randomUUID();
+    const title = findString(raw, ['title']);
+    const text = findString(raw, ['outline', 'text', 'page_text']);
+    const privateLinks =
+      [title, text].some(observationHasPrivateLinks) ||
+      findElementRecords(raw, 'browser').some(observationRecordHasPrivateLinks);
     const elementMap = new Map<string, { nativeRef: string; label?: string; role?: string }>();
     const elements = findElementRecords(raw, 'browser')
       .map((record, position) => {
@@ -269,15 +279,16 @@ export class BrowserActions {
     return {
       outcome: 'verified',
       summary: 'Captured fresh state for the granted browser tab.',
-      ...actionImages(raw),
+      ...(privateLinks ? {} : actionImages(raw)),
       data: compact({
         snapshot_id: snapshotId,
         tab_id: binding.tabId,
         origin,
-        title: findString(raw, ['title']),
+        title: redactOptionalText(title),
         url: modelVisibleBrowserUrl(liveUrl),
         elements,
-        text: findString(raw, ['outline', 'text', 'page_text']),
+        text: redactOptionalText(text),
+        ...(privateLinks ? { private_links_omitted: true } : {}),
         ...(semantic
           ? {
               page_complete: semantic.complete === true,
