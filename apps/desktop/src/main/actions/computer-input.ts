@@ -103,6 +103,27 @@ export class ComputerInput {
           ? current.bundleID
           : undefined;
       nativePDF = current.status === 'ready' && current.documentKind === 'native-pdf';
+      if (capability.passiveAuthenticationNotice) {
+        if (
+          current.status !== 'ready' ||
+          current.pageHasNonSearchEditableControls !== false ||
+          current.authenticationControlsPresent !== false
+        )
+          return stale(
+            'The read-only access-notice proof changed. Capture fresh state; no input was sent.',
+          );
+        const newTab =
+          args.action === 'key' &&
+          String(args.value).toLowerCase() === 't' &&
+          Array.isArray(args.modifiers) &&
+          args.modifiers.length === 1 &&
+          args.modifiers[0] === 'cmd' &&
+          args.element_ref === undefined;
+        if (args.action !== 'scroll' && !newTab)
+          return refused(
+            'This passive access notice grants only reading, scrolling and Cmd+T to a new tab. No page clicks, typing, other keys or pixels are allowed.',
+          );
+      }
       if (
         typeof args.text === 'string' &&
         /(?:javascript|data|file|chrome|safari|about|devtools|view-source|vbscript)\s*:/i.test(
@@ -182,7 +203,7 @@ export class ComputerInput {
     // AXWindow is not an editable control. Focusing it before each keystroke loses
     // the actual field focus in apps such as Calculator. Use the exact-window route.
     if (macKeyboard && address?.role === 'AXWindow') address = undefined;
-    if (!address && capability.protectedControls)
+    if (!address && capability.protectedControls && !capability.passiveAuthenticationNotice)
       return refused(
         'Focused and pixel actions are blocked on a window containing protected controls.',
       );

@@ -13,6 +13,7 @@ import { requiredString } from './arguments.js';
 import { windowBackgroundInput, windowInputRecovery } from './background-input.js';
 import { samePageUrl } from './browser-urls.js';
 import { captureBrowserNavigation } from './computer-browser-navigation.js';
+import { captureAccessNotice, hasPassiveAccessNotice } from './computer-access-notice.js';
 import type {
   ComputerWindowBinding,
   NativeElementAddress,
@@ -207,6 +208,9 @@ export class ComputerObservation {
       return stale(
         'The observed browser page does not match expected_url. No page content was returned. Wait for navigation or inspect the intended window; do not assign this page to the requested course or account item.',
       );
+
+    if (browserState && hasProtectedControls(raw) && hasPassiveAccessNotice(raw, browserState))
+      return captureAccessNotice(this.ctx, this.inventory, binding, request, raw, browserState);
 
     // AX can temporarily return no controls even while a window is usable.
     // Capture pixels once instead of turning an empty AX response into an app failure.

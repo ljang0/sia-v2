@@ -23,6 +23,25 @@ it('preserves only the signed reader’s recognized document classification', as
   });
 });
 
+it('accepts only explicit native boolean proofs for restricted public text reads', async () => {
+  const service = new BrowserWindowService('/helper', observer);
+  run.mockReset();
+  const state = {
+    status: 'ready',
+    url: 'https://university.example/guide',
+    bundleID: 'com.apple.Safari',
+    pageHasNonSearchEditableControls: false,
+    authenticationControlsPresent: false,
+  };
+  run.mockResolvedValueOnce(state);
+  expect(await service.inspect(42, 91)).toEqual(state);
+  run.mockResolvedValueOnce({ ...state, pageHasNonSearchEditableControls: 'false' });
+  expect(await service.inspect(42, 91)).toEqual({
+    status: 'unavailable',
+    reason: 'invalid_response',
+  });
+});
+
 it('reads only a live process ID for foreground checks and rejects malformed helper results', async () => {
   const service = new BrowserWindowService('/helper', observer);
   run.mockReset();

@@ -260,9 +260,29 @@ function passwordLabelIsProtected(role: string, label: string): boolean {
   return /password/i.test(literal);
 }
 
+/** A passive access notice is prose, never an authentication input or action. */
+export function isPassiveAuthenticationNotice(record: Record<string, unknown>): boolean {
+  const label =
+    [record.label, record.title].find(
+      (value): value is string => typeof value === 'string' && value.trim().length > 0,
+    ) ?? '';
+  return (
+    ['AXStaticText', 'AXText'].includes(String(record.role)) &&
+    /\b(?:log[ -]?in|sign[ -]?in|authentication) (?:is )?required\b/i.test(label) &&
+    !/^\s*(?:log[ -]?in|sign[ -]?in|authentication) (?:is )?required[.!]?\s*$/i.test(label) &&
+    Array.isArray(record.actions) &&
+    record.actions.every((action: unknown) =>
+      ['AXShowMenu', 'AXScrollToVisible'].includes(String(action)),
+    )
+  );
+}
+
 export function windowHasProtectedControls(
   value: unknown,
-  options: { browserBundleId?: string | undefined } = {},
+  options: {
+    browserBundleId?: string | undefined;
+    allowPassiveAuthenticationNotice?: boolean;
+  } = {},
 ): boolean {
   return ['elements', 'nodes']
     .flatMap((key) => findRecordArray(value, key))
@@ -292,6 +312,9 @@ export function windowHasProtectedControls(
         /(?:secure|verification code|passkey|api.?key|access.?token)/i.test(label) ||
         // Match authentication words, not "signing"/"blogging" in public page labels.
         (!inactiveSafariTab &&
+          !(
+            options.allowPassiveAuthenticationNotice && isPassiveAuthenticationNotice(record)
+          ) &&
           /(?:\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat)/i.test(label))
       );
     });

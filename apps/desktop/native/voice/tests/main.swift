@@ -29,6 +29,26 @@ precondition(BrowserWindow.pageURL(URL(string: "https://library.example/calendar
 precondition(BrowserWindow.pageURL("https://library.example/calendar.pdf") == "https://library.example/calendar.pdf")
 precondition(BrowserWindow.pageURL(nil) == nil)
 precondition(BrowserWindow.pageURL(NSNumber(value: 42)) == nil)
+precondition(BrowserWindow.isSearchField(role: "AXSearchField", subrole: ""))
+precondition(BrowserWindow.isSearchField(role: "AXTextField", subrole: "AXSearchField"))
+precondition(!BrowserWindow.isSearchField(role: "AXTextField", subrole: ""))
+precondition(!BrowserWindow.isSearchField(role: "AXTextArea", subrole: "AXSearchField"))
+precondition(!BrowserWindow.isSearchField(role: "AXSearchField", subrole: "AXSecureTextField"))
+for role in ["AXTextField", "AXTextArea", "AXComboBox", "AXCheckBox", "AXRadioButton", "AXPopUpButton", "AXSlider", "AXIncrementor"] {
+    precondition(BrowserWindow.isNonSearchEditable(role: role, subrole: "", insideWebArea: true, nativeAddress: false))
+}
+precondition(!BrowserWindow.isNonSearchEditable(role: "AXTextField", subrole: "AXSearchField", insideWebArea: true, nativeAddress: false))
+precondition(!BrowserWindow.isNonSearchEditable(role: "AXTextField", subrole: "", insideWebArea: false, nativeAddress: true))
+precondition(BrowserWindow.isNonSearchEditable(role: "AXTextField", subrole: "", insideWebArea: true, nativeAddress: false))
+precondition(!BrowserWindow.authenticationControl(role: "AXStaticText", label: "Organization account login required", insideWebArea: true, insideNativeTabs: false, actions: ["AXShowMenu", "AXScrollToVisible"]))
+for role in ["AXButton", "AXLink", "AXTextField", "AXHeading", "AXWindow"] {
+    precondition(BrowserWindow.authenticationControl(role: role, label: "Sign in", insideWebArea: true, insideNativeTabs: false, actions: ["AXPress"]))
+}
+precondition(BrowserWindow.authenticationControl(role: "AXButton", label: "Authenticate", insideWebArea: true, insideNativeTabs: false, actions: ["AXPress"]))
+precondition(BrowserWindow.authenticationControl(role: "AXStaticText", label: "Organization account login required", insideWebArea: false, insideNativeTabs: false, actions: []))
+precondition(BrowserWindow.authenticationControl(role: "AXStaticText", label: "Organization account login required", insideWebArea: true, insideNativeTabs: false, actions: nil))
+precondition(BrowserWindow.authenticationControl(role: "AXStaticText", label: "Organization account login required", insideWebArea: true, insideNativeTabs: false, actions: ["AXPress"]))
+precondition(!BrowserWindow.authenticationControl(role: "AXRadioButton", label: "Sign in", insideWebArea: false, insideNativeTabs: true, actions: ["AXPress"]))
 let pdfURL = "https://library.example/calendar.pdf"
 func pdfIdentity(bundle: String = "com.apple.Safari", plugin: Bool = true, webAreas: Int = 0,
                  title: String = pdfURL, address: String? = pdfURL, focused: Bool? = false, loading: Bool = false) -> String? {

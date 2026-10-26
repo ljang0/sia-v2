@@ -33,6 +33,13 @@ PDF viewer's independent identity. Refusal leaves the current grant usable for C
 must then be observed normally. PDF page reading and observed links remain available. Host
 regressions reproduce the identity loss and verify the no-input refusal, preserved grant, new-tab
 route and ordinary-page navigation. The opt-in Safari probe also starts from a fictional PDF.
+Public access notices must not turn a static article into a claim that the whole account needs
+sign-in. The restricted notice path requires explicit signed native proof, excludes non-search
+form fields and authentication controls, and returns only text. It withholds search values, all
+page refs, images, OCR, pixels and typing. Only scrolling or a fresh new-tab shortcut is permitted;
+changed or missing proof revokes that authority. Focused regressions cover real auth controls,
+credential markers, contradictory raw fields, changed proof, expected-page binding and withheld
+images/field values. It is not an authentication bypass or a full public-page interaction grant.
 Normal checks never require a personal account or run those probes at app startup. Real-account
 evidence stays outside Git, and research collection requires separate consent. Manual permission,
 fresh-install and physical-phone acceptance remain separate gates in [manual-acceptance.md](./manual-acceptance.md).

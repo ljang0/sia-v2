@@ -11,6 +11,8 @@ const result = z.discriminatedUnion('status', [
     bundleID: z.string(),
     title: z.string().max(300).optional(),
     documentKind: z.literal('native-pdf').optional(),
+    pageHasNonSearchEditableControls: z.boolean().optional(),
+    authenticationControlsPresent: z.boolean().optional(),
   }),
   z.object({
     status: z.literal('navigation'),

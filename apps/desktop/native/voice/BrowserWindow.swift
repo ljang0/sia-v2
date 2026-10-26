@@ -11,6 +11,29 @@ enum BrowserWindow {
         return value as? String
     }
 
+    static func isSearchField(role: String, subrole: String) -> Bool {
+        guard !subrole.lowercased().contains("secure") else { return false }
+        return role == "AXSearchField" || (role == "AXTextField" && subrole == "AXSearchField")
+    }
+
+    static func isNonSearchEditable(role: String, subrole: String, insideWebArea: Bool, nativeAddress: Bool) -> Bool {
+        if nativeAddress { return false }
+        if ["AXTextField", "AXTextArea", "AXComboBox", "AXSearchField"].contains(role) {
+            return !isSearchField(role: role, subrole: subrole)
+        }
+        return insideWebArea && ["AXCheckBox", "AXRadioButton", "AXPopUpButton", "AXSlider", "AXIncrementor"].contains(role)
+    }
+
+    static func authenticationControl(role: String, label: String, insideWebArea: Bool,
+                                      insideNativeTabs: Bool, actions: [String]?) -> Bool {
+        guard label.range(of: "\\b(?:sign(?:ing)?[ -]?in|log(?:ging)?[ -]?in|authenticat\\w*)\\b",
+                          options: [.regularExpression, .caseInsensitive]) != nil else { return false }
+        if insideNativeTabs { return false }
+        guard insideWebArea, ["AXStaticText", "AXText", "AXGroup"].contains(role),
+              let actions else { return true }
+        return actions.contains { !["AXShowMenu", "AXScrollToVisible"].contains($0) }
+    }
+
     /// Safari's native PDF plugin has no AXWebArea, AXURL or window AXDocument.
     /// Its full document URL is also the window title. Require agreement with
     /// the non-editing native address field; never infer identity from one alone.
@@ -97,9 +120,11 @@ enum BrowserWindow {
         var address: String?
         var addressFocused: Bool?
         var loading = false
+        var pageHasNonSearchEditableControls = false
+        var authenticationControlsPresent = false
         var stop: String?
         var visited = Set<CFHashCode>()
-        func walk(_ node: AXUIElement, _ depth: Int, insideWebArea: Bool = false) {
+        func walk(_ node: AXUIElement, _ depth: Int, insideWebArea: Bool = false, insideNativeTabs: Bool = false) {
             guard complete, !protected else { return }
             guard Date() < deadline, depth < 50, nodes < WindowContext.maximumScanNodes else {
                 complete = false
@@ -116,6 +141,19 @@ enum BrowserWindow {
             if !insideWebArea, role == "AXGroup", subrole == "AXPDFPluginSubrole" { hasPDFPlugin = true }
             if !insideWebArea, role == "AXProgressIndicator" { loading = true }
             let label = (role + " " + subrole + " " + name + " " + description).lowercased()
+            var nativeTabs = insideNativeTabs
+            if !insideWebArea, ["AXTabGroup", "AXOpaqueProviderGroup"].contains(role) {
+                let identifier: String = attr(node, kAXIdentifierAttribute) ?? ""
+                if identifier.hasPrefix("TabBar?") { nativeTabs = true }
+            }
+            let authLabel = name + " " + description
+            if authLabel.range(of: "\\b(?:sign(?:ing)?[ -]?in|log(?:ging)?[ -]?in|authenticat\\w*)\\b",
+                               options: [.regularExpression, .caseInsensitive]) != nil {
+                var values: CFArray?
+                let actions = AXUIElementCopyActionNames(node, &values) == .success ? values as? [String] : nil
+                if authenticationControl(role: role, label: authLabel, insideWebArea: insideWebArea,
+                                         insideNativeTabs: nativeTabs, actions: actions) { authenticationControlsPresent = true }
+            }
             if role.isEmpty { complete = false; return }
             let passwordLabel = [name, description].first(where: { WindowContext.hasPasswordMetadata(role: role, label: $0) })
             let structural = ["securetextfield", "passkey", "verification code", "private browsing", "private window", "incognito", "developer tools", "web inspector"].first(where: label.contains)
@@ -126,8 +164,11 @@ enum BrowserWindow {
                 protectedLabelWords = passwordLabel?.split(whereSeparator: { $0.isWhitespace }).count ?? 0
                 protected = true; return
             }
-            if ["AXTextField", "AXComboBox", "AXSearchField"].contains(role) {
-                let identifier: String = attr(node, kAXIdentifierAttribute) ?? ""
+            let textControl = ["AXTextField", "AXComboBox", "AXSearchField"].contains(role)
+            let identifier: String = textControl ? (attr(node, kAXIdentifierAttribute) ?? "") : ""
+            let nativeAddress = !insideWebArea && bundle.lowercased() == "com.apple.safari" && identifier == "WEB_BROWSER_ADDRESS_AND_SEARCH_FIELD"
+            if isNonSearchEditable(role: role, subrole: subrole, insideWebArea: insideWebArea, nativeAddress: nativeAddress) { pageHasNonSearchEditableControls = true }
+            if textControl {
                 if bundle.lowercased() == "com.apple.safari", !insideWebArea,
                    identifier == "TabOverviewSearchField" { tabOverview = true }
                 if label.contains("address") || label.contains("smart search") || identifier == "WEB_BROWSER_ADDRESS_AND_SEARCH_FIELD" {
@@ -147,7 +188,7 @@ enum BrowserWindow {
                     else if let value: String = attr(node, "AXURL") { url = value }
                 }
             }
-            for child in metadata.children { walk(child, depth + 1, insideWebArea: insideWebArea || role == "AXWebArea") }
+            for child in metadata.children { walk(child, depth + 1, insideWebArea: insideWebArea || role == "AXWebArea", insideNativeTabs: nativeTabs) }
         }
         walk(window, 0)
         if protected { return ["status": "protected", "protected_role": protectedRole,
@@ -173,6 +214,8 @@ enum BrowserWindow {
         }
         guard let url, url.utf8.count <= 8192 else { return ["status": "unavailable", "reason": "page"] }
         var result: [String: Any] = ["status": "ready", "url": url, "bundleID": bundle, "title": FnContext.bounded(title, 300)]
+        result["pageHasNonSearchEditableControls"] = pageHasNonSearchEditableControls
+        result["authenticationControlsPresent"] = authenticationControlsPresent
         if bundle.lowercased() == "com.apple.safari", hasPDFPlugin, webAreas == 0 {
             result["documentKind"] = "native-pdf"
         }

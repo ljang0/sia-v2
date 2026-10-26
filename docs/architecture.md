@@ -468,6 +468,15 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   that exemption. Structural checks inspect every role, subrole, input type and autocomplete
   marker; an ordinary role cannot hide a password type. Protected native reads expose only a
   fixed role/rule category and label length/word count for diagnosis, never the matching label.
+  A passive document-text access notice (for example, an organization-account login requirement
+  for a linked resource) has a separate, restricted read path. Signed complete native scans must
+  explicitly prove no non-search form fields and no authentication controls before and after
+  reading. Search values are not read or granted. Only a non-activating static-text notice can
+  qualify; credentials, actual sign-in controls, bare login prompts and missing proof remain
+  blocked. This path returns document text with no page controls, images, OCR, pixels or typing
+  authority. Its short-lived exact-window capability permits only scrolling or Cmd+T, with fresh
+  native proof and the normal foreground guard; a new tab needs its own normal observation.
+  An access notice does not verify private account access or establish sign-out.
   Background also exposes `computer_list_files`, `computer_read_file` and `computer_write_file`
   through ActionGateway. They read bounded UTF-8 data files and create new txt/md/csv/tsv/json
   reports in the host-pinned task workspace. Updating an existing file requires the SHA-256 from
