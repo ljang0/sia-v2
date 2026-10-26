@@ -67,6 +67,10 @@ metadata alone does not suppress images. Synthetic fixtures exercise meeting pas
 URLs, userinfo, encoded query keys and nested redirects without reading actual credentials.
 This bounded URL rule does not detect arbitrary secrets in images/prose or authorize an
 authentication surface; the existing protection checks still apply.
+For native-app Use my Mac reads, a structurally marked credential field blocks the whole snapshot,
+not just that element. Neighbouring text and controls must not escape an authentication window;
+no older grant may survive the refused refresh. Structural role, subrole, input-type and autocomplete
+fixtures cover this independently of broad lexical matches in public document prose.
 
 ## Repository-wide continuation
 

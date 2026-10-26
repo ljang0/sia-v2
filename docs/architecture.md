@@ -496,6 +496,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Invisible link-target metadata alone does not suppress an image. This is bounded URL sanitation,
   not a guarantee of detecting arbitrary secrets in prose or pixels; authentication/secure-field
   refusals remain independent and are never relaxed by redaction.
+  Use my Mac native-app observations refuse the whole window when a structurally marked secure,
+  password or one-time-code field appears. Filtering that one field alone could expose neighbouring
+  account identifiers and authentication controls. This refusal returns no supplemental text, OCR,
+  images or input refs, and the fresh-read revocation prevents reuse of an older ordinary grant.
+  Literal password discussion in otherwise ordinary document prose is not a structural field marker.
   Background also exposes `computer_list_files`, `computer_read_file` and `computer_write_file`
   through ActionGateway. They read bounded UTF-8 data files and create new txt/md/csv/tsv/json
   reports in the host-pinned task workspace. Updating an existing file requires the SHA-256 from

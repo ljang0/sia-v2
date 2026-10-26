@@ -133,6 +133,10 @@ describe('DesktopActionBackend computer boundary', () => {
         return;
       }
       const data = dataRecord(result.data);
+      if (scenario === 'protected') {
+        expect(result.outcome).toBe('refused');
+        expect(data.snapshot_id).toBeUndefined();
+      }
       expect(data.pixel_actions_available).toBe(scenario === 'image');
       if (scenario === 'image') {
         expect(data.accessibility_empty).toBe(true);

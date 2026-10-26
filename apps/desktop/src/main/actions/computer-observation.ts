@@ -178,6 +178,22 @@ export class ComputerObservation {
     }
     let refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
+    if (
+      this.ctx.macBrowserAccess() &&
+      !browser &&
+      findElementRecords(raw, 'window').some(isProtectedElement)
+    )
+      return {
+        ...refused(
+          'A credential field appeared in this native window. No content or input authority was returned.',
+        ),
+        data: {
+          app_id: binding.appId,
+          window_id: binding.id,
+          blocker_code: 'protected_window',
+          pixel_actions_available: false,
+        },
+      };
     if (browserState?.status === 'navigation')
       return captureBrowserNavigation(
         this.ctx,
