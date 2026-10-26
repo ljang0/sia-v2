@@ -355,6 +355,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   obtain a new native tab-only grant, select an ordinary tab and open a task tab in that same
   profile; a refused tab read or input route remains binding. This does not authorize the
   protected page, sign-in or credentials.
+  Native Safari tab-only snapshots may separately grant Cmd+T when the signed reader verifies
+  native tab chrome and Cua explicitly reports a matched exact window with an available PID keyboard
+  route. That capability creates a new native tab without reading or acting on the selected page.
+  It permits no other keyboard input, fields, pixels or authentication interaction. The resulting
+  new tab requires a fresh normal snapshot before typing. Missing/refused routes grant no shortcut;
+  foreground, cancellation and exact-window checks still apply.
   A second read after input detects any foreground-app change or an unverifiable focus state;
   it preserves uncertainty and pauses the exact turn, including queued follow-ups. Sia does not
   restore focus over a person's choice, replay the action, or automatically resume the pause.

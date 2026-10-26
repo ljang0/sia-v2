@@ -11,7 +11,7 @@ const tab = (label: string, token: string, selected = false) => ({
   actions: ['AXPress', 'Name:close tab\nTarget:0x123\nSelector:_closeButtonClicked:'],
 });
 
-async function fixture() {
+async function fixture(keyboard: boolean | 'refused' = false) {
   let state: BrowserWindowState = {
     status: 'navigation',
     surface: 'safari-tab-overview',
@@ -41,6 +41,22 @@ async function fixture() {
       return state.status === 'navigation' || args.max_depth === 2
         ? {
             images: [{ mimeType: 'image/png', dataBase64: 'private preview pixels' }],
+            ...(keyboard
+              ? {
+                  background_input: {
+                    exact_window: { status: 'matched', pid: 42, window_id: 91 },
+                    routes: ['accessibility', 'window_pointer', 'pid_keyboard'].map(
+                      (route) => ({
+                        route,
+                        status:
+                          keyboard === 'refused' && route === 'pid_keyboard'
+                            ? 'refused'
+                            : 'available',
+                      }),
+                    ),
+                  },
+                }
+              : {}),
             elements: [
               tab('CMU Canvas', 'canvas'),
               tab('login.example.edu', 'login'),
@@ -50,7 +66,7 @@ async function fixture() {
             ],
           }
         : { elements: [{ role: 'AXLink', label: 'Courses', element_token: 'courses' }] };
-    if (tool === 'click' || tool === 'press_key') {
+    if (tool === 'click' || tool === 'press_key' || tool === 'hotkey') {
       state = destination;
       return { success: true };
     }
@@ -389,4 +405,102 @@ it('does not route a tab-only request into a Chromium webpage read', async () =>
   expect(
     cua.call.mock.calls.every(([tool]) => ['list_apps', 'list_windows'].includes(tool)),
   ).toBe(true);
+});
+
+it('opens a new native tab under a verified keyboard route without reading or acting on the protected page', async () => {
+  const h = await fixture(true);
+  h.setState({ status: 'protected', reason: 'page' });
+  h.setDestination({ status: 'ready', url: 'about:blank', bundleID: 'com.apple.Safari' });
+  const { result, data } = await h.capture({ tabs_only: true });
+  expect(result.outcome).toBe('verified');
+  expect(data.native_new_tab_available).toBe(true);
+  expect(result.images).toBeUndefined();
+  expect(h.readContext).not.toHaveBeenCalled();
+  const action = await h.backend.invoke(
+    request('computer_action', {
+      app_id: h.target.appId,
+      window_id: h.target.windowId,
+      snapshot_id: data.snapshot_id,
+      action: 'key',
+      value: 't',
+      modifiers: ['cmd'],
+    }),
+  );
+  expect(action.outcome).toBe('accepted_unverified');
+  expect(dataRecord(action.data).browser_surface).toBeUndefined();
+  expect(dataRecord(action.data).snapshot_id).toEqual(expect.any(String));
+  expect(dataRecord(action.data).snapshot_id).not.toBe(data.snapshot_id);
+  expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'hotkey')).toEqual([
+    [
+      'hotkey',
+      expect.objectContaining({ keys: ['cmd', 't'], delivery_mode: 'background' }),
+      expect.anything(),
+      undefined,
+    ],
+  ]);
+});
+
+it.each([
+  { action: 'key', value: 't', modifiers: ['cmd', 'shift'] },
+  { action: 'key', value: 't', modifiers: ['ctrl'] },
+  { action: 'key', value: 't', modifiers: ['cmd'], element_ref: 'never-a-page-ref' },
+  { action: 'key', value: 't', modifiers: ['cmd'], x: 1, y: 1 },
+  { action: 'key', value: 'l', modifiers: ['cmd'] },
+  { action: 'type', text: 'never type in the protected page' },
+])('does not extend new-tab authority to other keyboard input: %j', async (action) => {
+  const h = await fixture(true);
+  h.setState({ status: 'protected', reason: 'page' });
+  const { data } = await h.capture({ tabs_only: true });
+  const result = await h.backend.invoke(
+    request('computer_action', {
+      app_id: h.target.appId,
+      window_id: h.target.windowId,
+      snapshot_id: data.snapshot_id,
+      ...action,
+    }),
+  );
+  expect(result.outcome).toBe('refused');
+  expect(
+    h.cua.call.mock.calls.every(([tool]) =>
+      ['list_apps', 'list_windows', 'get_window_state'].includes(tool),
+    ),
+  ).toBe(true);
+});
+
+it('withholds native new-tab authority when the exact-window keyboard route is refused', async () => {
+  const h = await fixture('refused');
+  h.setState({ status: 'protected', reason: 'page' });
+  const { data } = await h.capture({ tabs_only: true });
+  expect(data.native_new_tab_available).toBe(false);
+  const result = await h.backend.invoke(
+    request('computer_action', {
+      app_id: h.target.appId,
+      window_id: h.target.windowId,
+      snapshot_id: data.snapshot_id,
+      action: 'key',
+      value: 't',
+      modifiers: ['cmd'],
+    }),
+  );
+  expect(result.outcome).toBe('refused');
+  expect(h.cua.call.mock.calls.some(([tool]) => tool === 'hotkey')).toBe(false);
+});
+
+it('revokes native new-tab input when the signed tab-chrome proof disappears', async () => {
+  const h = await fixture(true);
+  h.setState({ status: 'protected', reason: 'page' });
+  const { data } = await h.capture({ tabs_only: true });
+  h.setTabsState({ status: 'unavailable', reason: 'window' });
+  const result = await h.backend.invoke(
+    request('computer_action', {
+      app_id: h.target.appId,
+      window_id: h.target.windowId,
+      snapshot_id: data.snapshot_id,
+      action: 'key',
+      value: 't',
+      modifiers: ['cmd'],
+    }),
+  );
+  expect(result.outcome).toBe('stale');
+  expect(h.cua.call.mock.calls.some(([tool]) => tool === 'hotkey')).toBe(false);
 });

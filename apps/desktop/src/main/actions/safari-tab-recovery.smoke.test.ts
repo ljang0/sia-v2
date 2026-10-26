@@ -14,14 +14,21 @@ const live =
     ? it
     : it.skip;
 
-live.each(['protected', 'start-page', 'native-pdf'] as const)(
+live.each(['protected', 'start-page', 'native-pdf', 'native-tab'] as const)(
   'uses available Safari navigation from %s and preserves the selected profile',
   async (initial) => {
     const workspace = await mkdtemp(join(tmpdir(), 'sia-safari-recovery-'));
     const origin = 'https://canvas.university.example';
     const ids = { app_id: 'app:fixture', window_id: 'window:fixture' };
-    let page: 'protected' | 'ordinary' | 'new' | 'dashboard' | 'courses' =
-      initial === 'protected' ? 'protected' : initial === 'native-pdf' ? 'ordinary' : 'new';
+    let page: 'protected' | 'ordinary' | 'new' | 'dashboard' | 'courses' = [
+      'protected',
+      'native-tab',
+    ].includes(initial)
+      ? 'protected'
+      : initial === 'native-pdf'
+        ? 'ordinary'
+        : 'new';
+    let nativeTabGrant = false;
     let address = '';
     let revision = 0;
     let calls = 0;
@@ -33,7 +40,8 @@ live.each(['protected', 'start-page', 'native-pdf'] as const)(
           outcome: 'refused' as const,
           summary: 'The native Safari tab bar could not be verified. No webpage was read.',
         };
-      if (tabsOnly)
+      if (tabsOnly) {
+        nativeTabGrant = initial === 'native-tab';
         return {
           outcome: 'verified' as const,
           summary: 'Read native tab labels only. No webpage content was read.',
@@ -41,10 +49,13 @@ live.each(['protected', 'start-page', 'native-pdf'] as const)(
             ...ids,
             snapshot_id: `state:${++revision}`,
             browser_surface: 'safari-tabs',
+            native_new_tab_available: nativeTabGrant,
             pixel_actions_available: false,
             background_input: {
               exact_window: { status: 'matched' },
-              routes: [{ route: 'accessibility', status: 'available' }],
+              routes: ['accessibility', ...(nativeTabGrant ? ['pid_keyboard'] : [])].map(
+                (route) => ({ route, status: 'available' }),
+              ),
             },
             elements: [
               {
@@ -62,6 +73,7 @@ live.each(['protected', 'start-page', 'native-pdf'] as const)(
             ],
           },
         };
+      }
       if (page === 'protected')
         return {
           outcome: 'refused' as const,
@@ -148,24 +160,35 @@ live.each(['protected', 'start-page', 'native-pdf'] as const)(
                 windows: [
                   {
                     ...ids,
-                    title:
-                      initial === 'protected'
-                        ? 'Account settings'
-                        : initial === 'native-pdf'
-                          ? 'University calendar.pdf'
-                          : 'Start Page',
-                    source_url:
-                      initial === 'protected'
-                        ? origin + '/profile'
-                        : initial === 'native-pdf'
-                          ? 'https://university.example/calendar.pdf'
-                          : 'about:blank',
+                    title: ['protected', 'native-tab'].includes(initial)
+                      ? 'Account settings'
+                      : initial === 'native-pdf'
+                        ? 'University calendar.pdf'
+                        : 'Start Page',
+                    source_url: ['protected', 'native-tab'].includes(initial)
+                      ? origin + '/profile'
+                      : initial === 'native-pdf'
+                        ? 'https://university.example/calendar.pdf'
+                        : 'about:blank',
                   },
                 ],
               },
             };
           if (request.name === 'computer_snapshot') return observe(args.tabs_only === true);
           if (request.name === 'computer_action') {
+            if (
+              nativeTabGrant &&
+              page === 'protected' &&
+              args.action === 'key' &&
+              args.value === 't' &&
+              JSON.stringify(args.modifiers) === JSON.stringify(['cmd']) &&
+              args.element_ref === undefined
+            ) {
+              nativeTabGrant = false;
+              page = 'new';
+              history.push('new-tab');
+              return observe();
+            }
             if (args.action === 'click' && args.element_ref === 'ordinary-tab') {
               page = 'ordinary';
               history.push('select-ordinary-tab');
@@ -291,7 +314,7 @@ live.each(['protected', 'start-page', 'native-pdf'] as const)(
       } else {
         expect(history).not.toContain('select-ordinary-tab');
         expect(history.filter((step) => step === 'new-tab').length).toBeLessThanOrEqual(1);
-        if (initial === 'native-pdf') expect(history[0]).toBe('new-tab');
+        if (['native-pdf', 'native-tab'].includes(initial)) expect(history[0]).toBe('new-tab');
       }
       expect(history.at(-1)).toBe('courses');
       expect(result!.response).toContain('Field Studies');

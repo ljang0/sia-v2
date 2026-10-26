@@ -519,7 +519,7 @@ export class ComputerObservation {
               next_step:
                 this.ctx.computer.apps.get(binding.appId)?.identity ===
                 'bundle:com.apple.safari'
-                  ? 'Do not interact with this protected page or attempt authentication. To choose another already-open Safari tab, request computer_snapshot with tabs_only:true on this exact app/window. That returns only native tab labels and selection controls, never page content or authentication fields. Then select the intended tab and verify its live page.'
+                  ? 'Do not interact with this protected page or attempt authentication. To choose another already-open Safari tab, request computer_snapshot with tabs_only:true on this exact app/window. That returns only native tab labels and selection controls, never page content or authentication fields. If native_new_tab_available is explicitly true, Cmd+T can instead create a separate native tab without reading or interacting with this page. Observe the resulting tab normally before typing. Otherwise select an ordinary tab and verify its live page.'
                   : 'Do not interact with this protected document or attempt authentication. For public facts already in scope, reuse a known public subpage from saved source hints, memory or prior verified observations with computer_open_url, then take a fresh snapshot. A protected homepage does not establish that its public staff/syllabus pages are protected. This grants no access to private data and never substitutes public information for verified enrollment or account identity.',
             }
           : {}),

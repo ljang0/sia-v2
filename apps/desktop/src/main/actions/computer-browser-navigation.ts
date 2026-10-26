@@ -46,9 +46,15 @@ export async function captureBrowserNavigation(
     delete element.value;
     return [element];
   });
-  if (!elements.length)
-    return refused('Safari returned no verified native tab-selection controls.');
   const backgroundInput = windowBackgroundInput(raw, binding);
+  const newTab =
+    surface === 'safari-tabs' &&
+    backgroundInput?.exact_window.status === 'matched' &&
+    backgroundInput.routes.some(
+      (route) => route.route === 'pid_keyboard' && route.status === 'available',
+    );
+  if (!elements.length && !newTab)
+    return refused('Safari returned no verified native tab-navigation controls.');
   ctx.computer.rememberSnapshot({
     id: snapshotId,
     appId: binding.appId,
@@ -58,6 +64,7 @@ export async function captureBrowserNavigation(
     capturedAt: Date.now(),
     protectedControls: false,
     browserSurface: after.surface,
+    ...(newTab ? { browserNewTab: true } : {}),
     ...(backgroundInput ? { backgroundInput } : {}),
     elements: addresses,
   });
@@ -73,10 +80,11 @@ export async function captureBrowserNavigation(
       browser_surface: after.surface,
       elements,
       background_input: backgroundInput,
+      native_new_tab_available: newTab === true,
       pixel_actions_available: false,
       observation_partial: true,
       coverage_note:
-        'Native tab labels only; they do not establish page content or sign-in. Select the intended tab by its element_ref, then verify its live page. Only a single left click on a returned tab is allowed; Tab Overview also allows Escape. Screenshots, previews, text fields and other controls are excluded.',
+        'Native tab labels only; they do not establish page content or sign-in. Select the intended tab by its element_ref, then verify its live page. A single left click on a returned tab is allowed; Tab Overview also allows Escape. When native_new_tab_available is true, Cmd+T without an element_ref opens a separate native tab while leaving the selected page untouched. Observe that new tab normally before typing. Screenshots, previews, text fields and other controls are excluded.',
     },
     verification: {
       snapshotId,

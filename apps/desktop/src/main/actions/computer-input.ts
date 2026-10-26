@@ -92,11 +92,21 @@ export class ComputerInput {
           (args.action === 'key' &&
             capability.browserSurface === 'safari-tab-overview' &&
             /^(?:escape|esc)$/i.test(String(args.value)) &&
-            (!Array.isArray(args.modifiers) || args.modifiers.length === 0))
+            (!Array.isArray(args.modifiers) || args.modifiers.length === 0)) ||
+          (capability.browserSurface === 'safari-tabs' &&
+            capability.browserNewTab === true &&
+            args.action === 'key' &&
+            String(args.value).toLowerCase() === 't' &&
+            Array.isArray(args.modifiers) &&
+            args.modifiers.length === 1 &&
+            args.modifiers[0] === 'cmd' &&
+            args.element_ref === undefined &&
+            args.x === undefined &&
+            args.y === undefined)
         )
       )
         return refused(
-          'Native tab navigation permits only selecting an observed tab; Tab Overview also allows Escape.',
+          'Native tab navigation permits only selecting an observed tab, or Cmd+T when this snapshot explicitly grants a new native tab. Tab Overview also allows Escape.',
         );
       verifiedBrowserBundleId =
         current.status === 'ready' || current.status === 'navigation'
@@ -543,7 +553,7 @@ export class ComputerInput {
                 observation_blocker_code: 'protected_window',
                 next_step:
                   verifiedBrowserBundleId?.toLowerCase() === 'com.apple.safari'
-                    ? 'Do not replay the input or interact with the protected page. A separate computer_snapshot with tabs_only:true can inspect only native tab selection controls. Select an ordinary existing tab under that new grant, then capture fresh normal state before any typing. A refused tabs-only read remains a refusal.'
+                    ? 'Do not replay the input or interact with the protected page. A separate computer_snapshot with tabs_only:true can inspect only native tab selection controls. Use its explicitly granted native new-tab shortcut when available, or select an ordinary existing tab. Capture fresh normal state before any typing. A refused tabs-only read remains a refusal.'
                     : 'Do not replay the input or interact with the protected window. Use another independently authorized source when available; otherwise report this exact observation gap.',
               }
             : {}),
