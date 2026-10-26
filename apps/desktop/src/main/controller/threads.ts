@@ -172,14 +172,14 @@ export class Threads {
     return this.ctx.resultSnapshot();
   }
 
-  setThreadDraft(input: BridgeRequestMap['threads.draft']): { saved: true } {
+  setThreadDraft(input: BridgeRequestMap['threads.draft']): { accepted: true } {
     const thread = this.ctx.requireThread(input.threadId);
     if (input.text) thread.draft = input.text;
     else delete thread.draft;
-    // Drafts are saved on each pause in typing. The composer already shows the text, so skip
+    // Drafts checkpoint on each pause in typing. The composer already shows the text, so skip
     // the push and write the encrypted state with the next save, shortly after, or at shutdown.
     this.ctx.persistSoon();
-    return { saved: true };
+    return { accepted: true };
   }
 
   configureThread(input: BridgeRequestMap['threads.config']): DesktopSnapshot {

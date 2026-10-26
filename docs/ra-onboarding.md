@@ -61,6 +61,11 @@ checks in Chromium and WebKit. CI uses this same command; `pnpm test:remote` run
 checks while developing. It is deterministic and may take several minutes. It does not replace the manual checks on
 the signed artifact in [`manual-acceptance.md`](./manual-acceptance.md).
 
+After the pilot and unsigned packaging gates pass, CI retains the compiled JavaScript bundle
+and checkout/source/native tree identities for three days. It supports manual verification
+without another local build. Match the recorded source trees and use compatible installed
+dependencies and the Mac's existing signed native helper; this bundle is not a release app.
+
 `pnpm audit:dependencies` checks current registry advisories and fails on high/critical findings.
 CI runs it separately because it needs the live registry. Keep scoped security overrides in
 `pnpm-workspace.yaml` and review them when updating their parent dependencies.

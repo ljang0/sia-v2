@@ -82,6 +82,7 @@ type ServiceName =
  */
 /** How often a streaming reply is checkpointed to encrypted storage. */
 const STREAM_CHECKPOINT_MS = 2_000;
+const SAVE_RETRY_MS = 30_000;
 
 export class ControllerContext {
   readonly deps: ControllerDeps;
@@ -119,6 +120,8 @@ export class ControllerContext {
   /** Turns whose streamed text changed since the last push. */
   readonly streamTurns = new Set<string>();
   streamPersistTimer: NodeJS.Timeout | undefined;
+  /** Volatile only: an unsuccessful save must not claim durable state. */
+  localSaveFailed = false;
   runtime: RuntimeCoordinator | undefined;
   browserCapabilitySink: BrowserCapabilitySink | undefined;
   scotty: ScottySettingsApi | undefined;
@@ -340,16 +343,44 @@ export class ControllerContext {
       return;
     }
     this.cancelStreamCommit();
-    this.persist();
+    try {
+      this.persist();
+    } catch (error) {
+      // Keep a pending autosave recovery alive when an explicit save also fails.
+      // Its synchronous caller still receives the error.
+      if (this.localSaveFailed) this.persistSoon(SAVE_RETRY_MS);
+      throw error;
+    }
     this.emit();
   }
 
   persistSoon(delayMs = 500): void {
-    if (this.streamPersistTimer) return;
-    this.streamPersistTimer = setTimeout(() => {
-      this.streamPersistTimer = undefined;
-      this.persist();
-    }, delayMs);
+    if (this.streamPersistTimer || this.shuttingDown) return;
+    this.streamPersistTimer = setTimeout(
+      () => {
+        this.streamPersistTimer = undefined;
+        if (this.shuttingDown) return;
+        const recovering = this.localSaveFailed;
+        let failed = false;
+        try {
+          this.persist();
+        } catch {
+          // Repository/cipher errors must not escape an unattended timer. Keep
+          // the latest state in RAM, warn without exposing the error payload,
+          // and retry this idempotent encrypted snapshot at a bounded rate.
+          this.localSaveFailed = true;
+          failed = true;
+          this.persistSoon(SAVE_RETRY_MS);
+        }
+        if (failed !== recovering) {
+          // Health changes need their own revision so an older bridge response
+          // cannot replace the warning or bring it back after recovery.
+          this.revision += 1;
+          this.emit();
+        }
+      },
+      this.localSaveFailed ? Math.max(delayMs, SAVE_RETRY_MS) : delayMs,
+    );
     this.streamPersistTimer.unref();
   }
 
@@ -367,6 +398,7 @@ export class ControllerContext {
     // durable storage even though the rest of the application state is encrypted at rest.
     delete browser.availableWindows;
     this.deps.repository.put('desktop', 'state', { ...this.state, browser });
+    this.localSaveFailed = false;
   }
 
   emit(): void {

@@ -78,6 +78,8 @@ export interface DesktopSnapshot {
     title: string;
     detail: string;
   };
+  /** Latest changes are in memory while a deferred encrypted save is retried. */
+  localSaveFailed?: true;
 }
 
 /**

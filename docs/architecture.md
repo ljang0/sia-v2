@@ -95,9 +95,16 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   every 2s (each one encrypts all saved state). Each streaming update is a patch with only the
   streaming threads, their previews and the open thread's items from the streaming turn, so its
   size does not grow with history; the renderer applies it to its last snapshot and the next full
-  snapshot replaces both. Composer drafts checkpoint after 500ms and push no snapshot. Other
-  non-streaming changes, completion and graceful shutdown persist immediately. An abrupt
+  snapshot replaces both. Composer drafts acknowledge acceptance for deferred saving, checkpoint
+  after 500ms and push no snapshot when healthy. A failed deferred save retains the latest state
+  in memory and publishes only a typed save-health flag, never the error payload. The desktop
+  displays a non-dismissible warning to keep Sia open and retries the encrypted checkpoint at
+  most once per 30s. More typing or streaming does not shorten that retry interval. Recovery clears
+  the warning with a fresh snapshot revision; an explicit successful save cancels the pending
+  retry, and shutdown cancels its timer. Synchronous save failures still reach their caller.
+  Other non-streaming changes, completion and graceful shutdown persist immediately. An abrupt
   termination may lose the last checkpoint interval of an unfinished response or draft.
+  While saving is unavailable, changes since the last successful checkpoint remain volatile.
 - A bridge call that returns the snapshot it just pushed sends a marker instead of a second
   copy; the preload restores the pushed snapshot and the renderer skips re-rendering it.
   Delayed bridge replies cannot replace a newer renderer snapshot, including the cleared

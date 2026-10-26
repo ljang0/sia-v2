@@ -534,6 +534,7 @@ export interface RendererSnapshot {
     title: string;
     detail: string;
   };
+  localSaveFailed?: true;
 }
 
 export interface AgentDraft {

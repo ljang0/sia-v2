@@ -14,6 +14,21 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+it('shows an unsaved-changes warning until a recovered snapshot replaces it', async () => {
+  const unsaved = structuredClone(demoSnapshot);
+  unsaved.localSaveFailed = true;
+  const view = render(<DiagnosticHarness api={createDemoRendererApi(unsaved)} />);
+  const warning = await screen.findByRole('alert');
+  expect(warning.textContent).toContain('Changes not saved');
+  expect(warning.textContent).toContain('Keep Sia open');
+  expect(warning.textContent).toContain('automatically');
+  expect(warning.querySelector('button')).toBeNull();
+  view.rerender(
+    <DiagnosticHarness api={createDemoRendererApi(structuredClone(demoSnapshot))} />,
+  );
+  await waitFor(() => expect(screen.queryByRole('alert')).toBeNull());
+});
+
 describe('workspace diagnostics', () => {
   it('deduplicates repeated failures and copies a support-ready diagnostic', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);

@@ -17,6 +17,15 @@ export function WorkspaceNotice({
   // An action error must not hide a pending Undo, so the two can show together.
   return (
     <>
+      {app.snapshot?.localSaveFailed ? (
+        <div className={styles.actionError} role="alert">
+          <WarningCircle size={18} aria-hidden="true" />
+          <span>
+            <strong>Changes not saved.</strong> Keep Sia open so your latest changes aren’t
+            lost. Sia will try to save again automatically.
+          </span>
+        </div>
+      ) : null}
       {app.actionIssue ? <ActionIssueNotice app={app} /> : null}
       {app.archivedThreadId ? (
         <ArchiveUndoNotice

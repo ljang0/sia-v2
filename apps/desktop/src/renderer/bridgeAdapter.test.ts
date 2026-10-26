@@ -188,8 +188,16 @@ describe('bridge renderer selection', () => {
 });
 
 describe('bridge renderer drafts', () => {
-  it('shows a saved draft without waiting for a snapshot from the main process', async () => {
-    const setDraft = vi.fn(async () => ({ saved: true as const }));
+  it('projects only the save-health flag and clears it with a recovered snapshot', () => {
+    const initial = snapshot([]);
+    initial.localSaveFailed = true;
+    expect(mapDesktopSnapshot(initial).localSaveFailed).toBe(true);
+    delete initial.localSaveFailed;
+    expect(mapDesktopSnapshot(initial).localSaveFailed).toBeUndefined();
+  });
+
+  it('shows an accepted draft without waiting for a snapshot from the main process', async () => {
+    const setDraft = vi.fn(async () => ({ accepted: true as const }));
     const initial = snapshot([]);
     const bridge = {
       bootstrap: async () => initial,

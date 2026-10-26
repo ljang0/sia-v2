@@ -333,6 +333,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       })),
     schedules: (source.schedules ?? []).map((schedule) => structuredClone(schedule)),
     ...(source.startupNotice ? { startupNotice: structuredClone(source.startupNotice) } : {}),
+    ...(source.localSaveFailed ? { localSaveFailed: true as const } : {}),
   };
 }
 
