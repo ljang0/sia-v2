@@ -44,6 +44,13 @@ Normal checks never require a personal account or run those probes at app startu
 evidence stays outside Git, and research collection requires separate consent. Manual permission,
 fresh-install and physical-phone acceptance remain separate gates in [manual-acceptance.md](./manual-acceptance.md).
 
+Match research completion to the requested outcome. A verified suitable option can complete an
+open-ended "where can I" request once its required facts and constraints are checked; an optional
+blocked directory does not make that answer unfinished. An explicit comparison, requested count,
+or "all" still needs every in-scope item, and missing opening hours remain missing when asked for.
+The opt-in fictional research-scope probes cover these three boundaries without real app access.
+They are model checks, not evidence of completed GUI tasks.
+
 ## Repository-wide continuation
 
 The continuation from `fa97fc6` inventories all 880 tracked files, including tests, documentation,
