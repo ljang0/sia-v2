@@ -13,16 +13,25 @@ const COMPACT_PRIVATE_KEYS = new Set([
   'samlresponse',
 ]);
 
+function privateKey(value: string): boolean {
+  let key = value;
+  try {
+    key = decodeURIComponent(value);
+  } catch {
+    /* Inspect malformed keys as written. */
+  }
+  return (
+    PRIVATE_LINK_KEY.test(key) ||
+    COMPACT_PRIVATE_KEYS.has(key.replace(/[^a-z0-9]/gi, '').toLowerCase())
+  );
+}
+
 export function linkContainsCredentials(value: string, depth = 0): boolean {
   try {
     const url = new URL(value);
     return (
       Boolean(url.username || url.password) ||
-      [...url.searchParams.keys()].some(
-        (key) =>
-          PRIVATE_LINK_KEY.test(key) ||
-          COMPACT_PRIVATE_KEYS.has(key.replace(/[^a-z0-9]/gi, '').toLowerCase()),
-      ) ||
+      [...url.searchParams.keys()].some(privateKey) ||
       (depth < 2 &&
         [...url.searchParams.values()].some(
           (nested) =>
@@ -33,7 +42,10 @@ export function linkContainsCredentials(value: string, depth = 0): boolean {
     );
   } catch {
     // A malformed escape must not defeat the private-link check.
-    return /(?:[?&#]|%26)(?:pwd|password|token|secret|signature)(?:=|%3d)/i.test(value);
+    return (
+      /^[a-z][a-z0-9+.-]*:\/\/[^/?#]*@/i.test(value) ||
+      [...value.matchAll(/[?&#]([^?&#=]+)=/g)].some((match) => privateKey(match[1]!))
+    );
   }
 }
 

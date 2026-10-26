@@ -16,6 +16,9 @@ it.each([
   'https://host.example/path#pwd=fixture-secret%ZZ',
   'https://host.example/path?accessToken=fixture-secret',
   'https://host.example/path?sessionid=fixture-secret',
+  'https://fixture-secret@invalid%ZZ/',
+  'https://invalid%ZZ/path?api_key=fixture-secret',
+  'https://invalid%ZZ/path?refreshToken=fixture-secret',
   'https://host.example/path?redirect=https%3A%2F%2Fmeeting.example%2F%3Fpwd%3Dfixture-secret',
   'zoommtg://meeting.example/join?confno=123&pwd=fixture-secret',
 ])('omits access-bearing links in display text before truncation: %s', (url) => {
