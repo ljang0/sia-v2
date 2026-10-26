@@ -406,6 +406,14 @@ export class ComputerObservation {
           browserUrl && browserUrl !== 'about:blank'
             ? new URL(browserUrl).origin + new URL(browserUrl).pathname
             : undefined,
+        browser_document_kind:
+          browserState?.status === 'ready' ? browserState.documentKind : undefined,
+        ...(browserState?.status === 'ready' && browserState.documentKind === 'native-pdf'
+          ? {
+              browser_navigation_hint:
+                'Read and scroll this native PDF in place. For another website, use Cmd+T and observe the new tab before navigation; directly editing this PDF’s address bar invalidates its independent page identity.',
+            }
+          : {}),
         visible_text: readableContext?.text || undefined,
         ...(projectedControls ? { control_projection_partial: true } : {}),
         ...(windowTextComplete ? { window_text_complete: true } : {}),

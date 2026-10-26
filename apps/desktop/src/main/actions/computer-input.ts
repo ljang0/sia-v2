@@ -60,6 +60,7 @@ export class ComputerInput {
       return stale('The window snapshot is missing, superseded, or belongs to another window.');
     }
     let verifiedBrowserBundleId: string | undefined;
+    let nativePDF = false;
     if (this.inventory.isNativeBrowser(binding)) {
       if (args.action === 'menu')
         return refused(
@@ -101,6 +102,7 @@ export class ComputerInput {
         current.status === 'ready' || current.status === 'navigation'
           ? current.bundleID
           : undefined;
+      nativePDF = current.status === 'ready' && current.documentKind === 'native-pdf';
       if (
         typeof args.text === 'string' &&
         /(?:javascript|data|file|chrome|safari|about|devtools|view-source|vbscript)\s*:/i.test(
@@ -152,6 +154,29 @@ export class ComputerInput {
     let address = this.ctx.computer.elementAddress(capability, args.element_ref);
     if (args.element_ref && !address)
       return stale('The element reference is not in this snapshot.');
+    if (
+      nativePDF &&
+      ((args.action === 'key' &&
+        String(args.value).toLowerCase() === 'l' &&
+        Array.isArray(args.modifiers) &&
+        args.modifiers.length === 1 &&
+        args.modifiers[0] === 'cmd') ||
+        (['click', 'set', 'type'].includes(String(args.action)) &&
+          address?.role === 'AXTextField' &&
+          /^(?:smart search field|address(?: and search)?(?: field)?)$/i.test(
+            address.label ?? '',
+          )))
+    )
+      return {
+        outcome: 'refused',
+        summary:
+          'Direct address editing would make this native PDF’s page identity unverifiable. No input was sent.',
+        data: {
+          blocker_code: 'pdf_navigation_requires_new_tab',
+          next_step:
+            'Keep this PDF intact. Use Cmd+T from its current normal snapshot when pid_keyboard is available, observe the new tab, then navigate there. Do not replay the refused address edit or use a pixel click to focus its address bar.',
+        },
+      };
     const macKeyboard =
       this.ctx.macBrowserAccess() && ['type', 'key'].includes(String(args.action));
     // AXWindow is not an editable control. Focusing it before each keystroke loses

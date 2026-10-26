@@ -5,6 +5,24 @@ import { WindowObservationError } from './window-observer.js';
 const run = vi.fn();
 const observer = { read: run, close: vi.fn() };
 
+it('preserves only the signed reader’s recognized document classification', async () => {
+  const service = new BrowserWindowService('/helper', observer);
+  run.mockReset();
+  const pdf = {
+    status: 'ready',
+    bundleID: 'com.apple.Safari',
+    url: 'https://university.example/calendar.pdf',
+    documentKind: 'native-pdf',
+  };
+  run.mockResolvedValueOnce(pdf);
+  expect(await service.inspect(42, 91)).toEqual(pdf);
+  run.mockResolvedValueOnce({ ...pdf, documentKind: 'unrecognized' });
+  expect(await service.inspect(42, 91)).toEqual({
+    status: 'unavailable',
+    reason: 'invalid_response',
+  });
+});
+
 it('reads only a live process ID for foreground checks and rejects malformed helper results', async () => {
   const service = new BrowserWindowService('/helper', observer);
   run.mockReset();

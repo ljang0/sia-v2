@@ -27,6 +27,12 @@ and the same full HTTP(S) URL in the native window title. It refuses mismatches,
 queries, fragments, missing focus metadata and loading indicators; the existing complete security
 scan and exact-window revalidation still apply. Native pure tests cover these boundaries. A
 successful identity diagnostic is separate from verifying a complete task or all PDF content.
+Native PDF snapshots identify their document kind. Direct address-bar focus or editing is refused
+before input, with a supported new-tab alternative: focusing the address field itself removes the
+PDF viewer's independent identity. Refusal leaves the current grant usable for Cmd+T; the new tab
+must then be observed normally. PDF page reading and observed links remain available. Host
+regressions reproduce the identity loss and verify the no-input refusal, preserved grant, new-tab
+route and ordinary-page navigation. The opt-in Safari probe also starts from a fictional PDF.
 Normal checks never require a personal account or run those probes at app startup. Real-account
 evidence stays outside Git, and research collection requires separate consent. Manual permission,
 fresh-install and physical-phone acceptance remain separate gates in [manual-acceptance.md](./manual-acceptance.md).

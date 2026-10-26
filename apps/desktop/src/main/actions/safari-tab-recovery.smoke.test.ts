@@ -14,14 +14,14 @@ const live =
     ? it
     : it.skip;
 
-live.each(['protected', 'start-page'] as const)(
+live.each(['protected', 'start-page', 'native-pdf'] as const)(
   'uses available Safari navigation from %s and preserves the selected profile',
   async (initial) => {
     const workspace = await mkdtemp(join(tmpdir(), 'sia-safari-recovery-'));
     const origin = 'https://canvas.university.example';
     const ids = { app_id: 'app:fixture', window_id: 'window:fixture' };
     let page: 'protected' | 'ordinary' | 'new' | 'dashboard' | 'courses' =
-      initial === 'protected' ? 'protected' : 'new';
+      initial === 'protected' ? 'protected' : initial === 'native-pdf' ? 'ordinary' : 'new';
     let address = '';
     let revision = 0;
     let calls = 0;
@@ -73,7 +73,15 @@ live.each(['protected', 'start-page'] as const)(
         summary: 'Read the selected tab in the existing Safari window.',
         data: {
           ...ids,
-          title: page === 'new' ? 'Start Page' : 'University course page',
+          title:
+            page === 'new'
+              ? 'Start Page'
+              : initial === 'native-pdf' && page === 'ordinary'
+                ? 'University calendar.pdf'
+                : 'University course page',
+          ...(initial === 'native-pdf' && page === 'ordinary'
+            ? { browser_document_kind: 'native-pdf' }
+            : {}),
           snapshot_id: `state:${++revision}`,
           pixel_actions_available: false,
           background_input: {
@@ -90,7 +98,9 @@ live.each(['protected', 'start-page'] as const)(
                 ? origin + '/'
                 : page === 'new'
                   ? 'about:blank'
-                  : 'https://university.example/help',
+                  : initial === 'native-pdf'
+                    ? 'https://university.example/calendar.pdf'
+                    : 'https://university.example/help',
           visible_text:
             page === 'courses'
               ? 'All Courses. Complete current Fall 2026 enrollment: 12-101 Field Studies section A; 23-202 Geometry section B. Enrolled as Student. No more current courses or pagination. No account display name is shown.'
@@ -138,8 +148,18 @@ live.each(['protected', 'start-page'] as const)(
                 windows: [
                   {
                     ...ids,
-                    title: initial === 'protected' ? 'Account settings' : 'Start Page',
-                    source_url: initial === 'protected' ? origin + '/profile' : 'about:blank',
+                    title:
+                      initial === 'protected'
+                        ? 'Account settings'
+                        : initial === 'native-pdf'
+                          ? 'University calendar.pdf'
+                          : 'Start Page',
+                    source_url:
+                      initial === 'protected'
+                        ? origin + '/profile'
+                        : initial === 'native-pdf'
+                          ? 'https://university.example/calendar.pdf'
+                          : 'about:blank',
                   },
                 ],
               },
@@ -271,6 +291,7 @@ live.each(['protected', 'start-page'] as const)(
       } else {
         expect(history).not.toContain('select-ordinary-tab');
         expect(history.filter((step) => step === 'new-tab').length).toBeLessThanOrEqual(1);
+        if (initial === 'native-pdf') expect(history[0]).toBe('new-tab');
       }
       expect(history.at(-1)).toBe('courses');
       expect(result!.response).toContain('Field Studies');

@@ -10,6 +10,7 @@ const result = z.discriminatedUnion('status', [
     url: z.string().max(8192),
     bundleID: z.string(),
     title: z.string().max(300).optional(),
+    documentKind: z.literal('native-pdf').optional(),
   }),
   z.object({
     status: z.literal('navigation'),

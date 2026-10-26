@@ -172,6 +172,10 @@ enum BrowserWindow {
                              title: title, address: address, addressFocused: addressFocused, loading: loading)
         }
         guard let url, url.utf8.count <= 8192 else { return ["status": "unavailable", "reason": "page"] }
-        return ["status": "ready", "url": url, "bundleID": bundle, "title": FnContext.bounded(title, 300)]
+        var result: [String: Any] = ["status": "ready", "url": url, "bundleID": bundle, "title": FnContext.bounded(title, 300)]
+        if bundle.lowercased() == "com.apple.safari", hasPDFPlugin, webAreas == 0 {
+            result["documentKind"] = "native-pdf"
+        }
+        return result
     }
 }
