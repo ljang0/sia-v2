@@ -319,10 +319,7 @@ export class Turns {
     this.ctx.providers.requireReadyProvider(thread.provider, thread.model);
     // Follow-ups held behind a paused task run after it continues.
     const held = this.heldThreads.has(thread.id);
-    if (
-      this.running.has(thread.id) ||
-      (!held && this.queued.some((turn) => turn.threadId === thread.id))
-    ) {
+    if (!held && this.queued.some((turn) => turn.threadId === thread.id)) {
       throw new Error('This thread already has an active turn.');
     }
     const failed = this.ctx.state.timeline.findLast(
@@ -371,7 +368,16 @@ export class Turns {
     // The continued task goes ahead of any follow-ups that waited behind it.
     const enqueue = (turn: QueuedTurn) =>
       held ? this.queued.unshift(turn) : this.queued.push(turn);
-    if (this.running.size >= 4) {
+    if (this.running.has(thread.id)) {
+      thread.status = 'queued';
+      thread.queueReason =
+        this.ctx.mac.isMacTurn(thread.id) && this.ctx.mac.unavailable
+          ? this.ctx.mac.unavailable === 'locked'
+            ? 'Waiting for your Mac to unlock.'
+            : 'Waiting for your Mac to wake up.'
+          : 'Finishing the previous attempt before continuing.';
+      enqueue(retry);
+    } else if (this.running.size >= 4) {
       thread.status = 'queued';
       thread.queueReason = 'Sia is already doing four tasks. This starts when one finishes.';
       enqueue(retry);

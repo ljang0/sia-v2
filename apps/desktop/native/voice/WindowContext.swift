@@ -8,6 +8,10 @@ enum WindowContext {
     // Rich course/calendar pages can exceed four thousand AX nodes. Batched
     // metadata keeps this bounded walk inside the existing wall-clock budget.
     static let maximumScanNodes = 16000
+    // Ordinary Canvas pages exceeded the former 1.5–2 s security walk on a busy
+    // Mac. Complete the same checks within a bounded budget instead of exposing
+    // partial content or forcing another user-assisted attempt.
+    static let securityScanSeconds: TimeInterval = 4
     static func localDocumentURL(_ value: Any?) -> String? {
         let url: URL?
         if let value = value as? URL { url = value }
@@ -204,7 +208,7 @@ enum WindowContext {
     static func capture(pid: pid_t, windowID: CGWindowID) -> [String: Any] {
         guard let bundle = NSRunningApplication(processIdentifier: pid)?.bundleIdentifier,
               let window = resolve(pid: pid, windowID: windowID) else { return ["status": "unavailable"] }
-        let deadline = Date().addingTimeInterval(1.5)
+        let deadline = Date().addingTimeInterval(securityScanSeconds)
         var nodes: [(AXUIElement, String, String)] = []
         var visited = Set<CFHashCode>()
         var complete = true

@@ -24,7 +24,7 @@ it('distinguishes identity-helper failures without exposing app content or nativ
   run.mockResolvedValueOnce({ stdout: '{"status":"protected","reason":"page"}' });
   expect(await service.inspect(42, 91)).toEqual({ status: 'protected', reason: 'page' });
   expect(run).toHaveBeenLastCalledWith('/helper', ['--browser-window', '42', '91'], {
-    timeout: 5000,
+    timeout: 8000,
     maxBuffer: 16384,
     env: { PATH: '/usr/bin:/bin' },
   });

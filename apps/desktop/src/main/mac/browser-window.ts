@@ -3,6 +3,9 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 
 const exec = promisify(execFile);
+// Includes cold helper startup, exact-window binding, the four-second security
+// walk and identity revalidation. A failed scan never releases partial content.
+const WINDOW_READ_TIMEOUT_MS = 8000;
 const result = z.discriminatedUnion('status', [
   z.object({
     status: z.literal('ready'),
@@ -99,7 +102,7 @@ View that PNG with view_image. Use the returned image-to-screen transform; do no
       const { stdout } = await exec(
         this.helperPath,
         ['--window-context', String(pid), String(windowId)],
-        { timeout: 5000, maxBuffer: 100000, env: { PATH: '/usr/bin:/bin' } },
+        { timeout: WINDOW_READ_TIMEOUT_MS, maxBuffer: 100000, env: { PATH: '/usr/bin:/bin' } },
       );
       return contextResult.parse(JSON.parse(stdout));
     } catch {
@@ -127,7 +130,7 @@ View that PNG with view_image. Use the returned image-to-screen transform; do no
       ({ stdout } = await exec(
         this.helperPath,
         ['--browser-window', String(pid), String(windowId)],
-        { timeout: 5000, maxBuffer: 16384, env: { PATH: '/usr/bin:/bin' } },
+        { timeout: WINDOW_READ_TIMEOUT_MS, maxBuffer: 16384, env: { PATH: '/usr/bin:/bin' } },
       ));
     } catch (error) {
       return {

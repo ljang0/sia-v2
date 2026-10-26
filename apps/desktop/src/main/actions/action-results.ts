@@ -14,7 +14,7 @@ export function stale(reason: string): ActionExecutionResult {
 
 /** Only these explicit validation/authorization refusals prove that no input was posted. */
 export function inputWasRefused(error: unknown): boolean {
-  return /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|background_focus_unavailable|foreground_app_in_use|window_not_key|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window|browser_ref_stale|browser_frame_changed|browser_tab_not_found|browser_binding_stale|browser_consent_required|browser_requires_setup|browser_input_trust_unavailable|browser_action_unavailable)$/.test(
+  return /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|background_focus_unavailable|background_input_paused|foreground_app_in_use|window_not_key|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window|browser_ref_stale|browser_frame_changed|browser_tab_not_found|browser_binding_stale|browser_consent_required|browser_requires_setup|browser_input_trust_unavailable|browser_action_unavailable)$/.test(
     safeErrorMessage(error),
   );
 }
@@ -22,6 +22,16 @@ export function inputWasRefused(error: unknown): boolean {
 export function classifyFailure(error: unknown): ActionExecutionResult {
   const message = safeErrorMessage(error);
   const normalized = message.toLowerCase();
+  if (normalized === 'cua refused: background_input_paused')
+    return {
+      outcome: 'needs_foreground',
+      summary: 'No further input was sent because computer input is paused for this turn.',
+      data: {
+        background_interrupted: true,
+        input_paused_for_turn: true,
+        blocker_code: 'background_input_paused',
+      },
+    };
   if (/\b(?:foreground_app_in_use|background_focus_unavailable)\b/.test(normalized)) {
     return {
       outcome: 'needs_foreground',
@@ -111,6 +121,9 @@ export function actionResult(
       data: {
         background_interrupted: true,
         input_delivery_uncertain: true,
+        ...(record?.background_other_app_changed === true && !restoredFocus
+          ? { background_other_app_changed: true }
+          : {}),
         blocker_code:
           record?.background_focus_changed === true || restoredFocus
             ? 'background_focus_changed'

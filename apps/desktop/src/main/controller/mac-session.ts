@@ -133,11 +133,12 @@ export class MacSession {
    */
   syncKeepAwake(): void {
     for (const threadId of this.turns.keys()) {
-      const waiting =
-        this.ctx.state.threads.find(({ id }) => id === threadId)?.status === 'waiting';
-      if (waiting && this.awakeTurns.delete(threadId))
+      const active =
+        this.ctx.state.threads.find(({ id }) => id === threadId)?.status === 'running' &&
+        this.ctx.turns.running.get(threadId)?.signal.aborted === false;
+      if (!active && this.awakeTurns.delete(threadId))
         this.ctx.deps.keepAwake?.release(threadId);
-      else if (!waiting && !this.awakeTurns.has(threadId)) {
+      else if (active && !this.awakeTurns.has(threadId)) {
         this.awakeTurns.add(threadId);
         this.ctx.deps.keepAwake?.hold(threadId);
       }

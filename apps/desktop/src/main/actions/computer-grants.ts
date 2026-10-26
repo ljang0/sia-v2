@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { ValidatedActionInvocation } from '@sia/action-gateway';
 import type { BackgroundInputStatus } from './background-input.js';
+import { actionExecutionId } from './action-execution.js';
 
 export interface NativeElementAddress {
   readonly token: string;
@@ -61,6 +62,7 @@ export class ComputerGrants {
       request.context.sessionId,
       request.context.threadId,
       request.context.turnId,
+      actionExecutionId(request.context),
     ]);
     if (this.#turnKey !== key) {
       // A provider conversation can outlive CUA's session. New turns get new

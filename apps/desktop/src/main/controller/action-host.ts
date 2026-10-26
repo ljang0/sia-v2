@@ -85,7 +85,11 @@ export class ActionHost {
         resultData &&
         typeof resultData === 'object' &&
         'background_interrupted' in resultData &&
-        resultData.background_interrupted === true
+        resultData.background_interrupted === true &&
+        !(
+          'computer_read_only_recovery' in resultData &&
+          resultData.computer_read_only_recovery === true
+        )
       ) {
         this.ctx.mac.pauseBackgroundTurn(
           notice.context.threadId,

@@ -16,6 +16,7 @@ import { sweepStaleBrowserVaults } from './browser-uploads.js';
 import { ComputerInput } from './computer-input.js';
 import { ComputerInventory } from './computer-inventory.js';
 import { ComputerObservation } from './computer-observation.js';
+import { BackgroundReadRecovery } from './background-read-recovery.js';
 import { ConnectorActions } from './connector-actions.js';
 import { ActionBackendContext } from './context.js';
 import { asRecord } from './driver-records.js';
@@ -43,6 +44,7 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #schedules: ScheduleActions;
   readonly #recoveryFailures = new Map<string, number>();
   readonly #macWindows = new MacWindowHistory();
+  readonly #backgroundReadRecovery = new BackgroundReadRecovery();
 
   constructor(options: DesktopActionBackendOptions) {
     this.#ctx = new ActionBackendContext(options);
@@ -111,6 +113,9 @@ export class DesktopActionBackend implements ActionBackend {
   async invoke(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
     // A late cancelled caller must not revoke a newer turn's active window refs.
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
+    const prepared = this.#backgroundReadRecovery.prepare(request);
+    if ('result' in prepared) return prepared.result;
+    request = prepared.request;
     if (
       [
         'computer_list',
@@ -129,7 +134,12 @@ export class DesktopActionBackend implements ActionBackend {
         'Two attempts at this control failed. Stop repeating it. Observe fresh state and use another permitted target or distinct input route when available; otherwise explain this exact blocker. Never bypass protected surfaces or replay an uncertain write.',
       );
     }
-    const rawResult = await this.#invoke(request);
+    const before = this.#ctx.computer.snapshots.get(String(request.arguments.snapshot_id));
+    const rawResult = this.#backgroundReadRecovery.observe(
+      request,
+      before,
+      await this.#invoke(request),
+    );
     const result = this.#ctx.macBrowserAccess()
       ? this.#macWindows.observe(request, rawResult)
       : rawResult;
@@ -143,7 +153,9 @@ export class DesktopActionBackend implements ActionBackend {
           data: {
             ...(asRecord(result.data) ?? {}),
             recovery:
-              'Observe the target again before a retry. Stop after two failed attempts; never replay a write with uncertain delivery.',
+              asRecord(result.data)?.computer_read_only_recovery === true
+                ? 'Only two fresh reads of the original window are permitted. All further computer input is blocked for this turn. Finish from verified evidence or ask the person to continue.'
+                : 'Observe the target again before a retry. Stop after two failed attempts; never replay a write with uncertain delivery.',
           },
         };
       }

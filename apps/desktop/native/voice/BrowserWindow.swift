@@ -18,7 +18,7 @@ enum BrowserWindow {
         guard let app = NSRunningApplication(processIdentifier: pid),
               let bundle = app.bundleIdentifier, bundles.contains(bundle.lowercased()) else { return ["status": "unavailable", "reason": "window"] }
         guard let window = WindowContext.resolve(pid: pid, windowID: windowID) else { return ["status": "unavailable", "reason": "ambiguous"] }
-        let deadline = Date().addingTimeInterval(2)
+        let deadline = Date().addingTimeInterval(WindowContext.securityScanSeconds)
         func attr<T>(_ node: AXUIElement, _ key: String) -> T? {
             guard Date() < deadline else { return nil }
             var value: CFTypeRef?

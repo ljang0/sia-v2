@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { actionExecutionId } from './action-execution.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import {
@@ -117,6 +118,7 @@ export class MacBrowserControl {
       request.context.sessionId,
       request.context.threadId,
       request.context.turnId,
+      actionExecutionId(request.context),
     ]);
     if (key === this.#turn) return;
     this.#turn = key;

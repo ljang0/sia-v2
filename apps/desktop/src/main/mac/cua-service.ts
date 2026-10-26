@@ -48,6 +48,8 @@ export type CuaAuthorizationContext =
       readonly kind: 'turn';
       readonly threadId: string;
       readonly turnId: string;
+      /** Host-owned execution attempt; explicit Continue receives fresh authority. */
+      readonly executionId?: string | undefined;
       readonly backgroundOnly?: boolean;
       /** Host-bound browser target; never supplied by model arguments. */
       readonly backgroundTargetPid?: number;
@@ -164,6 +166,7 @@ export class CuaService {
   readonly #verifyAccessEnabled: boolean;
   #callTail: Promise<void> = Promise.resolve();
   #authorizationContext: CuaAuthorizationContext | undefined;
+  readonly #pausedBackgroundTurns = new Set<string>();
   /** The running call's timeout, paused while an approval waits on the person. */
   #callClock: { pause(): void; resume(): void } | undefined;
 
@@ -437,12 +440,21 @@ export class CuaService {
       // retains its place until that call ends, so subsequent calls cannot race it.
       await waitForAbort(previous, operation.signal);
       ownsQueue = true;
+      if (
+        protectDesktop &&
+        context.kind === 'turn' &&
+        this.#pausedBackgroundTurns.has(
+          JSON.stringify([context.threadId, context.turnId, context.executionId]),
+        )
+      )
+        throw new Error('CUA refused: background_input_paused');
       // Queue time belongs to the preceding call; only this call's execution uses its budget.
       startTimer();
       this.#authorizationContext = context;
       this.#callClock = clock;
       driver = await waitForAbort(this.#getDriver(), operation.signal);
       let foregroundBefore: number | undefined;
+      let backgroundTargetPid: number | undefined;
       const result = await waitForAbort(
         Promise.resolve().then(async () => {
           operation.signal.throwIfAborted();
@@ -468,6 +480,7 @@ export class CuaService {
               throw new Error('CUA refused: background_focus_unavailable');
             if (foreground === targetPid) throw new Error('CUA refused: foreground_app_in_use');
             foregroundBefore = foreground;
+            backgroundTargetPid = targetPid;
           }
           return ['list_apps', 'list_windows'].includes(tool) && args.session === undefined
             ? this.#readInventory(driver!, tool, input, operation.signal)
@@ -498,12 +511,22 @@ export class CuaService {
         const foreground = await this.#foregroundPid(driver, operation.signal);
         operation.signal.throwIfAborted();
         if (foreground === undefined || foreground !== foregroundBefore) {
+          if (context.kind === 'turn') {
+            const key = JSON.stringify([context.threadId, context.turnId, context.executionId]);
+            // Install this before releasing the native queue. Tool-signal cleanup
+            // or driver renewal must not lift a restriction on the same turn.
+            this.#pausedBackgroundTurns.add(key);
+          }
           const native =
             typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
               ? parsed
               : { native_result: parsed };
           parsed = {
             ...native,
+            background_other_app_changed:
+              !nativeToolError &&
+              foreground !== undefined &&
+              foreground !== backgroundTargetPid,
             ...(foreground === undefined
               ? { background_focus_unverified: true }
               : { background_focus_changed: true }),

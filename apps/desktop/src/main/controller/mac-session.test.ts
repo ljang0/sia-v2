@@ -171,7 +171,8 @@ describe('Use my Mac power and lock handling', () => {
     await vi.waitFor(() => expect(keepAwake.hold).toHaveBeenCalledWith(threadId));
     expect(keepAwake.release).not.toHaveBeenCalled();
     await controller.invoke('threads.cancel', { threadId });
-    await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+    // Cancelling releases the assertion even while provider/memory cleanup is pending.
+    expect(keepAwake.release).toHaveBeenCalledWith(threadId);
     expect(status()).toBe('idle');
     await controller.shutdown();
 
@@ -362,6 +363,53 @@ describe('Use my Mac power and lock handling', () => {
     await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
     expect(requests).toHaveLength(1);
     await controller.shutdown();
+  });
+
+  it('lets host-enforced read-only recovery finish but pauses any further input request', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, threadId, status } = await macThread({ runtime });
+    try {
+      await controller.invoke('threads.send', { threadId, text: 'Read my coursework' });
+      await vi.waitFor(() => expect(requests).toHaveLength(1));
+      const turnId = controller
+        .snapshot()
+        .timeline.find((item) => item.kind === 'user')!.turnId!;
+      const observe = controller.actionResultObserver();
+      const notice = {
+        name: 'computer_action' as const,
+        context: {
+          sessionId: 'session',
+          threadId,
+          turnId,
+          provider: 'codex' as const,
+          workspace: '/tmp/sia-workspace',
+          backgroundOnly: true,
+        },
+        result: {
+          outcome: 'needs_foreground' as const,
+          summary: 'Read-only recovery',
+          data: {
+            background_interrupted: true,
+            computer_read_only_recovery: true,
+            input_paused_for_turn: true,
+          },
+        },
+      };
+      await observe(notice);
+      expect(status()).toBe('running');
+      expect(runtime.cancel).not.toHaveBeenCalled();
+      await observe({
+        ...notice,
+        result: {
+          ...notice.result,
+          data: { ...notice.result.data, computer_read_only_recovery: false },
+        },
+      });
+      expect(status()).toBe('failed');
+      expect(runtime.cancel).toHaveBeenCalledWith(threadId, turnId);
+    } finally {
+      await controller.shutdown();
+    }
   });
 
   it('pauses a Mac task when the screen locks and continues it after unlock', async () => {

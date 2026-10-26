@@ -190,7 +190,10 @@ it.each([
         'list_apps',
       ]);
       if (scenario === 'became-active' || scenario === 'other-app-became-active')
-        expect(result).toMatchObject({ background_focus_changed: true });
+        expect(result).toMatchObject({
+          background_focus_changed: true,
+          background_other_app_changed: scenario === 'other-app-became-active',
+        });
       else if (scenario === 'unknown-after')
         expect(result).toMatchObject({ background_focus_unverified: true });
       else expect(result).toMatchObject({ effect: 'confirmed' });
@@ -227,6 +230,55 @@ it.each([
     }
   },
 );
+
+it('blocks already-queued input after a focus conflict while allowing observation and a new turn', async () => {
+  let inventories = 0;
+  const driver = {
+    ...successfulDriver({}),
+    callTool: vi.fn(async (tool: string) => ({
+      rawJson: JSON.stringify(
+        tool === 'list_apps'
+          ? { apps: [{ pid: ++inventories === 1 ? 7 : 99, active: true }] }
+          : { effect: 'confirmed', delivery: { mode: 'background' } },
+      ),
+    })),
+  };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  const context = {
+    kind: 'turn' as const,
+    threadId: 'thread',
+    turnId: 'turn',
+    executionId: 'first-attempt',
+    backgroundOnly: true,
+  };
+  const args = { pid: 42, window_id: 91, delivery_mode: 'background' };
+  try {
+    const first = service.call('scroll', args, context);
+    const queued = expect(service.call('click', args, context)).rejects.toThrow(
+      'background_input_paused',
+    );
+    expect(await first).toMatchObject({
+      background_focus_changed: true,
+      background_other_app_changed: true,
+    });
+    await queued;
+    expect(driver.callTool.mock.calls.map(([tool]) => tool)).toEqual([
+      'list_apps',
+      'scroll',
+      'list_apps',
+    ]);
+    await service.call('get_window_state', { pid: 42, window_id: 91 }, context);
+    await service.shutdown();
+    await expect(service.call('click', args, context)).rejects.toThrow(
+      'background_input_paused',
+    );
+    // Continue reuses the public turn ID but receives a fresh host execution.
+    await service.call('click', args, { ...context, executionId: 'continued-attempt' });
+    expect(driver.callTool.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
+  } finally {
+    await service.shutdown();
+  }
+});
 
 it('requests structured controls and background grants instead of the compact markdown default', async () => {
   const observed = {
@@ -311,6 +363,7 @@ it.each(['unchanged', 'changed', 'unknown'])(
       else
         expect(await call).toEqual({
           native_tool_error: true,
+          background_other_app_changed: false,
           ...(focus === 'changed'
             ? { background_focus_changed: true }
             : { background_focus_unverified: true }),
