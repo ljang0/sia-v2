@@ -23,6 +23,7 @@ import { asRecord } from './driver-records.js';
 import { MessagesActions } from './messages-actions.js';
 import { ScheduleActions } from './schedule-actions.js';
 import type { DesktopActionBackendOptions } from './types.js';
+import { WindowOperations } from './window-operations.js';
 
 /**
  * Translates Sia's small canonical tool surface into CUA and cloud calls.
@@ -45,6 +46,7 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #recoveryFailures = new Map<string, number>();
   readonly #macWindows = new MacWindowHistory();
   readonly #backgroundReadRecovery = new BackgroundReadRecovery();
+  readonly #windowOperations = new WindowOperations();
 
   constructor(options: DesktopActionBackendOptions) {
     this.#ctx = new ActionBackendContext(options);
@@ -111,6 +113,27 @@ export class DesktopActionBackend implements ActionBackend {
   }
 
   async invoke(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
+    const windowId = request.arguments.window_id;
+    if (
+      typeof windowId === 'string' &&
+      ['computer_snapshot', 'computer_action', 'computer_open_url'].includes(request.name)
+    ) {
+      const window = this.#ctx.computer.windows.get(windowId);
+      const key = window ? `${window.pid}:${window.windowId}` : windowId;
+      try {
+        return await this.#windowOperations.run(key, request.context.signal, () =>
+          this.#invokeOrdered(request),
+        );
+      } catch (error) {
+        if (request.context.signal?.aborted)
+          return refused('Action cancelled before execution.');
+        throw error;
+      }
+    }
+    return this.#invokeOrdered(request);
+  }
+
+  async #invokeOrdered(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
     // A late cancelled caller must not revoke a newer turn's active window refs.
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
     const prepared = this.#backgroundReadRecovery.prepare(request);

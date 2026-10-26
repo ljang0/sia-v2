@@ -237,6 +237,12 @@ release their text/images. Failed input acknowledgements remain uncertain and mu
 replay. The browser identity helper distinguishes its bounded timeout, native failure and invalid
 output from a genuine unavailable/protected page; none of these alone proves sign-out. Its
 identity recheck must not re-enable AX features and rebuild the page's accessibility tree.
+Parallel requests for one native window must order the whole observation/action, including
+supplemental text and capability publication, rather than only individual Cua calls. Delay
+one observation's text read and request another: the second must not supersede the first
+read's native tokens before it publishes. The newest completed observation remains the
+current grant. Independent windows may proceed concurrently. Cancelling a queued request
+must return promptly, send no input and keep later requests behind the still-active one.
 One incomplete/timed-out identity scan may repeat its fixed read once. The retry must start a
 fresh security scan, preserve the exact target and stop on a protected/permanent failure. No
 input is replayed, partial content is never reused, and the per-read deadline stays bounded.
