@@ -86,6 +86,70 @@ describe('TrajectoryRecorder', () => {
     expect(image && existsSync(join(directory, image))).toBe(false);
   });
 
+  it('excludes a credential-bearing rejected action and its earlier turn evidence', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-trajectory-credential-'));
+    roots.push(root);
+    const recorder = new TrajectoryRecorder({ rootDirectory: root, enabled: () => true });
+    recorder.record({ type: 'user_message', threadId: 'thread', turnId: 'keep', text: 'keep' });
+    recorder.record({ type: 'action_result', threadId: 'thread', turnId: 'exclude' }, [
+      { mimeType: 'image/png', dataBase64: Buffer.from('earlier-image').toString('base64') },
+    ]);
+    recorder.record({
+      type: 'action_result',
+      threadId: 'thread',
+      turnId: 'exclude',
+      name: 'memory_learn',
+      outcome: 'refused',
+      arguments: { text: 'password: fictional-fixture-only' },
+    });
+    recorder.record({ type: 'turn_finished', threadId: 'thread', turnId: 'exclude' });
+
+    const directory = join(root, 'thread');
+    expect(readdirSync(directory)).toEqual(['events.jsonl']);
+    const log = readFileSync(join(directory, 'events.jsonl'), 'utf8');
+    expect(log).toContain('"turnId":"keep"');
+    expect(log).not.toContain('"turnId":"exclude"');
+    expect(log).not.toContain('fictional-fixture-only');
+  });
+
+  it('omits a private-link event without a turn id together with its images', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-trajectory-private-link-'));
+    roots.push(root);
+    const recorder = new TrajectoryRecorder({ rootDirectory: root, enabled: () => true });
+    recorder.record({ type: 'notice', threadId: 'thread', text: 'ordinary event' });
+    recorder.record(
+      {
+        type: 'notice',
+        threadId: 'thread',
+        data: { nested: { url: 'https://example.test/report?signature=fictional-fixture' } },
+      },
+      [{ mimeType: 'image/png', dataBase64: Buffer.from('do-not-save').toString('base64') }],
+    );
+
+    const directory = join(root, 'thread');
+    expect(readdirSync(directory)).toEqual(['events.jsonl']);
+    const log = readFileSync(join(directory, 'events.jsonl'), 'utf8');
+    expect(log).toContain('ordinary event');
+    expect(log).not.toContain('fictional-fixture');
+  });
+
+  it('retains ordinary public documentation without treating every password mention as a secret', () => {
+    const root = mkdtempSync(join(tmpdir(), 'sia-trajectory-public-text-'));
+    roots.push(root);
+    const recorder = new TrajectoryRecorder({ rootDirectory: root, enabled: () => true });
+    recorder.record({
+      type: 'notice',
+      threadId: 'thread',
+      turnId: 'turn',
+      text: 'Read public password-reset guidance; never enter credentials.',
+      data: { url: 'https://example.test/help?topic=reset' },
+    });
+
+    const log = readFileSync(join(root, 'thread', 'events.jsonl'), 'utf8');
+    expect(log).toContain('password-reset guidance');
+    expect(log).toContain('topic=reset');
+  });
+
   it('is a no-op while disabled', () => {
     const root = mkdtempSync(join(tmpdir(), 'sia-trajectory-off-'));
     roots.push(root);

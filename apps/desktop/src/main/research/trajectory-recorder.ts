@@ -10,6 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { containsMemoryCredentials } from '../assistant/memory-privacy.js';
 
 /**
  * Always-on local trajectory log. One directory per thread under
@@ -17,7 +18,9 @@ import { join } from 'node:path';
  * approvals, tool actions with their arguments and outcomes, browser/computer state changes)
  * and any images the actions returned (screenshots, snapshots) as files referenced from the
  * JSONL rows. Google Workspace connector turns are removed and suppressed. The remaining exact
- * plain files stay on this Mac. When versioned raw research consent is
+ * plain files stay on this Mac. Known credential forms or access-bearing links exclude the
+ * diagnostic turn, including earlier rows/images; unscoped sensitive events are omitted.
+ * When versioned raw research consent is
  * active, equivalent observed turn events are separately queued in encrypted research bundles.
  * Complete local thread directories roll off after 90 days or to make room within 128 MiB.
  * If an event cannot fit without deleting the current thread, it is omitted, including images;
@@ -91,6 +94,12 @@ export class TrajectoryRecorder {
       return;
     }
     try {
+      // Refused actions still carry their original arguments. Reuse the derived
+      // context guard before any payload or image reaches the diagnostic log.
+      if (containsMemoryCredentials(JSON.stringify(event))) {
+        if (event.turnId) this.excludeTurn(event.threadId, event.turnId);
+        return;
+      }
       const at = this.#now();
       const stamp = at.toISOString();
       const preparedImages: Array<{
