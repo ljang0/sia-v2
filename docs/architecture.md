@@ -289,6 +289,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   it does not navigate to JSON pages, read credentials, or run in background window-control mode.
   Both routes require verified outcomes and honest coverage gaps. The background prompt separately
   guides course inventories, per-course materials, account switchers and destination verification.
+  For reads in a profile the person explicitly selected or just authenticated, live signed-in
+  content at the verified institution establishes the selected session when no identity conflict
+  or profile ambiguity is visible. An unrequested display name does not require entering account
+  security settings or turn a verified read into a failed task. Named-account requirements,
+  conflicting identities and write destinations still require resolution. Protected surfaces
+  remain blocked. The opt-in fictional-account probe checks both completion and identity conflict.
   These are model instructions, not a shell enforcement boundary or a guarantee of completion.
   Report files are verified by readback and linked in Sia/phone, without repeatedly activating an
   external editor. Native learning uses the same indexed vault for later verification.
