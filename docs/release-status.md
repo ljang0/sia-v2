@@ -21,13 +21,26 @@ blocked by its protected-window observation. That result is not a live check of 
 newer Chromium adapter. A current-source signed build and fresh browser acceptance remain
 required, alongside the physical-phone and clean-install gates below.
 
-The current-source development app passed synthetic CSV creation, readback and result-control
-delivery. Browser QA could read a prepared public tab, but could not create a new background
-tab or expose the link destination before clicking. A subsequent authorized click actually
-navigated to IANA while the driver reported `browser_input_trust_unavailable`; independent
-computer-use inspection confirmed the destination. The follow-up hardening treats this error
-as uncertain delivery, consumes the old controls, and requires observation without replaying
-the click. This is not evidence of reliable browser completion or signed-release acceptance.
+PR #25 merged at `80b4889` after its exact head passed the full pilot and unsigned
+universal package checks. The development app then completed the disposable browser click
+and fresh IANA destination read without replaying input. The later main-branch CI run exposed
+a phone visual-test race: it measured the lazy WebGL canvas before mount. The follow-up waits
+for the visible canvas before measuring geometry.
+
+The alpha.33 source candidate adds explicit background browser preparation without navigation,
+Chromium tab-only discovery, and optional read-only safe link destinations. The driver exposes
+link destinations through its bound DOM snapshot rather than its semantic snapshot. Sia returns
+only unambiguous absolute HTTP(S) destinations, filters authentication and credential-bearing
+URLs, refreshes semantic state afterward, and withholds the result if page identity changes.
+The returned list is partial and is not a link-label mapping. No raw DOM access is exposed.
+
+Live development-app testing recovered existing browser access after restart and read an inactive
+public tab without selecting it. A subsequent cold preparation was refused with
+`background_unavailable`; recovery remains conditional on the driver's available background route.
+Background new-tab creation remains unavailable in both inspected driver versions, 0.37.0 and
+0.38.0. The dependency stays on 0.37.0; unrelated tabs must be preserved. This is not signed-release
+acceptance. Alpha.33 signing/notarization, clean-user install/upgrade, and physical iPhone pairing,
+Save, reconnect and microphone checks remain open until exact-artifact evidence is recorded.
 
 ## Pilot scope
 

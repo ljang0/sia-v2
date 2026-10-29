@@ -32,6 +32,7 @@ const computerOpenApp = z
 
 const computerOpenUrl = z
   .object({
+    prepare_only: z.boolean().optional(),
     app_id: id.optional(),
     window_id: id.optional(),
     tab_id: id.optional(),
@@ -57,6 +58,7 @@ const computerSnapshot = z
     continue_from: id.optional(),
     wait_ms: z.number().int().min(0).max(3000).optional(),
     read_text: z.boolean().optional(),
+    read_links: z.boolean().optional(),
     tabs_only: z.boolean().optional(),
     include_image: z.boolean().optional(),
     expected_url: computerOpenUrl.shape.url.optional(),
@@ -161,7 +163,12 @@ export const computerWriteFile = z
   .strict();
 
 const browserSnapshot = z
-  .object({ tab_id: id, continue_from: id.optional(), include_image: z.boolean().optional() })
+  .object({
+    tab_id: id,
+    continue_from: id.optional(),
+    include_image: z.boolean().optional(),
+    read_links: z.boolean().optional(),
+  })
   .strict();
 
 const browserNavigate = z

@@ -135,3 +135,12 @@ export function samePageUrl(observed: string, expected: string): boolean {
     return false;
   }
 }
+
+/** DOM refs use a flat attribute label. Only a sole absolute href is unambiguous. */
+export function browserLinkDestination(record: Record<string, unknown>): string | undefined {
+  if (record.node !== 'a') return undefined;
+  const label = firstString(record, ['label']);
+  const href = label?.match(/^href=(https?:\/\/[^\s]+)$/i)?.[1];
+  if (!href || href.length > 2048 || /[\u0000-\u001f\u007f]/.test(href)) return undefined;
+  return safeHttpUrl(href) && !browserUrlLooksSensitive(href) ? safeHttpUrl(href) : undefined;
+}

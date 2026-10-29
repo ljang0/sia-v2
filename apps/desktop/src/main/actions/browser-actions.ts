@@ -16,6 +16,7 @@ import { requiredEnum, requiredString } from './arguments.js';
 import type { BrowserBinding, BrowserSnapshotCapability } from './browser-grants.js';
 import { stageBrowserUploadFiles } from './browser-uploads.js';
 import {
+  browserLinkDestination,
   browserRouteWasReplaced,
   browserUrlIsAuthentication,
   browserUrlLooksSensitive,
@@ -23,6 +24,7 @@ import {
   modelVisibleBrowserUrl,
   originFromRecord,
   safeHttpUrl,
+  samePageUrl,
 } from './browser-urls.js';
 import type { ComputerInventory } from './computer-inventory.js';
 import type { ActionBackendContext } from './context.js';
@@ -199,6 +201,19 @@ export class BrowserActions {
     // Even a refused or failed refresh supersedes the earlier observation. Resolve
     // page continuations before this boundary; only a successful capture grants input.
     this.ctx.browser.invalidateSnapshot(binding.tabId);
+    let linkState: unknown;
+    if (request.arguments.read_links === true) {
+      if (continuation) return refused('Read links separately from page continuation.');
+      linkState = await this.ctx.callCua(request, 'get_browser_state', {
+        session: binding.session,
+        target_id: binding.targetId,
+        tab_id: binding.tabId,
+        snapshot_format: 'dom_refs_v1',
+        include_screenshot: false,
+      });
+      const failure = resultRefusal(linkState);
+      if (failure) return failure;
+    }
     const raw = await this.ctx.callCua(request, 'get_browser_state', {
       session: binding.session,
       target_id: binding.targetId,
@@ -240,6 +255,20 @@ export class BrowserActions {
     ) {
       return refused('The tab origin is outside the current browser grant.');
     }
+    const linkLocation = linkState
+      ? findBrowserLocation(linkState, binding.targetId, binding.tabId)
+      : undefined;
+    if (linkState && (!linkLocation || !samePageUrl(linkLocation.url, liveUrl)))
+      return stale('The page changed while reading link destinations. Observe again.');
+    const linkDestinations = linkState
+      ? [
+          ...new Set(
+            findElementRecords(linkState, 'browser')
+              .map(browserLinkDestination)
+              .filter(isDefined),
+          ),
+        ]
+      : undefined;
     const snapshotId = randomUUID();
     const title = findString(raw, ['title']);
     const text = findString(raw, ['outline', 'text', 'page_text']);
@@ -288,6 +317,14 @@ export class BrowserActions {
         title: redactOptionalText(title),
         url: modelVisibleBrowserUrl(liveUrl),
         elements,
+        ...(linkDestinations
+          ? {
+              link_destinations: linkDestinations,
+              links_complete: false,
+              links_note:
+                'Observed absolute HTTP(S) destinations only; relative, ambiguous, authentication and credential-bearing links are omitted. Destinations are not associated with semantic labels and confer no input authority.',
+            }
+          : {}),
         text: redactOptionalText(text),
         ...(privateLinks ? { private_links_omitted: true } : {}),
         ...(semantic

@@ -378,12 +378,17 @@ it.each([true, false])(
 );
 
 it('does not route a tab-only request into a Chromium webpage read', async () => {
-  const cua = fakeCua(async (tool) => {
+  const cua = fakeCua(async (tool, args) => {
     if (tool === 'list_apps')
       return { apps: [{ pid: 42, name: 'Chrome', bundle_id: 'com.google.Chrome' }] };
     if (tool === 'list_windows')
       return {
         windows: [{ pid: 42, window_id: 91, app_name: 'Chrome', title: 'Existing browser' }],
+      };
+    if (tool === 'get_browser_state' && args.pid === 42 && !args.tab_id)
+      return {
+        target_id: 'target',
+        tabs: [{ tab_id: 'tab', url: 'https://public.example/', active: true }],
       };
     throw new Error(`Unexpected tool ${tool}`);
   });
@@ -401,9 +406,13 @@ it('does not route a tab-only request into a Chromium webpage read', async () =>
       tabs_only: true,
     }),
   );
-  expect(result.outcome).toBe('refused');
+  expect(result.outcome).toBe('accepted_unverified');
+  expect(result.data).not.toHaveProperty('snapshot_id');
+  expect(result.data).not.toHaveProperty('visible_text');
   expect(
-    cua.call.mock.calls.every(([tool]) => ['list_apps', 'list_windows'].includes(tool)),
+    cua.call.mock.calls.every(([tool]) =>
+      ['list_apps', 'list_windows', 'get_browser_state'].includes(tool),
+    ),
   ).toBe(true);
 });
 

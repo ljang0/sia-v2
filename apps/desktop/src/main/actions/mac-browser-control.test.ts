@@ -9,6 +9,9 @@ import { DesktopActionBackend } from './desktop-action-backend.js';
 function harness() {
   const state = {
     prepared: false,
+    extraTabs: [] as Record<string, unknown>[],
+    linkHref: '',
+    linkStateUrl: '',
     url: 'chrome://whats-new',
     focusChanged: false,
     unavailable: false,
@@ -53,7 +56,17 @@ function harness() {
       if (args.pid)
         return {
           target_id: 'native-target',
-          tabs: [{ tab_id: 'native-tab', url: state.url, title: 'Course page', active: true }],
+          tabs: [
+            { tab_id: 'native-tab', url: state.url, title: 'Course page', active: true },
+            ...state.extraTabs,
+          ],
+        };
+      if (args.snapshot_format === 'dom_refs_v1')
+        return {
+          target_id: 'native-target',
+          tab_id: 'native-tab',
+          url: state.linkStateUrl || state.url,
+          refs: [{ ref: 'dom-link', node: 'a', label: state.linkHref }],
         };
       if (state.observationError) throw new Error(state.observationError);
       if (state.observationRefused) return { error_code: 'browser_tab_not_found' };
@@ -115,6 +128,108 @@ function harness() {
 }
 
 describe('Mac background Chromium uses the dedicated Cua browser route', () => {
+  it('restores access and discovers inactive tabs without navigation or page capture', async () => {
+    const h = harness();
+    h.state.url = 'https://public.example/selected';
+    h.state.extraTabs = [
+      {
+        tab_id: 'inactive',
+        url: 'https://public.example/needed',
+        title: 'Needed',
+        active: false,
+      },
+      { tab_id: 'private', url: 'https://public.example/private', private: true },
+      { tab_id: 'login', url: 'https://public.example/login' },
+    ];
+    const target = await h.target();
+    const args = { ...target, url: 'https://public.example/needed', prepare_only: true };
+    expect(parseActionArguments('computer_open_url', args)).toMatchObject({
+      prepare_only: true,
+    });
+    const recovered = await h.backend.invoke(h.request('computer_open_url', args));
+    expect(recovered.data).toMatchObject({
+      tabs: [
+        { source_url: 'https://public.example/selected', active: true },
+        { source_url: 'https://public.example/needed', active: false },
+      ],
+    });
+    expect(recovered.data).not.toHaveProperty('snapshot_id');
+    expect(h.state.url).toBe('https://public.example/selected');
+    expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_prepare')).toHaveLength(1);
+    expect(
+      h.call.mock.calls.some(
+        ([tool, args]) =>
+          tool === 'browser_navigate' || (tool === 'get_browser_state' && args.tab_id),
+      ),
+    ).toBe(false);
+    const listed = await h.backend.invoke(
+      h.request('computer_snapshot', { ...target, tabs_only: true }),
+    );
+    expect(listed.data).toEqual(recovered.data);
+    expect(listed.data).not.toHaveProperty('visible_text');
+  });
+
+  it('does not prepare a browser as a side effect of read-only tab discovery', async () => {
+    const h = harness();
+    const target = await h.target();
+    const result = await h.backend.invoke(
+      h.request('computer_snapshot', { ...target, tabs_only: true }),
+    );
+    expect(result.data).toMatchObject({ blocker_code: 'background_browser_unavailable' });
+    expect(h.call.mock.calls.some(([tool]) => tool === 'browser_prepare')).toBe(false);
+  });
+
+  it.each([
+    [
+      'href=https://public.example/assignments?week=2',
+      'https://public.example/assignments?week=2',
+    ],
+    ['href=https://iana.org/help/example-domains', 'https://iana.org/help/example-domains'],
+    ['href=/assignments', undefined],
+    ['href=https://public.example/login', undefined],
+    ['href=https://public.example/download?token=private-value', undefined],
+    ['href=https://user:password@public.example/', undefined],
+    ['href=javascript:alert(1)', undefined],
+    ['aria-label=href=https://fake.example/ href=https://real.example/', undefined],
+  ])('returns only unambiguous safe DOM link destinations: %s', async (label, expected) => {
+    const h = harness();
+    h.state.prepared = true;
+    h.state.url = 'https://public.example/guide';
+    h.state.linkHref = label;
+    const target = await h.target();
+    const result = await h.backend.invoke(
+      h.request('computer_snapshot', { ...target, read_links: true }),
+    );
+    expect(result.outcome).toBe('verified');
+    expect(result.data).toMatchObject({
+      link_destinations: expected ? [expected] : [],
+      links_complete: false,
+    });
+    expect(JSON.stringify(result)).not.toContain('dom-link');
+    expect(JSON.stringify(result)).not.toContain('private-value');
+    expect(
+      h.call.mock.calls
+        .filter(([tool, args]) => tool === 'get_browser_state' && args.tab_id)
+        .map(([, args]) => args.snapshot_format),
+    ).toEqual(['dom_refs_v1', 'semantic_v2']);
+  });
+
+  it('withholds links and input refs if navigation occurs between the two observations', async () => {
+    const h = harness();
+    h.state.prepared = true;
+    h.state.url = 'https://public.example/guide';
+    h.state.linkStateUrl = 'https://public.example/previous';
+    h.state.linkHref = 'href=https://public.example/destination';
+    const target = await h.target();
+    const result = await h.backend.invoke(
+      h.request('computer_snapshot', { ...target, read_links: true }),
+    );
+    expect(result.outcome).toBe('stale');
+    expect(result.data).not.toHaveProperty('snapshot_id');
+    expect(result.data).not.toHaveProperty('link_destinations');
+    expect(result.data).not.toHaveProperty('elements');
+  });
+
   it.each(['failed capture', 'refused capture', 'different requested page'])(
     'revokes earlier controls after a refresh with %s, until a fresh read succeeds',
     async (scenario) => {

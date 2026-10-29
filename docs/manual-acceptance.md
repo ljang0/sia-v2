@@ -216,6 +216,16 @@ when text is insufficient, context menus and screenshot double-clicks where supp
 refusal must stop the affected skill/action without replay. These checks are opt-in; none run when
 Sia launches.
 
+For background Chromium, keep a disposable ordinary page inactive beside a second public page.
+Restart Sia, list the exact browser window, then use `computer_snapshot` with `tabs_only:true`.
+If access needs recovery, use `computer_open_url` with the same exact window, the intended public
+URL and `prepare_only:true`. Confirm both tab metadata and absence of navigation or tab selection.
+Read the inactive target with `read_links:true`; verify its safe absolute destinations independently.
+Authentication, private and ambiguous links must be omitted, and a page change between DOM and
+semantic reads must withhold both destinations and input refs. The destination list is partial,
+not a mapping to labels. A refused background preparation is a driver-access blocker, not website
+sign-out. Do not bypass it or replace an unrelated tab to simulate new-tab support.
+
 The opt-in [runtime-session check](../apps/desktop/src/main/mac/cua-session.smoke.test.ts)
 runs the real bundled Cua runtime without a model turn, window capture, browser access, input,
 app launch or permission prompt. Run
