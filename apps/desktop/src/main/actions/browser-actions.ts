@@ -4,6 +4,7 @@ import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/acti
 import {
   actionImages,
   actionResult,
+  browserInputTrustFailure,
   classifyFailure,
   inputWasRefused,
   refused,
@@ -421,6 +422,8 @@ export class BrowserActions {
     try {
       raw = await this.ctx.callCua(request, tool, input);
     } catch (error) {
+      const uncertain = browserInputTrustFailure(error);
+      if (uncertain) return uncertain;
       if (inputWasRefused(error)) return classifyFailure(error);
       return {
         outcome: 'accepted_unverified',
@@ -433,6 +436,7 @@ export class BrowserActions {
       raw,
       `Browser ${String(args.action)} was delivered in the background.`,
     );
+    if (asRecord(native.data)?.input_delivery_uncertain === true) return native;
     if (terminalWithoutVerification(native)) return native;
     return this.#withVerification(binding, native, request);
   }

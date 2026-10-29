@@ -14,6 +14,8 @@ function harness() {
     unavailable: false,
     captureUrl: '',
     inputError: '',
+    inputRefusal: false,
+    afterClickUrl: '',
     observationError: '',
     observationRefused: false,
     afterNavigateError: '',
@@ -72,6 +74,8 @@ function harness() {
       return { effect: 'confirmed' };
     }
     if (tool === 'browser_click' || tool === 'browser_type' || tool === 'browser_pointer') {
+      if (state.afterClickUrl) state.url = state.afterClickUrl;
+      if (state.inputRefusal) return { error_code: 'browser_input_trust_unavailable' };
       if (state.inputError) throw new Error(state.inputError);
       return state.focusChanged ? { background_focus_changed: true } : { effect: 'confirmed' };
     }
@@ -197,33 +201,61 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
     expect(h.call.mock.calls.filter(([name]) => name === 'browser_navigate')).toHaveLength(1);
   });
 
-  it('uses trusted background clicks and never silently falls back when that route is refused', async () => {
-    const h = harness();
-    h.state.prepared = true;
-    h.state.url = 'https://campus.example/courses';
-    const target = await h.target();
-    const observed = await h.backend.invoke(h.request('computer_snapshot', target));
-    const data = observed.data as { snapshot_id: string; elements: { element_ref: string }[] };
-    h.state.inputError = 'CUA refused: browser_input_trust_unavailable';
-    const result = await h.backend.invoke(
-      h.request('computer_action', {
-        ...target,
-        snapshot_id: data.snapshot_id,
-        element_ref: data.elements[0]!.element_ref,
-        action: 'click',
-      }),
-    );
-    expect(result.outcome).toBe('refused');
-    expect(result.summary).toContain('browser_input_trust_unavailable');
-    const clicks = h.call.mock.calls.filter(([name]) => name === 'browser_click');
-    expect(clicks).toHaveLength(1);
-    expect(clicks[0]![1]).toMatchObject({
-      input_route: 'trusted',
-      delivery_mode: 'background',
-    });
-    expect(JSON.stringify(h.call.mock.calls)).not.toContain('dom_event');
-    expect(result.data).not.toHaveProperty('input_delivery_uncertain', true);
-  });
+  it.each(['thrown', 'returned'])(
+    'treats %s browser trust failure as uncertain without replaying delivered input',
+    async (kind) => {
+      const h = harness();
+      h.state.prepared = true;
+      h.state.url = 'https://campus.example/courses';
+      const target = await h.target();
+      const observed = await h.backend.invoke(h.request('computer_snapshot', target));
+      const data = observed.data as {
+        snapshot_id: string;
+        elements: { element_ref: string }[];
+      };
+      h.state.inputError =
+        kind === 'thrown' ? 'CUA refused: browser_input_trust_unavailable' : '';
+      h.state.inputRefusal = kind === 'returned';
+      h.state.afterClickUrl = 'https://campus.example/assignments';
+      const result = await h.backend.invoke(
+        h.request('computer_action', {
+          ...target,
+          snapshot_id: data.snapshot_id,
+          element_ref: data.elements[0]!.element_ref,
+          action: 'click',
+        }),
+      );
+      expect(result.outcome).toBe('accepted_unverified');
+      expect(result.summary).toContain('do not replay');
+      expect(result.data).toHaveProperty('input_delivery_uncertain', true);
+      const clicks = h.call.mock.calls.filter(([name]) => name === 'browser_click');
+      expect(clicks).toHaveLength(1);
+      expect(clicks[0]![1]).toMatchObject({
+        input_route: 'trusted',
+        delivery_mode: 'background',
+      });
+      expect(JSON.stringify(h.call.mock.calls)).not.toContain('dom_event');
+      const reread = await h.backend.invoke(
+        h.request('computer_snapshot', {
+          ...target,
+          tab_id: (observed.data as { tab_id: string }).tab_id,
+          expected_url: h.state.afterClickUrl,
+        }),
+      );
+      expect(reread.outcome).toBe('verified');
+      expect(h.state.url).toBe(h.state.afterClickUrl);
+      const replay = await h.backend.invoke(
+        h.request('computer_action', {
+          ...target,
+          snapshot_id: data.snapshot_id,
+          element_ref: data.elements[0]!.element_ref,
+          action: 'click',
+        }),
+      );
+      expect(replay.outcome).toBe('stale');
+      expect(h.call.mock.calls.filter(([name]) => name === 'browser_click')).toHaveLength(1);
+    },
+  );
 
   it('does not prepare or read a native window as a side effect of a snapshot', async () => {
     const h = harness();

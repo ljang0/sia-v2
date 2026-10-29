@@ -14,9 +14,21 @@ export function stale(reason: string): ActionExecutionResult {
 
 /** Only these explicit validation/authorization refusals prove that no input was posted. */
 export function inputWasRefused(error: unknown): boolean {
-  return /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|background_focus_unavailable|background_input_paused|foreground_app_in_use|window_not_key|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window|browser_ref_stale|browser_frame_changed|browser_tab_not_found|browser_binding_stale|browser_consent_required|browser_requires_setup|browser_input_trust_unavailable|browser_action_unavailable)$/.test(
+  return /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|background_focus_unavailable|background_input_paused|foreground_app_in_use|window_not_key|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window|browser_ref_stale|browser_frame_changed|browser_tab_not_found|browser_binding_stale|browser_consent_required|browser_requires_setup|browser_action_unavailable)$/.test(
     safeErrorMessage(error),
   );
+}
+
+/** The driver can report this after a click has already changed the page. */
+export function browserInputTrustFailure(error: unknown): ActionExecutionResult | undefined {
+  if (!/^(?:CUA refused: )?browser_input_trust_unavailable$/.test(safeErrorMessage(error)))
+    return undefined;
+  return {
+    outcome: 'accepted_unverified',
+    summary:
+      'Browser input trust could not be verified, but the action may already have taken effect. Read the exact tab to check the result; do not replay the action or switch input routes.',
+    data: { input_delivery_uncertain: true, blocker_code: 'browser_input_trust_unavailable' },
+  };
 }
 
 export function classifyFailure(error: unknown): ActionExecutionResult {
@@ -132,7 +144,11 @@ export function actionResult(
     };
   }
   const refusalResult = resultRefusal(value);
-  if (refusalResult) return refusalResult;
+  if (refusalResult)
+    return (
+      browserInputTrustFailure(new Error(refusalResult.reason ?? refusalResult.summary)) ??
+      refusalResult
+    );
   const effect = findString(value, ['effect']);
   const deliveryMode = findNestedString(value, 'delivery', ['mode']);
   const escalationTarget = findString(value, ['target'], (record) => 'reason' in record);

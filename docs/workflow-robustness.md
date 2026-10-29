@@ -59,6 +59,11 @@ are resolved first so a successful segmented read remains available. Synthetic r
 `actions/mac-browser-control.test.ts` and `actions/browser-refresh-revocation.test.ts` reproduce
 failed/refused refreshes, mismatched requested pages and sensitive destinations, then verify
 that no old click is delivered and a fresh successful read restores usable controls.
+The driver's `browser_input_trust_unavailable` error is not proof that input was withheld:
+an October 29 development-app click reached IANA despite that error, independently verified
+through computer use. Both thrown and returned forms now report uncertain delivery and consume
+the old controls. The caller must read the exact tab without replaying or switching input routes.
+Regression fixtures change the page before reporting the error and verify read-only recovery.
 Browser preflight also revokes the grant when its
 surface changes and refuses input when signed metadata detects authentication controls at the
 same URL. A later ordinary page still needs a fresh successful observation. The refusal of an

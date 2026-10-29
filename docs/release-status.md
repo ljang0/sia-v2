@@ -21,6 +21,14 @@ blocked by its protected-window observation. That result is not a live check of 
 newer Chromium adapter. A current-source signed build and fresh browser acceptance remain
 required, alongside the physical-phone and clean-install gates below.
 
+The current-source development app passed synthetic CSV creation, readback and result-control
+delivery. Browser QA could read a prepared public tab, but could not create a new background
+tab or expose the link destination before clicking. A subsequent authorized click actually
+navigated to IANA while the driver reported `browser_input_trust_unavailable`; independent
+computer-use inspection confirmed the destination. The follow-up hardening treats this error
+as uncertain delivery, consumes the old controls, and requires observation without replaying
+the click. This is not evidence of reliable browser completion or signed-release acceptance.
+
 ## Pilot scope
 
 The owner selected a combined Mac pilot and native iPhone TestFlight release. The scope is a
