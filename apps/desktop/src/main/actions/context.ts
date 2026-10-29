@@ -2,6 +2,7 @@ import type { ValidatedActionInvocation } from '@sia/action-gateway';
 import type { CuaAuthorizationContext } from '../mac/cua-service.js';
 import { BrowserGrants } from './browser-grants.js';
 import { ComputerGrants } from './computer-grants.js';
+import { actionExecutionId } from './action-execution.js';
 import type { DesktopActionBackendOptions } from './types.js';
 
 /**
@@ -34,6 +35,10 @@ export class ActionBackendContext {
       kind: 'turn',
       threadId: request.context.threadId,
       turnId: request.context.turnId,
+      executionId: actionExecutionId(request.context),
+      ...(request.context.backgroundOnly !== undefined
+        ? { backgroundOnly: request.context.backgroundOnly }
+        : {}),
     };
     return this.options.cua.call(tool, args, context, request.context.signal);
   }

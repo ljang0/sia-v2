@@ -32,6 +32,7 @@ type TurnsContext = Pick<
   | 'shuttingDown'
   | 'speech'
   | 'state'
+  | 'threads'
 >;
 
 /**
@@ -175,11 +176,12 @@ export class Turns {
       text: messageText,
       provider: thread.provider,
     });
-    if (thread.title === UNTITLED_THREAD_TITLE) {
+    if (thread.title === UNTITLED_THREAD_TITLE && thread.titleSource !== 'custom') {
       thread.title =
         conversationTitle(input.text) ||
         attachmentGrants[0]?.view.name ||
         (attachmentGrants.length ? 'Attached files' : UNTITLED_THREAD_TITLE);
+      thread.titleSource = 'message';
     }
     const queued: QueuedTurn = {
       ...(context ? { context } : {}),
@@ -238,6 +240,7 @@ export class Turns {
     }
     thread.updatedAt = new Date().toISOString();
     this.ctx.commit();
+    this.ctx.threads.titles.request(thread.id);
     return { turnId, snapshot: this.ctx.resultSnapshot() };
   }
 
@@ -288,11 +291,19 @@ export class Turns {
     try {
       // The next turn starts a fresh provider session from the remaining conversation.
       void this.ctx.runtime?.releaseSession(thread.id).catch(() => undefined);
-      return this.sendTurn({
+      const sent = this.sendTurn({
         threadId: thread.id,
         text,
         ...(attachmentIds.length ? { attachmentIds } : {}),
       });
+      if (last.turnId) {
+        try {
+          this.ctx.assistant.taskContext.forgetTurn(thread.id, thread.agentId, last.turnId);
+        } catch {
+          /* Cleanup must not roll back a turn that has already been sent. */
+        }
+      }
+      return sent;
     } catch (error) {
       this.ctx.state.timeline = timeline;
       thread.status = previousStatus;
@@ -308,10 +319,7 @@ export class Turns {
     this.ctx.providers.requireReadyProvider(thread.provider, thread.model);
     // Follow-ups held behind a paused task run after it continues.
     const held = this.heldThreads.has(thread.id);
-    if (
-      this.running.has(thread.id) ||
-      (!held && this.queued.some((turn) => turn.threadId === thread.id))
-    ) {
+    if (!held && this.queued.some((turn) => turn.threadId === thread.id)) {
       throw new Error('This thread already has an active turn.');
     }
     const failed = this.ctx.state.timeline.findLast(
@@ -360,7 +368,16 @@ export class Turns {
     // The continued task goes ahead of any follow-ups that waited behind it.
     const enqueue = (turn: QueuedTurn) =>
       held ? this.queued.unshift(turn) : this.queued.push(turn);
-    if (this.running.size >= 4) {
+    if (this.running.has(thread.id)) {
+      thread.status = 'queued';
+      thread.queueReason =
+        this.ctx.mac.isMacTurn(thread.id) && this.ctx.mac.unavailable
+          ? this.ctx.mac.unavailable === 'locked'
+            ? 'Waiting for your Mac to unlock.'
+            : 'Waiting for your Mac to wake up.'
+          : 'Finishing the previous attempt before continuing.';
+      enqueue(retry);
+    } else if (this.running.size >= 4) {
       thread.status = 'queued';
       thread.queueReason = 'Sia is already doing four tasks. This starts when one finishes.';
       enqueue(retry);
@@ -633,10 +650,7 @@ export class Turns {
       id: randomUUID(),
       turnId: turn.id,
       kind: 'activity',
-      title: this.ctx.deps.fakeServices
-        ? 'Preparing local tools'
-        : `Starting ${thread.provider === 'codex' ? 'Codex' : thread.provider}`,
-      detail: thread.workspace,
+      title: this.ctx.deps.fakeServices ? 'Preparing local tools' : 'Getting your task ready',
       status: 'running',
       toolName: 'runtime.start',
       timestamp: new Date().toISOString(),
@@ -673,6 +687,7 @@ export class Turns {
     if (this.ctx.mac.awakeTurns.delete(threadId)) this.ctx.deps.keepAwake?.release(threadId);
     if (thread) this.workspaceLeases.delete(thread.workspace);
     this.drainQueue();
+    this.ctx.threads.titles.resume();
     // A follow-up can still wait when another thread took the workspace first. A paused
     // thread keeps its failed state and Continue task until the person acts.
     if (thread && !this.heldThreads.has(threadId)) this.markWaitingFollowUps(thread);

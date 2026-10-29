@@ -60,6 +60,17 @@ export class MacSession {
     this.ctx.commit();
   }
 
+  pauseBackgroundTurn(threadId: string, turnId: string, appInUse: boolean): void {
+    if (this.turns.get(threadId)?.id !== turnId) return;
+    this.pauseMacTurn(
+      threadId,
+      appInUse
+        ? 'Sia paused before input because you are using the target app. Switch to another app and press Continue task when ready.'
+        : 'Sia paused because desktop focus changed or could not be verified. Check the last step before pressing Continue task; an uncertain action must not be repeated.',
+    );
+    this.ctx.commit();
+  }
+
   private pauseMacTurn(threadId: string, text: string): void {
     const thread = this.ctx.requireThread(threadId);
     const running = this.ctx.turns.running.get(threadId);
@@ -122,11 +133,12 @@ export class MacSession {
    */
   syncKeepAwake(): void {
     for (const threadId of this.turns.keys()) {
-      const waiting =
-        this.ctx.state.threads.find(({ id }) => id === threadId)?.status === 'waiting';
-      if (waiting && this.awakeTurns.delete(threadId))
+      const active =
+        this.ctx.state.threads.find(({ id }) => id === threadId)?.status === 'running' &&
+        this.ctx.turns.running.get(threadId)?.signal.aborted === false;
+      if (!active && this.awakeTurns.delete(threadId))
         this.ctx.deps.keepAwake?.release(threadId);
-      else if (!waiting && !this.awakeTurns.has(threadId)) {
+      else if (active && !this.awakeTurns.has(threadId)) {
         this.awakeTurns.add(threadId);
         this.ctx.deps.keepAwake?.hold(threadId);
       }

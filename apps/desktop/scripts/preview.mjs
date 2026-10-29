@@ -6,6 +6,7 @@ import { prepareDevelopmentApp } from './prepare-dev-electron.mjs';
 import { rememberDevelopmentLaunch } from './development-launch.mjs';
 
 const root = resolve(import.meta.dirname, '..');
+const background = process.argv.includes('--background');
 const require = createRequire(import.meta.url);
 if (process.platform === 'darwin') {
   const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url)));
@@ -22,6 +23,7 @@ if (process.platform === 'darwin') {
   ];
   execFileSync('/usr/bin/open', [
     '-n',
+    ...(background ? ['-g', '-j'] : []),
     '-a',
     resolve(executable, '../../..'),
     ...launchEnvironment.flatMap((key) =>
@@ -29,9 +31,12 @@ if (process.platform === 'darwin') {
     ),
     '--args',
     root,
+    ...(background ? ['--background'] : []),
   ]);
 } else {
-  const child = spawn(require('electron'), [root], { stdio: 'inherit' });
+  const child = spawn(require('electron'), [root, ...(background ? ['--background'] : [])], {
+    stdio: 'inherit',
+  });
   child.on('error', (error) => {
     console.error(error.message);
     process.exitCode = 1;

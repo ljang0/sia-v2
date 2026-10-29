@@ -117,6 +117,39 @@ describe('agent dialog', () => {
     );
   });
 
+  it.each(['gpt-6.1-sol', 'gpt-6-astra'])(
+    'saves the exact catalog model %s for the agent',
+    async (model) => {
+      const providers = structuredClone(demoSnapshot.providers);
+      providers.find(({ id }) => id === 'codex')!.models = [
+        { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol', description: '', reasoningEfforts: ['low'] },
+        {
+          id: 'gpt-6-astra',
+          label: 'GPT-6 Astra',
+          description: '',
+          reasoningEfforts: ['medium'],
+        },
+      ];
+      const onSave = vi.fn().mockResolvedValue(undefined);
+      renderDialog({ providers, onSave });
+      fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+        target: { value: 'Personal assistant' },
+      });
+      fireEvent.change(screen.getByRole('textbox', { name: 'Instructions' }), {
+        target: { value: 'Help with tasks on my Mac.' },
+      });
+      fireEvent.click(screen.getByText('Details'));
+      fireEvent.change(screen.getByRole('combobox', { name: 'Model' }), {
+        target: { value: `codex:${model}` },
+      });
+      fireEvent.click(screen.getByRole('button', { name: 'Create agent' }));
+      await waitFor(() => expect(onSave).toHaveBeenCalledOnce());
+      expect(onSave).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: 'codex', model }),
+      );
+    },
+  );
+
   it('keeps model, workspace, and voice inside Details', () => {
     renderDialog({ voice: demoSnapshot.voice });
 

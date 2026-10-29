@@ -63,6 +63,7 @@ export interface DesktopActionBackendOptions {
   readonly inspectBrowserWindow?: (
     pid: number,
     windowId: number,
+    tabsOnly?: boolean,
   ) => Promise<BrowserWindowState>;
   readonly readImageText?: (dataBase64: string) => Promise<string | undefined>;
   readonly readWindowContext?: (pid: number, windowId: number) => Promise<WindowContextState>;

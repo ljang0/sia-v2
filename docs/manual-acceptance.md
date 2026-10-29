@@ -216,6 +216,78 @@ when text is insufficient, context menus and screenshot double-clicks where supp
 refusal must stop the affected skill/action without replay. These checks are opt-in; none run when
 Sia launches.
 
+The opt-in [runtime-session check](../apps/desktop/src/main/mac/cua-session.smoke.test.ts)
+runs the real bundled Cua runtime without a model turn, window capture, browser access, input,
+app launch or permission prompt. Run
+`SIA_REAL_CUA_SESSION_PROBE=1 pnpm --filter @sia/desktop exec vitest run src/main/mac/cua-session.smoke.test.ts`.
+It explicitly ends only its own inventory session, checks bounded renewal, and proves a separate
+named read session survives in the same runtime. This check passed locally with Cua 0.37.0;
+it does not establish private-account or GUI-task success. Unit cases additionally cover trusted
+background clicks without silent synthetic fallback, long-page continuations, consumed refs,
+brief driver-reported activation, and live permission grants that need no extra setup restart.
+
+Background startup must also expose a hidden document to the renderer: animated effects must
+pause before the first explicit open, and opening Sia later must restore visibility normally.
+A default Playwright renderer attachment cannot verify this: its focus emulation can report the
+hidden page as visible. An isolated real-Electron startup with only main-process inspection
+verified both the native window and renderer document hidden; this is startup evidence, not
+a computer-task success.
+The isolated background-launch regression uses the test harness's
+`preserveNativeVisibility: true`: it retains native throttling and clears focus emulation on
+Playwright's original Electron page session. Clearing a separate CDP session is insufficient.
+The pinned local adapter fails if that original session cannot be reached; keep it verified when
+upgrading Playwright. Additional read-only observers of the test app should attach with
+`connectOverCDP(..., { noDefaults: true })`. Record native window visibility separately from
+renderer visibility; neither alone proves successful background computer input.
+Native MCP error envelopes must fail safely, never appear as empty successful observations or
+release their text/images. Failed input acknowledgements remain uncertain and must not trigger
+replay. The browser identity helper distinguishes its bounded timeout, native failure and invalid
+output from a genuine unavailable/protected page; none of these alone proves sign-out. Its
+identity recheck must not re-enable AX features and rebuild the page's accessibility tree.
+Parallel requests for one native window must order the whole observation/action, including
+supplemental text and capability publication, rather than only individual Cua calls. Delay
+one observation's text read and request another: the second must not supersede the first
+read's native tokens before it publishes. The newest completed observation remains the
+current grant. Independent windows may proceed concurrently. Cancelling a queued request
+must return promptly, send no input and keep later requests behind the still-active one.
+One incomplete/timed-out identity scan may repeat its fixed read once. The retry must start a
+fresh security scan, preserve the exact target and stop on a protected/permanent failure. No
+input is replayed, partial content is never reused, and the per-read deadline stays bounded.
+The shared native security walk has four seconds, with eight seconds for each helper read,
+binding, scanning and revalidation. Increasing that budget alone did not resolve the live
+Canvas failures; it is not account-task acceptance. One nonactivating signed helper handles
+the fixed browser/context reads over private pipes, with no arbitrary commands or cached
+page content. Queue waiting does not consume a read's deadline; malformed output or a timeout
+retires that helper, and quitting Sia closes it.
+Open Safari Tab Overview during a background task. This native surface has no webpage URL.
+Sia must return only native tab labels and selection refs, never preview images, page text,
+search fields or a borrowed URL. Only selecting one returned tab or Escape may run from this
+snapshot. A fresh native surface check must reject old refs after the view changes. Selecting
+an authentication tab must still suppress its protected page; successful tab navigation does
+not prove sign-in or correct course coverage.
+With a login page selected, an ordinary page snapshot must remain blocked. Request
+`computer_snapshot` with `tabs_only:true`: the native check skips web areas entirely and
+the Cua read is text-only with depth two. Return only verified Safari tab controls, with
+no field values, previews, screenshots or page URL. A single returned tab may be selected;
+keyboard input (including Escape), pixels and arbitrary controls stay unavailable from
+this grant. Verify the destination with a new ordinary page observation. Other browsers
+and a missing native tab bar must fail this route without reading a webpage.
+If focus changes between unrelated apps during a background scroll, input is quarantined
+before the native queue advances. Sia may take two read-only snapshots of the original
+window, pinned to its previous browser URL, to reconcile the scroll and finish an answer.
+New input refs must not lift that restriction. Target-app activation, unknown focus,
+driver-reported activation/restoration and writes still require a normal pause. Further
+input attempts stop the turn; a new user turn receives fresh, normally checked authority.
+**Continue task** may be queued while the cancelled provider finishes cleanup. It must retain
+the original request/checkpoint and start only after the old lease is released. Each host
+execution receives fresh computer/browser authority even when the public turn ID is reused;
+reconnecting the driver alone never lifts an old execution's input quarantine. Stop, pause
+and failure release the keep-awake assertion without waiting for optional cleanup.
+Keep an inactive CMU login tab beside an ordinary signed-in Safari page. Its native unselected
+tab label must not turn the ordinary page into an authentication refusal. Selecting the actual
+login tab must still suppress its content, screenshot and input capabilities. Secure fields,
+credential disclosures and active or ambiguous authentication controls remain blocked.
+
 The opt-in [background workflow smoke](../apps/desktop/src/main/actions/background-workflows.smoke.test.ts)
 uses a real Codex model and real workspace files/sandboxed Bash, with GUI calls denied. Run it with
 `SIA_CODEX_REAL_SMOKE=1 SIA_BACKGROUND_WORKFLOWS_SMOKE=1` and an offered `SIA_SMOKE_MODEL`.

@@ -30,6 +30,8 @@ export interface ThreadView {
   id: string;
   agentId: string;
   title: string;
+  /** Keeps automatic summaries from replacing a name the person chose. */
+  titleSource?: 'message' | 'ai' | 'custom';
   provider: ProviderId;
   model: string;
   reasoningEffort?: string;

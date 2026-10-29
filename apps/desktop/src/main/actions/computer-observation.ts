@@ -2,10 +2,18 @@ import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import type { BrowserWindowState } from '../mac/browser-window.js';
-import { actionImages, resultRefusal, screenshotDimensions, stale } from './action-results.js';
+import {
+  actionImages,
+  refused,
+  resultRefusal,
+  screenshotDimensions,
+  stale,
+} from './action-results.js';
 import { requiredString } from './arguments.js';
 import { windowBackgroundInput, windowInputRecovery } from './background-input.js';
 import { samePageUrl } from './browser-urls.js';
+import { captureBrowserNavigation } from './computer-browser-navigation.js';
+import { captureAccessNotice, hasPassiveAccessNotice } from './computer-access-notice.js';
 import type {
   ComputerWindowBinding,
   NativeElementAddress,
@@ -18,18 +26,22 @@ import {
   compact,
   findElementRecords,
   findRecordArray,
-  findString,
   firstString,
   isDefined,
   isHiddenWindowStructure,
   isProtectedElement,
   nonNegativeInteger,
   positiveInteger,
+  redactOptionalText,
   sanitizeElement,
   trustedDisplayText,
   trustedElementLabel,
   windowHasProtectedControls,
 } from './driver-records.js';
+import {
+  observationHasPrivateLinks,
+  observationRecordHasPrivateLinks,
+} from './observation-text.js';
 import {
   sameWindowFrame,
   windowFrame,
@@ -49,6 +61,10 @@ export class ComputerObservation {
   ) {}
 
   async snapshot(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
+    if (request.arguments.continue_from !== undefined)
+      return refused(
+        'Page continuations require the same granted Chromium tab. This native window has no browser page continuation.',
+      );
     const appId = requiredString(request.arguments.app_id, 'app_id');
     const windowId = requiredString(request.arguments.window_id, 'window_id');
     const binding = this.ctx.computer.resolveWindow(appId, windowId);
@@ -80,13 +96,41 @@ export class ComputerObservation {
     binding: ComputerWindowBinding,
     request: ValidatedActionInvocation,
   ): Promise<ActionExecutionResult> {
+    // Refresh is an authority boundary even if the new observation is refused,
+    // incomplete or bound to a different URL. Only a successful read can replace it.
+    this.ctx.computer.invalidateSnapshot(binding.id);
     const browser = this.inventory.isNativeBrowser(binding);
-    let browserState = browser ? await this.inventory.nativeBrowserState(binding) : undefined;
+    const tabsOnly = request.arguments.tabs_only === true;
+    if (
+      tabsOnly &&
+      (!this.ctx.macBrowserAccess() ||
+        this.ctx.computer.apps.get(binding.appId)?.identity !== 'bundle:com.apple.safari')
+    )
+      return refused('Tab-only snapshots require an existing Safari window in Use my Mac.');
+    let browserState = browser
+      ? await this.inventory.nativeBrowserState(binding, tabsOnly)
+      : undefined;
+    const hasProtectedControls = (value: unknown) =>
+      windowHasProtectedControls(value, {
+        browserBundleId: browserState?.status === 'ready' ? browserState.bundleID : undefined,
+      });
     // A missing helper AX window is not a driver refusal. Let CUA resolve and
     // initialize the exact window once, then revalidate browser metadata before
     // releasing any captured content or minting an input capability.
     if (browserState?.status === 'protected')
       return this.#browserObservationRefused(binding, browserState);
+    if (
+      tabsOnly &&
+      (browserState?.status !== 'navigation' || browserState.surface !== 'safari-tabs')
+    )
+      return {
+        ...refused('The native Safari tab bar could not be verified. No webpage was read.'),
+        data: {
+          blocker_code: 'tab_bar_unavailable',
+          next_step:
+            'This refusal applies only to native tab discovery. It grants no page or input access. A single-tab Safari window may have no tab bar. Request fresh normal state for this exact window; only its separately verified, unprotected page and available routes may authorize ordinary navigation. Do not type from a tab-only or refused snapshot. A protected page remains blocked.',
+        },
+      };
     if (
       browserState?.status === 'ready' &&
       request.arguments.expected_url &&
@@ -106,18 +150,20 @@ export class ComputerObservation {
         window_id: binding.windowId,
         session: this.ctx.computer.session(request),
         include_screenshot: includeScreenshot,
+        ...(browserState?.status === 'navigation' ? { max_depth: 2 } : {}),
       });
       const after = before ? await this.#readWindowFrame(binding, request) : undefined;
       capturedFrame = sameWindowFrame(before, after) ? before : undefined;
       return result;
     };
     let includeImage =
-      request.arguments.read_text === true ||
-      request.arguments.include_image === true ||
-      (request.arguments.include_image !== false &&
-        (!this.ctx.macBackgroundControl() || browser)) ||
-      ['type', 'set'].includes(String(request.arguments.action)) ||
-      typeof request.arguments.x === 'number';
+      browserState?.status !== 'navigation' &&
+      (request.arguments.read_text === true ||
+        request.arguments.include_image === true ||
+        (request.arguments.include_image !== false &&
+          (!this.ctx.macBackgroundControl() || browser)) ||
+        ['type', 'set'].includes(String(request.arguments.action)) ||
+        typeof request.arguments.x === 'number');
     let raw: unknown;
     try {
       raw = await capture(includeImage);
@@ -132,8 +178,33 @@ export class ComputerObservation {
     }
     let refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
+    if (
+      this.ctx.macBrowserAccess() &&
+      !browser &&
+      findElementRecords(raw, 'window').some(isProtectedElement)
+    )
+      return {
+        ...refused(
+          'A credential field appeared in this native window. No content or input authority was returned.',
+        ),
+        data: {
+          app_id: binding.appId,
+          window_id: binding.id,
+          blocker_code: 'protected_window',
+          pixel_actions_available: false,
+        },
+      };
+    if (browserState?.status === 'navigation')
+      return captureBrowserNavigation(
+        this.ctx,
+        this.inventory,
+        binding,
+        request,
+        raw,
+        browserState.surface,
+      );
     if (browserState?.status === 'unavailable') {
-      if (windowHasProtectedControls(raw))
+      if (hasProtectedControls(raw))
         return this.#browserObservationRefused(binding, { status: 'protected' });
       browserState = await this.inventory.nativeBrowserState(binding);
       if (browserState.status !== 'ready') {
@@ -162,6 +233,9 @@ export class ComputerObservation {
         'The observed browser page does not match expected_url. No page content was returned. Wait for navigation or inspect the intended window; do not assign this page to the requested course or account item.',
       );
 
+    if (browserState && hasProtectedControls(raw) && hasPassiveAccessNotice(raw, browserState))
+      return captureAccessNotice(this.ctx, this.inventory, binding, request, raw, browserState);
+
     // AX can temporarily return no controls even while a window is usable.
     // Capture pixels once instead of turning an empty AX response into an app failure.
     // Honor an explicit text-only request and never escalate a protected/refused read.
@@ -169,7 +243,7 @@ export class ComputerObservation {
       !includeImage &&
       request.arguments.include_image === undefined &&
       this.ctx.macBackgroundControl() &&
-      !windowHasProtectedControls(raw) &&
+      !hasProtectedControls(raw) &&
       findElementRecords(raw, 'window').length === 0
     ) {
       try {
@@ -187,7 +261,7 @@ export class ComputerObservation {
     }
 
     const context =
-      this.ctx.macBrowserAccess() && !windowHasProtectedControls(raw)
+      this.ctx.macBrowserAccess() && !hasProtectedControls(raw)
         ? await this.ctx.options.readWindowContext?.(binding.pid, binding.windowId)
         : undefined;
     const readableContext =
@@ -209,17 +283,17 @@ export class ComputerObservation {
     const image = actionImages(raw)?.images?.[0];
     const imageText =
       this.ctx.macBrowserAccess() &&
-      request.arguments.read_text === true &&
+      (request.arguments.read_text === true || readableContext?.partial === true) &&
       image &&
-      !windowHasProtectedControls(raw)
+      !hasProtectedControls(raw)
         ? await this.ctx.options.readImageText?.(image.dataBase64)
         : undefined;
     if (browser) {
       const after = await this.inventory.nativeBrowserState(binding);
-      if (windowHasProtectedControls(raw) || after.status !== 'ready')
+      if (hasProtectedControls(raw) || after.status !== 'ready')
         return this.#browserObservationRefused(
           binding,
-          windowHasProtectedControls(raw) ? { status: 'protected' } : after,
+          hasProtectedControls(raw) ? { status: 'protected' } : after,
         );
       if (after.url !== browserUrl)
         return {
@@ -229,15 +303,20 @@ export class ComputerObservation {
           data: { observation_pending: true },
         };
     }
-    const title =
+    const rawTitle =
       readableContext?.title ||
       (browserState?.status === 'ready' ? browserState.title : undefined) ||
       binding.title;
+    const title = redactOptionalText(rawTitle);
+    const privateLinks =
+      [rawTitle, readableContext?.text, imageText].some(observationHasPrivateLinks) ||
+      findElementRecords(raw, 'window').some(observationRecordHasPrivateLinks);
     if (title) this.ctx.computer.windows.set(binding.id, { ...binding, title });
     const snapshotId = randomUUID();
-    const nativeSnapshotId = findString(raw, ['snapshot_id', 'snapshotId']);
     const pixels =
-      !includeImage || windowHasProtectedControls(raw) ? undefined : screenshotDimensions(raw);
+      !includeImage || privateLinks || hasProtectedControls(raw)
+        ? undefined
+        : screenshotDimensions(raw);
     const elementMap = new Map<string, NativeElementAddress>();
     const elements = findElementRecords(raw, 'window')
       .map((record, position) => {
@@ -250,15 +329,12 @@ export class ComputerObservation {
         )
           return undefined;
         const token = firstString(record, ['element_token', 'elementToken']);
-        const index = nonNegativeInteger(record.element_index ?? record.elementIndex);
-        if (!token && (index === undefined || !nativeSnapshotId))
-          return this.ctx.macBrowserAccess() ? sanitizeElement(record) : undefined;
+        if (!token) return this.ctx.macBrowserAccess() ? sanitizeElement(record) : undefined;
         const ref = `w:${snapshotId}:${position}`;
         const label = trustedElementLabel(record);
         const role = trustedDisplayText(firstString(record, ['role', 'type']));
         elementMap.set(ref, {
-          ...(token ? { token } : {}),
-          ...(index === undefined ? {} : { index }),
+          token,
           ...(label ? { label } : {}),
           ...(role ? { role } : {}),
         });
@@ -279,7 +355,7 @@ export class ComputerObservation {
       .filter(isDefined);
     if (
       this.ctx.macBrowserAccess() &&
-      !windowHasProtectedControls(raw) &&
+      !hasProtectedControls(raw) &&
       !elements.length &&
       !pixels &&
       !readableContext?.text &&
@@ -307,9 +383,24 @@ export class ComputerObservation {
     const driverState = asRecord(raw);
     const returnedCount = nonNegativeInteger(driverState?.returned_element_count);
     const totalCount = nonNegativeInteger(driverState?.total_element_count);
+    const pendingNodes = nonNegativeInteger(driverState?.nodes_pending);
+    const projectedControls = driverState?.elements_complete === false;
+    // The current driver can project controls from a fully walked AX window.
+    // That is not a truncated text read. Require independent, exact-window text
+    // evidence and explicit complete-walk metadata before making the distinction.
+    const windowTextComplete =
+      readableContext?.partial === false &&
+      Boolean(readableContext.text.trim()) &&
+      driverState?.truncated === false &&
+      pendingNodes === 0 &&
+      returnedCount !== undefined &&
+      totalCount !== undefined &&
+      returnedCount === totalCount;
     const partial =
       readableContext?.partial === true ||
-      driverState?.elements_complete === false ||
+      driverState?.truncated === true ||
+      (pendingNodes !== undefined && pendingNodes > 0) ||
+      (projectedControls && !windowTextComplete) ||
       (returnedCount !== undefined && totalCount !== undefined && returnedCount < totalCount);
     const backgroundInput = windowBackgroundInput(raw, binding);
     const observationOnly =
@@ -323,7 +414,7 @@ export class ComputerObservation {
       ...(backgroundInput ? { backgroundInput } : {}),
       ...(browserUrl ? { browserUrl } : {}),
       capturedAt: Date.now(),
-      protectedControls: windowHasProtectedControls(raw),
+      protectedControls: hasProtectedControls(raw),
       ...(pixels ? { pixels } : {}),
       id: snapshotId,
       appId: binding.appId,
@@ -331,13 +422,12 @@ export class ComputerObservation {
       pid: binding.pid,
       windowId: binding.windowId,
       elements: elementMap,
-      ...(nativeSnapshotId ? { nativeSnapshotId } : {}),
     };
     this.ctx.computer.rememberSnapshot(capability);
     return {
       outcome: 'verified',
       summary: 'Captured a fresh state for the permitted window.',
-      ...(!includeImage || windowHasProtectedControls(raw) ? {} : actionImages(raw)),
+      ...(!includeImage || privateLinks || hasProtectedControls(raw) ? {} : actionImages(raw)),
       data: compact({
         snapshot_id: snapshotId,
         app_id: binding.appId,
@@ -350,15 +440,37 @@ export class ComputerObservation {
           browserUrl && browserUrl !== 'about:blank'
             ? new URL(browserUrl).origin + new URL(browserUrl).pathname
             : undefined,
-        visible_text: readableContext?.text || undefined,
+        browser_document_kind:
+          browserState?.status === 'ready' ? browserState.documentKind : undefined,
+        ...(browserState?.status === 'ready' && browserState.documentKind === 'native-pdf'
+          ? {
+              browser_navigation_hint:
+                'Read and scroll this native PDF in place. For another website, use Cmd+T and observe the new tab before navigation; directly editing this PDF’s address bar invalidates its independent page identity.',
+            }
+          : {}),
+        visible_text: redactOptionalText(readableContext?.text) || undefined,
+        ...(privateLinks
+          ? {
+              private_links_omitted: true,
+              image_note:
+                'Access-bearing links were omitted. Images and pixel input are withheld for this observation; use permitted text and semantic controls.',
+            }
+          : {}),
+        ...(projectedControls ? { control_projection_partial: true } : {}),
+        ...(windowTextComplete ? { window_text_complete: true } : {}),
         ...(partial
           ? {
               observation_partial: true,
               coverage_note:
                 'Only part of this window was read. Continue with scrolling, pagination or the relevant view; absence here does not establish that an item/account is missing.',
             }
-          : {}),
-        image_text: imageText,
+          : windowTextComplete && projectedControls
+            ? {
+                coverage_note:
+                  'Available text in this exact accessibility window was read without truncation. The driver projects controls; that does not mean this text is missing. This covers only the current window state, not other pages, filters, accounts or hidden app data. Inspect other requested views when needed.',
+              }
+            : {}),
+        image_text: redactOptionalText(imageText),
         ...(request.arguments.read_text === true
           ? {
               image_text_status: imageText ? 'read' : 'unavailable',
@@ -434,12 +546,21 @@ export class ComputerObservation {
       outcome: 'refused',
       summary: protectedPage
         ? 'This specific browser window contains a protected page or security control. It was not read. This does not establish that another window or the requested account needs login.'
-        : 'This specific browser window could not be identified or observed. This is not evidence of a login screen. Continue in the task window already observed, or bring the browser forward and inspect this window again.',
+        : 'This specific browser window could not be identified or observed. This is not evidence of a login screen. Continue with another authorized source or report this exact observation gap, respecting the selected foreground policy.',
       data: {
         app_id: binding.appId,
         window_id: binding.id,
         blocker_code: protectedPage ? 'protected_window' : 'window_unavailable',
-        ...(state.status !== 'ready' && state.reason ? { blocker_detail: state.reason } : {}),
+        ...(protectedPage
+          ? {
+              next_step:
+                this.ctx.computer.apps.get(binding.appId)?.identity ===
+                'bundle:com.apple.safari'
+                  ? 'Do not interact with this protected page or attempt authentication. To choose another already-open Safari tab, request computer_snapshot with tabs_only:true on this exact app/window. That returns only native tab labels and selection controls, never page content or authentication fields. If native_new_tab_available is explicitly true, Cmd+T can instead create a separate native tab without reading or interacting with this page. Observe the resulting tab normally before typing. Otherwise select an ordinary tab and verify its live page.'
+                  : 'Do not interact with this protected document or attempt authentication. For public facts already in scope, reuse a known public subpage from saved source hints, memory or prior verified observations with computer_open_url, then take a fresh snapshot. A protected homepage does not establish that its public staff/syllabus pages are protected. This grants no access to private data and never substitutes public information for verified enrollment or account identity.',
+            }
+          : {}),
+        ...('reason' in state && state.reason ? { blocker_detail: state.reason } : {}),
       },
     };
   }

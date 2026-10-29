@@ -16,6 +16,7 @@ type SnapshotsContext = Pick<
   | 'computerAccess'
   | 'deps'
   | 'mac'
+  | 'localSaveFailed'
   | 'providers'
   | 'ratings'
   | 'releaseAccessLocked'
@@ -248,6 +249,7 @@ export class Snapshots {
       ...(this.ctx.deps.startupNotice
         ? { startupNotice: structuredClone(this.ctx.deps.startupNotice) }
         : {}),
+      ...(this.ctx.localSaveFailed ? { localSaveFailed: true as const } : {}),
     };
   }
 }

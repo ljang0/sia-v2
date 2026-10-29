@@ -12,3 +12,4 @@ export {
 } from './tool-input-schemas.js';
 export * from './sensitive-paths.js';
 export * from './sensitive-apps.js';
+export { type TaskCheckpointState } from './task-checkpoint.js';

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type {
   ProviderAdapter,
   ProviderId,
@@ -30,6 +31,11 @@ import {
 } from '@sia/runtime';
 import type { ActionGateway, TurnLease } from '@sia/action-gateway';
 import { notchConsolidationInstructions, notchVaultRoot } from '../notch/foreground.js';
+import {
+  parseConversationTitle,
+  TITLE_INSTRUCTIONS,
+  TITLE_SCHEMA,
+} from './conversation-title.js';
 
 import {
   macExecutionTools,
@@ -41,6 +47,8 @@ import {
 } from '../actions/mac-execution.js';
 
 export interface RuntimeThreadConfig {
+  /** An isolated, tool-free naming session; never a task or a memory review. */
+  purpose?: 'title';
   notchVault?: string;
   notchReview?: boolean;
   nativeTools?: 'disabled';
@@ -58,10 +66,12 @@ export interface RuntimeThreadConfig {
 }
 
 export interface RuntimeTurnInput {
+  onPhase?: (phase: 'connecting' | 'waiting_for_computer' | 'working') => void;
+  onTiming?: (phase: 'provider' | 'computer_wait', durationMs: number) => void;
   /** Scheduled checks return a structured success/no-change verdict even in connected mode. */
   scheduled?: boolean;
   onMacRawResult?: (text: string) => void;
-  onMacResult?: (result: MacTaskResult) => void;
+  onMacResult?: (result: MacTaskResult) => MacTaskResult | void;
   thread: RuntimeThreadConfig;
   turnId: string;
   text: string;
@@ -116,6 +126,7 @@ export class RuntimeCoordinator {
   readonly #sessions = new Map<string, SessionState>();
   readonly #activeByThread = new Map<string, ActiveTurnContext>();
   readonly #activeByProviderSession = new Map<string, ActiveTurnContext>();
+  readonly #titleControllers = new Set<AbortController>();
   readonly #onDispose: (() => Promise<void>) | undefined;
   readonly #onSessionsReset: (() => void) | undefined;
 
@@ -384,6 +395,84 @@ export class RuntimeCoordinator {
     await this.#codexAdapter.cancelChatGptLogin(loginId);
   }
 
+  /** Uses the conversation's pinned model/account without giving the naming session tools,
+   * history, agent instructions, memory, or an entry in the person's transcript. */
+  async generateThreadTitle(
+    thread: RuntimeThreadConfig,
+    firstMessage: string,
+  ): Promise<string | undefined> {
+    const target =
+      thread.resolvedExecutionTarget ?? legacyModelRoute(thread.provider, thread.model);
+    if (target.harnessId !== 'codex_app_server') return;
+    const controller = new AbortController();
+    this.#titleControllers.add(controller);
+    const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]);
+    const id = `title-${randomUUID()}`;
+    try {
+      const state = await this.#sessionFor(
+        {
+          id,
+          purpose: 'title',
+          provider: thread.provider,
+          model: thread.model,
+          ...(thread.resolvedExecutionTarget
+            ? { resolvedExecutionTarget: thread.resolvedExecutionTarget }
+            : {}),
+          workspace: thread.workspace,
+          nativeTools: 'disabled',
+          instructions: TITLE_INSTRUCTIONS,
+        },
+        signal,
+      );
+      signal.throwIfAborted();
+      const messages = new Map<string, string>();
+      let completed = false;
+      for await (const event of state.adapter.sendTurn(
+        state.session,
+        {
+          turnId: id,
+          model: state.target.harnessModelId,
+          text: JSON.stringify({ firstMessage: firstMessage.slice(0, 4_000) }),
+          outputSchema: TITLE_SCHEMA,
+        },
+        signal,
+      )) {
+        if (event.type === 'error') return;
+        if (event.type === 'completion') completed = event.payload.status === 'completed';
+        if (
+          event.type !== 'message' ||
+          event.payload.role !== 'assistant' ||
+          event.payload.phase === 'commentary'
+        )
+          continue;
+        const text = event.payload.parts
+          .flatMap((part) => (part.kind === 'text' ? [part.text] : []))
+          .join('');
+        const previous = event.payload.delta
+          ? (messages.get(event.payload.messageId) ?? '')
+          : '';
+        if (previous.length + text.length > 1_000) return;
+        messages.set(event.payload.messageId, previous + text);
+      }
+      signal.throwIfAborted();
+      return completed
+        ? parseConversationTitle([...messages.values()].at(-1) ?? '')
+        : undefined;
+    } catch {
+      // Naming is optional: offline/rate-limited models must not fail the person's task.
+      return undefined;
+    } finally {
+      controller.abort();
+      this.#titleControllers.delete(controller);
+      await this.releaseSession(id);
+    }
+  }
+
+  /** Starts the provider connection alongside host memory preparation, without reserving the GUI. */
+  async prepareThread(thread: RuntimeThreadConfig, signal?: AbortSignal): Promise<void> {
+    await this.#sessionFor(thread, signal);
+  }
+
   async *runTurn(
     input: RuntimeTurnInput,
     signal?: AbortSignal,
@@ -393,11 +482,19 @@ export class RuntimeCoordinator {
     const structuredResult = mac || input.scheduled === true;
     // Provider setup does not touch the GUI. Finish it before reserving the
     // screen, then capture foreground context immediately before the turn.
+    input.onPhase?.('connecting');
+    const connectingAt = Date.now();
     const state = await this.#sessionFor(input.thread, signal);
+    input.onTiming?.('provider', Date.now() - connectingAt);
     // Like Notch's GUI token, one task owns the screen for its whole action loop.
     // The controller releases the turn lease on success, cancellation and failure.
-    if (mac && input.lease)
+    if (mac && input.lease) {
+      input.onPhase?.('waiting_for_computer');
+      const waitingAt = Date.now();
       await input.lease.acquire({ kind: 'global_focus', id: 'foreground' }, signal);
+      input.onTiming?.('computer_wait', Date.now() - waitingAt);
+    }
+    input.onPhase?.('working');
     const nativeContext =
       mac && !input.thread.macBackgroundControl ? await this.#macContext?.() : undefined;
     for await (const event of this.#runSession(
@@ -438,7 +535,7 @@ export class RuntimeCoordinator {
             .flatMap((part) => (part.kind === 'text' ? [part.text] : []))
             .join(''),
         );
-        input.onMacResult?.(
+        const checked = input.onMacResult?.(
           result ?? {
             success: false,
             response:
@@ -446,6 +543,13 @@ export class RuntimeCoordinator {
             steps: [],
           },
         );
+        if (checked) {
+          yield {
+            ...event,
+            payload: { ...event.payload, parts: [{ kind: 'text', text: checked.response }] },
+          };
+          continue;
+        }
       }
       yield structuredResult ? presentMacResponse(event) : event;
     }
@@ -572,6 +676,7 @@ export class RuntimeCoordinator {
   }
 
   async dispose(): Promise<void> {
+    for (const controller of this.#titleControllers) controller.abort();
     this.#activeByThread.clear();
     this.#activeByProviderSession.clear();
     this.#sessions.clear();
@@ -581,6 +686,7 @@ export class RuntimeCoordinator {
 
   /** Drops all provider-side conversation state while keeping the app runtime reusable. */
   async resetSessions(): Promise<void> {
+    for (const controller of this.#titleControllers) controller.abort();
     this.#onSessionsReset?.();
     this.#activeByThread.clear();
     this.#activeByProviderSession.clear();
@@ -634,11 +740,13 @@ export class RuntimeCoordinator {
     const tools = this.#gateway
       .listTools()
       .filter((tool) =>
-        thread.notchReview
-          ? tool.name === 'memory_vault'
-          : (tool.name !== 'memory_vault' || (mac && thread.macBackgroundControl)) &&
-            (thread.nativeTools !== 'disabled' ||
-              ['assistant_library', 'memory_suggest'].includes(tool.name)),
+        thread.purpose === 'title'
+          ? false
+          : thread.notchReview
+            ? tool.name === 'memory_vault'
+            : (tool.name !== 'memory_vault' || (mac && thread.macBackgroundControl)) &&
+              (thread.nativeTools !== 'disabled' ||
+                ['assistant_library', 'memory_suggest'].includes(tool.name)),
       );
     const sessionTools = mac
       ? tools.filter((tool) =>
@@ -658,6 +766,7 @@ export class RuntimeCoordinator {
       thread.macBackgroundFallback,
       thread.notchVault,
       thread.notchReview,
+      thread.purpose,
       sessionTools.map(({ name }) => name),
     ]);
     const existing = this.#sessions.get(thread.id);

@@ -60,6 +60,21 @@ jobs:
       - name: Package and verify unsigned universal app
         run: pnpm package:mac:dir
 
+      - name: Prepare tested JavaScript bundle
+        run: |
+          mkdir -p "$RUNNER_TEMP/sia-verified-desktop"
+          cp -R apps/desktop/out "$RUNNER_TEMP/sia-verified-desktop/out"
+          git rev-parse HEAD > "$RUNNER_TEMP/sia-verified-desktop/source-revision.txt"
+          git rev-parse 'HEAD^{tree}' > "$RUNNER_TEMP/sia-verified-desktop/source-tree.txt"
+          git rev-parse HEAD:apps/desktop/native > "$RUNNER_TEMP/sia-verified-desktop/native-source-tree.txt"
+
+      - name: Keep tested JavaScript bundle for verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-desktop-javascript-${{ github.sha }}
+          path: ${{ runner.temp }}/sia-verified-desktop
+          retention-days: 3
+
   signed-release:
     name: Sign, notarize, staple, and verify release
     needs: verify

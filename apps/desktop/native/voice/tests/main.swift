@@ -1,6 +1,131 @@
 import ImageIO
 import AppKit
+import Foundation
+
+let observationID = "08E364E9-ED45-459B-895C-0508CA680E53"
+func observationLine(_ changes: [String: Any] = [:]) -> String {
+    var fields: [String: Any] = ["id": observationID, "operation": "browser", "pid": 42, "window_id": 91]
+    fields.merge(changes) { _, value in value }
+    return String(data: try! JSONSerialization.data(withJSONObject: fields), encoding: .utf8)!
+}
+precondition(WindowObserver.request(observationLine())?.pid == 42)
+precondition(WindowObserver.request(observationLine(["operation": "context"]))?.window_id == 91)
+precondition(WindowObserver.request(observationLine(["operation": "tabs"]))?.operation == "tabs")
+precondition(WindowObserver.request(observationLine(["operation": "foreground", "pid": 0, "window_id": 0]))?.operation == "foreground")
+let invalidObservationRequests: [[String: Any]] = [
+    ["operation": "execute"], ["id": "invalid"], ["pid": 0], ["pid": -1],
+    ["pid": true], ["pid": 2147483648], ["window_id": 0],
+    ["window_id": 4294967296], ["path": "/tmp/not-allowed"],
+    ["operation": "foreground"],
+    ["operation": "foreground", "pid": 0, "window_id": 1],
+    ["operation": "foreground", "pid": 1, "window_id": 0],
+]
+for changes in invalidObservationRequests { precondition(WindowObserver.request(observationLine(changes)) == nil) }
+precondition(WindowObserver.request(String(repeating: "x", count: 1025)) == nil)
 import CoreGraphics
+import ApplicationServices
+
+precondition(BrowserWindow.pageURL(URL(string: "https://library.example/calendar.pdf")!) == "https://library.example/calendar.pdf")
+precondition(BrowserWindow.pageURL("https://library.example/calendar.pdf") == "https://library.example/calendar.pdf")
+precondition(BrowserWindow.pageURL(nil) == nil)
+precondition(BrowserWindow.pageURL(NSNumber(value: 42)) == nil)
+precondition(BrowserWindow.isSearchField(role: "AXSearchField", subrole: ""))
+precondition(BrowserWindow.isSearchField(role: "AXTextField", subrole: "AXSearchField"))
+precondition(!BrowserWindow.isSearchField(role: "AXTextField", subrole: ""))
+precondition(!BrowserWindow.isSearchField(role: "AXTextArea", subrole: "AXSearchField"))
+precondition(!BrowserWindow.isSearchField(role: "AXSearchField", subrole: "AXSecureTextField"))
+for role in ["AXTextField", "AXTextArea", "AXComboBox", "AXCheckBox", "AXRadioButton", "AXPopUpButton", "AXSlider", "AXIncrementor"] {
+    precondition(BrowserWindow.isNonSearchEditable(role: role, subrole: "", insideWebArea: true, nativeAddress: false))
+}
+precondition(!BrowserWindow.isNonSearchEditable(role: "AXTextField", subrole: "AXSearchField", insideWebArea: true, nativeAddress: false))
+precondition(!BrowserWindow.isNonSearchEditable(role: "AXTextField", subrole: "", insideWebArea: false, nativeAddress: true))
+precondition(BrowserWindow.isNonSearchEditable(role: "AXTextField", subrole: "", insideWebArea: true, nativeAddress: false))
+precondition(!BrowserWindow.authenticationControl(role: "AXStaticText", label: "Organization account login required", insideWebArea: true, insideNativeTabs: false, actions: ["AXShowMenu", "AXScrollToVisible"]))
+for role in ["AXButton", "AXLink", "AXTextField", "AXHeading", "AXWindow"] {
+    precondition(BrowserWindow.authenticationControl(role: role, label: "Sign in", insideWebArea: true, insideNativeTabs: false, actions: ["AXPress"]))
+}
+precondition(BrowserWindow.authenticationControl(role: "AXButton", label: "Authenticate", insideWebArea: true, insideNativeTabs: false, actions: ["AXPress"]))
+precondition(BrowserWindow.authenticationControl(role: "AXStaticText", label: "Organization account login required", insideWebArea: false, insideNativeTabs: false, actions: []))
+precondition(BrowserWindow.authenticationControl(role: "AXStaticText", label: "Organization account login required", insideWebArea: true, insideNativeTabs: false, actions: nil))
+precondition(BrowserWindow.authenticationControl(role: "AXStaticText", label: "Organization account login required", insideWebArea: true, insideNativeTabs: false, actions: ["AXPress"]))
+precondition(!BrowserWindow.authenticationControl(role: "AXRadioButton", label: "Sign in", insideWebArea: false, insideNativeTabs: true, actions: ["AXPress"]))
+let pdfURL = "https://library.example/calendar.pdf"
+func pdfIdentity(bundle: String = "com.apple.Safari", plugin: Bool = true, webAreas: Int = 0,
+                 title: String = pdfURL, address: String? = pdfURL, focused: Bool? = false, loading: Bool = false) -> String? {
+    BrowserWindow.pdfPageURL(bundle: bundle, hasPDFPlugin: plugin, webAreas: webAreas,
+                             title: title, address: address, addressFocused: focused, loading: loading)
+}
+precondition(pdfIdentity() == pdfURL)
+precondition(pdfIdentity(bundle: "com.google.Chrome") == nil)
+precondition(pdfIdentity(plugin: false) == nil)
+precondition(pdfIdentity(webAreas: 1) == nil)
+precondition(pdfIdentity(loading: true) == nil)
+precondition(pdfIdentity(focused: true) == nil)
+precondition(pdfIdentity(focused: nil) == nil)
+precondition(pdfIdentity(address: nil) == nil)
+precondition(pdfIdentity(address: "https://other.example/calendar.pdf") == nil)
+precondition(pdfIdentity(title: "Calendar") == nil)
+for invalid in ["file:///tmp/calendar.pdf", "javascript:alert(1)", "https://user:secret@library.example/calendar.pdf", pdfURL + "?token=omitted", pdfURL + "#omitted"] {
+    precondition(pdfIdentity(title: invalid, address: invalid) == nil)
+}
+
+precondition(WindowContext.localDocumentURL("file:///tmp/ordinary%20note.txt") == "file:///tmp/ordinary%20note.txt")
+precondition(WindowContext.localDocumentURL(URL(fileURLWithPath: "/tmp/ordinary.pdf")) == "file:///tmp/ordinary.pdf")
+for invalid in ["https://example.org/document.pdf", "file://remote-host/tmp/note.txt", "file://user:secret@localhost/tmp/note.txt", "file:///tmp/note.txt?token=omitted", "file:///tmp/note.txt#secret"] {
+    precondition(WindowContext.localDocumentURL(invalid) == nil)
+}
+precondition(WindowContext.localDocumentURL(nil) == nil)
+
+precondition(!WindowContext.hasPasswordMetadata(role: "AXLink", label: "ZipFile.setpassword(pwd)"))
+precondition(!WindowContext.hasPasswordMetadata(role: "AXLink", label: "setpassword()"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXTextField", label: "setpassword()"))
+precondition(!WindowContext.hasPasswordMetadata(role: "AXHeading", label: "ZipFile.setpassword()"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXTextField", label: "UserPassword"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXTextArea", label: "AccountPassword"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "password: [omitted]"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "\"password\": \"[omitted]\""))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "UserPassword"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "account.user_password"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "account.user_password: [omitted]"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "account.user_password = [omitted]"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "pwd is the password used to decrypt encrypted ZIP files as a bytes object."))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "Set pwd as the default password to extract encrypted files."))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "Your password is [omitted]"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "The username is student and the password is [omitted]"))
+precondition(WindowContext.hasPasswordMetadata(role: "AXStaticText", label: "Account password"))
+
+// A missing optional attribute is a leaf; a failed children read is not proof
+// that a potentially protected subtree is empty. These checks never query an app.
+let emptyMetadata: [AnyObject] = ["AXStaticText" as NSString, NSNull(), "Title" as NSString,
+                                NSNull(), [] as NSArray]
+precondition(WindowContext.metadataValues(emptyMetadata)?.role == "AXStaticText")
+precondition(WindowContext.metadataValues(Array(emptyMetadata.dropLast())) == nil)
+var malformedMetadata = emptyMetadata
+malformedMetadata[0] = NSNull()
+precondition(WindowContext.metadataValues(malformedMetadata) == nil)
+malformedMetadata = emptyMetadata
+malformedMetadata[4] = "not a child list" as NSString
+precondition(WindowContext.metadataValues(malformedMetadata) == nil)
+var missingChildren = AXError.attributeUnsupported
+var failedChildren = AXError.cannotComplete
+var noChildren = AXError.noValue
+var leafMetadata = emptyMetadata
+leafMetadata[4] = AXValueCreate(.axError, &missingChildren)!
+precondition(WindowContext.metadataValues(leafMetadata)?.children.isEmpty == true)
+leafMetadata[4] = AXValueCreate(.axError, &noChildren)!
+precondition(WindowContext.metadataValues(leafMetadata)?.children.isEmpty == true)
+leafMetadata[4] = AXValueCreate(.axError, &failedChildren)!
+precondition(WindowContext.metadataValues(leafMetadata) == nil)
+// An unreadable secure subrole/title must not be treated as an absent label.
+for index in 1...3 {
+    var unreadable = emptyMetadata
+    unreadable[index] = AXValueCreate(.axError, &failedChildren)!
+    precondition(WindowContext.metadataValues(unreadable) == nil)
+    unreadable[index] = AXValueCreate(.axError, &missingChildren)!
+    precondition(WindowContext.metadataValues(unreadable) != nil)
+    unreadable[index] = NSNumber(value: true)
+    precondition(WindowContext.metadataValues(unreadable) == nil)
+}
 
 // Exercises the real Notch-derived monitor without installing an OS tap or posting input.
 // Bulk permission setup must not reopen Finder or any already-running app.

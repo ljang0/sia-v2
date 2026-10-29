@@ -3,6 +3,7 @@ import {
   parseActionArguments,
   type ValidatedActionInvocation,
 } from '@sia/action-gateway';
+import { containsMemoryCredentials } from '../assistant/memory-privacy.js';
 import type { BridgeRequestMap, BridgeResultMap } from '../../shared/bridge.js';
 import { skillExecutionMode, skillUnavailableReason } from '../../shared/skill-execution.js';
 import { AssistantLibrary } from '../assistant/assistant-library.js';
@@ -13,6 +14,7 @@ import {
   NATIVE_MEMORY_REVIEW_PROMPT,
 } from '../assistant/memory-suggestions.js';
 import { NativeSkills } from '../assistant/native-skills.js';
+import { TaskContextStore } from '../assistant/task-context.js';
 import { NotchVault } from '../notch/vault.js';
 import type { ControllerContext } from './context.js';
 
@@ -40,6 +42,7 @@ type AssistantFeaturesContext = Pick<
  */
 export class AssistantFeatures {
   readonly library: AssistantLibrary;
+  readonly taskContext: TaskContextStore;
   memoryTimer: NodeJS.Timeout | undefined;
   notchTimer: NodeJS.Timeout | undefined;
   private nextNotchCheck = 0;
@@ -47,6 +50,7 @@ export class AssistantFeatures {
 
   constructor(private readonly ctx: AssistantFeaturesContext) {
     this.library = new AssistantLibrary(ctx.deps.repository);
+    this.taskContext = new TaskContextStore(ctx.deps.repository);
   }
 
   /**
@@ -219,6 +223,39 @@ export class AssistantFeatures {
       view.learningAgents?.includes(agentId) === true &&
       view.reviewAgents?.includes(agentId) === true;
     switch (request.name) {
+      case 'task_checkpoint': {
+        const args = parseActionArguments('task_checkpoint', request.arguments);
+        const record =
+          args.operation === 'read'
+            ? this.taskContext.read(
+                request.context.threadId,
+                agentId,
+                args.turn_id ?? request.context.turnId,
+              )
+            : this.taskContext.update(
+                request.context.threadId,
+                agentId,
+                request.context.turnId,
+                args,
+              );
+        return {
+          outcome: 'verified',
+          summary:
+            args.operation === 'read'
+              ? 'Read the task checkpoint.'
+              : 'Saved the task checkpoint. App results still need verification.',
+          data: record
+            ? {
+                ...record,
+                remaining: this.taskContext.remaining(
+                  request.context.threadId,
+                  agentId,
+                  record.turnId,
+                ),
+              }
+            : null,
+        };
+      }
       case 'memory_vault': {
         const args = parseActionArguments('memory_vault', request.arguments);
         const review = this.library.isReview(request.context.threadId);
@@ -272,9 +309,10 @@ export class AssistantFeatures {
           outcome: 'verified',
           summary: 'Read this agent’s library.',
           data: {
-            skills: nativeWorkspace
+            skills: (nativeWorkspace
               ? new NativeSkills(nativeWorkspace, agentId).list()
-              : view.skills?.filter((entry) => entry.agentId === agentId),
+              : view.skills?.filter((entry) => entry.agentId === agentId)
+            )?.filter((entry) => !containsMemoryCredentials(JSON.stringify(entry))),
             skillExecution: nativeWorkspace
               ? 'native Bash/AppleScript; read source then use exec_command during a normal native task'
               : 'gateway Bash using sia_action, SIA_INPUT and SIA_RESULT; each action is limited to this turn’s tools and foreground policy. Inspect fresh returned state before the next operation. No direct user-file, network, AppleScript or GUI access.',
@@ -282,16 +320,24 @@ export class AssistantFeatures {
               ? 'Changes submitted during this review are saved automatically. Scripts are saved but never executed by consolidation.'
               : 'Changes wait for the person to review in Settings → Assistant.',
             automaticMemory: view.learningAgents?.includes(agentId) ?? false,
-            memories: view.memories.filter((entry) => entry.agentId === agentId),
+            memories: view.memories.filter(
+              (entry) =>
+                entry.agentId === agentId && !containsMemoryCredentials(JSON.stringify(entry)),
+            ),
             journal: view.learningAgents?.includes(agentId)
-              ? completedJournal(view, agentId).slice(-100)
+              ? completedJournal(view, agentId)
+                  .filter((entry) => !containsMemoryCredentials(JSON.stringify(entry)))
+                  .slice(-100)
               : [],
             suggestions: (view.suggestions ?? [])
               .filter((entry) => entry.agentId === agentId)
-              .map(({ id, kind, title, reason }) => ({ id, kind, title, reason })),
+              .map(({ id, kind, title, reason }) => ({ id, kind, title, reason }))
+              .filter((entry) => !containsMemoryCredentials(JSON.stringify(entry))),
           },
         };
       case 'memory_suggest': {
+        if (containsMemoryCredentials(JSON.stringify(request.arguments)))
+          throw new Error('Credentials cannot be stored as memory.');
         const before = new Set((view.suggestions ?? []).map((entry) => entry.id));
         const proposed = this.library.suggest(agentId, request.arguments, nativeWorkspace);
         const fresh = proposed.suggestions?.find(
@@ -313,11 +359,7 @@ export class AssistantFeatures {
             'Enable automatic memory for this agent in Settings → Assistant first.',
           );
         const args = parseActionArguments('memory_learn', request.arguments);
-        if (
-          /(?:-----BEGIN|\b(?:password|api[_ -]?key|access[_ -]?token|secret)\s*[:=]|\bsk-[a-z0-9]{12})/i.test(
-            args.title + ' ' + args.lesson,
-          )
-        )
+        if (containsMemoryCredentials(args.title + ' ' + args.lesson))
           throw new Error('Credentials cannot be stored as memory.');
         if (this.ctx.computerAccess.accessMode() === 'mac' && !reviewWorkspace) {
           const vault = this.notchVault(agentId);

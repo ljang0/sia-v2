@@ -165,7 +165,11 @@ export function Onboarding({
     choices.find((item) => item.ready);
   const restarting = Boolean(snapshot.preferences.onboarding?.restartPending);
   const connectedSetup = setupRoute === 'connected';
-  const aiReady = Boolean(agent || choice?.ready);
+  const aiReady = agent
+    ? snapshot.providers.some(
+        (provider) => provider.id === agent.provider && provider.status === 'ready',
+      )
+    : Boolean(choice?.ready);
   const codexSetupBusy = snapshot.providers.some(
     ({ setup }) => setup && setup.phase !== 'error',
   );
@@ -252,6 +256,7 @@ export function Onboarding({
       starting ||
       practicing ||
       !agent ||
+      !aiReady ||
       !permissionPassComplete ||
       !accessReady ||
       busy ||
@@ -271,6 +276,7 @@ export function Onboarding({
     voiceReady,
     connectedSetup,
     agent,
+    aiReady,
     permissionPassComplete,
     accessReady,
     busy,
@@ -289,7 +295,8 @@ export function Onboarding({
       </>
     );
   // Stay on Mac access while a Grant all pass is still walking its rows.
-  const done = !starting && !practicing && !restarting && accessReady && !permissionBusy;
+  const done =
+    !starting && !practicing && !restarting && aiReady && accessReady && !permissionBusy;
   return (
     <main className={styles.setup} aria-label="Welcome to Sia">
       <section className={styles.stage}>
@@ -321,25 +328,44 @@ export function Onboarding({
           >
             {starting
               ? 'Let’s set up Sia.'
-              : connectedSetup
-                ? 'Connect the apps you use.'
-                : practicing
-                  ? 'A little less typing.'
-                  : done
-                    ? 'You’re all set.'
-                    : 'Give Sia access to your Mac.'}
+              : !aiReady
+                ? 'Reconnect to finish setup.'
+                : connectedSetup
+                  ? 'Connect the apps you use.'
+                  : practicing
+                    ? 'A little less typing.'
+                    : done
+                      ? 'You’re all set.'
+                      : 'Give Sia access to your Mac.'}
           </h1>
           <p className={styles.intro} data-done={done || undefined}>
             {starting
               ? 'A few quick steps, then Sia can help with everyday tasks in the apps you already use.'
-              : connectedSetup
-                ? 'Choose the accounts you want Sia to use. You can also start chatting now and connect them later. No Mac permissions are needed.'
-                : practicing
-                  ? 'Hold Fn. Speak. Release. That’s all there is to it.'
-                  : done
-                    ? 'Sia is ready to help. Connect more apps below, or jump right in.'
-                    : 'Sia walks you through each permission, one at a time. You approve each one in macOS. You can pause and keep chatting anytime.'}
+              : !aiReady
+                ? 'Your setup progress is saved. Connect your AI, then continue where you left off.'
+                : connectedSetup
+                  ? 'Choose the accounts you want Sia to use. You can also start chatting now and connect them later. No Mac permissions are needed.'
+                  : practicing
+                    ? 'Hold Fn. Speak. Release. That’s all there is to it.'
+                    : done
+                      ? 'Sia is ready to help. Connect more apps below, or jump right in.'
+                      : 'Sia walks you through each permission, one at a time. You approve each one in macOS. You can pause and keep chatting anytime.'}
           </p>
+          {!starting && !aiReady ? (
+            <section className={styles.providerSetup} aria-label="Finish AI setup">
+              <h2>Reconnect your AI to finish setup</h2>
+              <p className={styles.note}>
+                Your Mac access is saved. Connect your AI here, then pick up where you left off.
+              </p>
+              <ProvidersSettings
+                providers={snapshot.providers}
+                onProbe={(id) => api.refreshProvider(id)}
+                onOpenProviderSetup={(id) => api.openProviderSetup(id)}
+                onCancelProviderSetup={(id) => api.cancelProviderSetup(id)}
+                onOpenCloudSettings={onAccount}
+              />
+            </section>
+          ) : null}
           {starting ? (
             <>
               <ul className={styles.included} aria-label="Included in setup">
@@ -534,7 +560,7 @@ export function Onboarding({
               <div className={styles.actions}>
                 <button
                   className={buttons.primaryButton}
-                  disabled={busy || connecting || (voiceReady && !practiceDone)}
+                  disabled={busy || connecting || !aiReady || (voiceReady && !practiceDone)}
                   onClick={finish}
                 >
                   Start using Sia
@@ -542,7 +568,7 @@ export function Onboarding({
                 {voiceReady ? (
                   <button
                     className={styles.link}
-                    disabled={busy || connecting}
+                    disabled={busy || connecting || !aiReady}
                     onClick={finish}
                   >
                     Skip voice practice
@@ -612,7 +638,7 @@ export function Onboarding({
                 <button
                   className={buttons.primaryButton}
                   // Use my Mac needs every permission; the guide above asks for each in turn.
-                  disabled={busy || connecting || (!connectedSetup && !accessReady)}
+                  disabled={busy || connecting || !aiReady || (!connectedSetup && !accessReady)}
                   onClick={!connectedSetup && voiceReady ? practice : finish}
                 >
                   {!connectedSetup && voiceReady ? 'Try Fn' : 'Start using Sia'}

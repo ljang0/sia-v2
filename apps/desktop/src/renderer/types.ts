@@ -63,6 +63,8 @@ export interface ThreadSummary {
 }
 
 export interface MessageEvent {
+  /** Actual provider message state; a finished progress note is not a reply still being written. */
+  streaming?: boolean;
   id: string;
   type: 'message';
   role: 'user' | 'assistant';
@@ -532,6 +534,7 @@ export interface RendererSnapshot {
     title: string;
     detail: string;
   };
+  localSaveFailed?: true;
 }
 
 export interface AgentDraft {

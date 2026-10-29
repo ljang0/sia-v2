@@ -1,5 +1,5 @@
 import { CaretRight, Check, DownloadSimple, ThumbsDown, ThumbsUp } from '@phosphor-icons/react';
-import { useState } from 'react';
+import { Fragment, useRef, useState } from 'react';
 import type { RemoteTurn } from '../shared/phone-remote';
 import { SiaMark } from '../renderer/components/SiaMark';
 import { SafeMarkdown } from '../renderer/components/SafeMarkdown';
@@ -16,15 +16,29 @@ export function Turn({
   /** Present on the owner's own phone: thumbs record a rating of this finished task. */
   onRate?: ((rating: 'good' | 'bad') => Promise<void>) | undefined;
 }) {
+  const saving = useRef(new Set<string>());
+  const [downloads, setDownloads] = useState<Record<string, 'saving' | 'error' | undefined>>(
+    {},
+  );
+  const save = async (route: string, file: string) => {
+    if (saving.current.has(file)) return;
+    saving.current.add(file);
+    setDownloads((current) => ({ ...current, [file]: 'saving' }));
+    try {
+      await saveRemoteFile(route, file);
+      setDownloads((current) => ({ ...current, [file]: undefined }));
+    } catch {
+      setDownloads((current) => ({ ...current, [file]: 'error' }));
+    } finally {
+      saving.current.delete(file);
+    }
+  };
   const finished =
     turn.status === 'done' && !turn.error && Boolean(turn.response.trim() || turn.files.length);
   const result = (
     <>
       {turn.response && (
-        <div
-          className="remote-response"
-          data-streaming={turn.status === 'working' || undefined}
-        >
+        <div className="remote-response" data-streaming={turn.streaming || undefined}>
           <SafeMarkdown content={turn.response} />
         </div>
       )}
@@ -33,26 +47,34 @@ export function Turn({
           ? `results/${encodeURIComponent(turn.fileIds[file])}`
           : `outbox/${encodeURIComponent(file)}`;
         return (
-          <a
-            className="result-file"
-            href={new URL(route, remoteBase).href}
-            download={file}
-            key={file}
-            onClick={(event) => {
-              if (remoteTransport === 'wifi') return;
-              // Over the relay, the file arrives sealed and is saved from memory.
-              event.preventDefault();
-              void saveRemoteFile(route, file).catch((cause: unknown) =>
-                window.alert(
-                  cause instanceof Error ? cause.message : 'This file could not be saved.',
-                ),
-              );
-            }}
-          >
-            <DownloadSimple size={22} />
-            <span>{file}</span>
-            <span className="muted">Save</span>
-          </a>
+          <Fragment key={file}>
+            <a
+              className="result-file"
+              href={new URL(route, remoteBase).href}
+              download={file}
+              aria-busy={downloads[file] === 'saving' || undefined}
+              aria-disabled={downloads[file] === 'saving' || undefined}
+              onClick={(event) => {
+                if (remoteTransport === 'wifi') return;
+                // Over the relay, the file arrives sealed and is saved from memory.
+                event.preventDefault();
+                void save(route, file);
+              }}
+            >
+              <DownloadSimple size={22} />
+              <span>{file}</span>
+              <span className="muted">{downloads[file] === 'saving' ? 'Saving…' : 'Save'}</span>
+            </a>
+            {downloads[file] === 'error' && (
+              <p className="download-error" role="alert">
+                This file couldn’t be saved. Check your connection, then{' '}
+                <button type="button" onClick={() => void save(route, file)}>
+                  try again
+                </button>
+                .
+              </p>
+            )}
+          </Fragment>
         );
       })}
     </>

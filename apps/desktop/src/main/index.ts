@@ -116,6 +116,7 @@ let scotty: ReturnType<typeof createScottyCompanion> | undefined;
 let screenIndicator: ReturnType<typeof createScreenControlIndicator> | undefined;
 let commandLauncher: ReturnType<typeof createCommandLauncher> | undefined;
 let mainWindow: BrowserWindow | undefined;
+let maximizeOnReveal = false;
 let controller: DesktopController | undefined;
 let unregisterIpc: (() => void) | undefined;
 let sessionSecurityConfigured = false;
@@ -130,6 +131,16 @@ let windowStateSaver: WindowStateSaver | undefined;
 const rendererRecovery = new RendererRecovery();
 const notificationTimes = new Map<string, number>();
 const liveNotifications = new Set<Notification>();
+// Explicit, isolated fake-service checks can render without showing windows or taking focus.
+// A packaged app or real-provider session can never opt into this fixture behavior.
+const quietFixture =
+  !app.isPackaged &&
+  process.env.SIA_FAKE_SERVICES === '1' &&
+  Boolean(process.env.SIA_TEST_USER_DATA) &&
+  process.env.SIA_TEST_QUIET === '1';
+// A real background launch keeps the normal encrypted store and permission boundary.
+// It only defers showing Sia until the person opens it explicitly.
+let keepWindowHidden = process.argv.includes('--background');
 
 if (!app.isPackaged && process.env.SIA_TEST_USER_DATA) {
   app.setPath('userData', process.env.SIA_TEST_USER_DATA);
@@ -140,13 +151,18 @@ app.setName('Sia');
 if (!gotLock) {
   app.quit();
 } else {
-  app.on('second-instance', () => showOrCreateApplicationWindow());
+  if (keepWindowHidden && process.platform === 'darwin') app.setActivationPolicy('accessory');
+  app.on('second-instance', (_event, argv) => {
+    if (!argv.includes('--background')) showOrCreateApplicationWindow();
+  });
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();
   });
 
-  app.on('activate', () => showOrCreateApplicationWindow());
+  app.on('activate', () => {
+    if (!keepWindowHidden) showOrCreateApplicationWindow();
+  });
 
   app.on('before-quit', (event) => {
     const confirmation =
@@ -190,6 +206,7 @@ if (!gotLock) {
   void app
     .whenReady()
     .then(() => {
+      if (quietFixture && process.platform === 'darwin') app.setActivationPolicy('prohibited');
       // macOS is logging out or shutting down: never hold that up with a quit question.
       powerMonitor.on('shutdown', () => {
         quitConfirmed = true;
@@ -216,16 +233,24 @@ function showOrCreateApplicationWindow(): void {
 
 async function revealApplicationWindow(revealConversation = false): Promise<void> {
   if (shutdownStarted) throw new Error('Sia is closing. Reopen Sia to continue.');
+  keepWindowHidden = false;
+  if (!quietFixture && process.platform === 'darwin') app.setActivationPolicy('regular');
   await createApplication();
   if (!mainWindow || mainWindow.isDestroyed())
     throw new Error('Sia could not open. Please try again.');
   if (mainWindow.isMinimized()) mainWindow.restore();
+  if (maximizeOnReveal) {
+    maximizeOnReveal = false;
+    mainWindow.maximize();
+  }
   if (revealConversation)
     mainWindow.webContents.send('sia:event', {
       type: 'open-conversation',
     } satisfies import('../shared/bridge.js').DesktopPushEvent);
-  mainWindow.show();
-  mainWindow.focus();
+  if (!quietFixture) {
+    mainWindow.show();
+    mainWindow.focus();
+  }
 }
 
 function createApplication(): Promise<void> {
@@ -274,6 +299,10 @@ async function performApplicationCreation(): Promise<void> {
     ...WINDOW_SIZE,
     ...(savedBounds ?? {}),
     show: false,
+    // Electron otherwise marks a never-shown window visible: its animations
+    // keep drawing and conversations can be marked read during background work.
+    // Quiet startup never waits for ready-to-show; an explicit open still shows it.
+    paintWhenInitiallyHidden: !keepWindowHidden,
     backgroundColor: windowBackgroundColor(nativeTheme.shouldUseDarkColors),
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
@@ -295,7 +324,10 @@ async function performApplicationCreation(): Promise<void> {
   };
   nativeTheme.on('updated', matchSystemAppearance);
   window.once('closed', () => nativeTheme.off('updated', matchSystemAppearance));
-  if (savedBounds && savedWindow?.maximized) window.maximize();
+  if (savedBounds && savedWindow?.maximized) {
+    if (keepWindowHidden) maximizeOnReveal = true;
+    else window.maximize();
+  }
   const saveWindowState = () => {
     if (window.isDestroyed() || window.isMinimized() || window.isFullScreen()) return;
     windowStateSaver?.schedule({
@@ -356,7 +388,9 @@ async function performApplicationCreation(): Promise<void> {
         else if (response === 1) app.quit();
       });
   });
-  window.once('ready-to-show', () => window.show());
+  window.once('ready-to-show', () => {
+    if (!quietFixture && !keepWindowHidden) window.show();
+  });
   window.on('closed', () => {
     controller?.releaseRendererVoiceCapture();
     unregisterIpc?.();
@@ -372,7 +406,8 @@ async function performApplicationCreation(): Promise<void> {
   });
   const plaintextTestStorage =
     !app.isPackaged && process.env.SIA_TEST_PLAINTEXT_STORAGE === '1';
-  if (!controller && !plaintextTestStorage) await showStorageStartup(window);
+  if (!controller && !plaintextTestStorage && !keepWindowHidden)
+    await showStorageStartup(window);
   const cloudConfiguration = await loadCloudConfiguration({
     packaged: app.isPackaged,
     resourcesPath: process.resourcesPath,
@@ -441,12 +476,19 @@ async function performApplicationCreation(): Promise<void> {
         )
       : undefined;
     let activeController!: DesktopController;
+    const browserWindows = new BrowserWindowService(
+      app.isPackaged
+        ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
+        : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
+    );
+    app.once('will-quit', () => browserWindows.close());
     const computer = new CuaService(
       {
         authorize: (request, context) => activeController.authorizeComputer(request, context),
       },
       {
         fakePermissions: fakeServices,
+        ...(!fakeServices ? { readForegroundPid: () => browserWindows.foregroundPid() } : {}),
         verifyAccess: true,
         freshPermissions: freshPermissionProbe({
           executable: process.execPath,
@@ -462,11 +504,6 @@ async function performApplicationCreation(): Promise<void> {
       enabled: () => activeController?.trajectoryLogEnabled() ?? true,
     });
     const messagesService = new MessagesService();
-    const browserWindows = new BrowserWindowService(
-      app.isPackaged
-        ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
-        : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
-    );
     const automationPermissions = new AutomationPermissionService({
       helperPath: app.isPackaged
         ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
@@ -692,7 +729,8 @@ async function performApplicationCreation(): Promise<void> {
       ensureBrowserAttached: () => activeController.ensureBrowserAttachedForActions(),
       macBrowserAccess: () => activeController.computerAccessMode() === 'mac',
       macBackgroundControl: () => activeController.macBackgroundControl(),
-      inspectBrowserWindow: (pid, windowId) => browserWindows.inspect(pid, windowId),
+      inspectBrowserWindow: (pid, windowId, tabsOnly) =>
+        browserWindows.inspect(pid, windowId, tabsOnly),
       readImageText: (dataBase64) => browserWindows.imageText(dataBase64),
       readWindowContext: (pid, windowId) => browserWindows.context(pid, windowId),
       ...(localConnectors ? { localConnectors } : {}),

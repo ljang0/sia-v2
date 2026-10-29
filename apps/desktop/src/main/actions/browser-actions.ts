@@ -4,6 +4,8 @@ import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/acti
 import {
   actionImages,
   actionResult,
+  classifyFailure,
+  inputWasRefused,
   refused,
   resultRefusal,
   stale,
@@ -14,6 +16,7 @@ import type { BrowserBinding, BrowserSnapshotCapability } from './browser-grants
 import { stageBrowserUploadFiles } from './browser-uploads.js';
 import {
   browserRouteWasReplaced,
+  browserUrlIsAuthentication,
   browserUrlLooksSensitive,
   findBrowserLocation,
   modelVisibleBrowserUrl,
@@ -24,6 +27,7 @@ import type { ComputerInventory } from './computer-inventory.js';
 import type { ActionBackendContext } from './context.js';
 import {
   asRecord,
+  browserHasAuthenticationControls,
   collectTabRecords,
   compact,
   findElementRecords,
@@ -32,10 +36,15 @@ import {
   firstString,
   isDefined,
   isProtectedElement,
+  redactOptionalText,
   sanitizeElement,
   trustedDisplayText,
   trustedElementLabel,
 } from './driver-records.js';
+import {
+  observationHasPrivateLinks,
+  observationRecordHasPrivateLinks,
+} from './observation-text.js';
 
 /**
  * Tabs, snapshots, navigation, input and uploads in the attached Chrome session. Every
@@ -144,7 +153,7 @@ export class BrowserActions {
         }
         return compact({
           tab_id: tabId,
-          title: firstString(record, ['title', 'name']),
+          title: redactOptionalText(firstString(record, ['title', 'name'])),
           url: modelVisibleBrowserUrl(url),
           active: firstBoolean(record, ['active', 'selected']),
         });
@@ -167,19 +176,32 @@ export class BrowserActions {
     if (binding.origin && !this.ctx.browser.bindingOriginAllowed(binding)) {
       return refused('The tab origin is outside the current browser grant.');
     }
-    return this.#captureBrowser(binding, request);
+    let continuation: string | undefined;
+    if (request.arguments.continue_from !== undefined) {
+      const previous = await this.ctx.browser.capability(
+        tabId,
+        request.arguments.continue_from,
+      );
+      if ('outcome' in previous) return previous;
+      continuation = previous.continuation;
+      if (!continuation)
+        return stale('This snapshot has no remaining page segment. Observe the tab again.');
+    }
+    return this.#captureBrowser(binding, request, continuation);
   }
 
   async #captureBrowser(
     binding: BrowserBinding,
     request: ValidatedActionInvocation,
+    continuation?: string,
   ): Promise<ActionExecutionResult> {
     const raw = await this.ctx.callCua(request, 'get_browser_state', {
       session: binding.session,
       target_id: binding.targetId,
       tab_id: binding.tabId,
       snapshot_format: 'semantic_v2',
-      include_screenshot: true,
+      include_screenshot: request.arguments.include_image !== false,
+      ...(continuation ? { continuation } : {}),
     });
     const refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
@@ -197,6 +219,17 @@ export class BrowserActions {
       }
     }
     const liveUrl = location?.url;
+    if (browserUrlIsAuthentication(liveUrl) || browserHasAuthenticationControls(raw)) {
+      const previous = this.ctx.browser.latestSnapshot.get(binding.tabId);
+      if (previous) this.ctx.browser.snapshots.delete(previous);
+      this.ctx.browser.latestSnapshot.delete(binding.tabId);
+      return {
+        outcome: 'refused',
+        summary:
+          'An authentication form was observed. The person must complete sign-in; no form content, screenshots or input references were returned.',
+        data: { blocker_code: 'authentication_surface', observed_authentication: true },
+      };
+    }
     if (
       !origin ||
       !liveUrl ||
@@ -207,6 +240,11 @@ export class BrowserActions {
       return refused('The tab origin is outside the current browser grant.');
     }
     const snapshotId = randomUUID();
+    const title = findString(raw, ['title']);
+    const text = findString(raw, ['outline', 'text', 'page_text']);
+    const privateLinks =
+      [title, text].some(observationHasPrivateLinks) ||
+      findElementRecords(raw, 'browser').some(observationRecordHasPrivateLinks);
     const elementMap = new Map<string, { nativeRef: string; label?: string; role?: string }>();
     const elements = findElementRecords(raw, 'browser')
       .map((record, position) => {
@@ -224,6 +262,9 @@ export class BrowserActions {
         return sanitizeElement(record, ref);
       })
       .filter(isDefined);
+    const semantic = asRecord(asRecord(raw)?.snapshot);
+    const next = firstString(semantic ?? {}, ['continuation']);
+    const nextContinuation = next && next.length <= 16384 ? next : undefined;
     const capability: BrowserSnapshotCapability = {
       id: snapshotId,
       targetId: binding.targetId,
@@ -231,21 +272,38 @@ export class BrowserActions {
       session: binding.session,
       origin,
       url: liveUrl,
+      ...(nextContinuation ? { continuation: nextContinuation } : {}),
       elements: elementMap,
     };
     this.ctx.browser.rememberSnapshot(capability);
     return {
       outcome: 'verified',
       summary: 'Captured fresh state for the granted browser tab.',
-      ...actionImages(raw),
+      ...(privateLinks ? {} : actionImages(raw)),
       data: compact({
         snapshot_id: snapshotId,
         tab_id: binding.tabId,
         origin,
-        title: findString(raw, ['title']),
+        title: redactOptionalText(title),
         url: modelVisibleBrowserUrl(liveUrl),
         elements,
-        text: findString(raw, ['outline', 'text', 'page_text']),
+        text: redactOptionalText(text),
+        ...(privateLinks ? { private_links_omitted: true } : {}),
+        ...(semantic
+          ? {
+              page_complete: semantic.complete === true,
+              ...(nextContinuation ? { read_more_from: snapshotId } : {}),
+              coverage_note: nextContinuation
+                ? 'This is one segment of the current rendered page. Read the next segment with the same tab and continue_from:read_more_from before claiming complete coverage. Each read replaces older action refs.'
+                : semantic.complete === true
+                  ? 'The current rendered page segment is complete. This does not cover other pages, filters, courses or accounts.'
+                  : 'This rendered page is partial. Inspect other views or scroll in the same tab; missing content is not evidence that no items exist.',
+            }
+          : {
+              page_complete: false,
+              coverage_note:
+                'Page completeness was not reported. Verify the requested scope before claiming that all items were checked.',
+            }),
       }),
       verification: {
         snapshotId,
@@ -313,7 +371,8 @@ export class BrowserActions {
         input = {
           ...base,
           ref: nativeRef,
-          input_route: process.platform === 'darwin' ? 'dom_event' : 'trusted',
+          input_route: 'trusted',
+          delivery_mode: 'background',
         };
         break;
       case 'type': {
@@ -322,7 +381,14 @@ export class BrowserActions {
         const text = typeof args.text === 'string' ? args.text : undefined;
         if (text === undefined) return refused('browser_action type requires text.');
         tool = 'browser_type';
-        input = { ...base, ref: nativeRef, text, mode: 'insert_text', replace: false };
+        input = {
+          ...base,
+          ref: nativeRef,
+          text,
+          mode: 'insert_text',
+          replace: args.replace === true,
+          delivery_mode: 'background',
+        };
         break;
       }
       case 'scroll': {
@@ -337,6 +403,7 @@ export class BrowserActions {
           ...base,
           action: 'scroll',
           input_route: 'trusted',
+          delivery_mode: 'background',
           ref: nativeRef,
           delta_x: direction === 'left' ? -amount : direction === 'right' ? amount : 0,
           delta_y: direction === 'up' ? -amount : direction === 'down' ? amount : 0,
@@ -346,7 +413,22 @@ export class BrowserActions {
       default:
         return refused('Unsupported browser action.');
     }
-    const raw = await this.ctx.callCua(request, tool, input);
+    // Native refs are single-use authority. A transport error cannot prove a write failed.
+    this.ctx.browser.snapshots.delete(capability.id);
+    if (this.ctx.browser.latestSnapshot.get(capability.tabId) === capability.id)
+      this.ctx.browser.latestSnapshot.delete(capability.tabId);
+    let raw: unknown;
+    try {
+      raw = await this.ctx.callCua(request, tool, input);
+    } catch (error) {
+      if (inputWasRefused(error)) return classifyFailure(error);
+      return {
+        outcome: 'accepted_unverified',
+        summary:
+          'The browser input may have been delivered, but its acknowledgement was lost. Observe the exact tab before continuing; do not replay the action.',
+        data: { input_delivery_uncertain: true },
+      };
+    }
     const native = actionResult(
       raw,
       `Browser ${String(args.action)} was delivered in the background.`,
@@ -398,8 +480,32 @@ export class BrowserActions {
     native: ActionExecutionResult,
     request: ValidatedActionInvocation,
   ): Promise<ActionExecutionResult> {
-    const after = await this.#captureBrowser(binding, request);
-    if (after.outcome !== 'verified') return after;
+    let after: ActionExecutionResult;
+    try {
+      after = await this.#captureBrowser(binding, request);
+    } catch {
+      return {
+        outcome: 'accepted_unverified',
+        summary:
+          'The browser accepted input, but its result could not be observed. Check the exact tab before continuing; do not repeat the action.',
+        data: { delivery: native.data, input_delivery_uncertain: true },
+      };
+    }
+    if (after.outcome !== 'verified')
+      return {
+        outcome: 'accepted_unverified',
+        summary:
+          'Browser input was accepted, but the follow-up observation was refused. Verify the exact tab before continuing; do not replay the action.',
+        data: {
+          delivery: native.data,
+          input_delivery_uncertain: true,
+          observation_outcome: after.outcome,
+          ...(asRecord(after.data)?.observed_authentication === true
+            ? { observed_authentication: true, blocker_code: 'authentication_surface' }
+            : {}),
+        },
+        ...(after.reason ? { reason: after.reason } : {}),
+      };
     return {
       outcome: native.outcome,
       summary:

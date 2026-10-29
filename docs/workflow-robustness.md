@@ -3,6 +3,97 @@
 This is a continuing source and deterministic-test audit of the major user workflows. It is not an
 all-app live acceptance result. The public release remains gated by [public-release.md](./public-release.md).
 
+## Shared reliability practices
+
+Personal-account testing must produce shared fixes, rather than defaults tailored to the tester.
+Apply these rules to new apps and workflows. Test paths below are relative to
+`apps/desktop/src/main`:
+
+| Lesson                                               | Product behavior and regression coverage                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Keep personal context separate from shared behavior. | Institution, account, preferred sources and working folders come from the person's agent-scoped memory and live app context. Do not embed a tester's identity, campus default, enrollment, credentials or paths in the runtime. `assistant/task-context.test.ts` and `assistant/memory-context.test.ts` check retained context and isolation.                                                                                                                                                             |
+| Verify what the request actually requires.           | A live read in the explicitly selected signed-in profile can complete without an unrequested display name. A visible conflict, named-account requirement, uncertain destination or write still requires resolution. The opt-in `actions/account-scope.smoke.test.ts` checks both course inventories and project documents, with and without an account conflict.                                                                                                                                          |
+| Treat remembered facts as hints.                     | Reuse established service origins and navigation lessons, then verify current account contents, dates and source coverage. A previous access failure does not prove a current sign-in requirement. Resolve ambiguous names from that person's context; ask when it remains ambiguous.                                                                                                                                                                                                                     |
+| Preserve the meaning of a failure.                   | Unreadable, incomplete, stale or ambiguous observations do not establish sign-out or absence. A delivered action followed by a refused read remains delivered but unverified, with a separate observation blocker. Missing Safari tab-bar discovery does not disable an independently verified, unprotected Start Page or its supported navigation routes; refused snapshots grant no input. `actions/computer-browser-navigation.test.ts` and the opt-in Safari recovery probe cover these distinctions. |
+| Keep observation and input authority separate.       | Native Safari tab-only reads skip webpage content and grant tab selection plus an explicitly available native Cmd+T route. The new tab needs its own normal snapshot; no other keys or page input are permitted. Sia-hosted typing requires a fresh normal snapshot of an unprotected tab. Neither tab recovery nor another public page authorizes credentials or a protected document.                                                                                                                   |
+| Keep concurrent windows and attempts isolated.       | Serialize the whole observation/action transaction per physical window, including supplemental reads and capability publication. Cancelled waiters cannot overtake active work. Explicit continuation receives new execution authority; it cannot revive old input references. `actions/window-operations.test.ts` and `actions/computer-window-order.test.ts` cover those races.                                                                                                                         |
+| Protect the person's active work.                    | In strict background mode, production checks macOS's actual frontmost PID, including utility panels. Unknown focus refuses input; a change after delivery preserves uncertainty. Do not restore focus, replay input or exceed the turn's chosen foreground policy. Native helper and `mac/cua-service.test.ts` regressions cover these boundaries.                                                                                                                                                        |
+| Grade outcomes rather than tool acknowledgements.    | A click receipt is not proof the requested result happened. Check source coverage, verify semantic results and read back created files. Retain failed attempts. Label synthetic/model probes, file-only results, assisted preparation and real GUI tasks separately; none substitutes for another.                                                                                                                                                                                                        |
+
+These host-tool rules do not claim to enforce the foreground provider's native shell; that route retains its provider approval boundary. The opt-in model probes use fictional accounts and cannot establish live cross-app reliability.
+Safari's native PDF viewer can omit both `AXWebArea` and document URL attributes. Its identity
+fallback requires the native PDF plugin outside web content, a non-editing native address field,
+and the same full HTTP(S) URL in the native window title. It refuses mismatches, credentials,
+queries, fragments, missing focus metadata and loading indicators; the existing complete security
+scan and exact-window revalidation still apply. Native pure tests cover these boundaries. A
+successful identity diagnostic is separate from verifying a complete task or all PDF content.
+Native PDF snapshots identify their document kind. Direct address-bar focus or editing is refused
+before input, with a supported new-tab alternative: focusing the address field itself removes the
+PDF viewer's independent identity. Refusal leaves the current grant usable for Cmd+T; the new tab
+must then be observed normally. PDF page reading and observed links remain available. Host
+regressions reproduce the identity loss and verify the no-input refusal, preserved grant, new-tab
+route and ordinary-page navigation. The opt-in Safari probe also starts from a fictional PDF.
+Public access notices must not turn a static article into a claim that the whole account needs
+sign-in. The restricted notice path requires explicit signed native proof, excludes non-search
+form fields and authentication controls, and returns only text. It withholds search values, all
+page refs, images, OCR, pixels and typing. Only scrolling or a fresh new-tab shortcut is permitted;
+changed or missing proof revokes that authority. Focused regressions cover real auth controls,
+credential markers, contradictory raw fields, changed proof, expected-page binding and withheld
+images/field values. It is not an authentication bypass or a full public-page interaction grant.
+Normal checks never require a personal account or run those probes at app startup. Real-account
+evidence stays outside Git, and research collection requires separate consent. Manual permission,
+fresh-install and physical-phone acceptance remain separate gates in [manual-acceptance.md](./manual-acceptance.md).
+
+Match research completion to the requested outcome. A verified suitable option can complete an
+open-ended "where can I" request once its required facts and constraints are checked; an optional
+blocked directory does not make that answer unfinished. An explicit comparison, requested count,
+or "all" still needs every in-scope item, and missing opening hours remain missing when asked for.
+The opt-in fictional research-scope probes cover these three boundaries without real app access.
+They are model checks, not evidence of completed GUI tasks.
+
+A failed fresh observation cannot preserve older input authority. Starting a native-window
+refresh revokes that window's previous snapshot; protection, expected-source mismatch or an
+unavailable observation never revives it. Browser preflight also revokes the grant when its
+surface changes and refuses input when signed metadata detects authentication controls at the
+same URL. A later ordinary page still needs a fresh successful observation. The refusal of an
+unsupported action itself is separate: for example, refused PDF address editing preserves its
+current grant for the explicitly permitted native new-tab route.
+
+Sanitize links across every observation channel, rather than only the page-location field.
+Native and browser titles, control display fields, supplemental document text and OCR omit
+credential-bearing URLs. A detected access-bearing link also withholds that snapshot's image
+and native pixel authority, preserving otherwise permitted semantic refs. Invisible link-target
+metadata alone does not suppress images. Synthetic fixtures exercise meeting passcodes, signed
+URLs, userinfo, encoded query keys and nested redirects without reading actual credentials.
+This bounded URL rule does not detect arbitrary secrets in images/prose or authorize an
+authentication surface; the existing protection checks still apply.
+For native-app Use my Mac reads, a structurally marked credential field blocks the whole snapshot,
+not just that element. Neighbouring text and controls must not escape an authentication window;
+no older grant may survive the refused refresh. Structural role, subrole, input-type and autocomplete
+fixtures cover this independently of broad lexical matches in public document prose.
+
+Deferred local-save failures must not escape timer callbacks, and a failed final turn checkpoint
+must not reject an unattended runner promise or hide its already-finished result. Retain state in
+memory, show a typed warning without exposing storage error details, and retry at a limited rate.
+Draft acceptance is not a durability acknowledgement. Retry storage only, never the task's actions.
+Isolated encrypted in-memory tests cover repository failures, retained drafts and final replies,
+retry timing, recovery revisions and shutdown. Explicit save failures still reach their caller;
+these tests do not simulate an actual full disk or establish every storage-failure path.
+Optional title persistence and schedule housekeeping use that same background-state recovery.
+Schedule claims remain synchronous durability gates: if saving an automatic claim fails, do not
+dispatch the task, pause its schedule, and retry only the paused state. A failed Run now must remove
+its new claim without changing the regular cadence or causing an early retry on the next timer.
+Check absence of dispatch and replay when storage recovers, and that a title recovers without
+another model call. Never suppress a claim error to make a schedule appear reliable. Storage error
+payloads must not enter the scheduled-task notice.
+
+Memory privacy must cover both new writes and legacy reads. Reuse the access-bearing URL
+classifier for saved preferences and task checkpoints, and check the whole vault note before
+returning any slice or listing. Native preparation reads core notes itself, so verify its assembled
+prompt at the host boundary and withhold an unsafe prompt without rewriting the vault or losing
+the ordinary request fallback. Synthetic legacy files, nested links and public source controls
+cover these paths; never inspect a person's vault to look for real credentials.
+
 ## Repository-wide continuation
 
 The continuation from `fa97fc6` inventories all 880 tracked files, including tests, documentation,
@@ -202,13 +293,18 @@ public-page turns ran on the corrected build:
   read failed with `session_ended`; no click was sent. The reusable provider conversation had also
   been used as the CUA session label. A terminal driver session then poisoned later requests.
 
-The installed CUA 0.21.0 source was inspected at commit
+The then-installed CUA 0.21.0 source was inspected at commit
 `70db98d1bcd92890d778f4978e0eb107a4b66c1b`:
 [`ax/exact_target.rs`](https://github.com/trycua/cua/blob/70db98d1bcd92890d778f4978e0eb107a4b66c1b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs)
 requires the exact native id in fresh `AXWindows` membership. Its `get_window_state` deliberately
 returns observation-only state when that identity is unresolved, because input could reach another
 window owned by the same process. Sia's supplemental native reader resolving the page does not
-establish a safe CUA input route. No driver guard was bypassed or dependency replaced.
+establish a safe CUA input route. No driver guard was bypassed in those checks. The subsequent
+background reliability work upgrades the SDK and both Mac native libraries to 0.37.0 after an
+isolated comparison resolved the same test window and delivered an exact background click. Sia
+requests structured controls and route metadata explicitly and uses the current token-only input
+contract. The 100-task matrix in [demo acceptance](./demo.md#background-reliability-matrix) keeps
+native-driver results separate from simulated observations and retains failed attempts.
 
 Native computer sessions are now scoped to each active turn with a fresh opaque label, while Codex
 conversation reuse and explicitly attached browser sessions retain their own lifetimes. New turns

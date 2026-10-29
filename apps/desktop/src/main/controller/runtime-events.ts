@@ -74,8 +74,10 @@ export class RuntimeEventApplier {
           item.kind === 'assistant' &&
           item.detail === event.payload.messageId,
       );
-      if (existing && event.payload.delta) existing.text = `${existing.text ?? ''}${text}`;
-      else {
+      if (existing) {
+        existing.text = event.payload.delta ? `${existing.text ?? ''}${text}` : text;
+        existing.status = event.payload.delta ? 'running' : 'complete';
+      } else {
         this.ctx.appendTimeline(event.threadId, {
           id: event.id,
           turnId: event.turnId,

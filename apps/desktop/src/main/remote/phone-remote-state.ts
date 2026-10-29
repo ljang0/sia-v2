@@ -114,6 +114,10 @@ export function remoteState(
       id: user.id,
       text: (user.text ?? '').slice(0, 8000),
       response: response.trim(),
+      ...(status === 'working' &&
+      attempt.findLast((item) => item.kind === 'assistant')?.status === 'running'
+        ? { streaming: true }
+        : {}),
       status,
       error,
       files: [...new Set(files)],

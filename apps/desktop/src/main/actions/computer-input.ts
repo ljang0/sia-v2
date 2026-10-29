@@ -2,9 +2,12 @@ import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import {
   actionResult,
+  classifyFailure,
+  inputWasRefused,
   refused,
   resultRefusal,
   screenshotDimensions,
+  safeErrorMessage,
   stale,
 } from './action-results.js';
 import { requiredEnum, requiredString } from './arguments.js';
@@ -19,6 +22,7 @@ import type { ActionBackendContext } from './context.js';
 import {
   asRecord,
   compact,
+  findElementRecords,
   findRecordArray,
   positiveInteger,
   windowHasProtectedControls,
@@ -55,12 +59,99 @@ export class ComputerInput {
     ) {
       return stale('The window snapshot is missing, superseded, or belongs to another window.');
     }
+    let verifiedBrowserBundleId: string | undefined;
+    let nativePDF = false;
     if (this.inventory.isNativeBrowser(binding)) {
-      const current = await this.inventory.nativeBrowserState(binding);
-      if (current.status !== 'ready' || current.url !== capability.browserUrl)
-        return stale(
-          'The browser page changed or needs login. Capture a fresh browser window state before continuing; do not replay the previous action.',
+      if (args.action === 'menu')
+        return refused(
+          'Use visible browser page controls or a permitted navigation shortcut. Native menus are available only for ordinary non-browser apps.',
         );
+      const current = await this.inventory.nativeBrowserState(
+        binding,
+        capability.browserSurface === 'safari-tabs',
+      );
+      const navigationOnly = capability.browserSurface !== undefined;
+      if (
+        navigationOnly
+          ? current.status !== 'navigation' || current.surface !== capability.browserSurface
+          : current.status !== 'ready' || current.url !== capability.browserUrl
+      ) {
+        this.ctx.computer.invalidateSnapshot(windowId);
+        return stale(
+          'The browser surface changed or could not be verified. Capture a fresh browser window state before continuing; do not replay the previous action. This alone does not establish sign-out.',
+        );
+      }
+      if (
+        !navigationOnly &&
+        !capability.passiveAuthenticationNotice &&
+        current.status === 'ready' &&
+        current.authenticationControlsPresent === true
+      ) {
+        this.ctx.computer.invalidateSnapshot(windowId);
+        return {
+          ...refused(
+            'Authentication controls appeared in this exact browser window. No input was sent. Obtain fresh state; a separate native tab-only grant may permit navigation without touching this page.',
+          ),
+          data: { blocker_code: 'protected_window' },
+        };
+      }
+      if (
+        navigationOnly &&
+        !(
+          (args.action === 'click' &&
+            typeof args.element_ref === 'string' &&
+            capability.elements.has(args.element_ref) &&
+            args.x === undefined &&
+            args.y === undefined &&
+            (args.count === undefined || args.count === 1) &&
+            (args.button === undefined || args.button === 'left')) ||
+          (args.action === 'key' &&
+            capability.browserSurface === 'safari-tab-overview' &&
+            /^(?:escape|esc)$/i.test(String(args.value)) &&
+            (!Array.isArray(args.modifiers) || args.modifiers.length === 0)) ||
+          (capability.browserSurface === 'safari-tabs' &&
+            capability.browserNewTab === true &&
+            args.action === 'key' &&
+            String(args.value).toLowerCase() === 't' &&
+            Array.isArray(args.modifiers) &&
+            args.modifiers.length === 1 &&
+            args.modifiers[0] === 'cmd' &&
+            args.element_ref === undefined &&
+            args.x === undefined &&
+            args.y === undefined)
+        )
+      )
+        return refused(
+          'Native tab navigation permits only selecting an observed tab, or Cmd+T when this snapshot explicitly grants a new native tab. Tab Overview also allows Escape.',
+        );
+      verifiedBrowserBundleId =
+        current.status === 'ready' || current.status === 'navigation'
+          ? current.bundleID
+          : undefined;
+      nativePDF = current.status === 'ready' && current.documentKind === 'native-pdf';
+      if (capability.passiveAuthenticationNotice) {
+        if (
+          current.status !== 'ready' ||
+          current.pageHasNonSearchEditableControls !== false ||
+          current.authenticationControlsPresent !== false
+        ) {
+          this.ctx.computer.invalidateSnapshot(windowId);
+          return stale(
+            'The read-only access-notice proof changed. Capture fresh state; no input was sent.',
+          );
+        }
+        const newTab =
+          args.action === 'key' &&
+          String(args.value).toLowerCase() === 't' &&
+          Array.isArray(args.modifiers) &&
+          args.modifiers.length === 1 &&
+          args.modifiers[0] === 'cmd' &&
+          args.element_ref === undefined;
+        if (args.action !== 'scroll' && !newTab)
+          return refused(
+            'This passive access notice grants only reading, scrolling and Cmd+T to a new tab. No page clicks, typing, other keys or pixels are allowed.',
+          );
+      }
       if (
         typeof args.text === 'string' &&
         /(?:javascript|data|file|chrome|safari|about|devtools|view-source|vbscript)\s*:/i.test(
@@ -112,12 +203,35 @@ export class ComputerInput {
     let address = this.ctx.computer.elementAddress(capability, args.element_ref);
     if (args.element_ref && !address)
       return stale('The element reference is not in this snapshot.');
+    if (
+      nativePDF &&
+      ((args.action === 'key' &&
+        String(args.value).toLowerCase() === 'l' &&
+        Array.isArray(args.modifiers) &&
+        args.modifiers.length === 1 &&
+        args.modifiers[0] === 'cmd') ||
+        (['click', 'set', 'type'].includes(String(args.action)) &&
+          address?.role === 'AXTextField' &&
+          /^(?:smart search field|address(?: and search)?(?: field)?)$/i.test(
+            address.label ?? '',
+          )))
+    )
+      return {
+        outcome: 'refused',
+        summary:
+          'Direct address editing would make this native PDF’s page identity unverifiable. No input was sent.',
+        data: {
+          blocker_code: 'pdf_navigation_requires_new_tab',
+          next_step:
+            'Keep this PDF intact. Use Cmd+T from its current normal snapshot when pid_keyboard is available, observe the new tab, then navigate there. Do not replay the refused address edit or use a pixel click to focus its address bar.',
+        },
+      };
     const macKeyboard =
       this.ctx.macBrowserAccess() && ['type', 'key'].includes(String(args.action));
     // AXWindow is not an editable control. Focusing it before each keystroke loses
     // the actual field focus in apps such as Calculator. Use the exact-window route.
     if (macKeyboard && address?.role === 'AXWindow') address = undefined;
-    if (!address && capability.protectedControls)
+    if (!address && capability.protectedControls && !capability.passiveAuthenticationNotice)
       return refused(
         'Focused and pixel actions are blocked on a window containing protected controls.',
       );
@@ -174,7 +288,7 @@ export class ComputerInput {
       });
       const denied = resultRefusal(current);
       if (denied) return denied;
-      if (windowHasProtectedControls(current))
+      if (windowHasProtectedControls(current, { browserBundleId: verifiedBrowserBundleId }))
         return refused('Pixel actions are blocked on windows containing protected controls.');
       if (backgroundDelivery) {
         const availability = windowBackgroundInput(current, binding);
@@ -193,7 +307,11 @@ export class ComputerInput {
       )
         return stale('The window geometry changed. Capture a fresh screenshot before acting.');
     }
-    if (!address && !pixel && !['type', 'key', 'scroll'].includes(String(args.action))) {
+    if (
+      !address &&
+      !pixel &&
+      !['type', 'key', 'scroll', 'menu'].includes(String(args.action))
+    ) {
       return refused('This computer action requires an exact element reference.');
     }
     const base = compact({
@@ -207,18 +325,16 @@ export class ComputerInput {
         : !address
           ? 'foreground'
           : 'background',
-      // An unaddressed action must not carry an element snapshot: the driver
-      // otherwise refuses it with element_index_required. Sia's grant is checked above.
-      snapshot_id: address ? capability.nativeSnapshotId : undefined,
+      // Native tokens already bind the exact snapshot and row. Legacy index/snapshot
+      // arguments are rejected by the current driver; never manufacture a token.
       element_token: address?.token,
-      element_index: address?.index,
     });
 
     let tool: string;
     let input: Record<string, unknown>;
     switch (args.action) {
       case 'click':
-        tool = 'click';
+        tool = !pixel && args.count === 2 ? 'double_click' : 'click';
         input = pixel
           ? {
               pid: binding.pid,
@@ -229,9 +345,38 @@ export class ComputerInput {
               y: args.y,
             }
           : base;
-        if (args.button !== undefined) input.button = args.button;
-        if (args.count !== undefined) input.count = args.count;
+        if (tool === 'click') {
+          if (args.button !== undefined) input.button = args.button;
+          if (args.count !== undefined) input.count = args.count;
+        }
         break;
+      case 'menu': {
+        const path = args.menu_path;
+        if (
+          !this.ctx.macBrowserAccess() ||
+          !Array.isArray(path) ||
+          path.length < 1 ||
+          path.length > 16 ||
+          path.some(
+            (part) =>
+              typeof part !== 'string' ||
+              !part.trim() ||
+              part.length > 200 ||
+              /password|keychain|credential|\b(?:api|access)\s*key|\btoken\b|\bsign.?in\b|\blog.?in\b|authenticat|passkey|verification|private window|incognito|developer tools|web inspector|terminal|console|\bscript\b/i.test(
+                part,
+              ),
+          )
+        )
+          return refused('Choose an ordinary exact native menu path for this app window.');
+        tool = 'invoke_menu';
+        input = {
+          pid: binding.pid,
+          window_id: binding.windowId,
+          session: this.ctx.computer.session(request),
+          path,
+        };
+        break;
+      }
       case 'drag':
         if (!pixel) return refused('Drag requires screenshot coordinates.');
         tool = 'drag';
@@ -259,7 +404,14 @@ export class ComputerInput {
         const text = typeof args.text === 'string' ? args.text : undefined;
         if (text === undefined) return refused('computer_action set requires text.');
         tool = 'set_value';
-        input = { ...base, value: text };
+        // set_value is an exact AX operation and has no delivery_mode argument.
+        input = compact({
+          pid: base.pid,
+          window_id: base.window_id,
+          session: base.session,
+          element_token: base.element_token,
+          value: text,
+        });
         break;
       }
       case 'scroll':
@@ -293,7 +445,31 @@ export class ComputerInput {
         .filter((window) => window.appId === binding.appId)
         .map((window) => window.windowId),
     );
-    const raw = await this.ctx.callCua(request, tool, input);
+    let raw: unknown;
+    try {
+      raw = await this.ctx.callCua(request, tool, input);
+    } catch (error) {
+      const message = safeErrorMessage(error);
+      // These explicit driver validation/authorization refusals prove no input was posted.
+      // A generic timeout or broken transport does not: the app may already have committed.
+      if (inputWasRefused(error)) return classifyFailure(error);
+      this.ctx.computer.snapshots.delete(snapshotId);
+      this.ctx.computer.latestSnapshot.delete(binding.id);
+      return {
+        outcome: 'accepted_unverified',
+        summary:
+          'The input may have been delivered, but its acknowledgement could not be verified. Observe the exact window and inspect the intended result before continuing; do not replay the action.',
+        reason: message,
+        data: {
+          app_id: binding.appId,
+          window_id: binding.id,
+          input_delivery_uncertain: true,
+          previous_snapshot_id: snapshotId,
+          next_step:
+            'Capture fresh state and reconcile the saved item, receipt, or other semantic result. The previous input target has been revoked. An absent immediate acknowledgement does not prove the write failed.',
+        },
+      };
+    }
     const focusedFallback = base.delivery_mode === 'foreground';
     const native = actionResult(
       raw,
@@ -302,6 +478,27 @@ export class ComputerInput {
         : `Delivered ${String(args.action)} in the background.`,
       { allowForeground: focusedFallback },
     );
+    const nativeData = asRecord(native.data);
+    if (
+      native.outcome === 'needs_foreground' &&
+      (nativeData?.delivery_mode === 'foreground' ||
+        nativeData?.background_interrupted === true)
+    ) {
+      this.ctx.computer.snapshots.delete(snapshotId);
+      this.ctx.computer.latestSnapshot.delete(binding.id);
+      return {
+        ...native,
+        data: {
+          ...nativeData,
+          app_id: binding.appId,
+          window_id: binding.id,
+          driver_operation: tool,
+          requested_delivery: base.delivery_mode,
+          input_delivery_uncertain: true,
+          previous_snapshot_id: snapshotId,
+        },
+      };
+    }
     if (
       native.outcome === 'refused' ||
       native.outcome === 'stale' ||
@@ -322,22 +519,13 @@ export class ComputerInput {
       return native;
     }
     let after: ActionExecutionResult;
+    let openedWindows: Record<string, unknown>[] = [];
     try {
       // Notch waits before observing the result. A successful post is not proof
       // that the application has processed the input yet. Never replay input here.
       if (this.ctx.macBrowserAccess()) {
         await delay(350, undefined, { signal: request.context.signal });
-        const newWindows = await this.newWindows(binding, knownWindows, request);
-        if (newWindows.length)
-          return {
-            outcome: 'accepted_unverified',
-            summary: `${native.summary} New windows appeared. Inspect a new_window before continuing; the previous snapshot belongs to the original window. Do not repeat the action that opened it.`,
-            data: {
-              observation_pending: true,
-              new_windows: newWindows,
-              previous_window_id: binding.id,
-            },
-          };
+        openedWindows = await this.newWindows(binding, knownWindows, request);
       }
       after = this.ctx.macBrowserAccess()
         ? await this.observation.captureSettledWindow(binding, request)
@@ -350,8 +538,26 @@ export class ComputerInput {
         summary: 'The post-action observation was interrupted or unavailable.',
       };
     }
+    // WindowServer lists native Save/Open panels separately, while their usable
+    // AXSheet controls belong to the original AXWindow. Inspect that exact parent
+    // before sending the model to an auxiliary window the driver cannot resolve.
+    // This never changes a driver's refusal or reuses a pre-action capability.
+    const attachedSheet =
+      after.outcome === 'verified' &&
+      findElementRecords(after.data, 'window').some((row) => row.role === 'AXSheet');
+    if (openedWindows.length && !attachedSheet)
+      return {
+        outcome: 'accepted_unverified',
+        summary: `${native.summary} New windows appeared. Inspect a new_window before continuing; the previous snapshot belongs to the original window. Do not repeat the action that opened it.`,
+        data: {
+          observation_pending: true,
+          new_windows: openedWindows,
+          previous_window_id: binding.id,
+        },
+      };
     if (after.outcome !== 'verified') {
       if (!this.ctx.macBrowserAccess()) return after;
+      const protectedDestination = asRecord(after.data)?.blocker_code === 'protected_window';
       return {
         outcome: 'accepted_unverified',
         summary: `${native.summary} The resulting page could not yet be observed. Do not repeat the action. Capture fresh state to check its result.`,
@@ -359,6 +565,16 @@ export class ComputerInput {
           observation_pending: true,
           observation_outcome: after.outcome,
           observation_detail: after.summary,
+          ...(protectedDestination
+            ? {
+                // This is the observation's refusal, not evidence that input was unsent.
+                observation_blocker_code: 'protected_window',
+                next_step:
+                  verifiedBrowserBundleId?.toLowerCase() === 'com.apple.safari'
+                    ? 'Do not replay the input or interact with the protected page. A separate computer_snapshot with tabs_only:true can inspect only native tab selection controls. Use its explicitly granted native new-tab shortcut when available, or select an ordinary existing tab. Capture fresh normal state before any typing. A refused tabs-only read remains a refusal.'
+                    : 'Do not replay the input or interact with the protected window. Use another independently authorized source when available; otherwise report this exact observation gap.',
+              }
+            : {}),
         },
       };
     }
@@ -372,9 +588,13 @@ export class ComputerInput {
       ...(after.images ? { images: after.images } : {}),
       data: {
         ...(asRecord(after.data) ?? {}),
+        ...(openedWindows.length
+          ? { new_windows: openedWindows, previous_window_id: binding.id }
+          : {}),
         delivery: native.data,
-        next_step:
-          'Inspect this fresh state to verify the requested result. Do not repeat a write to test delivery.',
+        next_step: attachedSheet
+          ? 'The attached sheet is exposed in this fresh parent-window snapshot. Use only its current element refs and available driver routes; auxiliary panel windows may be observation-only. Do not reuse old refs or repeat the action that opened the sheet.'
+          : 'Inspect this fresh state to verify the requested result. Do not repeat a write to test delivery.',
         recovery_observation_limit: 2,
       },
       verification: compact({

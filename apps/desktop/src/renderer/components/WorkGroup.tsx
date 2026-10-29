@@ -1,4 +1,4 @@
-import { CaretDown, CheckCircle, WarningCircle } from '@phosphor-icons/react';
+import { CaretDown, CheckCircle, ListChecks, WarningCircle } from '@phosphor-icons/react';
 import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import type { ActivityEvent } from '../types';
 import activityRow from './ActivityRow.module.css';
@@ -7,7 +7,7 @@ import styles from './WorkGroup.module.css';
 
 interface WorkGroupProps {
   events: readonly ActivityEvent[];
-  /** Steps of the turn that is still running stay open so progress is visible. */
+  /** A group containing work that is still running. Earlier steps fold as it progresses. */
   live: boolean;
   startedAt?: string | undefined;
   endedAt?: string | undefined;
@@ -34,7 +34,8 @@ export function WorkGroup({
     setPreviousLive(live);
     setSettling(previousLive && !live);
   }
-  if (live || events.length < 2) {
+  const current = events.findLastIndex((event) => ['running', 'queued'].includes(event.status));
+  if (live && events.length < 2) {
     return <div className={styles.workGroupSteps}>{events.map(renderStep)}</div>;
   }
   const problems = events.filter((event) => event.status === 'error').length;
@@ -56,12 +57,14 @@ export function WorkGroup({
       >
         {problems ? (
           <WarningCircle size={16} className={styles.workGroupProblemIcon} aria-hidden="true" />
+        ) : live ? (
+          <ListChecks size={16} aria-hidden="true" />
         ) : (
           <CheckCircle size={16} className={styles.workGroupDoneIcon} aria-hidden="true" />
         )}
         <span>
-          {duration ? `Worked for ${duration}` : 'Worked on this'}
-          {` · ${events.length} steps`}
+          {live ? 'Activity' : duration ? `Worked for ${duration}` : 'Worked on this'}
+          {` · ${events.length} ${events.length === 1 ? 'step' : 'steps'}`}
         </span>
         {problems ? (
           <span className={styles.workGroupProblem}>
@@ -75,6 +78,9 @@ export function WorkGroup({
         />
       </button>
       {open ? <div className={styles.workGroupSteps}>{events.map(renderStep)}</div> : null}
+      {live && !open && current >= 0 ? (
+        <div className={styles.workGroupSteps}>{renderStep(events[current]!, current)}</div>
+      ) : null}
     </div>
   );
 }
@@ -130,7 +136,14 @@ export function WorkingStatus({
     return () => window.clearInterval(interval);
   }, []);
   // The running step already shows as its own row above, so this line stays short.
-  const label = !step && !writing && thinking ? thinking : workingLabel(Boolean(step), writing);
+  const label =
+    step?.toolName === 'runtime.connection'
+      ? 'Reconnecting to your AI'
+      : step?.toolName === 'runtime.start'
+        ? step.title
+        : !step && !writing && thinking
+          ? thinking
+          : workingLabel(Boolean(step), writing);
   const duration = since ? elapsed(since, new Date(now).toISOString()) : '';
   // A running step has its own spinner in its row, and a reply being written has its caret, so
   // the presence only breathes then instead of sending rings beside them.

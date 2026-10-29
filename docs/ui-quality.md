@@ -29,6 +29,13 @@ keyboard-focus treatment and native button semantics. Choosing a suggestion fill
 editable draft; sending is explicit. An applied suggestion is consumed so returning to a conversation
 cannot replace its edited draft. Welcome headline gradients drift slowly and pause when
 hidden. Calm and Reduce Motion keep these surfaces still, and forced colors restores solid text.
+
+Conversation names are 3–4-word AI summaries of the first message, generated separately with the
+chat's pinned model and account. Naming has no tools, memory, or conversation history and never
+delays the task. Existing automatic request-text names are updated in the background; manual
+names, named schedules, and forks are preserved. A temporary model failure keeps the immediate
+request preview and retries when the conversation is next opened. Naming does not change recency.
+
 The desktop composer's send and Stop buttons ignore repeat clicks while a send or stop is in
 flight. Text typed during a send stays as the next draft, a failed send keeps the draft, and a
 failed stop shows an error and permits retry.
@@ -61,8 +68,9 @@ same bundled PNG. Only one logo is on screen at a time: the phone welcome hero c
 header keeps an empty slot there.
 The bundled copy is the supplied artwork scaled to 768×512 to keep the app light, and the Home
 Screen name remains **Sia**.
-The desktop title bar centers the unboxed logo between the Mac window controls and sidebar toggle,
-with clear space around the mark. Phone and welcome-screen icon treatments remain independent.
+The desktop title bar centers the logo on a single dark rounded surface between the Mac window
+controls and sidebar toggle, with clear space around the mark in both themes. Phone and welcome-screen
+icon treatments remain independent.
 An existing iOS Home Screen shortcut may need to be removed and added again to refresh its cached icon.
 
 Settings → More → Appearance has three choices, all saved in the existing encrypted profile and
@@ -105,10 +113,11 @@ dismiss the preview. Work that finishes in the open conversation while Sia is on
 once; if Sia was hidden or minimized, it is read when the window shows again. The collapsed
 rail retains new conversation, search, agents, new agent, Activity, and Settings.
 
-Agent navigation uses flat groups and rotating disclosure chevrons on the neutral sidebar.
-The sidebar is 272px wide (252px in compact windows), with full-width conversation rows and no
-nested card borders or repeated conversation icons. Only the current conversation has a persistent
-selection fill. Agent actions appear on hover or keyboard focus; touch pointers keep them visible.
+Agent navigation uses rotating disclosure chevrons on the neutral sidebar, with conversations
+indented 24px beneath each agent. The sidebar is 272px wide (252px in compact windows), with no
+nested card borders or repeated conversation icons. Conversation highlights become slightly slimmer
+on hover without moving titles or shrinking click targets. Only the current conversation has a
+persistent selection fill. Agent actions appear on hover or keyboard focus; touch pointers keep them visible.
 Agent rows expand or collapse with a click, Enter, or Space; new-conversation and agent menus remain
 separate buttons. Expanding a group keeps the current conversation; its menu also offers Open agent.
 Collapsed conversations leave the focus order, search reveals matching groups,
@@ -233,6 +242,11 @@ effect (what appeared, what moved, what finished, what needs attention).
 - Live microphone state is a steady tint plus a radiating ring; the composer's wave follows the
   voice level while listening and shows a travelling pulse while transcribing. Reduced Motion keeps
   the ring as a static outline.
+- The native Fn transcript is a floating, click-through card with three readable lines and a quiet
+  mint outline. It shows live words when the speech service provides them, the pinned destination,
+  release/Escape hints, and a brief sent confirmation. Words update in place; only arrival/dismissal
+  animates. System appearance, Increase Contrast, Reduce Motion, and Reduce Transparency apply.
+  It never opens the main app or launcher, and keeps the existing multicolor screen border.
 - The startup curtain breathes after it settles and lifts away on ready within the 240 ms budget.
 - A working agent shows its own form, not a bare spinner: on the live status line it breathes over
   `--motion-breathe` and sends a ring every `--motion-ring`; while a step row or the reply caret
@@ -270,8 +284,13 @@ use whitespace and a hairline divider before adding another box.
 - One clear primary action per surface; no duplicate controls or provider-specific layout fork.
 - Use my Mac onboarding has one setup button that walks every required macOS permission; there
   is no separate opt-in for everyday apps.
-- Fn practice after setup reflects actual recorder states and is always skippable.
+- Fn voice has its own explicit setup action and never interrupts the required Mac-permission pass or lowers its progress count. Fn practice after setup reflects actual recorder states and is always skippable. An AI connection lost during permissions keeps the saved grants and offers reconnection before finishing.
 - Conversation remains dominant. Tool activity is compact and progressively disclosed.
+  A live activity group shows its current step with earlier steps folded into an expandable count.
+  Finished groups, including single-step groups, start folded. Full commands and output are shown only
+  inside an expanded step. Preparation names the actual phase, including waiting for another Mac task;
+  automatic connection retries say Reconnecting. Completed commentary no longer keeps a writing caret
+  or a Writing the reply status alive. A compact plan count remains visible on the live status line.
 - Settings use one horizontal section rail that wraps when space is tight, keeping every category
   visible. The content pane scrolls independently; avoid a second sidebar inside the application shell.
   Settings rows adapt to the pane width, including zoom, and long descriptions retain vertical padding.
@@ -340,3 +359,5 @@ Star Border remains an optional reference, not an additional screen-border effec
 the learn-by-doing pattern: skip existing grants, press/speak/release to practice, permit skipping,
 and resume interrupted setup. Its documented flow is the reference for the sequence; Sia's key-fill
 visual is a local design, not copied proprietary artwork.
+
+Phone reply indicators track actual text streaming, so completed commentary does not look unfinished while later work runs. A failed relay file save stays beside the result with a retry action; repeated taps while saving start only one download. The conversation and paired session stay intact.

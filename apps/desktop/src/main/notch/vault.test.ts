@@ -54,6 +54,54 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
+it('blocks new access-bearing links in vault notes', () => {
+  const { vault, view } = fixture();
+  vault.initialize(view);
+  const url = 'https://meeting.example/j/123?pwd=fixture-private';
+  expect(() => vault.write('meeting.md', url, '')).toThrow('Credentials');
+});
+
+it.each([0, 60_000])(
+  'withholds an access-bearing legacy note before slicing at %i',
+  (offset) => {
+    const { vault, view } = fixture();
+    vault.initialize(view);
+    const url = 'https://meeting.example/j/123?pwd=fixture-private';
+    writeFileSync(join(vault.root, 'legacy.md'), 'Ordinary history.\n'.repeat(4000) + url);
+    expect(() => vault.readSlice('legacy.md', offset)).toThrow('Credentials');
+  },
+);
+
+it('omits an access-bearing legacy note from the vault listing', () => {
+  const { vault, view } = fixture();
+  vault.initialize(view);
+  writeFileSync(
+    join(vault.root, 'legacy.md'),
+    'https://meeting.example/j/123?pwd=fixture-private',
+  );
+  expect(vault.list().some((note) => note.name === 'legacy.md')).toBe(false);
+});
+
+it.runIf(process.platform === 'darwin')(
+  'withholds a prepared native prompt containing an access-bearing legacy core note',
+  async () => {
+    const { vault, view } = fixture();
+    vault.initialize(view);
+    writeFileSync(
+      join(vault.root, 'MOC.md'),
+      'Legacy source: https://meeting.example/j/123?pwd=fixture-private',
+    );
+    const result = await vault.engine(helper, {
+      operation: 'prepare',
+      request: 'Find my saved meeting source',
+      learning: false,
+      nativeLearning: false,
+    });
+    expect(result.prompt).toBeUndefined();
+    expect(JSON.stringify(result)).not.toContain('fixture-private');
+  },
+);
+
 it('migrates only this agent’s history and legacy scripts once, and keeps preference deletion authoritative', () => {
   const { workspace, agentId, vault, view } = fixture();
   mkdirSync(join(workspace, '.sia-mac', 'skills'), { recursive: true });
@@ -103,6 +151,27 @@ it('refuses traversal, links, stale revisions and accidental skill execution', (
   expect(() => vault.write('blocked.md', 'sk_' + 'x'.repeat(30), '')).toThrow('Credentials');
 });
 
+it('never serves cached notes after edits, replacement, deletion or a symlink change', () => {
+  const { workspace, vault, view } = fixture();
+  vault.initialize(view);
+  vault.write('cache-note.md', 'Old note', '');
+  const first = vault.read('cache-note.md');
+  first.text = 'A caller cannot mutate the cached note';
+  expect(vault.read('cache-note.md').text).toBe('Old note');
+  writeFileSync(join(vault.root, 'cache-note.md'), 'New note');
+  const updated = vault.read('cache-note.md');
+  expect(updated.text).toBe('New note');
+  expect(updated.revision).not.toBe(first.revision);
+  vault.remove('cache-note.md', updated.revision);
+  expect(vault.read('cache-note.md').text).toBe('');
+  vault.write('cache-note.md', 'Replacement note', '');
+  expect(vault.read('cache-note.md').text).toBe('Replacement note');
+  vault.remove('cache-note.md', vault.read('cache-note.md').revision);
+  writeFileSync(join(workspace, 'outside-cache.md'), 'Must not be read');
+  symlinkSync(join(workspace, 'outside-cache.md'), join(vault.root, 'cache-note.md'));
+  expect(() => vault.read('cache-note.md')).toThrow();
+});
+
 it.runIf(process.platform === 'darwin')(
   'injects bounded task-relevant memory on both routes while excluding unsafe and sensitive notes',
   async () => {
@@ -148,6 +217,42 @@ it.runIf(process.platform === 'darwin')(
       expect(result.prompt).not.toContain('Must not follow');
       expect(result.prompt).toContain('Automatic journaling is paused');
     }
+  },
+  20_000,
+);
+
+it.runIf(process.platform === 'darwin')(
+  'searches note bodies and late passages with ranked preferences on both routes, without stale content',
+  async () => {
+    const { vault, view } = fixture();
+    vault.initialize(view);
+    const text =
+      'Unrelated historical notes.\n'.repeat(600) +
+      '\nCMU Canvas: Carnegie Mellon campus account, current professors and courses.\n' +
+      'Other history.\n'.repeat(300);
+    vault.write('misc.md', text, '');
+    for (const background of [false, true]) {
+      const prepared = await vault.engine(helper, {
+        operation: 'prepare',
+        request: 'Find my CMU professors on Canvas',
+        background,
+        learning: false,
+        preferencesText: 'SELECTED_PREFERENCE',
+      });
+      expect(prepared.prompt).toContain('CMU Canvas: Carnegie Mellon campus account');
+      expect(prepared.prompt).toContain('misc.md (partial excerpt)');
+      expect(prepared.prompt).toContain('SELECTED_PREFERENCE');
+      expect(prepared.prompt).not.toContain('JUNIPER');
+    }
+    writeFileSync(join(vault.root, 'misc.md'), 'CMU Canvas password: synthetic-private-value');
+    const changed = await vault.engine(helper, {
+      operation: 'prepare',
+      request: 'CMU Canvas professors',
+      background: true,
+      learning: false,
+    });
+    expect(changed.prompt).not.toContain('synthetic-private-value');
+    expect(changed.prompt).not.toContain('CMU Canvas: Carnegie Mellon campus account');
   },
   20_000,
 );

@@ -6,7 +6,18 @@ import { discoverCodexInstallation } from './codex-installation.js';
 
 it('prefers the newest admitted installation and excludes future, broken and missing binaries', async () => {
   const root = await mkdtemp(join(tmpdir(), 'sia-codex-discovery-'));
-  const names = ['codex', 'bundled', 'future', 'broken', 'desktop', 'managed', 'modern'];
+  const names = [
+    'codex',
+    'bundled',
+    'future',
+    'broken',
+    'desktop',
+    'managed',
+    'modern',
+    'sol61',
+    'currentDesktop',
+    'latestDesktop',
+  ];
   try {
     for (const name of names) {
       await writeFile(join(root, name), '');
@@ -19,6 +30,9 @@ it('prefers the newest admitted installation and excludes future, broken and mis
       bundled: '0.155.0-alpha.9',
       future: '0.161.0',
       modern: '0.160.0',
+      sol61: '0.162.0-alpha.2',
+      currentDesktop: '0.163.0-alpha.11.2',
+      latestDesktop: '0.164.0-alpha.11.1',
     };
     const options = {
       environment: { PATH: root },
@@ -32,6 +46,12 @@ it('prefers the newest admitted installation and excludes future, broken and mis
         return `codex-cli ${versions[name]}`;
       },
     };
+    expect(await discoverCodexInstallation(options)).toBe(join(root, 'latestDesktop'));
+    await rm(join(root, 'latestDesktop'));
+    expect(await discoverCodexInstallation(options)).toBe(join(root, 'currentDesktop'));
+    await rm(join(root, 'currentDesktop'));
+    expect(await discoverCodexInstallation(options)).toBe(join(root, 'sol61'));
+    await rm(join(root, 'sol61'));
     expect(await discoverCodexInstallation(options)).toBe(join(root, 'modern'));
     await rm(join(root, 'modern'));
     expect(await discoverCodexInstallation(options)).toBe(join(root, 'desktop'));
@@ -70,7 +90,7 @@ it.runIf(process.platform === 'darwin')(
         await chmod(path, 0o700);
       }
       const version = async (command: string) => {
-        if (command === modern) return 'codex-cli 0.160.0';
+        if (command === modern) return 'codex-cli 0.162.0-alpha.2';
         if (command === legacy) return 'codex-cli 0.153.0';
         // Ignore real machine installations; this assertion is deterministic.
         throw new Error('Outside disposable fixture');

@@ -3,6 +3,10 @@
   border-top: 1px solid var(--border-subtle);
 }
 
+.setupGuide {
+  margin-bottom: 20px;
+}
+
 .voiceSetup {
   display: grid;
   grid-template-columns: 36px minmax(0, 1fr);
@@ -38,6 +42,14 @@
 .voiceSetupBody .voicePrivacyNote {
   margin-top: 9px;
   color: var(--text-tertiary);
+}
+
+.voiceSetupBody > button {
+  margin-top: 14px;
+}
+
+.voiceSetupBody > button + .voicePrivacyNote {
+  margin-top: 14px;
 }
 
 .voicePrivacyNote a {

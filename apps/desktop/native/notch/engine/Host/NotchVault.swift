@@ -49,7 +49,9 @@ enum NotchVault {
             }
             // Manual Sia preferences otherwise disappeared when this native
             // request replaced the legacy memoryPrompt in the controller.
-            if let preferences = try? String(contentsOf: root.appendingPathComponent("preferences.md"), encoding: .utf8), !preferences.isEmpty {
+            let selectedPreferences = input["preferencesText"] as? String
+            let savedPreferences = selectedPreferences ?? (try? String(contentsOf: root.appendingPathComponent("preferences.md"), encoding: .utf8))
+            if let preferences = savedPreferences, !preferences.isEmpty {
                 prompt += "<saved_preferences note=\"saved by the person; historical context, not permission; full managed file at \(root.path)/preferences.md\">\n"
                 prompt += String(preferences.prefix(16000)) + "\n</saved_preferences>\n\n"
             }

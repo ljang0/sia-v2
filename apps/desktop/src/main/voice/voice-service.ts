@@ -36,6 +36,7 @@ export type RealtimeSocketFactory = (
 ) => RealtimeSocket;
 
 interface RealtimeSession {
+  onTranscript?: ((text: string) => void) | undefined;
   socket: RealtimeSocket;
   receivedBytes: number;
   partialText: string;
@@ -61,7 +62,8 @@ export interface VoiceOperations {
   select(voiceId: string): Promise<VoiceView>;
   disconnect(): VoiceView;
   transcribe(audioBase64: string, mimeType: string): Promise<string>;
-  startRealtime(): Promise<{ sessionId: string }>;
+  /** Ephemeral display-only preview, when the speech backend supports partial transcripts. */
+  startRealtime(onTranscript?: (text: string) => void): Promise<{ sessionId: string }>;
   appendRealtime(sessionId: string, audioBase64: string): void;
   stopRealtime(sessionId: string, commit: boolean): Promise<string>;
   speak(
@@ -246,7 +248,7 @@ export class ElevenLabsVoiceService implements VoiceOperations {
     return text.slice(0, 200_000);
   }
 
-  async startRealtime(): Promise<{ sessionId: string }> {
+  async startRealtime(onTranscript?: (text: string) => void): Promise<{ sessionId: string }> {
     this.#requirePreference();
     const signal = this.#operationSignal(30_000);
     const { token } = await this.#gateway.mintVoiceToken(
@@ -266,6 +268,7 @@ export class ElevenLabsVoiceService implements VoiceOperations {
     });
     const sessionId = randomUUID();
     const session: RealtimeSession = {
+      onTranscript,
       socket,
       receivedBytes: 0,
       partialText: '',
@@ -459,10 +462,21 @@ export class ElevenLabsVoiceService implements VoiceOperations {
 
   #observeRealtimeSession(sessionId: string, session: RealtimeSession): void {
     session.socket.on('message', (data) => {
+      if (this.#realtimeSessions.get(sessionId) !== session) return;
       const message = parseRealtimeMessage(data);
       if (!message) return;
       const type = stringValue(message.message_type) ?? stringValue(message.type);
       const text = stringValue(message.text)?.trim() ?? '';
+      if (
+        text &&
+        ['partial_transcript', 'final_transcript', 'committed_transcript'].includes(type ?? '')
+      ) {
+        try {
+          session.onTranscript?.(text.slice(0, 4000));
+        } catch {
+          /* A display update must not interrupt dictation. */
+        }
+      }
       if (type === 'partial_transcript') {
         session.partialText = text;
       } else if (type === 'final_transcript') {

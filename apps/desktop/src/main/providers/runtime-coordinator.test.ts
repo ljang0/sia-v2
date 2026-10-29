@@ -26,6 +26,8 @@ describe('Use my Mac native execution', () => {
       threadId: options.threadId,
     }));
     const sent = vi.fn();
+    const onPhase = vi.fn();
+    const onTiming = vi.fn();
     const macContext = vi.fn(async () => 'Fresh screen context');
     const adapter: ProviderAdapter = {
       id: 'meta',
@@ -63,6 +65,8 @@ describe('Use my Mac native execution', () => {
     );
     const stream = runtime
       .runTurn({
+        onPhase,
+        onTiming,
         thread: {
           id: 'ready',
           provider: 'meta',
@@ -89,10 +93,13 @@ describe('Use my Mac native execution', () => {
       await vi.waitFor(() => expect(created).toHaveBeenCalledTimes(1));
       expect(sent).not.toHaveBeenCalled();
       expect(macContext).not.toHaveBeenCalled();
+      await vi.waitFor(() => expect(onPhase).toHaveBeenLastCalledWith('waiting_for_computer'));
       busy.release();
       expect((await first).value?.type).toBe('completion');
       expect(sent).toHaveBeenCalledWith(expect.stringContaining('Fresh screen context'));
       expect(lease.holds({ kind: 'global_focus', id: 'foreground' })).toBe(true);
+      expect(onPhase).toHaveBeenLastCalledWith('working');
+      expect(onTiming).toHaveBeenCalledWith('computer_wait', expect.any(Number));
       await stream.next();
     } finally {
       busy.release();
@@ -350,6 +357,14 @@ describe('Use my Mac native execution', () => {
         expect.objectContaining({ success: true }),
       );
       expect(JSON.stringify(scheduledEvents)).not.toContain('success');
+      onMacResult.mockImplementation((result) => ({
+        ...result,
+        success: false,
+        response: 'The syllabus still needs checking.',
+      }));
+      const guarded = await run(true);
+      expect(JSON.stringify(guarded)).toContain('The syllabus still needs checking.');
+      expect(JSON.stringify(guarded)).not.toContain('The document is ready.');
     } finally {
       await runtime.dispose();
     }

@@ -8,6 +8,7 @@ import { workspaceFileAction } from './background-files.js';
 import { isConnectionReconnectRequired } from '../cloud/cloud-client.js';
 import { macExecutionTools } from './mac-execution.js';
 import { MacWindowHistory } from './mac-window-history.js';
+import { MacBrowserControl } from './mac-browser-control.js';
 import { classifyFailure, refused } from './action-results.js';
 import { trustedApprovalTarget } from './approval-target.js';
 import { BrowserActions } from './browser-actions.js';
@@ -15,12 +16,14 @@ import { sweepStaleBrowserVaults } from './browser-uploads.js';
 import { ComputerInput } from './computer-input.js';
 import { ComputerInventory } from './computer-inventory.js';
 import { ComputerObservation } from './computer-observation.js';
+import { BackgroundReadRecovery } from './background-read-recovery.js';
 import { ConnectorActions } from './connector-actions.js';
 import { ActionBackendContext } from './context.js';
 import { asRecord } from './driver-records.js';
 import { MessagesActions } from './messages-actions.js';
 import { ScheduleActions } from './schedule-actions.js';
 import type { DesktopActionBackendOptions } from './types.js';
+import { WindowOperations } from './window-operations.js';
 
 /**
  * Translates Sia's small canonical tool surface into CUA and cloud calls.
@@ -36,11 +39,14 @@ export class DesktopActionBackend implements ActionBackend {
   readonly #observation: ComputerObservation;
   readonly #input: ComputerInput;
   readonly #browser: BrowserActions;
+  readonly #macBrowser: MacBrowserControl;
   readonly #connectors: ConnectorActions;
   readonly #messages: MessagesActions;
   readonly #schedules: ScheduleActions;
   readonly #recoveryFailures = new Map<string, number>();
   readonly #macWindows = new MacWindowHistory();
+  readonly #backgroundReadRecovery = new BackgroundReadRecovery();
+  readonly #windowOperations = new WindowOperations();
 
   constructor(options: DesktopActionBackendOptions) {
     this.#ctx = new ActionBackendContext(options);
@@ -48,6 +54,7 @@ export class DesktopActionBackend implements ActionBackend {
     this.#observation = new ComputerObservation(this.#ctx, this.#inventory);
     this.#input = new ComputerInput(this.#ctx, this.#inventory, this.#observation);
     this.#browser = new BrowserActions(this.#ctx, this.#inventory);
+    this.#macBrowser = new MacBrowserControl(this.#ctx, this.#inventory);
     this.#connectors = new ConnectorActions(this.#ctx);
     this.#messages = new MessagesActions(options.messages, options.openFullDiskAccessSettings);
     this.#schedules = new ScheduleActions(options.schedules);
@@ -106,8 +113,32 @@ export class DesktopActionBackend implements ActionBackend {
   }
 
   async invoke(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
+    const windowId = request.arguments.window_id;
+    if (
+      typeof windowId === 'string' &&
+      ['computer_snapshot', 'computer_action', 'computer_open_url'].includes(request.name)
+    ) {
+      const window = this.#ctx.computer.windows.get(windowId);
+      const key = window ? `${window.pid}:${window.windowId}` : windowId;
+      try {
+        return await this.#windowOperations.run(key, request.context.signal, () =>
+          this.#invokeOrdered(request),
+        );
+      } catch (error) {
+        if (request.context.signal?.aborted)
+          return refused('Action cancelled before execution.');
+        throw error;
+      }
+    }
+    return this.#invokeOrdered(request);
+  }
+
+  async #invokeOrdered(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
     // A late cancelled caller must not revoke a newer turn's active window refs.
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
+    const prepared = this.#backgroundReadRecovery.prepare(request);
+    if ('result' in prepared) return prepared.result;
+    request = prepared.request;
     if (
       [
         'computer_list',
@@ -126,7 +157,12 @@ export class DesktopActionBackend implements ActionBackend {
         'Two attempts at this control failed. Stop repeating it. Observe fresh state and use another permitted target or distinct input route when available; otherwise explain this exact blocker. Never bypass protected surfaces or replay an uncertain write.',
       );
     }
-    const rawResult = await this.#invoke(request);
+    const before = this.#ctx.computer.snapshots.get(String(request.arguments.snapshot_id));
+    const rawResult = this.#backgroundReadRecovery.observe(
+      request,
+      before,
+      await this.#invoke(request),
+    );
     const result = this.#ctx.macBrowserAccess()
       ? this.#macWindows.observe(request, rawResult)
       : rawResult;
@@ -140,7 +176,9 @@ export class DesktopActionBackend implements ActionBackend {
           data: {
             ...(asRecord(result.data) ?? {}),
             recovery:
-              'Observe the target again before a retry. Stop after two failed attempts; never replay a write with uncertain delivery.',
+              asRecord(result.data)?.computer_read_only_recovery === true
+                ? 'Only two fresh reads of the original window are permitted. All further computer input is blocked for this turn. Finish from verified evidence or ask the person to continue.'
+                : 'Observe the target again before a retry. Stop after two failed attempts; never replay a write with uncertain delivery.',
           },
         };
       }
@@ -180,6 +218,7 @@ export class DesktopActionBackend implements ActionBackend {
         case 'computer_write_file':
           return await workspaceFileAction(request);
         case 'assistant_library':
+        case 'task_checkpoint':
         case 'memory_learn':
         case 'memory_suggest':
         case 'memory_vault':
@@ -199,11 +238,37 @@ export class DesktopActionBackend implements ActionBackend {
         case 'computer_open_app':
           return await this.#inventory.openApp(request);
         case 'computer_open_url':
+          if (
+            this.#ctx.macBrowserAccess() &&
+            this.#ctx.macBackgroundControl() &&
+            request.arguments.delivery !== 'foreground' &&
+            (request.context.backgroundOnly === true ||
+              [...this.#ctx.computer.windows.values()].some((window) =>
+                this.#macBrowser.supports(window),
+              ))
+          )
+            return await this.#macBrowser.openUrl(request);
           return await this.#inventory.openUrl(request);
-        case 'computer_snapshot':
+        case 'computer_snapshot': {
+          if (request.arguments.tabs_only === true)
+            return await this.#observation.snapshot(request);
+          const window = this.#ctx.computer.resolveWindow(
+            String(request.arguments.app_id),
+            String(request.arguments.window_id),
+          );
+          if (this.#macBrowser.supports(window))
+            return await this.#macBrowser.snapshot(window, request);
           return await this.#observation.snapshot(request);
-        case 'computer_action':
+        }
+        case 'computer_action': {
+          const window = this.#ctx.computer.resolveWindow(
+            String(request.arguments.app_id),
+            String(request.arguments.window_id),
+          );
+          if (this.#macBrowser.supports(window))
+            return await this.#macBrowser.act(window, request);
           return await this.#input.act(request);
+        }
         case 'browser_tabs':
           await this.#browser.attachOnDemand();
           return await this.#browser.tabs(request);

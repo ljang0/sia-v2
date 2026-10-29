@@ -206,7 +206,7 @@ describe('DesktopController', () => {
       text: 'Keep this thought across a restart.',
     });
     // Typing pauses save drafts often: no snapshot comes back and no push goes out.
-    expect(drafted).toEqual({ saved: true });
+    expect(drafted).toEqual({ accepted: true });
     expect(pushes).toBe(0);
     expect(controller.snapshot().threads.find(({ id }) => id === threadId)?.draft).toBe(
       'Keep this thought across a restart.',

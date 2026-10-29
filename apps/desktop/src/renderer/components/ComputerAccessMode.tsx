@@ -51,9 +51,7 @@ export function ComputerAccessMode({
                 />
                 <span>
                   <strong>Work in background</strong>
-                  <span>
-                    Recommended. Keep using your Mac while Sia works behind your windows.
-                  </span>
+                  <span>Keep working in other apps. Some steps may need your screen.</span>
                 </span>
               </label>
               <label className={modeStyles.choice}>
@@ -98,7 +96,7 @@ export function ComputerAccessMode({
           ? computer.backgroundControl
             ? computer.backgroundFallback === 'foreground'
               ? 'Sia works in the background and can briefly bring an app forward to finish a step, such as typing. Saved Mac scripts need On my screen. Changes apply to your next task.'
-              : 'Sia works in the background so you can keep using your Mac. If a step needs the screen, such as typing with several browser windows open, Sia pauses and tells you. Saved Mac scripts need On my screen. Changes apply to your next task.'
+              : 'Sia uses apps and documents you already have open. It pauses if you are using the app it needs, focus changes, or a step needs your screen. Saved Mac scripts need On my screen. Changes apply to your next task.'
             : 'Sia can control your apps and files. With Act without asking on, Sia’s Mac commands have full access to your Mac. Changes apply to your next task.'
           : 'Connect your accounts in Connections. To let Sia use the apps on your Mac, choose Use my Mac.'}
       </p>

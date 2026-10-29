@@ -1,9 +1,16 @@
 // Kept free of imports so scripts/onboarding-check.mjs can load it with Node's type stripping.
-// Admission covers the Astra-capable app server as well as existing Sia installs.
+// Admission covers the Sol 6.1 / Astra 6 catalog as well as existing Sia installs.
 export const CODEX_SUPPORTED_VERSIONS = {
   minimum: '0.147.0',
   maximumExclusive: '0.154.0',
   // The installed desktop build is verified independently; do not admit the
   // entire next minor or other prereleases merely to expose a newer catalog.
-  additionalVersions: ['0.155.0-alpha.9', '0.155.0-alpha.9.2', '0.160.0'],
+  additionalVersions: [
+    '0.155.0-alpha.9',
+    '0.155.0-alpha.9.2',
+    '0.160.0',
+    '0.162.0-alpha.2',
+    '0.163.0-alpha.11.2',
+    '0.164.0-alpha.11.1',
+  ],
 } as const;

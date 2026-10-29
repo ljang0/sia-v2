@@ -14,6 +14,41 @@ function library() {
   return { service: new AssistantLibrary(repository), repository };
 }
 describe('personal assistant library', () => {
+  it('rejects private links in new preferences and withholds legacy journal and title context', () => {
+    const { service, repository } = library();
+    const agentId = randomUUID();
+    const url = 'https://meeting.example/j/123?pwd=fixture-private';
+    expect(() =>
+      service.change(
+        {
+          operation: 'saveMemory',
+          entry: { agentId, title: 'Meeting', text: url, enabled: true },
+        },
+        () => undefined,
+      ),
+    ).toThrow('Credentials');
+    repository.put('assistant', 'library', {
+      ...service.view(),
+      learningAgents: [agentId],
+      memories: [{ id: randomUUID(), agentId, title: url, text: 'Legacy note', enabled: true }],
+      journal: [
+        {
+          id: randomUUID(),
+          agentId,
+          threadId: randomUUID(),
+          turnId: randomUUID(),
+          timestamp: new Date().toISOString(),
+          kind: 'task',
+          title: 'Old source',
+          text: url,
+          outcome: 'complete',
+        },
+      ],
+    });
+    expect(service.memoryPrompt(agentId, 'mac')).not.toContain('fixture-private');
+    expect(service.memoryPrompt(agentId, 'mac-background')).not.toContain('fixture-private');
+    expect(service.view().memories).toHaveLength(1);
+  });
   it('scopes, pauses, edits and deletes saved memory across service restarts', () => {
     const { service, repository } = library();
     const agentId = randomUUID();

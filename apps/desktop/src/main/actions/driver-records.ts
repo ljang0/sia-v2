@@ -1,4 +1,5 @@
 import { isCuaCallResult } from '../mac/cua-service.js';
+import { redactObservationLinks } from './observation-text.js';
 
 // Cua Driver payloads are untrusted, loosely shaped JSON. These readers walk them with fixed
 // depth limits and return only the plain fields Sia needs; nothing here mints capabilities.
@@ -168,11 +169,11 @@ export function sanitizeElement(
     value:
       firstString(record, ['role', 'type']) === 'AXHeading'
         ? undefined
-        : (firstString(record, ['value', 'text']) ??
+        : (redactOptionalText(firstString(record, ['value', 'text'])) ??
           (typeof record.value === 'number' && Number.isFinite(record.value)
             ? String(record.value)
             : undefined)),
-    description: firstString(record, ['description']),
+    description: redactOptionalText(firstString(record, ['description'])),
     frame: sanitizeFrame(record.frame ?? record.bounds),
     disabled: firstBoolean(record, ['disabled']) ?? firstBoolean(states ?? {}, ['disabled']),
     selected: firstBoolean(record, ['selected']) ?? firstBoolean(states ?? {}, ['selected']),
@@ -205,31 +206,119 @@ export function isHiddenWindowStructure(record: Record<string, unknown>): boolea
 }
 
 export function isProtectedElement(record: Record<string, unknown>): boolean {
-  const identity = [
-    firstString(record, ['role', 'type', 'input_type', 'inputType']),
-    firstString(record, ['autocomplete']),
-  ]
-    .filter(isDefined)
+  const identity = ['role', 'type', 'subrole', 'input_type', 'inputType', 'autocomplete']
+    .map((key) => record[key])
+    .filter((value) => typeof value === 'string')
     .join(' ');
   return /(?:password|secure|credential|one-time-code|current-password|new-password)/i.test(
     identity,
   );
 }
 
-export function windowHasProtectedControls(value: unknown): boolean {
+/** Safari's native tab action; a webpage radio button cannot provide this selector. */
+export function isSafariTabControl(record: Record<string, unknown>): boolean {
+  return (
+    record.role === 'AXRadioButton' &&
+    typeof record.selected === 'boolean' &&
+    Array.isArray(record.actions) &&
+    record.actions.some(
+      (action: unknown) =>
+        typeof action === 'string' &&
+        /^Name:close tab\nTarget:0x[0-9a-f]+\nSelector:_closeButtonClicked:$/i.test(action),
+    )
+  );
+}
+
+/** Semantic browser outlines can omit the password input type and its label on the ref. */
+export function browserHasAuthenticationControls(value: unknown): boolean {
+  const controls = findElementRecords(value, 'browser');
+  if (controls.some(isProtectedElement)) return true;
+  const editable = controls.some((record) =>
+    /^(?:textbox|combobox|AXTextField|AXTextArea|AXComboBox)$/i.test(
+      firstString(record, ['role', 'type']) ?? '',
+    ),
+  );
+  if (!editable) return false;
+  const loginButton = controls.some(
+    (record) =>
+      /^(?:button|AXButton)$/i.test(firstString(record, ['role', 'type']) ?? '') &&
+      /^(?:log[ -]?in|sign[ -]?in|authenticate|verify(?: code)?|reset password)$/i.test(
+        trustedElementLabel(record) ?? '',
+      ),
+  );
+  const outline = findString(value, ['outline', 'text', 'page_text']) ?? '';
+  const credentialLabel =
+    /(?:textbox|labeltext|statictext) ["'](?:password|passcode|verification code|one-time code|AndrewID|username)["']/i.test(
+      outline,
+    );
+  return loginButton && credentialLabel;
+}
+
+function passwordLabelIsProtected(role: string, label: string): boolean {
+  if (!/password/i.test(label)) return false;
+  if (/^AX(?:TextField|TextArea|ComboBox|SearchField)$/.test(role)) return true;
+  const literal = label.replace(/\b(?:[a-z_]\w*\.)*[a-z_]\w*password\w*(?=\s*\()/gi, '');
+  return /password/i.test(literal);
+}
+
+/** A passive access notice is prose, never an authentication input or action. */
+export function isPassiveAuthenticationNotice(record: Record<string, unknown>): boolean {
+  const label =
+    [record.label, record.title].find(
+      (value): value is string => typeof value === 'string' && value.trim().length > 0,
+    ) ?? '';
+  return (
+    ['AXStaticText', 'AXText'].includes(String(record.role)) &&
+    /\b(?:log[ -]?in|sign[ -]?in|authentication) (?:is )?required\b/i.test(label) &&
+    !/^\s*(?:log[ -]?in|sign[ -]?in|authentication) (?:is )?required[.!]?\s*$/i.test(label) &&
+    Array.isArray(record.actions) &&
+    record.actions.every((action: unknown) =>
+      ['AXShowMenu', 'AXScrollToVisible'].includes(String(action)),
+    )
+  );
+}
+
+export function windowHasProtectedControls(
+  value: unknown,
+  options: {
+    browserBundleId?: string | undefined;
+    allowPassiveAuthenticationNotice?: boolean;
+  } = {},
+): boolean {
   return ['elements', 'nodes']
     .flatMap((key) => findRecordArray(value, key))
     .filter((record) => !isHiddenWindowStructure(record))
-    .some(
-      (record) =>
+    .some((record) => {
+      const label = [record.role, record.subrole, record.title, record.label]
+        .filter((item) => typeof item === 'string')
+        .join(' ');
+      // Public API links such as ZipFile.setpassword() are not password fields.
+      // Editable controls retain the conservative substring check; literal
+      // password labels/prose and secure roles remain protected everywhere.
+      const password = [record.title, record.label].some(
+        (text) =>
+          typeof text === 'string' && passwordLabelIsProtected(String(record.role), text),
+      );
+      // Safari exposes inactive tab titles as AXRadioButtons. A tab named
+      // login.example.edu is navigation chrome, not the current page's login
+      // form. Require Safari's native close-tab action and explicit unselected
+      // state; a web radio control or missing state must not gain this exception.
+      const inactiveSafariTab =
+        options.browserBundleId?.toLowerCase() === 'com.apple.safari' &&
+        record.selected === false &&
+        isSafariTabControl(record);
+      return (
         isProtectedElement(record) ||
+        password ||
+        /(?:secure|verification code|passkey|api.?key|access.?token)/i.test(label) ||
         // Match authentication words, not "signing"/"blogging" in public page labels.
-        /(?:secure|password|\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat|verification code|passkey|api.?key|access.?token)/i.test(
-          [record.role, record.subrole, record.title, record.label]
-            .filter((item) => typeof item === 'string')
-            .join(' '),
-        ),
-    );
+        (!inactiveSafariTab &&
+          !(
+            options.allowPassiveAuthenticationNotice && isPassiveAuthenticationNotice(record)
+          ) &&
+          /(?:\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat)/i.test(label))
+      );
+    });
 }
 
 export function positiveInteger(value: unknown, maximum: number): number | undefined {
@@ -256,11 +345,15 @@ export function computerAppIdentity(
 
 export function trustedDisplayText(value: string | undefined): string | undefined {
   if (!value) return undefined;
-  const normalized = value
+  const normalized = redactObservationLinks(value)
     .replace(/[\u0000-\u001f\u007f]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
   return normalized ? normalized.slice(0, 160) : undefined;
+}
+
+export function redactOptionalText(value: string | undefined): string | undefined {
+  return value === undefined ? undefined : redactObservationLinks(value);
 }
 
 export function trustedElementLabel(record: Record<string, unknown>): string | undefined {

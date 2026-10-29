@@ -58,6 +58,6 @@ export function textAttachmentPreview(
     '.yml': 'YAML',
   };
   if (languages[extension]) return { format: 'code', language: languages[extension] };
-  if (['.log', '.md', '.txt'].includes(extension)) return { format: 'text' };
+  if (['.ics', '.log', '.md', '.txt'].includes(extension)) return { format: 'text' };
   return undefined;
 }

@@ -52,7 +52,7 @@ export function trustedApprovalTarget(
       (ref
         ? !element
         : !(
-            ['type', 'key', 'scroll'].includes(action) ||
+            ['type', 'key', 'scroll', 'menu'].includes(action) ||
             (snapshot.pixels && ['click', 'drag'].includes(action))
           )) ||
       snapshot.appId !== appId ||
@@ -65,6 +65,8 @@ export function trustedApprovalTarget(
       return undefined;
     }
     const windowLabel = window.title ? `, window “${window.title}”` : '';
+    if (action === 'menu' && Array.isArray(argumentsValue.menu_path))
+      return `${app.name}${windowLabel}: native menu ${argumentsValue.menu_path.join(' → ')}`;
     return element && ref
       ? `${app.name}${windowLabel}: ${action} ${approvalElementLabel(element, ref)}`
       : `${app.name}${windowLabel}: ${action} ${typeof argumentsValue.x === 'number' ? `at screenshot pixel (${argumentsValue.x}, ${argumentsValue.y})${action === 'drag' ? ` to (${argumentsValue.to_x}, ${argumentsValue.to_y})` : ''}` : 'the currently focused control'}`;

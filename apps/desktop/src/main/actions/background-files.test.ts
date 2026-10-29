@@ -56,6 +56,39 @@ describe('background workspace files through the action gateway', () => {
     ).toBe('refused');
     expect(await readFile(join(root, 'report.md'), 'utf8')).toBe(text);
   });
+  it('saves and reads a calendar file without opening or importing it into an app', async () => {
+    const text = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//Sia//Study Plan//EN',
+      'BEGIN:VEVENT',
+      'UID:study-fixture@sia.local',
+      'DTSTAMP:20261024T180000Z',
+      'DTSTART;TZID=America/New_York:20261025T190000',
+      'DTEND;TZID=America/New_York:20261025T192500',
+      'SUMMARY:Study session',
+      'END:VEVENT',
+      'END:VCALENDAR',
+      '',
+    ].join('\r\n');
+    expect(
+      (await invoke('computer_write_file', { name: 'study-session.ics', text })).outcome,
+    ).toBe('verified');
+    expect(await readFile(join(root, 'study-session.ics'), 'utf8')).toBe(text);
+    expect(
+      (await invoke('computer_read_file', { name: 'study-session.ics' })).data,
+    ).toMatchObject({ text });
+    expect((await invoke('computer_list_files', {})).data).toMatchObject({
+      files: ['study-session.ics'],
+    });
+    expect(
+      (await invoke('computer_write_file', { name: 'study-session.ics', text })).outcome,
+    ).toBe('refused');
+    expect(
+      (await invoke('computer_write_file', { name: '../outside.ics', text })).outcome,
+    ).toBe('refused');
+  });
+
   it('refuses model paths, credentials, symbolic links, hard links and binary/oversized data', async () => {
     await writeFile(join(root, 'input.csv'), 'name,count\nPens,3\n');
     await writeFile(join(root, '.private.json'), 'PRIVATE');

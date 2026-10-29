@@ -153,7 +153,115 @@ organizes documents without making legal tax determinations.
 The accompanying presentation/video should say **real model, fictional data** and preserve this
 scope. A narrated slide walkthrough is not an end-to-end recording of connected accounts.
 
+## Background reliability matrix
+
+The [100-task manifest](../apps/desktop/tests/fixtures/reliability/cases.json) covers ten domains:
+campus investigation, calendars, communications, projects, consumer decisions, files, app edits,
+recovery, memory/context and scope boundaries. Every task runs through the actual desktop controller,
+Codex harness and action gateway, with foreground fallback disabled. Each uses a disposable agent
+workspace. Independent graders check facts, source coverage, saved app records, duplicate writes,
+immutable inputs and output files. A model's own success flag never determines a pass.
+Schemas state the exact date/time formats that their strict graders require; a correct date in
+equivalent prose must be triaged as a schema mismatch rather than reported as a product error.
+
+Run the model/host matrix without touching the desktop:
+
+```sh
+SIA_CODEX_REAL_SMOKE=1 SIA_RELIABILITY_SIMULATED_CUA=1 \
+SIA_SMOKE_MODEL=gpt-6-astra SIA_RELIABILITY_EVIDENCE_DIR=/private/tmp/sia-background-matrix \
+pnpm --filter @sia/desktop exec vitest run src/main/actions/background-reliability.smoke.test.ts
+node apps/desktop/scripts/summarize-background-tasks.mjs --evidence /private/tmp/sia-background-matrix
+```
+
+This uses a real model with simulated driver observations. It does **not** establish native input
+delivery. For real bundled Cua Driver acceptance, first create the separate local test app:
+
+```sh
+SIA_RELIABILITY_REAL_CUA=1 node apps/desktop/scripts/background-task-lab.mjs start --config /private/tmp/sia-task-lab.json
+SIA_RELIABILITY_DRIVER_PROBE=1 SIA_RELIABILITY_REAL_CUA=1 SIA_RELIABILITY_LAB=/private/tmp/sia-task-lab.json \
+pnpm --filter @sia/desktop exec vitest run src/main/actions/reliability/driver.smoke.test.ts
+```
+
+The probe consumes no model turn and never sends input. It must find the lab's accessibility
+surface; an unresolved surface is an environment blocker, not a completed native acceptance check.
+Then replace `SIA_RELIABILITY_SIMULATED_CUA=1` with `SIA_RELIABILITY_REAL_CUA=1` and
+`SIA_RELIABILITY_LAB=/private/tmp/sia-task-lab.json` in the matrix command, using a separate evidence
+directory. The native wrapper filters inventory and input to the lab's exact process. Neither mode
+uses real accounts. Close the lab with the same launcher and `stop --config` when finished.
+
+`SIA_RELIABILITY_CASES=campus-professors,recovery-lost-ack` selects focused reruns. Evidence is outside
+the repository: append-only `attempts.jsonl`, per-attempt traces, code/harness hashes, and a generated
+`report.md`/`summary.json`. Reruns preserve failures, count distinct task IDs rather than attempts,
+and distinguish native/simulated drivers and correctly incomplete tasks. Keep environment triage
+separate from product failures; do not convert blocked native checks into simulated passes.
+
+### Ordinary app acceptance
+
+Controlled-window checks are a regression gate, not a substitute for normal app work. Run the
+signed Sia app with real services, a separate disposable agent and working folder, the admitted
+model, **Work in background**, and foreground fallback disabled. Submit each request through
+Sia's normal typed conversation bridge. Do not replace its controller, inventory, driver or app
+openers with a test adapter. Keep the owner's existing agent, conversations and permissions.
+
+Use ordinary Safari research, Calculator, TextEdit, Finder, Preview, file reconciliation and
+memory across new conversations. Public official sources and disposable documents permit live
+verification without mutating personal accounts. Verify current web/PDF facts independently before
+grading. Count distinct requests separately from retries, preserve the original prompt and raw
+attempt, and record the model plus loaded main/helper hashes. A successful final message is not
+evidence: inspect actual app state, source URLs, saved bytes, input preservation and delivery mode.
+Workspace-file actions alone do not establish GUI control; app cases require an observation of
+the requested real app.
+
+For explicitly authorized owner-account checks, use the existing assistant so its real memory
+is exercised; pin the admitted test model on the test conversations without changing the owner's
+default model. Keep private account results outside Git. Canvas acceptance inventories current
+courses and inspects assignments plus relevant course pages, with dates and per-course coverage;
+the calendar alone cannot establish completeness. Handshake acceptance distinguishes registered
+and waitlisted events from recommendations. An account-access blocker is not a successful task.
+For an existing background Chrome/Edge/Brave window, `computer_open_url` can prepare Cua's
+exact-tab browser route. This is part of Sia's authorized task, not a separate attached-Chrome
+test adapter. Keep browser setup refusals and foreground-restoration reports in the evidence.
+Safe browser start pages can be used only for navigation, not as proof of sign-in.
+Across fresh conversations, verify that an approved exact browser window retains its profile
+grant while every prior tab and input ref becomes unusable. Check a second native window
+independently. After expiry, a read-only snapshot must not perform setup or revive the old
+session; an explicitly authorized website-open request can acquire fresh authority without
+replaying a write. For institutional login redirects, require an authentication blocker with no
+form content, screenshots or input refs. Do not treat a new task's missing profile grant as
+proof that the website is signed out, or as a reason to ask the person to approve Chrome again
+before the acting setup route has been tried.
+Workspace `.ics` results are file-only checks: verify date, timezone and duration from the saved
+bytes. They attach as ordinary text results without importing into Calendar or sending anything.
+
+Strict background acceptance also verifies noninterference: no system URL opens or new
+app/document launches, no input into the app the person is using, and an exact-turn pause on a
+focus interruption. Prepare any disposable app windows before the run, with the person's
+agreement; setup is separate from agent execution. Requested delivery fields alone cannot prove
+that the person kept focus. The earlier hundred-request evidence predates these stronger checks
+and is not proof of concurrent use of signed-in personal accounts or current strict-mode support
+for every historical app-opening case. Stop testing when a person reports interference. Resume
+only after they ask to continue, using a background path that respects their active work; do not
+reopen foreground windows merely to finish a reliability test.
+
+Audit both top-level and nested delivery fields in every action result. Unexpected foreground
+input fails a background-only attempt even when its final answer is correct. An app-open result
+that reports it could not restore the previous frontmost app also fails that constraint. Preserve
+these violations in the original history when a later retry succeeds. Native menus have no
+driver-enforced background delivery ceiling and are refused in background-only turns; available
+window controls and explicit background shortcuts remain usable.
+
+Keep the manifest, append-only attempt log, trajectories, screenshots and report in a private
+evidence directory outside Git. If a checker rejects a correct answer because its oracle dropped
+part of the request or imposed an unspecified format, retain the failed grade and record a
+separate correction against the original artifact. Do not silently change facts, count regrading
+as another executed task, or mix these results with the controlled/simulated matrices. Report
+protected-page and unsupported-route blockers explicitly; never enable foreground fallback to
+make a background test pass. The hundred-request run is an explicit operator exercise, not an
+app-startup test or part of the default unit gate.
+
 ## First launch
+
+### Pilot setup
 
 From the repository root, follow the install and signing steps in [RA onboarding](./ra-onboarding.md),
 then launch an isolated development profile. `pnpm dev` builds workspace dependencies itself.

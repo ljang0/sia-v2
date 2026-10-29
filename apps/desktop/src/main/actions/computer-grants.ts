@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { ValidatedActionInvocation } from '@sia/action-gateway';
 import type { BackgroundInputStatus } from './background-input.js';
+import { actionExecutionId } from './action-execution.js';
 
 export interface NativeElementAddress {
-  readonly token?: string;
-  readonly index?: number;
+  readonly token: string;
   readonly label?: string;
   readonly role?: string;
 }
@@ -29,6 +29,9 @@ export interface ComputerWindowBinding {
 export interface WindowSnapshotCapability {
   readonly backgroundInput?: BackgroundInputStatus;
   readonly browserUrl?: string;
+  readonly browserNewTab?: boolean;
+  readonly passiveAuthenticationNotice?: boolean;
+  readonly browserSurface?: 'safari-tab-overview' | 'safari-tabs';
   readonly capturedAt: number;
   readonly protectedControls: boolean;
   readonly pixels?: { width: number; height: number };
@@ -37,7 +40,6 @@ export interface WindowSnapshotCapability {
   readonly publicWindowId: string;
   readonly pid: number;
   readonly windowId: number;
-  readonly nativeSnapshotId?: string;
   readonly elements: ReadonlyMap<string, NativeElementAddress>;
 }
 
@@ -63,6 +65,7 @@ export class ComputerGrants {
       request.context.sessionId,
       request.context.threadId,
       request.context.turnId,
+      actionExecutionId(request.context),
     ]);
     if (this.#turnKey !== key) {
       // A provider conversation can outlive CUA's session. New turns get new
@@ -106,11 +109,17 @@ export class ComputerGrants {
 
   rememberSnapshot(capability: WindowSnapshotCapability): void {
     const key = capability.publicWindowId;
-    const previous = this.latestSnapshot.get(key);
-    if (previous) this.snapshots.delete(previous);
+    this.invalidateSnapshot(key);
     this.latestSnapshot.set(key, capability.id);
     this.snapshots.set(capability.id, capability);
     trimMap(this.snapshots, MAX_CAPABILITIES);
+  }
+
+  /** A failed fresh observation must never leave older input authority usable. */
+  invalidateSnapshot(windowId: string): void {
+    const previous = this.latestSnapshot.get(windowId);
+    if (previous) this.snapshots.delete(previous);
+    this.latestSnapshot.delete(windowId);
   }
 
   elementAddress(

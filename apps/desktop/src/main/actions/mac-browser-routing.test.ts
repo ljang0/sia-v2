@@ -84,6 +84,26 @@ describe('Use my Mac browser routing', () => {
     };
   }
 
+  it.each([
+    ['File', 'Open File…'],
+    ['Develop', 'Show Web Inspector'],
+  ])(
+    'does not expose native browser menus that bypass file/internal-page navigation restrictions: %j',
+    async (...menu_path) => {
+      const h = browserHarness();
+      const { element_ref: _ref, ...target } = await capture(h);
+      const result = await h.backend.invoke(
+        request('computer_action', {
+          ...target,
+          action: 'menu',
+          menu_path,
+        }),
+      );
+      expect(result.outcome).toBe('refused');
+      expect(h.cua.call.mock.calls.some(([tool]) => tool === 'invoke_menu')).toBe(false);
+    },
+  );
+
   it('discovers existing browser page identities without page contents or query/fragment data', async () => {
     const h = browserHarness();
     h.navigate('https://canvas.cmu.edu/courses?view=active#section');
@@ -184,7 +204,9 @@ describe('Use my Mac browser routing', () => {
     const nextWindows = next.windows as Record<string, unknown>[];
     expect(h.inspect).toHaveBeenCalledTimes(10);
     expect(next.browser_windows_uninspected).toBe(0);
-    expect(next.next_step).toBeUndefined();
+    expect(next.browser_metadata_partial).toBe(true);
+    expect(next.browser_windows_unidentified).toBe(8);
+    expect(next.next_step).toContain('do not establish sign-out');
     expect(nextWindows.slice(0, 8).every((window) => !window.browser_state)).toBe(true);
     expect(nextWindows.slice(8).map((window) => window.source_url)).toEqual([
       'https://campus.example/courses',
@@ -202,6 +224,31 @@ describe('Use my Mac browser routing', () => {
       'protected',
     );
     expect((refreshed.windows as Record<string, unknown>[])[0]!.source_url).toBeUndefined();
+  });
+
+  it('keeps account discovery incomplete when every window was attempted but unreadable', async () => {
+    const h = browserHarness();
+    h.inspect.mockResolvedValue({ status: 'unavailable', reason: 'window' });
+    const result = await h.backend.invoke(request('computer_list', {}));
+    expect(dataRecord(result.data)).toMatchObject({
+      browser_metadata_partial: true,
+      browser_windows_uninspected: 0,
+      browser_windows_unidentified: 1,
+      next_step: expect.stringContaining('do not establish sign-out'),
+    });
+  });
+
+  it('distinguishes blocking an address from observing a sign-in page', async () => {
+    const h = browserHarness();
+    const result = await h.backend.invoke(
+      request('computer_open_url', { url: 'https://canvas.cmu.edu/login' }),
+    );
+    expect(result.outcome).toBe('refused');
+    expect(dataRecord(result.data)).toMatchObject({
+      blocker_code: 'url_policy_blocked',
+      observed_authentication: false,
+    });
+    expect(h.openUrl).not.toHaveBeenCalled();
   });
 
   it('marks partial source coverage instead of treating a bounded observation as the full page', async () => {
@@ -420,6 +467,49 @@ describe('Use my Mac browser routing', () => {
     expect(h.cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(true);
   });
 
+  it('reads an ordinary Safari page beside an inactive login tab but never reads the login destination', async () => {
+    const h = browserHarness();
+    h.navigate('https://autolab.andrew.cmu.edu/courses/15122-f26');
+    const implementation = h.cua.call.getMockImplementation()!;
+    h.cua.call.mockImplementation(async (tool, args) =>
+      tool === 'get_window_state'
+        ? {
+            elements: [
+              {
+                element_token: 's00000001:1',
+                role: 'AXLink',
+                label: 'Assessments',
+              },
+              {
+                element_token: 's00000001:2',
+                role: 'AXRadioButton',
+                label: 'login.cmu.edu',
+                selected: false,
+                actions: ['Name:close tab\nTarget:0x123abc\nSelector:_closeButtonClicked:'],
+              },
+            ],
+          }
+        : implementation(tool, args),
+    );
+    const ids = await capture(h);
+    expect(ids.snapshot_id).toBeTypeOf('string');
+    expect(
+      (await h.backend.invoke(request('computer_action', { ...ids, action: 'click' }))).outcome,
+    ).toBe('accepted_unverified');
+    const reads = h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state').length;
+    h.navigate('https://login.cmu.edu/idp/profile/');
+    const login = await h.backend.invoke(
+      request('computer_snapshot', { app_id: ids.app_id, window_id: ids.window_id }),
+    );
+    expect(login.outcome).toBe('refused');
+    expect(login.images).toBeUndefined();
+    expect(dataRecord(login.data).elements).toBeUndefined();
+    expect(dataRecord(login.data).blocker_code).toBe('protected_window');
+    expect(h.cua.call.mock.calls.filter(([tool]) => tool === 'get_window_state')).toHaveLength(
+      reads,
+    );
+  });
+
   it('preserves live window ids through refresh and activation but revokes a closed window', async () => {
     const h = browserHarness();
     const args = await capture(h);
@@ -477,6 +567,51 @@ describe('Use my Mac browser routing', () => {
     );
     expect(dataRecord(protectedPage.data).blocker_code).toBe('protected_window');
     expect(h.cua.call.mock.calls.some(([tool]) => tool === 'get_window_state')).toBe(false);
+  });
+
+  it('keeps a public source hint while blocking the protected document and stale input', async () => {
+    const h = browserHarness();
+    const original = await capture(h);
+    h.inspect.mockResolvedValue({ status: 'protected' });
+    const blocked = await h.backend.invoke(
+      request('computer_snapshot', {
+        app_id: original.app_id,
+        window_id: original.window_id,
+      }),
+    );
+    expect(blocked.outcome).toBe('refused');
+    expect(blocked.images).toBeUndefined();
+    expect(dataRecord(blocked.data).next_step).toContain('tabs_only:true');
+    expect(dataRecord(blocked.data).previously_observed_windows).toEqual([
+      expect.objectContaining({ source_url: 'https://example.com/' }),
+    ]);
+    expect(
+      (
+        await h.backend.invoke(
+          request('computer_action', {
+            ...original,
+            action: 'click',
+          }),
+        )
+      ).outcome,
+    ).toBe('stale');
+    expect(h.cua.call.mock.calls.some(([name]) => name === 'click')).toBe(false);
+
+    const url = 'https://example.com/staff';
+    h.inspect.mockResolvedValue({ status: 'ready', url, bundleID: 'com.apple.Safari' });
+    expect((await h.backend.invoke(request('computer_open_url', { url }))).outcome).toBe(
+      'accepted_unverified',
+    );
+    const fresh = await h.backend.invoke(
+      request('computer_snapshot', {
+        app_id: original.app_id,
+        window_id: original.window_id,
+        expected_url: url,
+      }),
+    );
+    expect(fresh.outcome).toBe('verified');
+    expect(dataRecord(fresh.data).source_url).toBe(url);
+    expect(dataRecord(fresh.data).snapshot_id).not.toBe(original.snapshot_id);
   });
 
   it('recovers a missing helper window through one exact CUA observation before allowing a background click', async () => {
@@ -613,6 +748,21 @@ describe('Use my Mac browser routing', () => {
     expect(h.openUrl).toHaveBeenCalledExactlyOnceWith('https://canvas.cmu.edu/', {
       background: false,
     });
+  });
+
+  it('never uses the system URL opener for a strict background request', async () => {
+    const h = browserHarness();
+    const action = request('computer_open_url', { url: 'https://canvas.cmu.edu/' });
+    const result = await h.backend.invoke({
+      ...action,
+      context: { ...action.context, backgroundOnly: true },
+    });
+    expect(result.outcome).toBe('needs_foreground');
+    expect(dataRecord(result.data).blocker_code).toBe('background_browser_target_required');
+    expect(h.openUrl).not.toHaveBeenCalled();
+    expect(
+      h.cua.call.mock.calls.every(([tool]) => ['list_apps', 'list_windows'].includes(tool)),
+    ).toBe(true);
   });
 
   it('recovers a navigation race by observing again without replaying the click', async () => {

@@ -61,6 +61,11 @@ checks in Chromium and WebKit. CI uses this same command; `pnpm test:remote` run
 checks while developing. It is deterministic and may take several minutes. It does not replace the manual checks on
 the signed artifact in [`manual-acceptance.md`](./manual-acceptance.md).
 
+After the pilot and unsigned packaging gates pass, CI retains the compiled JavaScript bundle
+and checkout/source/native tree identities for three days. It supports manual verification
+without another local build. Match the recorded source trees and use compatible installed
+dependencies and the Mac's existing signed native helper; this bundle is not a release app.
+
 `pnpm audit:dependencies` checks current registry advisories and fails on high/critical findings.
 CI runs it separately because it needs the live registry. Keep scoped security overrides in
 `pnpm-workspace.yaml` and review them when updating their parent dependencies.
@@ -595,6 +600,27 @@ explicit On my screen choice is kept. The choice applies to the next typed or Fn
 background driver cannot load or lacks Accessibility or Screen Recording, the task stops before
 starting with a plain next step and a **Continue task** button.
 
+With **Pause and tell me**, background tasks use already-open apps and supported window controls.
+They do not launch apps/documents or use the system website opener, since those can take focus.
+If you are using the target app, Sia pauses before input rather than competing with you. It also
+pauses if desktop focus changes during input or focus cannot be checked. Review any uncertain
+last step before continuing. This mode does not provide an isolated second desktop; simultaneous
+control of the same active app remains unavailable. **Allow brief foreground control** is an
+explicit alternative for tasks that need it.
+
+Existing browser access is reused across conversations while its grant remains valid. An idle
+app-inventory check does not reset browser access or ask you to connect again. Browser consent
+and website sign-in remain separate: a window that cannot be inspected does not mean you are
+logged out. When macOS reports both grants as allowed, a failed window check no longer tells you
+to turn permissions off and on. Long browser pages report missing segments so the agent can keep
+reading before claiming it checked everything.
+
+For an already-configured development profile, `pnpm --filter @sia/desktop preview --background`
+starts the real app without showing its window or raising the secure-workspace explanation.
+Encrypted storage and macOS permissions remain required; a missing Keychain grant can still need
+the person's approval. Open Sia normally to reveal the window later. A background relaunch of an
+already-running instance leaves its window alone.
+
 While an On my screen task works, a thin glowing border and a small “Sia is using your screen ·
 Press ⌃Esc to stop” pill sit on top of every display. They never take focus or clicks, are kept out of
 screenshots, and disappear when the task finishes, stops, waits for you, or pauses. ⌃Esc
@@ -645,6 +671,23 @@ reads a real account or runs native commands; it is skipped by normal checks and
 SIA_CODEX_REAL_SMOKE=1 SIA_COURSE_INVESTIGATION_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/actions/course-investigation.smoke.test.ts
 ```
 
+The separate account-scope probe covers both fictional course inventories and project documents.
+A selected session without a display name must still complete the requested read; an explicitly
+conflicting account must not. None may open protected security settings. These use real model
+turns, but no real browser or account, and are also opt-in:
+
+```sh
+SIA_CODEX_REAL_SMOKE=1 SIA_ACCOUNT_SCOPE_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/actions/account-scope.smoke.test.ts
+```
+
+The fictional Safari recovery probe checks separate tab-only authority, leaving a protected page
+untouched, preserving the same profile and existing tabs, and observing a new tab after uncertain
+navigation acknowledgement. It accepts both direct All Courses navigation and the Dashboard link:
+
+```sh
+SIA_CODEX_REAL_SMOKE=1 SIA_SAFARI_RECOVERY_SMOKE=1 pnpm --filter @sia/desktop exec vitest run src/main/actions/safari-tab-recovery.smoke.test.ts
+```
+
 GPT-6 Astra is available in the model picker when the connected Codex account lists it. Use my
 Mac setup selects it by default when available; an explicit model choice takes precedence. Sia
 checks both PATH and the official installed Mac app for a supported Codex version. Existing
@@ -682,3 +725,11 @@ The staged development bundle removes Finder/resource-fork metadata that [Apple 
 signed apps](https://developer.apple.com/library/archive/qa/qa1940/_index.html); other attributes,
 including quarantine, are preserved. No script resets TCC or grants privacy access. Release builds retain the separate Developer ID
 pipeline. See [Apple’s designated requirement documentation](https://developer.apple.com/documentation/technotes/tn3127-inside-code-signing-requirements).
+
+For the two focused main-window UI gates without opening app windows on your Mac, build first and use:
+
+```sh
+SIA_TEST_QUIET=1 pnpm --filter @sia/desktop exec playwright test e2e/browser-recovery.spec.ts e2e/visual-polish.spec.ts
+```
+
+Quiet mode requires an unpackaged app, fake services, and an isolated test profile. It never applies to packaged or real-provider sessions. The harness checks the fixture windows stay hidden. Other tests that explicitly open auxiliary windows still belong on the CI runner; this flag does not turn real Mac actions into headless actions.

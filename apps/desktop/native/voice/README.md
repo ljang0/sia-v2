@@ -41,7 +41,7 @@ this adaptation does not claim a new third-party license for the original code.
 `pnpm --filter @sia/desktop native:build` builds an ad-hoc signed universal helper on macOS 14+.
 Build products stay in ignored `build/native/`. The release signing pipeline signs the embedded helper
 with the application. The voice modes never capture screenshots, run model-supplied shell commands, or receive provider credentials. The separate explicit `--mac-screenshot` mode captures a display only when requested by a Mac task.
-The host may submit an already-authorized window image for local OCR. Voice transport is inherited stdin/stdout; fixed host-only `--browser-window` and `--window-context` operations return bounded JSON. EOF and a parent heartbeat stop recording.
+The host may submit an already-authorized window image for local OCR. Voice transport is inherited stdin/stdout; EOF and a parent heartbeat stop recording. The separate nonactivating `--window-observer` process accepts only fixed browser-identity, context and Safari-tab checks for an exact PID and window ID over private pipes and returns bounded JSON. It runs a main loop without opening a window or enabling voice. Each read repeats the security and identity checks; no page content is cached. Safari Tab Overview is identified as native navigation chrome, not assigned the previous page's URL; the host exposes only tab-selection controls from that surface. The explicit tab-only operation skips web areas and their descendants, so a protected webpage cannot authorize form access or prevent choosing another existing tab. Native credential popovers still block the tab check.
 
 `MacSpeech.swift` is Sia’s original native speech implementation, separate from the Notch adaptations.
 The `--speech` mode enumerates installed voices, renders speech to in-memory WAV buffers, and accepts
@@ -72,6 +72,16 @@ Fn never opens the command box or main window. The multicolor gradient border re
 transcription and Fn task execution; running/queued tasks animate the gradient, approval/input waits keep it still,
 and completion/failure/cancellation fades it out. The parent sends only an idle/working/waiting
 phase, never task text. Reduced Motion uses a steady edge. Approvals remain in the main app.
+
+`VoiceTranscriptPanel.swift` owns the separate click-through transcript card at the top of the current
+display. It keeps one SwiftUI view alive as words arrive, with three readable lines, a destination,
+release/Escape hints, and listening, transcribing, sent, or notice states. ElevenLabs partial transcripts
+travel only over the existing private helper pipe; previews never dispatch a task or enter persistence.
+Mac on-device speech shows the listening state and the committed transcript after release. Stale previews
+are ignored after cancellation or a new recording. The sent card fades after three seconds; cancellation
+hides it. The card cannot become the key/main window, take mouse input, or open Sia. It follows system
+light/dark appearance, Increase Contrast, Reduce Transparency, and Reduce Motion. The original multicolor
+edge glow remains independent of this card.
 
 The Connected apps outline uses Notch’s 400-node, 12-level, 2,800-character budgets with a 600 ms deadline. A
 metadata pass excludes protected controls before reading static text; editable field values are

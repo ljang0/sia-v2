@@ -131,6 +131,7 @@ it('hands the pre-focus context to the host send route once without exposing it 
     const event = { senderFrame: window.webContents.mainFrame };
     const input = { kind: 'new', agentId, text: 'Summarize this selection' };
     await electron.handlers.get('sia:launcher:send')!(event, input);
+    expect(controller.invoke).toHaveBeenCalledWith('threads.create', { agentId });
     expect(send).toHaveBeenLastCalledWith({ threadId, text: input.text }, context);
     expect(JSON.stringify(window.webContents.send.mock.calls)).not.toContain(
       'synthetic selection',

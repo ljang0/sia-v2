@@ -436,7 +436,6 @@ describe('MessagesRelay', () => {
     await h.relay.poll();
     expect(h.invoke).toHaveBeenCalledWith('threads.create', {
       agentId: AGENT,
-      title: 'Text: What is on my calendar today?',
     });
     expect(h.invoke).toHaveBeenCalledWith('threads.send', {
       threadId: 'thread-1',

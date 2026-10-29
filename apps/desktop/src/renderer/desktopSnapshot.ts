@@ -333,6 +333,7 @@ export function mapDesktopSnapshot(source: DesktopSnapshot): RendererSnapshot {
       })),
     schedules: (source.schedules ?? []).map((schedule) => structuredClone(schedule)),
     ...(source.startupNotice ? { startupNotice: structuredClone(source.startupNotice) } : {}),
+    ...(source.localSaveFailed ? { localSaveFailed: true as const } : {}),
   };
 }
 
@@ -342,6 +343,7 @@ function mapTimelineItem(item: TimelineItemView): ThreadEvent {
       id: item.id,
       type: 'message',
       role: item.kind,
+      ...(item.kind === 'assistant' ? { streaming: item.status === 'running' } : {}),
       content: item.text ?? item.detail ?? '',
       timestamp: item.timestamp,
       ...(item.attachments?.length
