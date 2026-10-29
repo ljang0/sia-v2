@@ -195,6 +195,9 @@ export class BrowserActions {
     request: ValidatedActionInvocation,
     continuation?: string,
   ): Promise<ActionExecutionResult> {
+    // Even a refused or failed refresh supersedes the earlier observation. Resolve
+    // page continuations before this boundary; only a successful capture grants input.
+    this.ctx.browser.invalidateSnapshot(binding.tabId);
     const raw = await this.ctx.callCua(request, 'get_browser_state', {
       session: binding.session,
       target_id: binding.targetId,
@@ -220,9 +223,6 @@ export class BrowserActions {
     }
     const liveUrl = location?.url;
     if (browserUrlIsAuthentication(liveUrl) || browserHasAuthenticationControls(raw)) {
-      const previous = this.ctx.browser.latestSnapshot.get(binding.tabId);
-      if (previous) this.ctx.browser.snapshots.delete(previous);
-      this.ctx.browser.latestSnapshot.delete(binding.tabId);
       return {
         outcome: 'refused',
         summary:

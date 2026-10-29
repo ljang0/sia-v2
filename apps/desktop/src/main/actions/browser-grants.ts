@@ -89,9 +89,14 @@ export class BrowserGrants {
     }
   }
 
-  rememberSnapshot(capability: BrowserSnapshotCapability): void {
-    const previous = this.latestSnapshot.get(capability.tabId);
+  invalidateSnapshot(tabId: string): void {
+    const previous = this.latestSnapshot.get(tabId);
     if (previous) this.snapshots.delete(previous);
+    this.latestSnapshot.delete(tabId);
+  }
+
+  rememberSnapshot(capability: BrowserSnapshotCapability): void {
+    this.invalidateSnapshot(capability.tabId);
     this.latestSnapshot.set(capability.tabId, capability.id);
     this.snapshots.set(capability.id, capability);
     trimMap(this.snapshots, MAX_CAPABILITIES);

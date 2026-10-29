@@ -1,6 +1,6 @@
 # Release status
 
-Updated October 21, 2026. The next controlled product-pilot candidate is
+Updated October 29, 2026. The last signed controlled product-pilot candidate is
 `0.1.0-alpha.32` on `claude/demo-candidate` (PR #22). Source, CI, and signed packaging passed; live acceptance remains open;
 **do not describe it as ready or send invitations until the acceptance record is complete**.
 Alpha.30 and alpha.31 passed signing/notarization and upgrades retained the demo profile. Live file tasks
@@ -9,6 +9,17 @@ Native iPhone 0.1.0 (31) is **Ready to Test** in the internal **Pilot QA** TestF
 (zero testers). It fixes native result downloads and pairing-save errors. Eight native tests,
 signed archive, upload and Apple processing passed. External beta review awaits contact details. The last published
 pilot remains alpha.24.
+
+PR #24 merged into `main` on October 29 at `23e0650`. Its head `f443b53` passed
+the full pilot gate and unsigned universal packaging in
+[GitHub CI](https://github.com/ljang0/sia-v2/actions/runs/40358976631); signing was skipped.
+The heads of PRs #21–23 are already ancestors of `main`, despite their open draft status.
+These source changes do not update an installed app. The October 29 computer-use smoke
+check of the installed, signature-verified alpha.32 passed chat, CSV creation/readback/preview,
+cancellation and native Calculator input. Background navigation to example.com remained
+blocked by its protected-window observation. That result is not a live check of PR #24's
+newer Chromium adapter. A current-source signed build and fresh browser acceptance remain
+required, alongside the physical-phone and clean-install gates below.
 
 ## Pilot scope
 

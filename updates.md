@@ -1,6 +1,6 @@
 # Sia PR updates: attempts, failures, fixes and verification
 
-Snapshot: October 26, 2026. This is the review ledger for [PR #24](https://github.com/ljang0/sia-v2/pull/24), **open and unmerged**. It preserves failed attempts and connects observed problems to shared fixes. It is not a claim of perfection or a completed 100-task natural-use benchmark. Update this file in place as evidence changes.
+Evaluation snapshot: October 26, 2026. This is the review ledger for [PR #24](https://github.com/ljang0/sia-v2/pull/24), **merged October 29 at `23e0650`**. It preserves failed attempts and connects observed problems to shared fixes. The merge does not change the historical grades below or establish signed-release acceptance. It is not a claim of perfection or a completed 100-task natural-use benchmark. Update this file in place as evidence changes.
 
 Jump to: [issue → fix registry](#issue--fix-registry), [earlier 100 cases](#earlier-100-controlled-cases), [later 96 requests](#later-96-natural-studenteveryday-requests), [every attempt](#every-retained-attempt), [isolated checks](#isolated-checks-and-investigations--not-extra-live-successes), [remaining work](#not-run--still-required), [CI and handoff](#final-source-ci-and-handoff-state).
 

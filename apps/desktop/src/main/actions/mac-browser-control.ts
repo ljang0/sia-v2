@@ -352,6 +352,9 @@ export class MacBrowserControl {
     window: ComputerWindowBinding,
     request: ValidatedActionInvocation,
   ): Promise<ActionExecutionResult> {
+    // Revoke host input even when tab selection, validation or capture fails.
+    // BrowserActions resolves any page continuation before revoking its own refs.
+    this.ctx.computer.invalidateSnapshot(window.id);
     const wait = request.arguments.wait_ms;
     if (typeof wait === 'number' && wait > 0)
       await delay(Math.min(3000, wait), undefined, { signal: request.context.signal });

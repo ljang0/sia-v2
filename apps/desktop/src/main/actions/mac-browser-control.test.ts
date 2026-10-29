@@ -111,6 +111,49 @@ function harness() {
 }
 
 describe('Mac background Chromium uses the dedicated Cua browser route', () => {
+  it.each(['failed capture', 'refused capture', 'different requested page'])(
+    'revokes earlier controls after a refresh with %s, until a fresh read succeeds',
+    async (scenario) => {
+      const h = harness();
+      h.state.prepared = true;
+      h.state.url = 'https://public.example/guide';
+      const target = await h.target();
+      const initial = await h.backend.invoke(h.request('computer_snapshot', target));
+      const data = initial.data as {
+        snapshot_id: string;
+        elements: { element_ref: string }[];
+      };
+      if (scenario === 'failed capture') h.state.observationError = 'Capture unavailable';
+      if (scenario === 'refused capture') h.state.observationRefused = true;
+      const refreshed = await h.backend.invoke(
+        h.request('computer_snapshot', {
+          ...target,
+          ...(scenario === 'different requested page'
+            ? { expected_url: 'https://public.example/other' }
+            : {}),
+        }),
+      );
+      expect(refreshed.outcome).not.toBe('verified');
+      h.state.observationError = '';
+      h.state.observationRefused = false;
+      const click = (snapshot: typeof data) =>
+        h.backend.invoke(
+          h.request('computer_action', {
+            ...target,
+            snapshot_id: snapshot.snapshot_id,
+            element_ref: snapshot.elements[0]!.element_ref,
+            action: 'click',
+          }),
+        );
+      expect((await click(data)).outcome).toBe('stale');
+      expect(h.call.mock.calls.some(([tool]) => tool === 'browser_click')).toBe(false);
+      const fresh = await h.backend.invoke(h.request('computer_snapshot', target));
+      expect(fresh.outcome).toBe('verified');
+      await click(fresh.data as typeof data);
+      expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_click')).toHaveLength(1);
+    },
+  );
+
   it('honors a requested loading wait before reading the background tab', async () => {
     const h = harness();
     h.state.prepared = true;
