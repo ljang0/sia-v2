@@ -165,8 +165,44 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
     const listed = await h.backend.invoke(
       h.request('computer_snapshot', { ...target, tabs_only: true }),
     );
-    expect(listed.data).toEqual(recovered.data);
+    expect(listed.data).toMatchObject({
+      tabs: [
+        { source_url: 'https://public.example/selected' },
+        { source_url: 'https://public.example/needed' },
+      ],
+    });
     expect(listed.data).not.toHaveProperty('visible_text');
+  });
+
+  it('refreshes changed tab lists and revokes input from the earlier binding', async () => {
+    const h = harness();
+    h.state.prepared = true;
+    h.state.url = 'https://public.example/guide';
+    const target = await h.target();
+    const initial = await h.backend.invoke(h.request('computer_snapshot', target));
+    const prior = initial.data as { snapshot_id: string; elements: { element_ref: string }[] };
+    h.state.extraTabs = [
+      { tab_id: 'new-tab', url: 'https://public.example/new', active: false },
+    ];
+    const added = await h.backend.invoke(
+      h.request('computer_snapshot', { ...target, tabs_only: true }),
+    );
+    expect((added.data as { tabs: unknown[] }).tabs).toHaveLength(2);
+    const staleInput = await h.backend.invoke(
+      h.request('computer_action', {
+        ...target,
+        snapshot_id: prior.snapshot_id,
+        element_ref: prior.elements[0]!.element_ref,
+        action: 'click',
+      }),
+    );
+    expect(staleInput.outcome).toBe('stale');
+    h.state.extraTabs = [];
+    const removed = await h.backend.invoke(
+      h.request('computer_snapshot', { ...target, tabs_only: true }),
+    );
+    expect((removed.data as { tabs: unknown[] }).tabs).toHaveLength(1);
+    expect(h.call.mock.calls.some(([tool]) => tool === 'browser_click')).toBe(false);
   });
 
   it('does not prepare a browser as a side effect of read-only tab discovery', async () => {

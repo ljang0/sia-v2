@@ -138,8 +138,17 @@ export class MacBrowserControl {
     window: ComputerWindowBinding,
     request: ValidatedActionInvocation,
     prepare: boolean,
+    refresh = false,
   ): Promise<ActionExecutionResult | Tab[]> {
     this.#begin(request);
+    if (refresh) {
+      // Explicit discovery replaces the window binding so newly opened/closed tabs
+      // are reflected. Old choices and input refs cannot survive that replacement.
+      this.#revoke(window);
+      this.#client(window).context.browser.reset();
+      for (const [id, tab] of this.#tabs)
+        if (tab.window.id === window.id) this.#tabs.delete(id);
+    }
     // Keep each exact window's native authority separate, even inside one Chrome process.
     let session = this.#client(window).session;
     // Bind mode mints new opaque driver ids on each call. Rebinding while presenting a
@@ -360,7 +369,7 @@ export class MacBrowserControl {
       await delay(Math.min(3000, wait), undefined, { signal: request.context.signal });
     if (!(await this.inventory.windowStillValid(window, request)))
       return stale('The browser window changed.');
-    const tabs = await this.#read(window, request, false);
+    const tabs = await this.#read(window, request, false, request.arguments.tabs_only === true);
     if (!Array.isArray(tabs)) return tabs;
     if (request.arguments.tabs_only === true) return this.#selection(window, tabs);
     const tab = this.#choose(tabs, request);
@@ -441,7 +450,12 @@ export class MacBrowserControl {
       };
     if (!(await this.inventory.windowStillValid(window, request)))
       return stale('The browser window changed.');
-    const tabs = await this.#read(window, request, true);
+    const tabs = await this.#read(
+      window,
+      request,
+      true,
+      request.arguments.prepare_only === true,
+    );
     if (!Array.isArray(tabs)) return tabs;
     if (request.arguments.prepare_only === true) {
       this.#revoke(window);
