@@ -1,18 +1,41 @@
 # Public distribution candidate
 
-## Current decision — October 29, 2026
+## Current decision — October 30, 2026
 
-The owner selected a combined invited Mac pilot and native iPhone TestFlight release.
-Mac alpha.33 is the current candidate. **External pilot release is not yet complete.**
-[Release status](./release-status.md) lists the remaining gates; the older live records below
-apply only to their stated artifacts. The last published Mac pilot remains alpha.24.
+The owner selected a combined invited Mac pilot and native iPhone TestFlight release. The Arena
+proposal offers a narrower Mac-first handoff, pending the owner's decision. Mac alpha.34 is the
+current signed candidate. **External pilot release is not yet complete.** No artifacts were
+published or invitations sent; the last published Mac pilot remains alpha.24.
 
-The universal alpha.33 app, DMG and ZIP were built from
-`03f7e5e95e24ea0d52ff8c4e3b95dbacaf28cf55`. `pnpm package:mac` passed signing,
-notarization, stapling, Gatekeeper and packaged runtime verification. The existing isolated
-QA profile survived the upgrade and a fresh synthetic CSV result was created, read back and
-previewed correctly. Signed background browser setup was refused by the driver; physical-phone
-and clean macOS-account acceptance remain incomplete. No artifacts were published or invitations sent.
+The universal alpha.34 app, DMG and ZIP were built from
+`75073741f3cf3f0756721c809501dc391574906b`. The full local pilot gate passed: 1,756 desktop
+unit tests, 46 Electron checks, 31 renderer checks and 72 Chromium/WebKit phone checks.
+`pnpm package:mac` passed signing, app/DMG notarization and stapling, strict signatures,
+Gatekeeper and packaged native/runtime verification. The current dependency audit reports no
+known vulnerabilities. [PR #27 code-head CI](https://github.com/ljang0/sia-v2/actions/runs/41003296786) passed
+the full pilot gate and unsigned universal packaging.
+
+The isolated QA profile survived the alpha.33-to-.34 upgrade without a new Keychain prompt. A new
+synthetic CSV containing apples=5 and oranges=8 was created and read back; the reply reported total
+13 and the preview showed the exact saved content, including after a full quit/relaunch. Native
+Calculator input passed with independently observed `23 × 19 = 437`. Cancellation returned Ready
+and remained cancelled after restart. The new Chrome setup disclosure is present in
+the signed app. Actual connection remains pending the operator's browser-access confirmation.
+Clean macOS-account and physical-phone acceptance remain incomplete. See
+[release status](./release-status.md) for the remaining gates.
+
+| Artifact                           | SHA-256                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `Sia-0.1.0-alpha.34-universal.dmg` | `c1a438180f164161eb702e4b581587a71bde6fd8c2bd05da382ce5e0c0b0bc69` |
+| `Sia-0.1.0-alpha.34-universal.zip` | `dc8e6c54400ee26db24d11f4f2c248a0de5cbbde1d3c87e51c95a63dd5177829` |
+
+## Alpha.33 evidence
+
+Alpha.33 from `03f7e5e95e24ea0d52ff8c4e3b95dbacaf28cf55` passed signed universal packaging,
+notarization and stapling. Its isolated-profile upgrade, CSV creation/preview, full restart,
+cancellation, native Calculator input (`19 × 21 = 399`) and fresh-profile sign-in wall passed.
+Signed background browser setup was refused by the driver. Physical-phone and clean macOS-account
+acceptance were incomplete. Alpha.33 remains retained for rollback.
 
 | Artifact                           | SHA-256                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |

@@ -1,4 +1,4 @@
-# Sia 0.1.0-alpha.32
+# Sia 0.1.0-alpha.34
 
 Pilot candidate — acceptance and distribution pending.
 
@@ -50,6 +50,12 @@ anything else or paste an API key.
 - **Computer-use recovery.** When a dialog takes focus, Sia can find it and continue the task.
 - **Setup and pairing fixes.** Included AI can finish setup without ChatGPT sign-in; another phone
   can pair while one is connected; self-addressed replies no longer start an echo task.
+
+## Changes since alpha.33
+
+- **Clearer Chrome connection.** Connect Chrome explains that setup may briefly show Chrome.
+  You review any Chrome permission prompt yourself. Automatic background connection never starts
+  this foreground setup, and a refused browser read no longer reports a successful connection.
 
 ## Good to know
 

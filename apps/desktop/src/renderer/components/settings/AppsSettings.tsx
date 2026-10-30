@@ -591,7 +591,8 @@ function LocalIntegrations({
             </div>
             <p>
               Reuses one window you explicitly choose. Sia never copies cookies or controls a
-              sign-in page.
+              sign-in page. Chrome may appear briefly during setup. You review any Chrome
+              permission prompt yourself.
             </p>
             {snapshot.browser.attached ? (
               <div className={styles.rowMeta}>{snapshot.browser.profileName}</div>

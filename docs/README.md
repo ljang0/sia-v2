@@ -5,6 +5,9 @@ superseded records stay in Git history and at their release tags.
 
 ## Contributors
 
+- [`arena-proposal.md`](./arena-proposal.md) — concise Computer Use Arena partnership proposal,
+  proposed first pilot, evaluation limits and technical review path.
+
 - [`handoff.md`](./handoff.md) — current development progress, verified demos, local evidence,
   and the remaining release work.
 - [`ra-onboarding.md`](./ra-onboarding.md) — fresh-clone setup, first contribution, and safe

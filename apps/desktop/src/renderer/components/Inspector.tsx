@@ -265,7 +265,10 @@ function BrowserPanel({
             <Browser size={22} aria-hidden="true" />
             <div>
               <h2>Choose a Chrome window</h2>
-              <p>Sia uses only the window you choose. It can’t see the others.</p>
+              <p>
+                Sia uses only the window you choose. It can’t see the others. Chrome may appear
+                briefly during setup. You review any Chrome permission prompt yourself.
+              </p>
             </div>
           </section>
           {browser.status === 'error' && browser.snapshotLabel ? (
@@ -299,7 +302,8 @@ function BrowserPanel({
         <h2>{pending ? 'Looking for Chrome…' : 'Use your signed-in Chrome'}</h2>
         <p>
           Open the Chrome window you want to use. If several are open, Sia will let you choose
-          one.
+          one. Chrome may appear briefly during setup. You review any Chrome permission prompt
+          yourself.
         </p>
         {browser.status === 'error' && browser.snapshotLabel ? (
           <p className={`${primitives.inlineError} ${styles.emptyError}`} role="alert">

@@ -14,6 +14,7 @@ import {
   preferredChromeWindows,
 } from '../mac/chrome-discovery.js';
 import type { ControllerContext } from './context.js';
+import { resultRefusal } from '../actions/action-results.js';
 
 /** The parts of the controller context BrowserSession uses. */
 type BrowserSessionContext = Pick<
@@ -157,9 +158,8 @@ export class BrowserSession {
       const apps = await this.ctx.deps.computer.call('list_apps', {}, directContext);
       const candidates = findChromeCandidates(apps);
       if (!candidates.length) throw new Error('Open Chrome, then try attaching again.');
-      // Several Chrome processes can coexist (a leftover instance, a helper). Only the one that
-      // owns the remote-debugging port can attach, so its windows are tried first and are the
-      // only ones offered the silent cdp_port route.
+      // Prefer an existing endpoint's process when several Chrome instances coexist.
+      // The driver still proves the exact process/window and owns endpoint discovery.
       const debugOwnerPid = await this.chromeDebugOwnerPid();
       const orderedCandidates = [...candidates].sort((left, right) => {
         const leftOwns = left.pid === debugOwnerPid ? 0 : 1;
@@ -214,67 +214,65 @@ export class BrowserSession {
       }
       let lastFailure: unknown;
       let attachedWindow: BrowserWindowView | undefined;
-      candidates: for (const { pid: chromePid, window: candidate } of pairsToTry) {
-        // The silent cdp_port route only works against the process that owns the debugging
-        // port; offering it to another process's window just fails, so it is scoped here.
-        const attempts =
-          debugOwnerPid === undefined || chromePid === debugOwnerPid
-            ? [{ cdp_port: 9222 }, {}]
-            : [{}];
-        for (const prepareArguments of attempts) {
-          try {
-            // CUA sessions are terminal after end_session. Minting a new opaque id for
-            // every attachment lets a user detach and reattach without restarting Sia,
-            // while resetBrowserCapabilities still revokes every prior model-visible ref.
-            const browserSessionId = `sia-browser-${randomUUID()}`;
-            const prepared = await this.ctx.deps.computer.call(
-              'browser_prepare',
-              {
-                pid: chromePid,
-                window_id: candidate.id,
-                session: browserSessionId,
-                strategy: { kind: 'existing_profile' },
-                ...prepareArguments,
-              },
-              directContext,
-            );
-            const state = await this.ctx.deps.computer.call(
-              'get_browser_state',
-              {
-                session: browserSessionId,
-                pid: chromePid,
-                window_id: candidate.id,
-              },
-              directContext,
-            );
-            // browser_prepare can include transitional target ids while Chrome enables
-            // and reconnects its existing-profile route. Only the follow-up live state
-            // is safe to mint into model-visible browser capabilities.
-            this.ctx.browserCapabilitySink?.acceptBrowserState(state, browserSessionId);
-            this.target = findBrowserTarget([state, prepared]);
-            this.sessionId = browserSessionId;
-            const grantedOrigins = collectHttpOrigins([prepared, state]);
-            this.ctx.state.browser = {
-              status: 'attached',
-              browser: 'Chrome',
-              profileLabel: candidate.label,
-              grantedOrigins,
-              ...(grantedOrigins.length === 0
-                ? { detail: 'Attached, but no HTTP or HTTPS tab is currently granted.' }
-                : {}),
-            };
-            this.ctx.deps.trajectory?.record({
-              type: 'browser_attached',
-              threadId: this.ctx.state.activeThreadId ?? 'app',
-              window: candidate.label,
-              automatic: Boolean(options.auto),
-              grantedOrigins,
-            });
-            attachedWindow = candidate;
-            break candidates;
-          } catch (candidateError) {
-            lastFailure = candidateError;
-          }
+      for (const { pid: chromePid, window: candidate } of pairsToTry) {
+        try {
+          // CUA sessions are terminal after end_session. Minting a new opaque id for
+          // every attachment lets a user detach and reattach without restarting Sia,
+          // while resetBrowserCapabilities still revokes every prior model-visible ref.
+          const browserSessionId = `sia-browser-${randomUUID()}`;
+          const prepared = await this.ctx.deps.computer.call(
+            'browser_prepare',
+            {
+              pid: chromePid,
+              window_id: candidate.id,
+              session: browserSessionId,
+              strategy: { kind: 'existing_profile' },
+              // The connection UI explains that Chrome may appear during setup.
+              // Automatic attachment never grants foreground setup permission.
+              delivery_mode: options.auto ? 'background' : 'foreground',
+            },
+            directContext,
+          );
+          const prepareFailure = resultRefusal(prepared);
+          if (prepareFailure) throw new Error(prepareFailure.reason ?? prepareFailure.summary);
+          const state = await this.ctx.deps.computer.call(
+            'get_browser_state',
+            {
+              session: browserSessionId,
+              pid: chromePid,
+              window_id: candidate.id,
+            },
+            directContext,
+          );
+          const stateFailure = resultRefusal(state);
+          if (stateFailure) throw new Error(stateFailure.reason ?? stateFailure.summary);
+          // browser_prepare can include transitional target ids while Chrome enables
+          // and reconnects its existing-profile route. Only the follow-up live state
+          // is safe to mint into model-visible browser capabilities.
+          this.ctx.browserCapabilitySink?.acceptBrowserState(state, browserSessionId);
+          this.target = findBrowserTarget([state, prepared]);
+          this.sessionId = browserSessionId;
+          const grantedOrigins = collectHttpOrigins([prepared, state]);
+          this.ctx.state.browser = {
+            status: 'attached',
+            browser: 'Chrome',
+            profileLabel: candidate.label,
+            grantedOrigins,
+            ...(grantedOrigins.length === 0
+              ? { detail: 'Attached, but no HTTP or HTTPS tab is currently granted.' }
+              : {}),
+          };
+          this.ctx.deps.trajectory?.record({
+            type: 'browser_attached',
+            threadId: this.ctx.state.activeThreadId ?? 'app',
+            window: candidate.label,
+            automatic: Boolean(options.auto),
+            grantedOrigins,
+          });
+          attachedWindow = candidate;
+          break;
+        } catch (candidateError) {
+          lastFailure = candidateError;
         }
       }
       if (!attachedWindow)

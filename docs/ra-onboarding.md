@@ -310,7 +310,7 @@ Connected accounts are skipped. If a sign-in page was closed, **Cancel connectio
 the pending grant while keeping completed connections. An expired or interrupted saved grant has
 an inline **Reconnect Google Workspace** or **Reconnect Slack** button in setup. Google begins with read access; edits and
 sends require separate consent. In an unconfigured build, use your signed-in websites through
-Mac access instead. Chrome window selection remains available in **Settings → Computer**.
+Mac access instead. Chrome window selection remains available in **Settings → Connections**.
 
 Restart is not an onboarding step. The only relaunch is **Reopen Sia** in the checklist, shown
 when macOS needs it. Progress is saved before relaunch; active tasks, recordings, or account
@@ -327,14 +327,15 @@ permission checks.
 
 In Connected apps mode, when the latest request attempted browser tools and Chrome is detached, the conversation shows
 **Connect Chrome & continue** beneath the response. Open the task's website in Chrome, use that
-button, and choose the correct window if several are open. Accept Chrome's own remote-debugging
-prompt if it appears. Sia continues the same conversation after the attachment is verified; the
+button, and choose the correct window if several are open. The setup disclosure explains that
+Chrome may appear briefly. Review Chrome's own remote-debugging prompt yourself if it appears. Sia continues the same conversation after the attachment is verified; the
 user does not have to retype the request. Failed connections show their repair detail in place.
 The original request remains in history, and an unsent draft is preserved.
 
 This control does not turn off action confirmations. It rejects stale requests and duplicate clicks,
 and it does not repeat a request automatically on startup. Restarting Sia revokes live browser
-capabilities, so this recovery control can reconnect when needed. Settings → Computer still offers
+capabilities, so this recovery control can reconnect when needed. Automatic attachment remains
+background-only and cannot start foreground setup. Settings → Connections still offers
 standalone Chrome setup. A successful attachment grants the sites open in the chosen window; it
 does not prove the user is signed in to every site or grant all sites on the web.
 

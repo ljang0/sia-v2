@@ -7,11 +7,11 @@ the operator steps that make it live. Configuration details live in
 
 ## What the source supports
 
-- **Any model API.** A sponsor lab can speak OpenAI Responses, OpenAI Chat Completions, or
+- **Supported model protocols.** A sponsor lab can speak OpenAI Responses, OpenAI Chat Completions, or
   Anthropic Messages (`apiProtocol`). The cloud relay translates each to the format the harness
   speaks. The sponsor key stays in AWS Secrets Manager. On the Mac, harnesses receive only a
   loopback, model-scoped capability.
-- **Any harness.** Codex App Server (released), plus Claude Code, OpenCode, OpenHands, and Pi for
+- **Admitted engines.** Codex App Server (released), plus Claude Code, OpenCode, OpenHands, and Pi for
   included models. The last four are complete adapters held behind a signed `previewHarnesses`
   manifest until release admission. Each runs per session in a private home with only Sia's tools
   (OpenHands also keeps its own tools behind per-action approval). Each has an opt-in real-binary
@@ -29,7 +29,11 @@ the operator steps that make it live. Configuration details live in
 
 ## Make it live (operator)
 
-Each step is a separate, reviewed action. Nothing here has been deployed.
+The protocol routes and encrypted phone relay have recorded deployment evidence in
+[handoff](./handoff.md); ratings and deletion have later evidence in
+[public release](./public-release.md). An Arena sponsor entry and admission of preview engines
+remain separate work. Inspect the live stack and prepare only missing changes; the checklist
+below is not an instruction to redeploy already accepted infrastructure.
 
 1. **Cloud.** Prepare a scoped change set for `sia-alpha` from the current source. It changes:
    - the `MetaFunction`, `ControlFunction`, and `DeletionFunction` code (deletion now also

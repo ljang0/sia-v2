@@ -11,7 +11,7 @@ send from an existing personal draft. If focus moves unexpectedly, stop and re-e
 target before any more input.
 
 Record the result in the private pilot log with the exact Sia version and artifact hash under
-test. The source is `0.1.0-alpha.32`; the next signed candidate and its hashes must be recorded in
+test. The source candidate is `0.1.0-alpha.34`; its signed artifact and hashes must be recorded in
 [`public-release.md`](./public-release.md). The last published pilot artifact remains
 `0.1.0-alpha.24`, recorded in [`release-evidence.md`](./release-evidence.md).
 
@@ -36,7 +36,7 @@ SIA_REAL_CODEX_E2E=1 SIA_REAL_CUA_E2E=1 pnpm test:e2e:real:no-turn
 Run Chrome probing only with a dedicated visible test window and a unique
 `SIA_REAL_BROWSER_WINDOW_MATCH` value.
 
-## Integrated alpha.32 and native iPhone acceptance
+## Integrated candidate and native iPhone acceptance
 
 Use one exact candidate for all four workstreams. Record its commit, app.asar SHA-256, bundle
 identifier, signing team, macOS version, test time, observed result, and evidence location.
@@ -77,6 +77,20 @@ must disappear and the composer must accept input without waiting for an exit an
 Google/Slack public distribution retains its separate
 [connector gates](./connector-distribution-readiness.md). Calendar, Tasks, and Outlook remain off.
 Complete physical voice, lock/sleep, and clean-user checks below before public distribution.
+
+## Chrome connection
+
+Use a disposable Chrome window with a public test page. In Settings → Connections, read the
+setup disclosure and choose Connect Chrome or that exact window. Chrome may appear briefly;
+the tester reviews any Chrome permission prompt. A successful connection must be followed by a
+fresh browser read before Sia reports it as attached. Denying permission must leave a clear error
+with no usable browser grant.
+
+Then run a background task against the connected public page, navigate an observed safe link,
+and read back the destination. Verify other tabs remain unchanged. Restart Sia and repeat;
+if Chrome requires setup again, automatic attachment must stop without bringing Chrome forward.
+Only an explicit connection may start foreground setup. Background new-tab creation remains
+unsupported by the bundled driver; record it as unavailable, not passed.
 
 ## New-user setup and Keychain continuity
 
