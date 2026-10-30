@@ -26,6 +26,10 @@ describe('DesktopController', () => {
       await controller.invoke('computer.setAccessMode', { mode: 'connected' });
       await controller.invoke('computer.setTrust', { trust: 'auto' });
       await controller.invoke('browser.attach', { windowId: 7 });
+      expect(sink.acceptBrowserState).toHaveBeenCalledWith(expect.anything(), session, {
+        pid: 42,
+        windowId: 7,
+      });
       const endedSession = session;
       sink.resetBrowserCapabilities.mockClear();
       controller.browserSessionEnded(endedSession);

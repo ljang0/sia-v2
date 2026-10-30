@@ -1,7 +1,7 @@
 # Release status
 
-Updated October 30, 2026. **Distribution is not ready.** Alpha.36 is signed and notarized,
-and its core signed-app rehearsal passed. The last published Mac pilot is
+Updated October 30, 2026. **Distribution is not ready.** Alpha.37 is signed and notarized,
+and its default background browser read passed after fixing approved-session reuse. The last published Mac pilot is
 alpha.24; no new invitations or public download have been authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
@@ -12,10 +12,10 @@ technical review and invited pilot, without claiming a partnership or validated 
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.36 full local pilot gate passed: 1,761 desktop unit, 46 Electron, 31 renderer and 72 phone-browser checks. The [artifact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41089283694), developer prerequisite check and relative documentation links passed. | Re-run the runtime gates if application code changes. |
-| Signed Mac package | Alpha.36 from `86c8add784b9fc7a3f572b1a7322ce3a098ac8e0` passed universal signing, app/DMG notarization and stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Any runtime change requires a new signed candidate. |
-| Signed app tasks | Alpha.36 retained the QA profile without a Keychain prompt, created and previewed the exact CSV (total 13), operated native Calculator (`17 × 23 = 391`), and cancelled a disposable task. After a full restart, cancellation and the exact file preview persisted. | Finish the remaining live rows below. |
-| Browser | Alpha.36 attached the isolated public Chrome window and read the correct IANA title/heading without corrective prompting. Chrome independently confirmed the page. The model accurately stated the origin-only URL limitation. Alpha.34 passed safe link navigation. | Live expiry recovery remains unverified. Default Mac-route browser acceptance awaits Chrome inactive/consent state verification. Background new-tab creation is unsupported by driver 0.37.0. |
+| Source | Alpha.37 full local pilot gate passed: 1,768 desktop unit, 46 Electron, 31 renderer and 72 phone-browser checks. The [artifact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41132056136) and 62 local documentation links passed. | Re-run the runtime gates if application code changes. |
+| Signed Mac package | Alpha.37 from `a5cac3f188a23196bcb538319d01064b6b47e900` passed universal signing, app/DMG notarization and stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Any runtime change requires a new signed candidate. |
+| Signed app tasks | Alpha.37 retained the QA profile and background settings without a new Keychain prompt. Alpha.36 retained the QA profile without a Keychain prompt, created and previewed the exact CSV (total 13), operated native Calculator (`17 × 23 = 391`), and cancelled a disposable task. After a full restart, cancellation and the exact file preview persisted. | Complete the alpha.37 CSV/Calculator and cancellation/restart rehearsal. Its task is paused; CUA input returned `noWindowsAvailable` / `elementHasNoFrame`. |
+| Browser | Alpha.37 read the correct IANA title/heading through the default background Mac route after explicit attachment; native Chrome independently confirmed it. The same flow failed on alpha.36. | Background link input and detach/reconnect remain incomplete after foreground protection paused the task and CUA input failed. Live unexpected expiry remains unverified. Background new-tab creation is unsupported by driver 0.37.0. |
 | New recipient | Alpha.36 with an empty app profile showed only email sign-in, with no private app content. | Clean macOS-account signup, permissions, provider login cancel/retry, lock/sleep and voice acceptance. An empty profile is not a clean OS account; no fresh account or second Mac is currently available. |
 | Cloud feedback | Ratings/account deletion deployed; a synthetic authenticated rating reached the report. October 30: 18 alarms OK with actions enabled, five Lambdas Active/Successful, anonymous catalog/report/release requests return 401. | Recheck if configuration changes before invitations. |
 | iPhone follow-on | Build 31 is Ready to Test in internal Pilot QA; native tests, signed archive and Apple processing passed. | Deferred from this Mac-first handoff. Physical-device checks and external beta review remain. |
@@ -32,6 +32,12 @@ show only origins, but the model interpreted one as a full page URL and stopped 
 mismatch. Reading the same tab after explaining the redaction succeeded. Alpha.36 labels that
 redaction in results and tool descriptions while keeping private paths, queries and fragments hidden.
 The signed alpha.36 retest read the page correctly without an operator explaining the redaction.
+
+Alpha.37 reuses the explicitly approved Chrome session only for the same process and window.
+The alpha.36 live test showed that creating a separate session made the default Mac route request
+setup again, which driver 0.37.0 refused in the background. Detaching or replacing the connection
+revokes Mac-route references; expiry requires reconnecting the chosen window. No foreground fallback
+is added. Its full local gate, signed package checks and live background read passed. The remaining input checks are recorded above.
 
 ## Release decision
 

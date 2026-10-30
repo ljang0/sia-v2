@@ -95,12 +95,14 @@ function harness() {
     throw new Error(`Unexpected native route ${tool}`);
   });
   const openUrl = vi.fn();
+  const onBrowserSessionEnded = vi.fn();
   const backend = new DesktopActionBackend({
     cua: { call },
     macBrowserAccess: () => true,
     macBackgroundControl: () => true,
     inspectBrowserWindow: async () => ({ status: 'protected' }),
     openUrl,
+    onBrowserSessionEnded,
   });
   const request = (
     name: ValidatedActionInvocation['name'],
@@ -124,10 +126,136 @@ function harness() {
     const data = result.data as { windows: { app_id: string; window_id: string }[] };
     return { app_id: data.windows[0]!.app_id, window_id: data.windows[0]!.window_id };
   }
-  return { state, call, openUrl, backend, request, target };
+  return { state, call, openUrl, onBrowserSessionEnded, backend, request, target };
 }
 
 describe('Mac background Chromium uses the dedicated Cua browser route', () => {
+  it('reuses an explicitly connected exact window across turns without repeating setup', async () => {
+    const h = harness();
+    h.state.prepared = true;
+    h.state.requireSessionGrant = true;
+    h.state.unavailable = true;
+    h.state.url = 'https://public.example/guide';
+    h.state.grantedSessions.add('approved');
+    h.backend.acceptBrowserState({}, 'approved', { pid: 42, windowId: 91 });
+    for (const turn of ['first', 'second']) {
+      const target = await h.target(turn);
+      const result = await h.backend.invoke(h.request('computer_snapshot', target, turn));
+      expect(result.outcome).toBe('verified');
+    }
+    expect(
+      h.call.mock.calls
+        .filter(([tool]) => tool === 'get_browser_state')
+        .every(([, args]) => args.session === 'approved'),
+    ).toBe(true);
+    expect(h.call.mock.calls.some(([tool]) => tool === 'browser_prepare')).toBe(false);
+  });
+
+  it.each([
+    { pid: 43, windowId: 91 },
+    { pid: 42, windowId: 92 },
+  ])(
+    'never uses an explicit connection for a different process or window: %j',
+    async (window) => {
+      const h = harness();
+      h.state.prepared = true;
+      h.state.requireSessionGrant = true;
+      h.state.grantedSessions.add('approved');
+      h.backend.acceptBrowserState({}, 'approved', window);
+      const result = await h.backend.invoke(h.request('computer_snapshot', await h.target()));
+      expect(result.outcome).not.toBe('verified');
+      expect(h.call.mock.calls.some(([, args]) => args.session === 'approved')).toBe(false);
+    },
+  );
+
+  it('revokes Mac input and the reusable session when the connection is detached', async () => {
+    const h = harness();
+    h.state.prepared = true;
+    h.state.requireSessionGrant = true;
+    h.state.url = 'https://public.example/guide';
+    h.state.grantedSessions.add('approved');
+    h.backend.acceptBrowserState({}, 'approved', { pid: 42, windowId: 91 });
+    const target = await h.target();
+    const before = await h.backend.invoke(h.request('computer_snapshot', target));
+    const refs = before.data as { snapshot_id: string; elements: { element_ref: string }[] };
+    h.backend.resetBrowserCapabilities();
+    h.call.mockClear();
+    const input = await h.backend.invoke(
+      h.request('computer_action', {
+        ...target,
+        snapshot_id: refs.snapshot_id,
+        element_ref: refs.elements[0]!.element_ref,
+        action: 'click',
+      }),
+    );
+    expect(input.outcome).toBe('stale');
+    const after = await h.backend.invoke(h.request('computer_snapshot', target));
+    expect(after.outcome).not.toBe('verified');
+    expect(h.call.mock.calls.some(([, args]) => args.session === 'approved')).toBe(false);
+    expect(h.call.mock.calls.some(([tool]) => tool === 'browser_click')).toBe(false);
+  });
+
+  it('expires the approved host connection without automatically creating another session', async () => {
+    const h = harness();
+    h.state.prepared = true;
+    h.state.expiredSessions.add('approved');
+    h.backend.acceptBrowserState({}, 'approved', { pid: 42, windowId: 91 });
+    const result = await h.backend.invoke(
+      h.request('computer_open_url', {
+        ...(await h.target()),
+        url: 'https://public.example/guide',
+        prepare_only: true,
+      }),
+    );
+    expect(result.outcome).toBe('stale');
+    expect(h.onBrowserSessionEnded).toHaveBeenCalledExactlyOnceWith('approved');
+    expect(h.call.mock.calls.some(([tool]) => tool === 'browser_prepare')).toBe(false);
+  });
+
+  it('discards a late read after a new connection replaces its session', async () => {
+    const h = harness();
+    h.state.prepared = true;
+    h.state.url = 'https://public.example/guide';
+    h.backend.acceptBrowserState({}, 'old', { pid: 42, windowId: 91 });
+    const original = h.call.getMockImplementation()!;
+    h.call.mockImplementation(async (tool, args) => {
+      if (tool === 'get_browser_state' && args.session === 'old')
+        h.backend.acceptBrowserState({}, 'new', { pid: 42, windowId: 91 });
+      return original(tool, args);
+    });
+    const target = await h.target();
+    expect((await h.backend.invoke(h.request('computer_snapshot', target))).outcome).toBe(
+      'stale',
+    );
+    expect((await h.backend.invoke(h.request('computer_snapshot', target))).outcome).toBe(
+      'verified',
+    );
+    expect(h.onBrowserSessionEnded).not.toHaveBeenCalled();
+  });
+
+  it('does not revoke a replacement connection when an old page read expires late', async () => {
+    const h = harness();
+    h.state.prepared = true;
+    h.state.url = 'https://public.example/guide';
+    h.backend.acceptBrowserState({}, 'old', { pid: 42, windowId: 91 });
+    const original = h.call.getMockImplementation()!;
+    h.call.mockImplementation(async (tool, args) => {
+      if (tool === 'get_browser_state' && args.session === 'old' && args.tab_id) {
+        h.backend.acceptBrowserState({}, 'new', { pid: 42, windowId: 91 });
+        throw new Error('CUA refused: session_ended');
+      }
+      return original(tool, args);
+    });
+    const target = await h.target();
+    const prior = await h.backend.invoke(h.request('computer_snapshot', target));
+    expect(prior.outcome).not.toBe('verified');
+    expect(prior.data).not.toHaveProperty('snapshot_id');
+    expect(h.onBrowserSessionEnded).not.toHaveBeenCalled();
+    expect((await h.backend.invoke(h.request('computer_snapshot', target))).outcome).toBe(
+      'verified',
+    );
+  });
+
   it('restores access and discovers inactive tabs without navigation or page capture', async () => {
     const h = harness();
     h.state.url = 'https://public.example/selected';
