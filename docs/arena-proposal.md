@@ -50,12 +50,13 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Alpha.33 is signed and notarized. Automated gates and signed-app file creation/preview, restart,
-cancellation, native Calculator input and fresh-profile sign-in checks passed. Signed Chrome
-background preparation remains blocked in the tested environment; background new-tab creation
-is unsupported. Browser acceptance, clean macOS-account setup, redistribution permissions and
+Alpha.34 is signed and notarized. The full automated gate, signed-app upgrade, fresh CSV
+creation/readback/preview, restart, cancellation and native Calculator input passed. Alpha.33
+additionally passed a fresh-profile sign-in check. Alpha.34 adds explicit Chrome setup; its live
+connection still needs the operator's access confirmation. Background new-tab creation is
+unsupported. Browser acceptance, clean macOS-account setup, redistribution permissions and
 release ownership must be resolved before distribution. See [release status](./release-status.md)
-for the current evidence; passing fake-service tests is not live acceptance.
+for current evidence; passing fake-service tests is not live acceptance.
 
 Start with the [README setup and task path](../README.md), then
 [architecture](./architecture.md), [ratings](./arena-ratings.md) and
