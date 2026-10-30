@@ -82,6 +82,7 @@ links, or real workspace content into a bug report.
 For any failure, record the Sia version, macOS version, feature/provider, attempted action, local
 time, and exact visible error text. Include a screenshot only if it contains no private data.
 
-The pilot owner must maintain the approved recipient list and support contact. Research collection
+Lawrence Jang is the support/incident owner for the first invited Mac pilot (confirmed October 30, 2026).
+The owner must maintain the approved recipient list and support contact. Research collection
 stays off unless the tester separately opts in after reviewing Privacy and the required research,
 privacy, and security approvals are complete.

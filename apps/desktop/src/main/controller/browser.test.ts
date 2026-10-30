@@ -2,6 +2,62 @@ import { describe, expect, it, vi } from 'vitest';
 import { computer, createHarness } from './test-support.js';
 
 describe('DesktopController', () => {
+  it('shows expired attachments as disconnected and requires a new explicit window choice', async () => {
+    let session = '';
+    const browserComputer = {
+      ...computer,
+      call: vi.fn(async (tool: string, args: Record<string, unknown>) => {
+        if (tool === 'list_apps') return { apps: [{ pid: 42, name: 'Google Chrome' }] };
+        if (tool === 'list_windows') return { windows: [{ window_id: 7 }, { window_id: 8 }] };
+        if (tool === 'browser_prepare') session = String(args.session);
+        if (tool === 'get_browser_state')
+          return { target_id: 'target', tab_id: 'tab', url: 'https://example.test/' };
+        return {};
+      }),
+    };
+    const { controller } = await createHarness({ computer: browserComputer });
+    const sink = {
+      acceptBrowserState: vi.fn(),
+      resetBrowserCapabilities: vi.fn(),
+      trustedApprovalTarget: () => undefined,
+    };
+    controller.attachBrowserCapabilitySink(sink);
+    try {
+      await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+      await controller.invoke('computer.setTrust', { trust: 'auto' });
+      await controller.invoke('browser.attach', { windowId: 7 });
+      const endedSession = session;
+      sink.resetBrowserCapabilities.mockClear();
+      controller.browserSessionEnded(endedSession);
+      expect(controller.snapshot().browser).toMatchObject({
+        status: 'error',
+        grantedOrigins: [],
+      });
+      expect(controller.snapshot().browser.detail).toContain('Chrome connection expired');
+      expect(sink.resetBrowserCapabilities).toHaveBeenCalledOnce();
+      browserComputer.call.mockClear();
+      expect(await controller.ensureBrowserAttachedForActions()).toContain(
+        'Choose your window',
+      );
+      expect(browserComputer.call).not.toHaveBeenCalled();
+
+      // Opening the picker is not permission to attach an arbitrary replacement window.
+      await controller.invoke('browser.attach', {});
+      expect(controller.snapshot().browser.status).toBe('detached');
+      browserComputer.call.mockClear();
+      await controller.ensureBrowserAttachedForActions();
+      expect(browserComputer.call).not.toHaveBeenCalled();
+      await controller.invoke('browser.attach', { windowId: 8 });
+      expect(session).not.toBe(endedSession);
+      expect(controller.snapshot().browser.status).toBe('attached');
+      controller.browserSessionEnded(endedSession);
+      expect(controller.snapshot().browser.status).toBe('attached');
+      expect(await controller.ensureBrowserAttachedForActions()).toBeUndefined();
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it.each([false, true])(
     'allows foreground Chrome setup only for a direct connection (automatic=%s)',
     async (automatic) => {

@@ -3,6 +3,7 @@ import type { CuaAuthorizationContext } from '../mac/cua-service.js';
 import { BrowserGrants } from './browser-grants.js';
 import { ComputerGrants } from './computer-grants.js';
 import { actionExecutionId } from './action-execution.js';
+import { resultRefusal } from './action-results.js';
 import type { DesktopActionBackendOptions } from './types.js';
 
 /**
@@ -26,7 +27,7 @@ export class ActionBackendContext {
     this.hostPid = options.hostPid ?? process.pid;
   }
 
-  callCua(
+  async callCua(
     request: ValidatedActionInvocation,
     tool: string,
     args: Record<string, unknown>,
@@ -40,6 +41,22 @@ export class ActionBackendContext {
         ? { backgroundOnly: request.context.backgroundOnly }
         : {}),
     };
-    return this.options.cua.call(tool, args, context, request.context.signal);
+    const expire = (): void => {
+      // A late failure from an old call must not revoke a newly selected window.
+      if (this.browser.attached && args.session === this.browser.sessionId) {
+        const sessionId = this.browser.sessionId;
+        this.browser.reset();
+        this.options.onBrowserSessionEnded?.(sessionId);
+      }
+    };
+    try {
+      const result = await this.options.cua.call(tool, args, context, request.context.signal);
+      if (resultRefusal(result)?.reason === 'session_ended') expire();
+      return result;
+    } catch (error) {
+      if (error instanceof Error && /^(?:CUA refused: )?session_ended$/.test(error.message))
+        expire();
+      throw error;
+    }
   }
 }

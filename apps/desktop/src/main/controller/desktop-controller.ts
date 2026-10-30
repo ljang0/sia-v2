@@ -262,6 +262,10 @@ export class DesktopController {
     return this.#ctx.browser.ensureBrowserAttachedForActions();
   }
 
+  browserSessionEnded(sessionId: string): void {
+    this.#ctx.browser.browserSessionEnded(sessionId);
+  }
+
   initialize(): Promise<void> {
     return this.#ctx.initialize();
   }

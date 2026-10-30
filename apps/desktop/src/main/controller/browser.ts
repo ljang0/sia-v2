@@ -39,6 +39,7 @@ export class BrowserSession {
   sessionId: string | undefined;
   private readonly continuations = new Set<string>();
   private autoAttach: Promise<void> | undefined;
+  private reconnectRequired = false;
 
   constructor(private readonly ctx: BrowserSessionContext) {}
 
@@ -61,6 +62,7 @@ export class BrowserSession {
   async ensureBrowserAttachedForActions(): Promise<string | undefined> {
     if (this.ctx.computerAccess.accessMode() === 'mac')
       return 'Use my Mac is enabled. Use native shell, AppleScript and screenshots with the existing Safari or browser window. Chrome attachment is optional.';
+    if (this.reconnectRequired) return this.ctx.state.browser.detail;
     if (this.ctx.computerAccess.trust() !== 'auto')
       return 'No Chrome window is connected. Sia shows a Connect Chrome & continue control below this response. Ask the user to choose their window there; they do not need to repeat the request.';
     if (this.ctx.state.browser.status === 'attached' && this.sessionId) return undefined;
@@ -76,6 +78,21 @@ export class BrowserSession {
     return this.ctx.state.browser.status === 'attached'
       ? undefined
       : this.ctx.state.browser.detail;
+  }
+
+  browserSessionEnded(sessionId: string): void {
+    if (this.sessionId !== sessionId) return;
+    this.ctx.browserCapabilitySink?.resetBrowserCapabilities();
+    this.target = undefined;
+    this.sessionId = undefined;
+    this.reconnectRequired = true;
+    this.ctx.state.browser = {
+      status: 'error',
+      grantedOrigins: [],
+      detail:
+        'Chrome connection expired. Choose your window again in Settings → Connections to reconnect.',
+    };
+    this.ctx.commit();
   }
 
   async connectBrowserAndContinue(
@@ -270,6 +287,7 @@ export class BrowserSession {
             grantedOrigins,
           });
           attachedWindow = candidate;
+          this.reconnectRequired = false;
           break;
         } catch (candidateError) {
           lastFailure = candidateError;
@@ -352,6 +370,7 @@ export class BrowserSession {
     this.ctx.browserCapabilitySink?.resetBrowserCapabilities();
     this.target = undefined;
     this.sessionId = undefined;
+    this.reconnectRequired = false;
     this.ctx.state.browser = { status: 'detached', grantedOrigins: [] };
     this.ctx.commit();
     return this.ctx.resultSnapshot();
