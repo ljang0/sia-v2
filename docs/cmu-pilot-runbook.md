@@ -1,6 +1,6 @@
 # Invited Mac pilot runbook
 
-This runbook is for the controlled `0.1.0-alpha.34` Mac-first handoff. The owner selected Mac first
+This runbook is for the controlled `0.1.0-alpha.36` Mac-first handoff. The owner selected Mac first
 and iPhone later on October 30, 2026. It keeps the first session short and easy to support; it does
 not authorize distribution or a research launch. See [release status](./release-status.md) for the
 current acceptance gates.
