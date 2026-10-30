@@ -3,37 +3,44 @@
 ## Current decision — October 30, 2026
 
 The owner selected **Mac first; iPhone follows** and confirmed ownership of the relevant Notch
-source rights. Alpha.35 is the signed candidate; alpha.36 is validating clearer browser URL
-redaction labels. **External pilot release is not complete.** No new artifacts were published or
-invitations sent; the last published Mac pilot remains alpha.24.
+source rights. Alpha.36 is the signed acceptance candidate. **External pilot release is not complete.**
+No new artifacts were published or invitations sent; the last published Mac pilot remains alpha.24.
 
-The universal alpha.35 app, DMG and ZIP were built from
-`cc2a94317e5c08ca6d71cee9ab4985495e5a2b21`. The full local pilot gate passed: 1,761 desktop unit,
-46 Electron, 31 renderer and 72 Chromium/WebKit phone checks. [PR #29 CI](https://github.com/ljang0/sia-v2/actions/runs/41085610970)
-passed the full gate and unsigned universal packaging. PR #29 merged at `f922de9`.
+The universal alpha.36 app, DMG and ZIP were built from
+`86c8add784b9fc7a3f572b1a7322ce3a098ac8e0`. The full local pilot gate passed: 1,761 desktop unit,
+46 Electron, 31 renderer and 72 Chromium/WebKit phone checks. Hosted verification is tracked in
+[PR #30 CI](https://github.com/ljang0/sia-v2/actions/runs/41089283694).
 `pnpm package:mac` passed signing, app/DMG notarization and stapling, strict signatures, Gatekeeper
-and packaged native/runtime verification. DMG notarization `5dbf49ab-e797-4adc-95ea-09cae63ad54f` was Accepted.
+and packaged native/runtime verification. DMG notarization `b30583e5-7200-47cd-9e6d-b674b5eb7f20` was Accepted.
 
-The alpha.34-to-.35 QA upgrade retained history without a new Keychain prompt. Explicit attachment
-of the isolated public Chrome window passed. A connected-browser read returned the IANA page title
-and first heading, both “Example Domains,” independently verified in Chrome. Initially the model
-misread an origin-only URL as the full page location; the read succeeded after explaining the
-redaction. Alpha.36 makes that distinction explicit in the tool contract. The alpha.35 stale-session
-fix passed focused regression tests; live session-expiry recovery is not yet verified. Default
-Mac-route browser acceptance remains blocked by Chrome foreground/consent state.
+The alpha.35-to-.36 QA upgrade retained history without a new Keychain prompt. The signed app:
+
+- Attached the approved isolated Chrome window and read IANA’s “Example Domains” title and first
+  heading, independently verified in Chrome. It accurately explained that origin-only URLs cannot
+  prove an exact path, without needing a corrective follow-up.
+- Created `alpha36-check.csv` with exactly `item,count`, `apples,5`, and `oranges,8`; reported total 13;
+  and displayed the exact saved content in its file preview.
+- Entered `17 × 23` in native Calculator; independent app inspection showed `391`.
+- Cancelled a disposable task and returned Ready. After a full quit/relaunch, it stayed cancelled
+  and the saved CSV preview retained its exact content.
+- Showed only email sign-in in a new empty app profile. This is not a clean macOS-account test.
 
 | Artifact                           | SHA-256                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |
-| `Sia-0.1.0-alpha.35-universal.dmg` | `3790e532ba818ed2687153f7b11cb14f4bb76bb95a1916b4871b180c76c7ca43` |
-| `Sia-0.1.0-alpha.35-universal.zip` | `db882fe6b385e8f0b0e65f6fdfe1a4c451738bbef16de1196fc78214f7637c2e` |
+| `Sia-0.1.0-alpha.36-universal.dmg` | `12ce7e73c0b8252603a7bb7e160b758367af8695cada59893603b91242dfab66` |
+| `Sia-0.1.0-alpha.36-universal.zip` | `69ef41bba484e93c79a72a7116029c034ccd46e9e61b12521e5b9b880b9c635d` |
 
-Alpha.34 from `75073741f3cf3f0756721c809501dc391574906b` passed signed packaging, CSV creation and
-exact preview (apples=5, oranges=8, total=13), restart, cancellation, native Calculator input
-(`23 × 19 = 437`), Chrome attachment and safe IANA link navigation in Connected apps mode.
-Its DMG SHA-256 is `c1a438180f164161eb702e4b581587a71bde6fd8c2bd05da382ce5e0c0b0bc69`.
-It remains retained for rollback. Prior results do not substitute for final-artifact acceptance.
-Clean macOS-account acceptance remains incomplete: the owner currently has no fresh account or
-second Mac available. See [release status](./release-status.md) for remaining gates.
+Default Mac-route browser acceptance and live browser-session expiry recovery remain unverified.
+Clean macOS-account acceptance is also incomplete: the owner has no fresh account or second Mac
+available. Voice/lock/sleep and the final owner release decision remain open. See
+[release status](./release-status.md) for the exact remaining gates.
+
+Alpha.35 is retained for rollback. Its DMG SHA-256 is
+`3790e532ba818ed2687153f7b11cb14f4bb76bb95a1916b4871b180c76c7ca43`.
+Its [CI](https://github.com/ljang0/sia-v2/actions/runs/41085610970), signed packaging, QA upgrade,
+attachment and connected page read passed; the read needed an operator explanation of URL redaction.
+Alpha.34 separately passed safe IANA link navigation. Earlier results do not establish acceptance
+of every behavior on the current artifact.
 
 ## Alpha.33 evidence
 
@@ -70,9 +77,9 @@ The last published alpha.24 pilot remains recorded in [release evidence](./relea
 
 ## Publication
 
-The alpha.35 handoff folder is prepared locally with the installer, checksums, proposal, setup
+The alpha.36 handoff folder is prepared locally with the installer, checksums, proposal, setup
 notes and third-party notices. It is an acceptance candidate, not a published release. Keep private
 recipient lists and download links outside Git. After the remaining [release gates](./release-status.md)
 pass and the owner authorizes distribution, follow [release operations](./release.md) and verify the
-recipient's downloaded hash. Keep alpha.34 available for rollback. Research recruitment retains
+recipient's downloaded hash. Keep alpha.35 available for rollback. Research recruitment retains
 its separate [sign-off](./research-release-signoff.md).

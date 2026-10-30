@@ -51,11 +51,11 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Alpha.35 is signed and notarized; its automated gate, QA-profile upgrade, explicit Chrome attachment
-and connected-browser page read passed. Alpha.34 also passed CSV creation/preview, restart,
-cancellation, Calculator input and safe link navigation. Alpha.36 is validating clearer labels for
-privacy-redacted browser URLs. Browser expiry recovery, the default Mac route, clean macOS-account
-setup and voice/lock/sleep acceptance remain open. Background new-tab creation is unsupported.
+Alpha.36 is signed and notarized. Its full local automated gate and signed-app rehearsal passed:
+QA-profile upgrade, fresh-profile sign-in wall, exact CSV creation/preview, native Calculator input,
+cancellation/restart, and connected-browser reading. Browser results clearly identify privacy-redacted
+URLs. Default Mac-route browser acceptance, live session-expiry recovery, clean macOS-account setup,
+and voice/lock/sleep checks remain open. Background new-tab creation is unsupported.
 The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
 owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.
 
