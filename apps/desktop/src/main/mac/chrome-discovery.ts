@@ -116,6 +116,9 @@ export async function chromeDebugPortOwnerPid(
 
 export function browserAttachmentError(error: unknown): string {
   const message = error instanceof Error ? error.message : 'Chrome attachment failed.';
+  if (message.includes('background_unavailable')) {
+    return 'Chrome needs a setup step that may bring its window forward. Choose Connect Chrome or a window in Settings → Connections to start it yourself. Review any Chrome permission prompt; background tasks will not switch modes automatically.';
+  }
   if (message.includes('browser_binding_ambiguous')) {
     return 'Chrome could not distinguish that window from another open window. Choose a window showing a unique page, or close the duplicate and retry.';
   }

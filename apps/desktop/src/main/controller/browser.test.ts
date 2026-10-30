@@ -2,6 +2,79 @@ import { describe, expect, it, vi } from 'vitest';
 import { computer, createHarness } from './test-support.js';
 
 describe('DesktopController', () => {
+  it.each([false, true])(
+    'allows foreground Chrome setup only for a direct connection (automatic=%s)',
+    async (automatic) => {
+      const browserComputer = {
+        ...computer,
+        call: vi.fn(async (tool: string, args: Record<string, unknown>) => {
+          if (tool === 'list_apps') return { apps: [{ pid: 42, name: 'Google Chrome' }] };
+          if (tool === 'list_windows') return { windows: [{ pid: 42, window_id: 7 }] };
+          if (tool === 'browser_prepare') {
+            expect(args).toMatchObject({
+              pid: 42,
+              window_id: 7,
+              strategy: { kind: 'existing_profile' },
+              delivery_mode: automatic ? 'background' : 'foreground',
+            });
+            expect(args).not.toHaveProperty('cdp_port');
+            if (automatic) return { refusal: { code: 'background_unavailable' } };
+            return { prepared: true };
+          }
+          if (tool === 'get_browser_state') {
+            return { target_id: 'target', tab_id: 'tab', url: 'https://example.test/' };
+          }
+          return {};
+        }),
+      };
+      const { controller } = await createHarness({ computer: browserComputer });
+      if (automatic) {
+        await controller.invoke('computer.setTrust', { trust: 'auto' });
+        await controller.invoke('computer.setAccessMode', { mode: 'connected' });
+        await controller.ensureBrowserAttachedForActions();
+      } else {
+        await controller.invoke('browser.attach', {});
+      }
+      expect(controller.snapshot().browser.status).toBe(automatic ? 'error' : 'attached');
+      expect(
+        browserComputer.call.mock.calls.filter(([name]) => name === 'browser_prepare'),
+      ).toHaveLength(1);
+      if (automatic) {
+        expect(controller.snapshot().browser.grantedOrigins).toEqual([]);
+        expect(controller.snapshot().browser.detail).toContain('start it yourself');
+        expect(
+          browserComputer.call.mock.calls.some(([name]) => name === 'get_browser_state'),
+        ).toBe(false);
+      }
+      await controller.shutdown();
+    },
+  );
+
+  it('does not attach or grant prepared origins when the fresh browser read is refused', async () => {
+    const browserComputer = {
+      ...computer,
+      call: vi.fn(async (tool: string) => {
+        if (tool === 'list_apps') return { apps: [{ pid: 42, name: 'Google Chrome' }] };
+        if (tool === 'list_windows') return { windows: [{ pid: 42, window_id: 7 }] };
+        if (tool === 'browser_prepare')
+          return { target_id: 'old', tab_id: 'old', url: 'https://example.test/' };
+        if (tool === 'get_browser_state')
+          return { refusal: { code: 'browser_consent_required' } };
+        return {};
+      }),
+    };
+    const { controller } = await createHarness({ computer: browserComputer });
+    await controller.invoke('browser.attach', {});
+    expect(controller.snapshot().browser).toMatchObject({
+      status: 'error',
+      grantedOrigins: [],
+    });
+    await expect(
+      controller.invoke('browser.open', { url: 'https://example.test/' }),
+    ).rejects.toThrow('Attach a Chrome window');
+    await controller.shutdown();
+  });
+
   it('prioritizes the Chrome process that owns the remote-debugging port when attaching', async () => {
     const attachedPids: number[] = [];
     const computer = {
@@ -47,7 +120,7 @@ describe('DesktopController', () => {
         }
         if (tool === 'browser_prepare') {
           attachedPids.push(Number(args.pid));
-          // Only the port owner (222) accepts the cdp_port route.
+          // Only the port owner (222) has an existing usable endpoint.
           if (Number(args.pid) !== 222)
             throw new Error('CUA refused: browser_route_unavailable');
           return { targets: [{ target_id: 't', tab_id: 'tab', url: 'https://example.test/' }] };

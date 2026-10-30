@@ -41,6 +41,7 @@ describe('access dialog', () => {
 
     expect(screen.getByRole('heading', { name: 'Choose a Chrome window' })).toBeTruthy();
     expect(screen.getByText(/can’t see the others/i)).toBeTruthy();
+    expect(screen.getByText(/Chrome may appear briefly during setup/)).toBeTruthy();
     expect(screen.queryByText(/close extra ordinary Chrome windows/i)).toBeNull();
 
     fireEvent.click(

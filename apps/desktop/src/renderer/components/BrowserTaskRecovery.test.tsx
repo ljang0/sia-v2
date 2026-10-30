@@ -46,6 +46,7 @@ it('connects from the existing request, then passes the explicitly chosen window
   const connect = vi.fn(async () => {});
   render(<BrowserTaskRecovery thread={thread} browser={browser} connect={connect} />);
   expect(connect).not.toHaveBeenCalled();
+  expect(screen.getByText(/Chrome may appear briefly during setup/)).toBeTruthy();
   expect(screen.queryByRole('button', { name: /Use Chrome window/ })).toBeNull();
   fireEvent.click(screen.getByRole('button', { name: 'Connect Chrome & continue' }));
   await waitFor(() => expect(connect).toHaveBeenCalledWith(thread.id, 'user-1', undefined));

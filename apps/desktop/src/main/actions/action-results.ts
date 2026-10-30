@@ -100,10 +100,18 @@ export function looksLikeErrorCode(value: string | undefined): boolean {
 
 export function resultRefusal(value: unknown): ActionExecutionResult | undefined {
   const record = asRecord(value);
-  const refusal = findString(value, ['refusal', 'error_code', 'errorCode']);
+  const refusal =
+    findNestedString(value, 'refusal', ['code', 'error_code', 'errorCode']) ??
+    findString(value, ['refusal', 'error_code', 'errorCode']);
   const code = findString(value, ['code']);
   const effect = findString(value, ['effect']);
-  if (!refusal && effect !== 'refused' && !looksLikeErrorCode(code)) return undefined;
+  if (
+    !refusal &&
+    record?.status !== 'refused' &&
+    effect !== 'refused' &&
+    !looksLikeErrorCode(code)
+  )
+    return undefined;
   const reason =
     refusal ??
     code ??
