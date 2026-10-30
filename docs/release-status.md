@@ -1,7 +1,8 @@
 # Release status
 
-Updated October 29, 2026. The last signed controlled product-pilot candidate is
-`0.1.0-alpha.32` on `claude/demo-candidate` (PR #22). Source, CI, and signed packaging passed; live acceptance remains open;
+Updated October 29, 2026. The current signed controlled product-pilot candidate is
+`0.1.0-alpha.33` from source `03f7e5e95e24ea0d52ff8c4e3b95dbacaf28cf55` (PR #26).
+The full local pilot gate and signed packaging passed; live acceptance remains open;
 **do not describe it as ready or send invitations until the acceptance record is complete**.
 Alpha.30 and alpha.31 passed signing/notarization and upgrades retained the demo profile. Live file tasks
 found missing result controls on plain-text and streamed provider replies; alpha.32 addresses both paths.
@@ -39,8 +40,26 @@ public tab without selecting it. A subsequent cold preparation was refused with
 `background_unavailable`; recovery remains conditional on the driver's available background route.
 Background new-tab creation remains unavailable in both inspected driver versions, 0.37.0 and
 0.38.0. The dependency stays on 0.37.0; unrelated tabs must be preserved. This is not signed-release
-acceptance. Alpha.33 signing/notarization, clean-user install/upgrade, and physical iPhone pairing,
-Save, reconnect and microphone checks remain open until exact-artifact evidence is recorded.
+acceptance. A fresh development-app check also read the inactive page's title and the observed
+`https://iana.org/help/example-domains` destination while IANA stayed selected.
+
+Alpha.33 passed `pnpm package:mac`: universal signing, app/DMG notarization and stapling,
+strict signatures, Gatekeeper and packaged native/runtime verification. The full local pilot
+gate passed 1,748 desktop unit, 46 Electron, 31 renderer and 72 Chromium/WebKit phone checks.
+CI subsequently caught an unrelated permissions-test race: the test clicked optional voice
+before the preceding guided request released its disabled button. The test now waits for that
+button to enable; all 44 focused settings/permissions tests passed. This test-only follow-up
+does not change the signed application source.
+
+The signed alpha.32-to-alpha.33 upgrade retained the isolated QA profile without a new Keychain
+prompt. A fresh synthetic CSV task created/read back apples=3 and oranges=4, reported total 7,
+and displayed the exact saved content in its result preview. Signed browser discovery then
+returned `browser_consent_required`; preparation returned `needs_foreground` /
+`background_unavailable`. Sia stopped without navigation or foreground escalation. Signed
+background-browser acceptance remains incomplete despite the successful development-app check.
+Physical iPhone checks were blocked by Mirroring's "iPhone in Use" timeout. Clean macOS-account
+signup/permissions and physical pairing, Save, reconnect and microphone checks remain open.
+Artifact hashes are recorded in [public distribution candidate](./public-release.md).
 
 ## Pilot scope
 
