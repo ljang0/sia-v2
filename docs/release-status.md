@@ -57,6 +57,9 @@ and displayed the exact saved content in its result preview. Signed browser disc
 returned `browser_consent_required`; preparation returned `needs_foreground` /
 `background_unavailable`. Sia stopped without navigation or foreground escalation. Signed
 background-browser acceptance remains incomplete despite the successful development-app check.
+Signed native Calculator input passed with independently observed `19 × 21 = 399`. A full
+quit/relaunch preserved the CSV result and its exact preview; cancelling a new text-only task
+returned the app to Ready.
 Physical iPhone checks were blocked by Mirroring's "iPhone in Use" timeout. Clean macOS-account
 signup/permissions and physical pairing, Save, reconnect and microphone checks remain open.
 Artifact hashes are recorded in [public distribution candidate](./public-release.md).

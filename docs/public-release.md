@@ -14,8 +14,8 @@ QA profile survived the upgrade and a fresh synthetic CSV result was created, re
 previewed correctly. Signed background browser setup was refused by the driver; physical-phone
 and clean macOS-account acceptance remain incomplete. No artifacts were published or invitations sent.
 
-| Artifact | SHA-256 |
-| --- | --- |
+| Artifact                           | SHA-256                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
 | `Sia-0.1.0-alpha.33-universal.dmg` | `caac425d7de5f4f852a0bec1caa1dcbc7163a9331037a536dd85578463929b2d` |
 | `Sia-0.1.0-alpha.33-universal.zip` | `0d755ad4c0003942db23dc73ae5c166cd2f766a1207c6438b8ee0ea0c83143af` |
 
