@@ -11,7 +11,7 @@ send from an existing personal draft. If focus moves unexpectedly, stop and re-e
 target before any more input.
 
 Record the result in the private pilot log with the exact Sia version and artifact hash under
-test. The source candidate is `0.1.0-alpha.37`; alpha.36 is the latest verified signed package.
+test. The source candidate is `0.1.0-alpha.37`; alpha.37 is the latest verified signed package.
 Record the new candidate’s signed artifact and hashes in
 [`public-release.md`](./public-release.md). The last published pilot artifact remains
 `0.1.0-alpha.24`, recorded in [`release-evidence.md`](./release-evidence.md).
