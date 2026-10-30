@@ -14,7 +14,7 @@ separate gates.
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | PR #26 merged at `3dcb214`. Its [final head CI](https://github.com/ljang0/sia-v2/actions/runs/41000626957) passed the pilot gate and unsigned universal package. | Full alpha.34 gate and review. |
+| Source | PR #26 merged at `3dcb214`. Its [final head CI](https://github.com/ljang0/sia-v2/actions/runs/41000626957) passed the pilot gate and unsigned universal package. | Alpha.34 local pilot gate passed: 1,756 desktop unit, 46 Electron, 31 renderer and 72 phone checks. PR #27 CI/review remains pending. |
 | Signed Mac package | Alpha.33 from `03f7e5e95e24ea0d52ff8c4e3b95dbacaf28cf55` passed universal signing, app/DMG notarization and stapling, Gatekeeper, strict signatures and packaged runtime checks. | Sign and verify alpha.34, retain exact hashes. |
 | Signed app tasks | Alpha.33 created and previewed the exact synthetic CSV, retained it after restart, cancelled a task, and operated native Calculator with independently observed `19 × 21 = 399`. The alpha.32-to-.33 upgrade retained the QA profile without another Keychain prompt. | Rehearse the new signed candidate. |
 | Browser | Development-app reads of an inactive public tab and its safe link passed. Signed alpha.33 stopped safely at `browser_consent_required` / `background_unavailable`. | Verify alpha.34's explicit connection flow and subsequent background read/navigation on the signed app. Background new-tab creation is unsupported by driver 0.37.0. |
@@ -24,6 +24,9 @@ separate gates.
 | Release ownership | Third-party notices identify the copied native sources and their pinned revision. | Record redistribution permission for sources without a recorded license; name the support/incident owner and invited recipients. |
 
 ## What alpha.34 changes
+
+- Build/test dependencies are patched to Vitest 4.1.12 and fast-uri 3.1.9. The current registry
+  audit reports no known vulnerabilities.
 
 - Explicit Connect Chrome/window selection explains that Chrome may appear during setup and
   permits that setup. Automatic attachment stays in background mode and cannot grant foreground
