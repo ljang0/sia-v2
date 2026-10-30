@@ -381,13 +381,14 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   browser_tabs: {
     name: 'browser_tabs',
     description:
-      "List the signed-in browser's granted tabs. In Use my Mac mode, an unattached browser returns native app/window ids instead: continue with computer_snapshot and computer_action. Chrome attachment is optional. Use this for structured Chrome access when connected.",
+      "List the signed-in browser's granted tabs. Returned URL fields contain only site origins, not full page locations; do not infer a site-root location or path mismatch. Read browser_snapshot to identify visible page content. In Use my Mac mode, an unattached browser returns native app/window ids instead: continue with computer_snapshot and computer_action. Chrome attachment is optional. Use this for structured Chrome access when connected.",
     inputSchema: object({}),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },
   browser_snapshot: {
     name: 'browser_snapshot',
-    description: 'Read the accessible state of one granted browser tab.',
+    description:
+      'Read the accessible state of one granted browser tab. The returned URL is origin-only for privacy; use the title and visible content to identify the page. It cannot verify an exact URL path.',
     inputSchema: object(
       {
         tab_id: string('Granted tab id'),

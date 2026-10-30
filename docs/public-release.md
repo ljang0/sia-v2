@@ -2,37 +2,38 @@
 
 ## Current decision — October 30, 2026
 
-The owner selected **Mac first; iPhone follows** on October 30 for the first Arena handoff.
-The owner also confirmed ownership of the relevant Notch source rights. Mac alpha.34 is the
-current signed candidate; alpha.35 is validating a browser-session recovery fix. **External pilot release is not yet complete.** No artifacts were
-published or invitations sent; the last published Mac pilot remains alpha.24.
+The owner selected **Mac first; iPhone follows** and confirmed ownership of the relevant Notch
+source rights. Alpha.35 is the signed candidate; alpha.36 is validating clearer browser URL
+redaction labels. **External pilot release is not complete.** No new artifacts were published or
+invitations sent; the last published Mac pilot remains alpha.24.
 
-The universal alpha.34 app, DMG and ZIP were built from
-`75073741f3cf3f0756721c809501dc391574906b`. The full local pilot gate passed: 1,756 desktop
-unit tests, 46 Electron checks, 31 renderer checks and 72 Chromium/WebKit phone checks.
-`pnpm package:mac` passed signing, app/DMG notarization and stapling, strict signatures,
-Gatekeeper and packaged native/runtime verification. The current dependency audit reports no
-known vulnerabilities. [PR #27 code-head CI](https://github.com/ljang0/sia-v2/actions/runs/41003296786) passed
-the full pilot gate and unsigned universal packaging.
+The universal alpha.35 app, DMG and ZIP were built from
+`cc2a94317e5c08ca6d71cee9ab4985495e5a2b21`. The full local pilot gate passed: 1,761 desktop unit,
+46 Electron, 31 renderer and 72 Chromium/WebKit phone checks. [PR #29 CI](https://github.com/ljang0/sia-v2/actions/runs/41085610970)
+passed the full gate and unsigned universal packaging. PR #29 merged at `f922de9`.
+`pnpm package:mac` passed signing, app/DMG notarization and stapling, strict signatures, Gatekeeper
+and packaged native/runtime verification. DMG notarization `5dbf49ab-e797-4adc-95ea-09cae63ad54f` was Accepted.
 
-The isolated QA profile survived the alpha.33-to-.34 upgrade without a new Keychain prompt. A new
-synthetic CSV containing apples=5 and oranges=8 was created and read back; the reply reported total
-13 and the preview showed the exact saved content, including after a full quit/relaunch. Native
-Calculator input passed with independently observed `23 × 19 = 437`. Cancellation returned Ready
-and remained cancelled after restart. The new Chrome setup disclosure is present in
-the signed app. Explicit attachment to an isolated public Chrome window passed. In Connected apps
-mode, a fresh attachment read the exact Example Domain notice and link, followed it, and reported
-IANA’s “Example Domains” title and heading; the destination was independently verified. An earlier
-interruption left the browser session ended while Settings still showed Attached. Alpha.35 is
-validating the fix that revokes that state and requires a new window choice. Default Mac-route
-acceptance is still paused because Chrome is active. Clean macOS-account acceptance remains incomplete;
-the owner currently has no fresh account or second Mac available. Physical-phone acceptance belongs to the follow-on iPhone release. See
-[release status](./release-status.md) for the remaining gates.
+The alpha.34-to-.35 QA upgrade retained history without a new Keychain prompt. Explicit attachment
+of the isolated public Chrome window passed. A connected-browser read returned the IANA page title
+and first heading, both “Example Domains,” independently verified in Chrome. Initially the model
+misread an origin-only URL as the full page location; the read succeeded after explaining the
+redaction. Alpha.36 makes that distinction explicit in the tool contract. The alpha.35 stale-session
+fix passed focused regression tests; live session-expiry recovery is not yet verified. Default
+Mac-route browser acceptance remains blocked by Chrome foreground/consent state.
 
 | Artifact                           | SHA-256                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |
-| `Sia-0.1.0-alpha.34-universal.dmg` | `c1a438180f164161eb702e4b581587a71bde6fd8c2bd05da382ce5e0c0b0bc69` |
-| `Sia-0.1.0-alpha.34-universal.zip` | `dc8e6c54400ee26db24d11f4f2c248a0de5cbbde1d3c87e51c95a63dd5177829` |
+| `Sia-0.1.0-alpha.35-universal.dmg` | `3790e532ba818ed2687153f7b11cb14f4bb76bb95a1916b4871b180c76c7ca43` |
+| `Sia-0.1.0-alpha.35-universal.zip` | `db882fe6b385e8f0b0e65f6fdfe1a4c451738bbef16de1196fc78214f7637c2e` |
+
+Alpha.34 from `75073741f3cf3f0756721c809501dc391574906b` passed signed packaging, CSV creation and
+exact preview (apples=5, oranges=8, total=13), restart, cancellation, native Calculator input
+(`23 × 19 = 437`), Chrome attachment and safe IANA link navigation in Connected apps mode.
+Its DMG SHA-256 is `c1a438180f164161eb702e4b581587a71bde6fd8c2bd05da382ce5e0c0b0bc69`.
+It remains retained for rollback. Prior results do not substitute for final-artifact acceptance.
+Clean macOS-account acceptance remains incomplete: the owner currently has no fresh account or
+second Mac available. See [release status](./release-status.md) for remaining gates.
 
 ## Alpha.33 evidence
 
@@ -69,9 +70,9 @@ The last published alpha.24 pilot remains recorded in [release evidence](./relea
 
 ## Publication
 
-The alpha.34 handoff folder is prepared locally with the installer, checksums, proposal, setup
+The alpha.35 handoff folder is prepared locally with the installer, checksums, proposal, setup
 notes and third-party notices. It is an acceptance candidate, not a published release. Keep private
 recipient lists and download links outside Git. After the remaining [release gates](./release-status.md)
 pass and the owner authorizes distribution, follow [release operations](./release.md) and verify the
-recipient's downloaded hash. Keep alpha.33 available for rollback. Research recruitment retains
+recipient's downloaded hash. Keep alpha.34 available for rollback. Research recruitment retains
 its separate [sign-off](./research-release-signoff.md).

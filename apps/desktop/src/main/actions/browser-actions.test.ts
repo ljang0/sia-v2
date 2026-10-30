@@ -295,11 +295,21 @@ describe('DesktopActionBackend browser boundary', () => {
       { session: 'sia-browser', target_id: 'target-1', tab_id: 'tab-1' },
     ]);
     expect(tabs[0]?.url).toBe('https://mail.example.test');
+    expect(dataRecord(listed.data).url_scope).toBe('origin_only');
+    expect(dataRecord(listed.data).location_note).toContain(
+      'does not mean the tab is at the site root',
+    );
+    expect(JSON.stringify(listed)).not.toContain('/inbox');
     expect(JSON.stringify(listed)).not.toContain('view=all');
     expect(JSON.stringify(listed)).not.toContain('message-42');
 
     const snapshot = await backend.invoke(request('browser_snapshot', { tab_id: 'tab-1' }));
     expect(dataRecord(snapshot.data).url).toBe('https://mail.example.test');
+    expect(dataRecord(snapshot.data).url_scope).toBe('origin_only');
+    expect(dataRecord(snapshot.data).location_note).toContain(
+      'cannot verify an exact page path',
+    );
+    expect(JSON.stringify(snapshot)).not.toContain('/inbox');
     expect(JSON.stringify(snapshot)).not.toContain('view=all');
     expect(JSON.stringify(snapshot)).not.toContain('message-42');
 

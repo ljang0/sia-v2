@@ -1,47 +1,42 @@
 # Release status
 
-Updated October 30, 2026. **Distribution is not ready.** Alpha.34 is the latest signed and notarized candidate. Alpha.35 source is validating a stale browser-session fix. The last published Mac pilot is alpha.24.
-No new invitations or public download have been authorized.
+Updated October 30, 2026. **Distribution is not ready.** Alpha.35 is signed and notarized.
+Alpha.36 is validating clearer browser URL redaction labels. The last published Mac pilot is
+alpha.24; no new invitations or public download have been authorized.
 
-The owner selected **Mac first; iPhone follows** for the first Arena handoff on October 30.
-The [Arena proposal](./arena-proposal.md) uses that scope. Research sharing stays off and Codex
-App Server is the initially admitted engine. iPhone acceptance, preview engines and public
-connector distribution have separate gates and do not block this Mac-first handoff.
+The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
+is the initially admitted engine. The [Arena proposal](./arena-proposal.md) describes a bounded
+technical review and invited pilot, without claiming a partnership or validated model ranking.
 
 ## Evidence and remaining gates
 
-| Area                      | Verified evidence                                                                                                                                                                                                                                                                                     | Still required                                                                                                                                                                                                       |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Source                    | Alpha.34 local pilot gate passed: 1,756 desktop unit, 46 Electron, 31 renderer and 72 phone checks. PR #27 merged at `c81bb40`; its [final head](https://github.com/ljang0/sia-v2/actions/runs/41005231317) and [merged-branch CI](https://github.com/ljang0/sia-v2/actions/runs/41005278904) passed. | Complete alpha.35 full pilot and signed-package verification before replacing the candidate.                                                                                                                         |
-| Signed Mac package        | Alpha.34 from `75073741f3cf3f0756721c809501dc391574906b` passed universal signing, app/DMG notarization and stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded.                                                                    | Retain these artifacts; any runtime change requires a new signed candidate.                                                                                                                                          |
-| Signed app tasks          | Alpha.34 retained the QA profile without a Keychain prompt, created/read back a CSV (total 13), and retained its exact preview after restart. Cancellation passed; native Calculator input independently showed `23 × 19 = 437`.                                                                      | Browser and new-recipient checks below.                                                                                                                                                                              |
-| Browser                   | Alpha.34 attached an isolated public Chrome window, read the exact notice/link, and navigated to IANA in Connected apps mode; destination title/heading were independently verified.                                                                                                                  | Validate alpha.35 stale-session recovery. Default Mac-route check is paused while Chrome is active. Background new-tab creation is unsupported by driver 0.37.0.                                                     |
-| New recipient             | Alpha.33 with an empty profile showed only email sign-in, with no private app content.                                                                                                                                                                                                                | Clean macOS-account signup, permissions, provider login cancel/retry, lock/sleep and voice acceptance. An empty profile is not a clean OS account; the owner currently has no fresh account or second Mac available. |
-| Cloud feedback            | Ratings/account deletion deployed and a synthetic authenticated rating reached the report. October 30 recheck: all 18 alarms OK with actions enabled, five Lambdas Active/Successful, and anonymous catalog/report/release requests return 401.                                                       | Recheck if service configuration changes before invitations.                                                                                                                                                         |
-| Native iPhone (follow-on) | Build 31 is Ready to Test in internal Pilot QA; native tests, signed archive and Apple processing passed.                                                                                                                                                                                             | Deferred from the Mac-first release. Physical pairing, Save, reconnect and microphone checks plus external beta review remain for iPhone distribution.                                                               |
-| Release ownership         | The owner confirmed on October 30 that they own the relevant Notch source rights; provenance remains in THIRD_PARTY_NOTICES.md.                                                                                                                                                                       | Lawrence Jang is the support/incident owner (owner confirmation, October 30). Record the private recipient list before invitations.                                                                                  |
+| Area | Verified evidence | Still required |
+| --- | --- | --- |
+| Source | Alpha.35 full local pilot gate passed: 1,761 desktop unit, 46 Electron, 31 renderer and 72 phone-browser checks. [PR #29 CI](https://github.com/ljang0/sia-v2/actions/runs/41085610970) passed the same gate and unsigned universal packaging. PR #29 merged at `f922de9`. | Validate alpha.36 before replacing the signed candidate. |
+| Signed Mac package | Alpha.35 from `cc2a94317e5c08ca6d71cee9ab4985495e5a2b21` passed universal signing, app/DMG notarization and stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Any runtime change requires a new signed candidate. |
+| Signed app tasks | Alpha.35 retained the QA profile without a Keychain prompt and passed explicit Chrome attachment and a connected-browser page read. Alpha.34 passed CSV creation/readback/preview, restart, cancellation and native Calculator input (`23 × 19 = 437`). | Repeat the task rehearsal on the final artifact. |
+| Browser | Alpha.35 reports expired sessions and requires a new window choice; focused regression tests passed. Its live page read reported the independently verified IANA title/heading. Alpha.34 also passed safe link navigation. | Live expiry recovery remains unverified. Default Mac-route browser acceptance remains blocked by Chrome foreground/consent state. Background new-tab creation is unsupported by driver 0.37.0. |
+| New recipient | Alpha.33 with an empty profile showed only email sign-in. | Clean macOS-account signup, permissions, provider login cancel/retry, lock/sleep and voice acceptance. An empty profile is not a clean OS account; no fresh account or second Mac is currently available. |
+| Cloud feedback | Ratings/account deletion deployed; a synthetic authenticated rating reached the report. October 30: 18 alarms OK with actions enabled, five Lambdas Active/Successful, anonymous catalog/report/release requests return 401. | Recheck if configuration changes before invitations. |
+| iPhone follow-on | Build 31 is Ready to Test in internal Pilot QA; native tests, signed archive and Apple processing passed. | Deferred from this Mac-first handoff. Physical-device checks and external beta review remain. |
+| Ownership | The owner confirmed ownership of the relevant Notch source rights. Provenance remains in THIRD_PARTY_NOTICES.md. Lawrence Jang is the support/incident owner. | Record the private recipient list and final release decision before invitations. |
 
-## What alpha.34 changes
+## Current fixes
 
-- Build/test dependencies are patched to Vitest 4.1.12 and fast-uri 3.1.9. The current registry
-  audit reports no known vulnerabilities.
+Alpha.35 clears a dead Chrome attachment instead of leaving Settings at Attached. A late failure
+from an old session cannot revoke a new connection, and recovery does not automatically replay
+input or select another window.
 
-- Explicit Connect Chrome/window selection explains that Chrome may appear during setup and
-  permits that setup. Automatic attachment stays in background mode and cannot grant foreground
-  permission. The user reviews any Chrome permission prompt.
-- A refused prepare or fresh browser read leaves the connection in an error state. Structured
-  refusal codes are recognized even when their names do not contain “error” or “denied.”
-- The README includes the task's code path, and the Arena proposal states the pilot's scope,
-  feedback model and limits without implying a partnership or a validated ranking.
+Live alpha.35 acceptance also exposed a tool-contract ambiguity: browser URL fields intentionally
+show only origins, but the model interpreted one as a full page URL and stopped on a false path
+mismatch. Reading the same tab after explaining the redaction succeeded. Alpha.36 labels that
+redaction in results and tool descriptions while keeping private paths, queries and fragments hidden.
 
 ## Release decision
 
-Complete the applicable rows above using the exact signed artifact, then record a go/no-go decision
-with the owner. The iPhone companion follows under its own acceptance and distribution decision.
-Do not substitute fake-service or simulator success for live Mac acceptance.
+Complete the applicable checks with the exact signed artifact, then record a go/no-go decision
+with the owner. Fake-service and simulator success do not establish live Mac acceptance.
+The iPhone companion, preview engines, public connectors and research enrollment retain separate gates.
 
-Use [manual acceptance](./manual-acceptance.md) for the steps, [public release](./public-release.md)
-for artifact hashes and prior live evidence, and [release operations](./release.md) for packaging.
-The [pilot runbook](./cmu-pilot-runbook.md) covers support and incident response. Research enrollment,
-preview-engine admission, APNs, arbitrary user-added MCP connectors and always-on cloud execution
-remain outside this pilot.
+See [manual acceptance](./manual-acceptance.md), [artifact evidence](./public-release.md),
+[release operations](./release.md) and the [pilot runbook](./cmu-pilot-runbook.md).

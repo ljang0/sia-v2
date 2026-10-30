@@ -165,7 +165,12 @@ export class BrowserActions {
     return {
       outcome: 'verified',
       summary: `Found ${tabs.length} granted browser tab${tabs.length === 1 ? '' : 's'}.`,
-      data: { tabs },
+      data: {
+        tabs,
+        url_scope: 'origin_only',
+        location_note:
+          'URL fields show only the site origin. Paths, queries and fragments are withheld; an origin does not mean the tab is at the site root or prove a path mismatch. Read the tab snapshot to identify its visible content.',
+      },
       verification: {
         evidence: 'Tab ids were minted by Cua Driver for the attached browser session.',
       },
@@ -316,6 +321,9 @@ export class BrowserActions {
         origin,
         title: redactOptionalText(title),
         url: modelVisibleBrowserUrl(liveUrl),
+        url_scope: 'origin_only',
+        location_note:
+          'The URL shows only the site origin. Paths, queries and fragments are withheld; identify the page from its title and visible content. The redacted URL cannot verify an exact page path.',
         elements,
         ...(linkDestinations
           ? {

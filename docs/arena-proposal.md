@@ -51,14 +51,13 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Alpha.34 is signed and notarized. The full automated gate, signed-app upgrade, fresh CSV
-creation/readback/preview, restart, cancellation and native Calculator input passed. Alpha.33
-additionally passed a fresh-profile sign-in check. Alpha.34 passed explicit Chrome attachment,
-connected-browser reading and safe link navigation. Alpha.35 is validating a fix for stale connection
-state after an interruption. Background new-tab creation is unsupported. The owner
-confirmed ownership of the relevant native source rights. Browser acceptance, clean macOS-account
-setup and the final release decision remain open. Lawrence Jang is the pilot support/incident owner. See [release status](./release-status.md)
-for current evidence; passing fake-service tests is not live acceptance.
+Alpha.35 is signed and notarized; its automated gate, QA-profile upgrade, explicit Chrome attachment
+and connected-browser page read passed. Alpha.34 also passed CSV creation/preview, restart,
+cancellation, Calculator input and safe link navigation. Alpha.36 is validating clearer labels for
+privacy-redacted browser URLs. Browser expiry recovery, the default Mac route, clean macOS-account
+setup and voice/lock/sleep acceptance remain open. Background new-tab creation is unsupported.
+The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
+owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.
 
 Start with the [README setup and task path](../README.md), then
 [architecture](./architecture.md), [ratings](./arena-ratings.md) and
