@@ -2,7 +2,11 @@
 
 Sia is a personal assistant for macOS that works in your apps for you. It is built for everyday
 people without a technical background: you sign in with your email, connect an AI plan, and ask Sia
-to do things on your Mac. This repository is being prepared for a controlled CMU pilot.
+to do things on your Mac. The signed Mac candidate is in acceptance testing for a controlled pilot;
+see [release status](./docs/release-status.md) before distributing it.
+
+**Reviewing Sia for Arena?** Start with the [Computer Use Arena proposal](./docs/arena-proposal.md),
+then run the fake-services setup below. It needs no cloud account or model key.
 
 New tasks run through the Codex App Server harness, using an available included model or the
 person's existing ChatGPT plan. Settings → AI also offers an optional **Your own API key** route
@@ -14,9 +18,9 @@ for an OpenAI Responses-compatible endpoint. Setup does not require an API key.
   bypassed. Confirmations (**Ask before each action**) are an explicit opt-in for supervised
   testing. **On my screen** is the alternative for watching Sia work; press ⌃Esc (Control+Escape)
   to stop a task that is using the screen.
-- **Phone requests always require approval**, one request at a time, even with local approvals
-  bypassed. Review in Sia, or reply YES/NO to a complete approval sent to your trusted messaging
-  account when text approvals are enabled.
+- **Your own encrypted phone follows your Computer setting.** Requests from trusted people and
+  the plain-HTTP Wi-Fi link require confirmation on the Mac. See the exact remote boundaries in
+  [the product contract](./AGENTS.md).
 - **Sia-hosted tools block protected surfaces**, including password fields, sign-in screens,
   Keychain and password managers. Provider-native shell and file tools have their own boundary;
   see [architecture](./docs/architecture.md).
@@ -29,6 +33,25 @@ for an OpenAI Responses-compatible endpoint. Setup does not require an API key.
   release.
 
 The full product contract, safety boundaries, and change rules are in [`AGENTS.md`](./AGENTS.md).
+
+## Follow one task through the code
+
+1. [`apps/desktop/src/renderer`](./apps/desktop/src/renderer) renders the conversation and uses
+   the typed preload bridge; it does not receive provider secrets.
+2. [`apps/desktop/src/main/controller`](./apps/desktop/src/main/controller) owns the task,
+   pinned model/engine, cancellation, persisted state and final result.
+3. [`packages/runtime`](./packages/runtime) runs the selected provider. Codex App Server is the
+   released engine; other adapters retain their explicit admission gates.
+4. [`packages/action-gateway`](./packages/action-gateway) validates and authorizes Sia-hosted
+   actions; [`main/actions`](./apps/desktop/src/main/actions) executes scoped computer/browser
+   operations. Provider-native tools have a separate boundary described in
+   [architecture](./docs/architecture.md).
+5. [`main/controller/ratings.ts`](./apps/desktop/src/main/controller/ratings.ts) records task
+   feedback; [`packages/protocol/src/ratings.ts`](./packages/protocol/src/ratings.ts) defines
+   the strict shared payload. [Arena ratings](./docs/arena-ratings.md) explains the report.
+
+The Mac runs tasks. The optional AWS control plane handles accounts, hosted models, connectors
+and feedback; it is not a remote desktop or an always-on task runner. The iPhone app is a companion.
 
 ## Repository map
 

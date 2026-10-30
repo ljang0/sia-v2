@@ -94,8 +94,9 @@ rating was made under.
 
 ## Not done yet
 
-- The cloud routes are not deployed. Follow the operator step in
-  [`arena-model-harness.md`](./arena-model-harness.md).
+- Ratings and account-deletion routes were deployed and exercised in the acceptance record in
+  [`public-release.md`](./public-release.md). Recheck the live deployment for the candidate being
+  distributed; that earlier evidence is not an Arena sponsor integration.
 - There is no sponsor-facing (non-admin) role yet; an admin shares the report.
 - The phone has thumbs only; reasons and notes are on the Mac. Texting's HELP message does not
   mention ratings yet.
