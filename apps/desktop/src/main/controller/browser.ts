@@ -266,7 +266,10 @@ export class BrowserSession {
           // browser_prepare can include transitional target ids while Chrome enables
           // and reconnects its existing-profile route. Only the follow-up live state
           // is safe to mint into model-visible browser capabilities.
-          this.ctx.browserCapabilitySink?.acceptBrowserState(state, browserSessionId);
+          this.ctx.browserCapabilitySink?.acceptBrowserState(state, browserSessionId, {
+            pid: chromePid,
+            windowId: candidate.id,
+          });
           this.target = findBrowserTarget([state, prepared]);
           this.sessionId = browserSessionId;
           const grantedOrigins = collectHttpOrigins([prepared, state]);

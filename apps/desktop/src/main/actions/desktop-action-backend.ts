@@ -62,13 +62,19 @@ export class DesktopActionBackend implements ActionBackend {
   }
 
   /** Indexes a trusted browser_prepare/get_browser_state result without exposing target ids. */
-  acceptBrowserState(value: unknown, sessionId?: string): void {
+  acceptBrowserState(
+    value: unknown,
+    sessionId?: string,
+    window?: { pid: number; windowId: number },
+  ): void {
     this.#ctx.browser.accept(value, sessionId);
+    if (sessionId && window) this.#macBrowser.connect({ ...window, session: sessionId });
   }
 
   /** Called when the trusted host detaches the browser or its grant expires. */
   resetBrowserCapabilities(): void {
     this.#ctx.browser.reset();
+    this.#macBrowser.disconnect();
   }
 
   /** The approval card's description of an exact, still-current action target. */

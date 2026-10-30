@@ -65,11 +65,33 @@ export class MacBrowserControl {
   readonly #snapshots = new Map<string, Tab>();
   readonly #preparationAttempted = new Set<string>();
   #turn = '';
+  #connection: { pid: number; windowId: number; session: string } | undefined;
+  #generation = 0;
 
   constructor(
     private readonly ctx: ActionBackendContext,
     private readonly inventory: ComputerInventory,
   ) {}
+
+  /** Only the trusted connection picker may supply this exact-window grant. */
+  connect(connection: { pid: number; windowId: number; session: string }): void {
+    this.disconnect();
+    this.#connection = connection;
+  }
+
+  disconnect(): void {
+    this.#generation++;
+    this.#connection = undefined;
+    for (const [id, tab] of this.#snapshots) {
+      this.ctx.computer.snapshots.delete(id);
+      this.ctx.computer.latestSnapshot.delete(tab.window.id);
+    }
+    for (const client of this.#clients.values()) client.context.browser.reset();
+    this.#clients.clear();
+    this.#tabs.clear();
+    this.#snapshots.clear();
+    this.#preparationAttempted.clear();
+  }
 
   #client(window: ComputerWindowBinding) {
     // The host's exact browser connection outlives an individual task. Public window,
@@ -77,7 +99,11 @@ export class MacBrowserControl {
     const key = `${window.pid}:${window.windowId}`;
     const existing = this.#clients.get(key);
     if (existing) return existing;
-    const session = `sia-mac-browser-${randomUUID()}`;
+    const connection = this.#connection;
+    const session =
+      connection?.pid === window.pid && connection.windowId === window.windowId
+        ? connection.session
+        : `sia-mac-browser-${randomUUID()}`;
     const context = new ActionBackendContext({
       ...this.ctx.options,
       macBrowserAccess: () => false,
@@ -169,14 +195,18 @@ export class MacBrowserControl {
         failure = classifyFailure(error);
       }
     };
+    const generation = this.#generation;
     await inspect();
+    if (generation !== this.#generation) return stale('The browser connection changed.');
     if (
-      prepare &&
+      (prepare || this.#connection?.session === session) &&
       /\bsession_ended\b/.test(`${failure?.reason ?? ''} ${failure?.summary ?? ''}`)
     ) {
       // Only an acting website-open request may request fresh authority after expiry.
       // The ended session is discarded, never revived, and no input is replayed.
-      this.#expire(window);
+      this.#expire(window, session);
+      if (generation !== this.#generation)
+        return stale('Reconnect the chosen Chrome window in Settings → Connections.');
       session = this.#client(window).session;
       args = { pid: window.pid, window_id: window.windowId, session };
       await inspect();
@@ -200,6 +230,7 @@ export class MacBrowserControl {
       raw = await this.#client(window).context.callCua(request, 'get_browser_state', args);
       failure = resultRefusal(raw);
     }
+    if (generation !== this.#generation) return stale('The browser connection changed.');
     if (failure)
       return {
         ...failure,
@@ -307,6 +338,9 @@ export class MacBrowserControl {
     tab: Tab,
     result: ActionExecutionResult,
   ): ActionExecutionResult {
+    if (result.reason === 'session_ended') this.#expire(window, tab.session);
+    if (this.#clients.get(`${window.pid}:${window.windowId}`)?.session !== tab.session)
+      return stale('The browser connection changed. Observe the chosen window again.');
     const data = asRecord(result.data);
     const snapshotId = typeof data?.snapshot_id === 'string' ? data.snapshot_id : undefined;
     const capability = snapshotId
@@ -392,7 +426,7 @@ export class MacBrowserControl {
       });
     } catch (error) {
       if (error instanceof Error && /\bsession_ended\b/.test(error.message))
-        this.#expire(window);
+        this.#expire(window, tab.session);
       return classifyFailure(error);
     }
     const id = asRecord(result.data)?.snapshot_id;
@@ -489,8 +523,10 @@ export class MacBrowserControl {
         url,
       });
     } catch (error) {
-      return this.#deliveryFailure(window, error);
+      return this.#deliveryFailure(window, error, tab.session);
     }
+    if (this.#clients.get(`${window.pid}:${window.windowId}`)?.session !== tab.session)
+      return stale('The browser connection changed during navigation. Do not replay it.');
     const outcome = actionResult(raw, 'Background browser navigation was accepted.');
     if (terminalWithoutVerification(outcome)) return outcome;
     this.#client(window).context.browser.bindings.set(tab.nativeId, {
@@ -604,7 +640,7 @@ export class MacBrowserControl {
         arguments: args,
       });
     } catch (error) {
-      result = this.#deliveryFailure(window, error);
+      result = this.#deliveryFailure(window, error, tab.session);
     }
     // Every browser mutation consumes the previous target, even when delivery is uncertain.
     this.#snapshots.delete(id);
@@ -625,8 +661,13 @@ export class MacBrowserControl {
     this.ctx.computer.latestSnapshot.delete(window.id);
   }
 
-  #deliveryFailure(window: ComputerWindowBinding, error: unknown): ActionExecutionResult {
-    if (error instanceof Error && /\bsession_ended\b/.test(error.message)) this.#expire(window);
+  #deliveryFailure(
+    window: ComputerWindowBinding,
+    error: unknown,
+    session: string,
+  ): ActionExecutionResult {
+    if (error instanceof Error && /\bsession_ended\b/.test(error.message))
+      this.#expire(window, session);
     if (inputWasRefused(error)) return classifyFailure(error);
     return {
       outcome: 'accepted_unverified',
@@ -636,9 +677,15 @@ export class MacBrowserControl {
     };
   }
 
-  #expire(window: ComputerWindowBinding): void {
-    this.#revoke(window);
+  #expire(window: ComputerWindowBinding, session: string): void {
     const key = `${window.pid}:${window.windowId}`;
+    if (this.#clients.get(key)?.session !== session) return;
+    if (this.#connection?.session === session) {
+      this.disconnect();
+      this.ctx.options.onBrowserSessionEnded?.(session);
+      return;
+    }
+    this.#revoke(window);
     this.#clients.get(key)?.context.browser.reset();
     this.#clients.delete(key);
     for (const [id, tab] of this.#tabs) if (tab.window.id === window.id) this.#tabs.delete(id);

@@ -40,7 +40,11 @@ export interface ComputerAutomation {
 }
 
 export interface BrowserCapabilitySink {
-  acceptBrowserState(value: unknown, sessionId?: string): void;
+  acceptBrowserState(
+    value: unknown,
+    sessionId?: string,
+    window?: { pid: number; windowId: number },
+  ): void;
   resetBrowserCapabilities(): void;
   trustedApprovalTarget(
     toolName: string,
