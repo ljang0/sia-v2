@@ -53,10 +53,11 @@ with Arena's existing rankings would be agreed together.
 
 Alpha.34 is signed and notarized. The full automated gate, signed-app upgrade, fresh CSV
 creation/readback/preview, restart, cancellation and native Calculator input passed. Alpha.33
-additionally passed a fresh-profile sign-in check. Alpha.34 adds explicit Chrome setup; its live
-connection is approved but not yet verified. Background new-tab creation is unsupported. The owner
+additionally passed a fresh-profile sign-in check. Alpha.34 passed explicit Chrome attachment,
+connected-browser reading and safe link navigation. Alpha.35 is validating a fix for stale connection
+state after an interruption. Background new-tab creation is unsupported. The owner
 confirmed ownership of the relevant native source rights. Browser acceptance, clean macOS-account
-setup and release ownership must be resolved before distribution. See [release status](./release-status.md)
+setup and the final release decision remain open. Lawrence Jang is the pilot support/incident owner. See [release status](./release-status.md)
 for current evidence; passing fake-service tests is not live acceptance.
 
 Start with the [README setup and task path](../README.md), then

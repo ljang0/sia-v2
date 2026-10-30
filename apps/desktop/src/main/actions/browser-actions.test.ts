@@ -30,6 +30,73 @@ vi.mock('node:timers/promises', async (original) => ({
 }));
 
 describe('DesktopActionBackend browser boundary', () => {
+  it.each(['throw', 'structured'])(
+    'revokes an ended browser session and asks for setup instead of repeating it (%s)',
+    async (form) => {
+      const cua = fakeCua(async () => {
+        if (form === 'throw') throw new Error('CUA refused: session_ended');
+        return { refusal: { code: 'session_ended' } };
+      });
+      const onBrowserSessionEnded = vi.fn();
+      const ensureBrowserAttached = vi.fn(
+        async () => 'Chrome connection expired. Choose your window again.',
+      );
+      const backend = new DesktopActionBackend({
+        cua,
+        onBrowserSessionEnded,
+        ensureBrowserAttached,
+      });
+      backend.acceptBrowserState(
+        { target_id: 'target-1', tab_id: 'tab-1', url: 'https://fixture.example.test/' },
+        'ended-browser-session',
+      );
+      expect((await backend.invoke(request('browser_tabs', {}))).outcome).toBe('refused');
+      expect(onBrowserSessionEnded).toHaveBeenCalledExactlyOnceWith('ended-browser-session');
+      const retry = await backend.invoke(request('browser_tabs', {}));
+      expect(retry).toMatchObject({
+        outcome: 'refused',
+        data: { recovery: { action: 'attach_browser' } },
+      });
+      expect(retry.summary).toContain('Chrome connection expired');
+      expect(ensureBrowserAttached).toHaveBeenCalledOnce();
+      expect(cua.call).toHaveBeenCalledOnce();
+    },
+  );
+
+  it('does not revoke a new attachment when an old in-flight session ends', async () => {
+    const state = { target_id: 'target', tab_id: 'tab', url: 'https://fixture.example.test/' };
+    const onBrowserSessionEnded = vi.fn();
+    const cua = fakeCua(async (_tool, args) => {
+      if (args.session === 'old-session') {
+        backend.acceptBrowserState(state, 'new-session');
+        throw new Error('CUA refused: session_ended');
+      }
+      expect(args.session).toBe('new-session');
+      return state;
+    });
+    const backend = new DesktopActionBackend({ cua, onBrowserSessionEnded });
+    backend.acceptBrowserState(state, 'old-session');
+    await backend.invoke(request('browser_tabs', {}));
+    expect((await backend.invoke(request('browser_tabs', {}))).outcome).toBe('verified');
+    expect(onBrowserSessionEnded).not.toHaveBeenCalled();
+  });
+
+  it('keeps a browser attachment after an unrelated permission refusal', async () => {
+    const onBrowserSessionEnded = vi.fn();
+    const cua = fakeCua(async () => {
+      throw new Error('CUA refused: permission_denied');
+    });
+    const backend = new DesktopActionBackend({ cua, onBrowserSessionEnded });
+    backend.acceptBrowserState(
+      { target_id: 'target', tab_id: 'tab', url: 'https://fixture.example.test/' },
+      'current-session',
+    );
+    await backend.invoke(request('browser_tabs', {}));
+    await backend.invoke(request('browser_tabs', {}));
+    expect(onBrowserSessionEnded).not.toHaveBeenCalled();
+    expect(cua.call).toHaveBeenCalledTimes(2);
+  });
+
   it('opens the Full Disk Access pane once when local Messages reads are blocked', async () => {
     const cua = fakeCua(async (tool) => {
       throw new Error(`Unexpected ${tool}`);

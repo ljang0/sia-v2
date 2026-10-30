@@ -83,6 +83,8 @@ export interface DesktopActionBackendOptions {
   readonly isBrowserOriginAllowed?: (origin: string) => boolean;
   /** Lets the trusted host attach Chrome on demand; resolves an error detail when it cannot. */
   readonly ensureBrowserAttached?: () => Promise<string | undefined>;
+  /** Revokes the matching host attachment when the driver reports a terminal session. */
+  readonly onBrowserSessionEnded?: (sessionId: string) => void;
   /** Resolves a stable model-visible app/account selector to a trusted cloud connection. */
   readonly resolveConnectionId?: (
     app: ConnectorApp,

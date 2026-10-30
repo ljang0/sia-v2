@@ -4,7 +4,7 @@
 
 The owner selected **Mac first; iPhone follows** on October 30 for the first Arena handoff.
 The owner also confirmed ownership of the relevant Notch source rights. Mac alpha.34 is the
-current signed candidate. **External pilot release is not yet complete.** No artifacts were
+current signed candidate; alpha.35 is validating a browser-session recovery fix. **External pilot release is not yet complete.** No artifacts were
 published or invitations sent; the last published Mac pilot remains alpha.24.
 
 The universal alpha.34 app, DMG and ZIP were built from
@@ -20,9 +20,13 @@ synthetic CSV containing apples=5 and oranges=8 was created and read back; the r
 13 and the preview showed the exact saved content, including after a full quit/relaunch. Native
 Calculator input passed with independently observed `23 × 19 = 437`. Cancellation returned Ready
 and remained cancelled after restart. The new Chrome setup disclosure is present in
-the signed app. The owner approved Chrome setup for the disposable public test window; the live
-check is currently blocked by the operator tool reporting `noWindowsAvailable`. Clean macOS-account
-acceptance remains incomplete. Physical-phone acceptance belongs to the follow-on iPhone release. See
+the signed app. Explicit attachment to an isolated public Chrome window passed. In Connected apps
+mode, a fresh attachment read the exact Example Domain notice and link, followed it, and reported
+IANA’s “Example Domains” title and heading; the destination was independently verified. An earlier
+interruption left the browser session ended while Settings still showed Attached. Alpha.35 is
+validating the fix that revokes that state and requires a new window choice. Default Mac-route
+acceptance is still paused because Chrome is active. Clean macOS-account acceptance remains incomplete;
+the owner currently has no fresh account or second Mac available. Physical-phone acceptance belongs to the follow-on iPhone release. See
 [release status](./release-status.md) for the remaining gates.
 
 | Artifact                           | SHA-256                                                            |

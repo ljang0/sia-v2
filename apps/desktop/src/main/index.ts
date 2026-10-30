@@ -727,6 +727,7 @@ async function performApplicationCreation(): Promise<void> {
       },
       isBrowserOriginAllowed: (origin) => activeController.isBrowserOriginAllowed(origin),
       ensureBrowserAttached: () => activeController.ensureBrowserAttachedForActions(),
+      onBrowserSessionEnded: (sessionId) => activeController.browserSessionEnded(sessionId),
       macBrowserAccess: () => activeController.computerAccessMode() === 'mac',
       macBackgroundControl: () => activeController.macBackgroundControl(),
       inspectBrowserWindow: (pid, windowId, tabsOnly) =>
