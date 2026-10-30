@@ -941,6 +941,8 @@ test('typing eases the welcome layout while preserving the Dither aurora and com
   await page.goto(remote.url);
   await expect(page.locator('.remote-empty')).toHaveCSS('opacity', '1');
   await expect(page.locator('.phone-aurora')).toHaveAttribute('data-renderer', 'dither');
+  // The renderer label precedes the lazy WebGL canvas on a cold/loaded runner.
+  await expect(page.locator('.dither-container canvas')).toBeVisible();
   const input = page.getByRole('textbox', { name: 'Message Sia' });
   await input.fill('A draft that stays right here');
   await expect(input).toBeFocused();

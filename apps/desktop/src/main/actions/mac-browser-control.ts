@@ -138,8 +138,17 @@ export class MacBrowserControl {
     window: ComputerWindowBinding,
     request: ValidatedActionInvocation,
     prepare: boolean,
+    refresh = false,
   ): Promise<ActionExecutionResult | Tab[]> {
     this.#begin(request);
+    if (refresh) {
+      // Explicit discovery replaces the window binding so newly opened/closed tabs
+      // are reflected. Old choices and input refs cannot survive that replacement.
+      this.#revoke(window);
+      this.#client(window).context.browser.reset();
+      for (const [id, tab] of this.#tabs)
+        if (tab.window.id === window.id) this.#tabs.delete(id);
+    }
     // Keep each exact window's native authority separate, even inside one Chrome process.
     let session = this.#client(window).session;
     // Bind mode mints new opaque driver ids on each call. Rebinding while presenting a
@@ -202,7 +211,7 @@ export class MacBrowserControl {
           blocker_code: 'background_browser_unavailable',
           next_step: this.#preparationAttempted.has(window.id)
             ? 'Background setup was already attempted for this window. Do not repeat setup. If Chrome shows its own permission prompt, the person must review it; Sia must not approve it. This is browser access, not website sign-out. Never fall back to native off-Space input or foreground control.'
-            : 'Use computer_open_url with this exact app_id and window_id and the ordinary website needed for the task. That acting tool can prepare the browser in the background. Never fall back to native off-Space browser input or foreground control.',
+            : 'Use computer_open_url with prepare_only:true, this exact app_id and window_id, and the ordinary website needed for the task. That acting tool can restore browser access and list existing tabs without navigating. Never fall back to native off-Space browser input or foreground control.',
         },
       };
     const current: Tab[] = [];
@@ -360,8 +369,9 @@ export class MacBrowserControl {
       await delay(Math.min(3000, wait), undefined, { signal: request.context.signal });
     if (!(await this.inventory.windowStillValid(window, request)))
       return stale('The browser window changed.');
-    const tabs = await this.#read(window, request, false);
+    const tabs = await this.#read(window, request, false, request.arguments.tabs_only === true);
     if (!Array.isArray(tabs)) return tabs;
+    if (request.arguments.tabs_only === true) return this.#selection(window, tabs);
     const tab = this.#choose(tabs, request);
     if (!tab || tab.navigationOnly) return this.#selection(window, tabs);
     let result: ActionExecutionResult;
@@ -371,6 +381,7 @@ export class MacBrowserControl {
         name: 'browser_snapshot',
         arguments: {
           tab_id: tab.nativeId,
+          ...(request.arguments.read_links === true ? { read_links: true } : {}),
           ...(request.arguments.continue_from
             ? { continue_from: request.arguments.continue_from }
             : {}),
@@ -439,8 +450,17 @@ export class MacBrowserControl {
       };
     if (!(await this.inventory.windowStillValid(window, request)))
       return stale('The browser window changed.');
-    const tabs = await this.#read(window, request, true);
+    const tabs = await this.#read(
+      window,
+      request,
+      true,
+      request.arguments.prepare_only === true,
+    );
     if (!Array.isArray(tabs)) return tabs;
+    if (request.arguments.prepare_only === true) {
+      this.#revoke(window);
+      return this.#selection(window, tabs);
+    }
     const reusable = tabs.filter((t) => t.navigationOnly || samePageUrl(t.url, url));
     const tab = request.arguments.tab_id
       ? this.#choose(tabs, request)

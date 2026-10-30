@@ -239,10 +239,15 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_open_url: {
     name: 'computer_open_url',
     description:
-      'Open an ordinary HTTP(S) website. In background Use my Mac, pass an exact existing Chrome/Edge/Brave app_id and window_id from computer_list; optional tab_id selects its task tab. Sia prepares the bundled Cua browser route in the background or refuses before foreground escalation. A safe start tab can be reused automatically; unrelated web tabs require explicit selection. No app launch, OS URL opener, copied logins or Chrome connection UI is needed. Account identity and the resulting page still need verification. Sensitive URLs remain blocked. Safari retains native controls; the system opener requires foreground recovery permission.',
+      'Open an ordinary HTTP(S) website. In background Use my Mac, pass an exact existing Chrome/Edge/Brave app_id and window_id from computer_list; optional tab_id selects its task tab. Sia prepares the bundled Cua browser route in the background or refuses before foreground escalation. Set prepare_only:true to restore access and list permitted existing tabs without navigating, reading page content, or opening a tab. The url remains the intended task destination. A safe start tab can be reused automatically; unrelated web tabs require explicit selection. No app launch, OS URL opener, copied logins or Chrome connection UI is needed. Account identity and the resulting page still need verification. Sensitive URLs remain blocked. Safari retains native controls; the system opener requires foreground recovery permission.',
     inputSchema: object(
       {
         url: string('Exact HTTP(S) website to open', { format: 'uri' }),
+        prepare_only: {
+          type: 'boolean',
+          description:
+            'Background Chromium only: prepare the exact window and return tab metadata without navigating or reading a page.',
+        },
         app_id: string('Background browser: exact existing application id'),
         window_id: string('Background browser: exact existing window id'),
         tab_id: string('Optional exact task tab id from computer_snapshot'),
@@ -265,6 +270,11 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         tab_id: string(
           'Chromium background browser: exact tab id when several task tabs are available',
         ),
+        read_links: {
+          type: 'boolean',
+          description:
+            'Browser only: read safe absolute link destinations using the bound DOM snapshot, then refresh semantic state. Returned link_destinations are a partial list, not matched to labels or granted for input. Relative, ambiguous, authentication and private links are omitted. Cannot combine with continue_from.',
+        },
         continue_from: string(
           'Read the next page segment using read_more_from from the latest snapshot of this exact tab. Older segments and other tabs are invalid; each read replaces action refs.',
         ),
@@ -280,7 +290,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         tabs_only: {
           type: 'boolean',
           description:
-            'Use my Mac Safari only: read native tab labels and single-click tab-selection refs, without reading the selected webpage, screenshots, previews, fields or credentials. Use to find another existing tab when the current page is protected or unavailable. The page remains blocked; a tab label does not prove sign-in. Only exact tab selection is permitted from this snapshot.',
+            'Use my Mac: Chromium returns permitted existing tab metadata without page content or input refs. If browser access needs preparation, use computer_open_url with prepare_only:true and the exact window. Safari reads native tab labels and single-click tab-selection refs, without reading the selected webpage, screenshots, previews, fields or credentials. Use to find another existing tab when the current page is protected or unavailable. The page remains blocked; a tab label does not prove sign-in. Only exact tab selection is permitted from this snapshot.',
         },
         include_image: {
           type: 'boolean',
@@ -381,6 +391,11 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
     inputSchema: object(
       {
         tab_id: string('Granted tab id'),
+        read_links: {
+          type: 'boolean',
+          description:
+            'Browser only: read safe absolute link destinations using the bound DOM snapshot, then refresh semantic state. Returned link_destinations are a partial list, not matched to labels or granted for input. Relative, ambiguous, authentication and private links are omitted. Cannot combine with continue_from.',
+        },
         continue_from: string(
           'Read the next segment using read_more_from from the latest snapshot of this tab. Each read replaces action refs.',
         ),

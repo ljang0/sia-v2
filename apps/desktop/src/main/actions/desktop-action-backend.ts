@@ -238,6 +238,15 @@ export class DesktopActionBackend implements ActionBackend {
         case 'computer_open_app':
           return await this.#inventory.openApp(request);
         case 'computer_open_url':
+          if (request.arguments.prepare_only === true) {
+            if (
+              !this.#ctx.macBrowserAccess() ||
+              !this.#ctx.macBackgroundControl() ||
+              request.arguments.delivery === 'foreground'
+            )
+              return refused('Browser preparation requires the background Chromium route.');
+            return await this.#macBrowser.openUrl(request);
+          }
           if (
             this.#ctx.macBrowserAccess() &&
             this.#ctx.macBackgroundControl() &&
@@ -250,8 +259,6 @@ export class DesktopActionBackend implements ActionBackend {
             return await this.#macBrowser.openUrl(request);
           return await this.#inventory.openUrl(request);
         case 'computer_snapshot': {
-          if (request.arguments.tabs_only === true)
-            return await this.#observation.snapshot(request);
           const window = this.#ctx.computer.resolveWindow(
             String(request.arguments.app_id),
             String(request.arguments.window_id),

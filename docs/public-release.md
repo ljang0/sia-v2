@@ -1,11 +1,25 @@
 # Public distribution candidate
 
-## Current decision — October 21, 2026
+## Current decision — October 29, 2026
 
 The owner selected a combined invited Mac pilot and native iPhone TestFlight release.
-Mac alpha.32 is the current candidate. **External pilot release is not yet complete.**
+Mac alpha.33 is the current candidate. **External pilot release is not yet complete.**
 [Release status](./release-status.md) lists the remaining gates; the older live records below
 apply only to their stated artifacts. The last published Mac pilot remains alpha.24.
+
+The universal alpha.33 app, DMG and ZIP were built from
+`03f7e5e95e24ea0d52ff8c4e3b95dbacaf28cf55`. `pnpm package:mac` passed signing,
+notarization, stapling, Gatekeeper and packaged runtime verification. The existing isolated
+QA profile survived the upgrade and a fresh synthetic CSV result was created, read back and
+previewed correctly. Signed background browser setup was refused by the driver; physical-phone
+and clean macOS-account acceptance remain incomplete. No artifacts were published or invitations sent.
+
+| Artifact                           | SHA-256                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `Sia-0.1.0-alpha.33-universal.dmg` | `caac425d7de5f4f852a0bec1caa1dcbc7163a9331037a536dd85578463929b2d` |
+| `Sia-0.1.0-alpha.33-universal.zip` | `0d755ad4c0003942db23dc73ae5c166cd2f766a1207c6438b8ee0ea0c83143af` |
+
+## Prior candidate evidence
 
 Mac alpha.30 and alpha.31 were signed/notarized and their upgrades preserved the existing
 profile. A real native simulator relay task completed with the correct fictional totals

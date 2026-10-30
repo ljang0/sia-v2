@@ -858,6 +858,14 @@ it('sets up required Mac access together and adds voice only when chosen', async
   await waitFor(() => expect(screen.getByText('Mac access is ready.')).toBeTruthy());
   expect(macSetupApi.configureVoice).not.toHaveBeenCalled();
   expect(macSetupApi.configurePushToTalk).not.toHaveBeenCalled();
+  // Permission status updates before the guided request finishes its refresh.
+  // A real user can start optional voice only once that request releases the button.
+  await waitFor(() =>
+    expect(
+      (screen.getByRole('button', { name: 'Set up voice: Talk with Fn' }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false),
+  );
   fireEvent.click(screen.getByRole('button', { name: 'Set up voice: Talk with Fn' }));
   await waitFor(() => expect(macSetupApi.configureVoice).toHaveBeenCalledOnce());
   await waitFor(() => expect(macSetupApi.configurePushToTalk).toHaveBeenCalledOnce());
