@@ -1,11 +1,13 @@
-# CMU pilot runbook
+# Invited Mac pilot runbook
 
-This runbook is for the controlled `0.1.0-alpha.32` CMU pilot. It keeps the first session short,
-safe, and easy to support. It is not approval for public distribution or a research launch.
+This runbook is for the controlled `0.1.0-alpha.34` Mac-first handoff. The owner selected Mac first
+and iPhone later on October 30, 2026. It keeps the first session short and easy to support; it does
+not authorize distribution or a research launch. See [release status](./release-status.md) for the
+current acceptance gates.
 
 ## Five-minute first session
 
-1. Install the signed Sia build and sign in with the invited CMU email. Sia sends a one-time code;
+1. Install the signed Sia build and sign in with the approved pilot email. Sia sends a one-time code;
    there is no password or signed-out access to the app.
 2. Open **Settings → AI**, choose **Sign in with ChatGPT**, and complete OpenAI's browser flow.
    Codex is the recommended pilot provider. Do not paste an OpenAI API key into Sia.
@@ -21,10 +23,10 @@ safe, and easy to support. It is not approval for public distribution or a resea
    Use my Mac requires its complete permission walkthrough; choose Connected apps only if the
    test does not need local computer control.
 
-## Native iPhone companion
+## Native iPhone companion — follow-on release
 
-The combined pilot pairs Mac alpha.32 with native iPhone version 0.1.0 (31). Install the
-invited **Sia - Your Mac Assistant** build from TestFlight; the Home Screen app is named **Sia**.
+This section is deferred from the first Mac handoff. Native iPhone version 0.1.0 (31) has its
+own physical-device and distribution gates. After those pass, install the invited **Sia - Your Mac Assistant** build from TestFlight; the Home Screen app is named **Sia**.
 The operator must finish external beta review before inviting external testers.
 
 1. On the Mac, open **Settings → Phone remote → Pair a phone**.
