@@ -2,8 +2,8 @@
 
 ## Current decision — October 30, 2026
 
-The owner selected a combined invited Mac pilot and native iPhone TestFlight release. The Arena
-proposal offers a narrower Mac-first handoff, pending the owner's decision. Mac alpha.34 is the
+The owner selected **Mac first; iPhone follows** on October 30 for the first Arena handoff.
+The owner also confirmed ownership of the relevant Notch source rights. Mac alpha.34 is the
 current signed candidate. **External pilot release is not yet complete.** No artifacts were
 published or invitations sent; the last published Mac pilot remains alpha.24.
 
@@ -20,8 +20,9 @@ synthetic CSV containing apples=5 and oranges=8 was created and read back; the r
 13 and the preview showed the exact saved content, including after a full quit/relaunch. Native
 Calculator input passed with independently observed `23 × 19 = 437`. Cancellation returned Ready
 and remained cancelled after restart. The new Chrome setup disclosure is present in
-the signed app. Actual connection remains pending the operator's browser-access confirmation.
-Clean macOS-account and physical-phone acceptance remain incomplete. See
+the signed app. The owner approved Chrome setup for the disposable public test window; the live
+check is currently blocked by the operator tool reporting `noWindowsAvailable`. Clean macOS-account
+acceptance remains incomplete. Physical-phone acceptance belongs to the follow-on iPhone release. See
 [release status](./release-status.md) for the remaining gates.
 
 | Artifact                           | SHA-256                                                            |
@@ -42,393 +43,31 @@ acceptance were incomplete. Alpha.33 remains retained for rollback.
 | `Sia-0.1.0-alpha.33-universal.dmg` | `caac425d7de5f4f852a0bec1caa1dcbc7163a9331037a536dd85578463929b2d` |
 | `Sia-0.1.0-alpha.33-universal.zip` | `0d755ad4c0003942db23dc73ae5c166cd2f766a1207c6438b8ee0ea0c83143af` |
 
-## Prior candidate evidence
+## Cloud and follow-on iPhone evidence
 
-Mac alpha.30 and alpha.31 were signed/notarized and their upgrades preserved the existing
-profile. A real native simulator relay task completed with the correct fictional totals
-(83 orders, 6 refunds, 77 net). It exposed a missing generated-file control on streamed
-Codex replies. Alpha.32 adds completion-time result delivery and a regression test for the
-actual delta-only reply sequence. The complete local pilot gate passed: 1,318 desktop unit,
-45 Electron, 27 renderer, and 72 Chromium/WebKit phone checks. Four live Electron cases remain
-opt-in. Both [Mac CI](https://github.com/ljang0/sia-v2/actions/runs/39551680713) and
-[integrated CI](https://github.com/ljang0/sia-v2/actions/runs/39551713075) passed.
+Cloud ratings/account-deletion changes from `bd32d980635b6cf894ae56c4bb2504cfadfaead7` were
+deployed to `sia-alpha`. The deployment verified both package hashes, atomic retries/rerating and
+account-deletion isolation. A synthetic authenticated app rating reached the aggregate report.
+The October 30 health recheck found all 18 alarms OK with actions enabled and all five Lambdas
+Active/Successful. Anonymous catalog, ratings-report and release requests returned 401.
 
-The universal alpha.32 app and DMG were signed, notarized, stapled, and verified from source
-`000d495439eecebe3609f22b1834da04bd02c1cf`. The upgrade retained the existing profile without a
-new Keychain prompt. On this exact artifact, the generated report preview showed 83/6/77 and
-Reveal in Finder selected the correct file. A write outside the connected-app workspace was
-correctly refused. After a full quit/relaunch, the earlier result control persisted. A fresh in-workspace copy task
-completed, produced `pilot-summary-alpha32.md`, and its preview showed the expected 83/6/77.
-Native Save UI and physical-device acceptance remain open; automated download tests do not
-replace those checks.
+Native iPhone 0.1.0 (31) is Ready to Test in the internal Pilot QA group, with zero testers at the
+last acceptance check. Native tests, signed archive, upload and Apple processing passed. Physical
+pairing, file Save, reconnect and microphone acceptance, and external beta review remain open.
+The owner selected iPhone as a follow-on release, so those checks do not gate this Mac-first handoff.
 
-The alpha.32 Finder rehearsal read the already-open fictional folder and reported the four
-filenames correctly, but did not complete Go to Folder: the shortcut had no confirmed dialog,
-and the Go-menu click was refused outside the target window. No files changed. This remains
-an incomplete native-computer acceptance gate. Native computer-use input was intermittently
-unavailable to the operator tool as well; do not count a successful accessibility read as a
-successful action.
+## Earlier evidence
 
-| Artifact                           | SHA-256                                                            |
-| ---------------------------------- | ------------------------------------------------------------------ |
-| `Sia-0.1.0-alpha.32-universal.dmg` | `752d09414b8cb004b04569166bc2f023990d2694e7102c167139928b3bc223ce` |
-| `Sia-0.1.0-alpha.32-universal.zip` | `f990a73b08dfc396b77fda5e3c50095cdefe8966b12f2702e89d4d66941e4080` |
-
-App Store Connect app `6825195609`, **Sia - Your Mac Assistant**, uses bundle `ai.sia.phone`.
-The external **Invited Pilot** group has no testers; contact details and Apple beta review
-remain incomplete. No tester invitations were sent. Push notifications remain unimplemented.
-
-Native build 31 from `55a7f58a4b75b8f6c2c233078009a3b7a9167d0d` adds the missing WebKit
-result-download handler and iOS save/share sheet, and reports Keychain save failures instead of
-silently continuing. Eight native tests passed, including byte-for-byte blob downloads and
-temporary-file cleanup plus isolated Keychain save/reload/update/revoke. A native UIKit test
-also verified that the real download handler presents the iOS share sheet and dismisses it on
-unpairing. This is automated simulator coverage, not a physical Save to Files walkthrough.
-The complete integrated `pnpm test:pilot` gate also passed after excluding generated Xcode
-products from source linting (same 1,318/45/27/72 counts above). The signed archive
-succeeded and App Store Connect accepted the upload. Build 31 finished processing and shows
-**Ready to Test** in **Pilot QA** (zero testers). A signed simulator retained its
-pairing after relaunch without a debug pairing link. The temporary October 21 test phone was
-then revoked: the Mac retained only its four pre-existing phones, and the simulator returned
-to native pairing without the task view, including after another relaunch. Physical-device acceptance remains open.
-
-Cloud ratings and account-deletion code from `bd32d980635b6cf894ae56c4bb2504cfadfaead7`
-were deployed to `sia-alpha`. Both Lambda hashes match, anonymous rating routes return 401,
-and all 18 alarms were OK after deployment. An authenticated in-app rating on a synthetic
-file task reached the aggregate report. Disposable-table verification covered atomic retries,
-rerating, and deleting one account's ratings without changing another account's contribution.
-The public privacy page now accurately describes optional feedback and separate research consent.
-
-PR #22 contains the Mac candidate and cloud fixes. PR #23 adds the native iPhone shell.
-Clean-recipient setup, physical iPhone acceptance, current-artifact voice/texting, support
-ownership and the recorded third-party redistribution permission remain open. Earlier
-successful rehearsals do not satisfy these current candidate gates.
-
-## October 12 exact-candidate rehearsal
-
-The signed app restored the existing authenticated profile, conversations and settings. Codex showed
-Connected, the included model catalog showed Ready, and the guided permission check reached all
-11 permissions ready after opening System Events, Safari and Reminders. No new permission or
-Keychain prompt was observed during that upgrade. This is existing-profile continuity, not a
-clean-user or alpha.24 upgrade check.
-
-The real-model spending task completed in 34 seconds and eight steps. Its saved Markdown and JSON
-matched the independent $2,499 oracle and every category amount. Native Mac Messages then exercised
-real iMessage: NEW, exact write denial with the file absent, a fresh YES-approved write, and a
-returned 22-byte attachment matching `ARENA-1269001-PHONE-OK` byte for byte after Save to Downloads.
-STATUS reported a pending approval; STOP cancelled it, and a stale YES was rejected while the
-stopped file remained absent. The initial STOP-test prompt asked the model to wait, which produced
-a conversational question; a follow-up invoked the file tool before testing cancellation. After a
-full quit/relaunch, NEW and a fresh request returned exactly **Sia › ARENA-1269001-RESTART-OK** in
-Messages; the same completed reply was visible in Sia. Authentication and conversations persisted.
-
-After restart, native CUA could inspect Sia’s current conversation and connected model, but
-pointer input reported `noWindowsAvailable` and some accessibility clicks did not change the
-window. These observations do not establish responsive foreground input after restart.
-
-A background Calculator task and one retry remained blocked by the driver's off-desktop /
-observation-only window report. Sia reported the actual existing `17 × 19 = 323` display and did
-not claim the requested `37 × 19` calculation succeeded. Do not count either attempt as native-app
-acceptance. iPhone Mirroring reported iPhone Not Found. Wi-Fi remote is off in this profile and a
-confirmation to enable it for testing is pending. Telegram, Discord and BYOK are unconfigured.
-These limits do not invalidate the verified file/action demonstration, but prevent an all-app or
-full-phone-parity claim.
-
-## Persistent verification setup
-
-The previous temporary checkout, signed test app and authenticated profile were absent when the
-October 8 polish pass resumed. Source was recovered from the verified complete-history bundle.
-The working checkout is now `release-workspace/` in the operator workspace; release packaging uses
-an unsynced checkout at `~/Developer/sia-release-verification-build` to avoid File Provider metadata.
-The verification app is `~/Applications/Sia Release Verification/Sia.app`, with isolated profile
-`~/Library/Application Support/Sia Release Verification` and the workspace's
-`Launch Verified Sia.command` launcher. The existing alpha.14 app in `/Applications` is unchanged.
-
-On October 9, computer use completed email-code sign-in and guided setup in this persistent
-profile. The signed app shows Mac access ready, Codex connected, an included model available,
-and research capture off. GPT-5.6-Sol completed a real GUI spending rehearsal in 29 seconds: the
-saved report and JSON matched every fixture category and the $2,499 total, and the in-app
-preview worked. See [the demo runbook](./demo.md#arena-cto-rehearsal) for the prepared workspace
-and current phone evidence. Historical evidence below remains tied to its recorded source/date;
-these checks do not establish a clean-user installation or every live connector.
-
-## Integrated scope
-
-The `codex/release-verification` branch combines the following against remote main `5c80af0`,
-including the six earlier local-main commits through `8ed02a4`:
-
-| Workstream                                                   | Included source                            |
-| ------------------------------------------------------------ | ------------------------------------------ |
-| UI and streaming, PR #17                                     | `1149feda49d36504974f866d7c4619e9812b04a2` |
-| GitHub and Notion, PR #18                                    | `9f917672a3174d2c402d6436556358f64a12e910` |
-| Texting and bot channels, PR #19                             | `570f8f7b674544ad9ddd025022a3a14e121f0160` |
-| Public-release audit, BYOK, lab harness and guided Mac setup | `ffd1aca`                                  |
-
-The comparison scope is connected apps, computer actions, messaging, voice and proactive
-follow-up. Existing phone channels are iMessage, Telegram, Discord and the Wi-Fi browser remote.
-Voice notes and in-app voice are implemented. Telephone calls and Notion live acceptance are
-explicitly deferred by the operator. Calendar, Tasks and Outlook remain disabled. Slack's deployed
-behavior is unchanged. Local work requires Sia open and the Mac awake; an always-on cloud worker is
-not implemented. Do not claim complete Instinct parity or arbitrary-account connector availability.
-
-## Automated verification
-
-The exact signed source `1269001` passed the full local `pnpm test:pilot` gate and
-[CI](https://github.com/ljang0/sia-v2/actions/runs/38215845243): 1,256 desktop unit tests, 182 cloud
-checks, 149 shared-package checks, 45 Electron scenarios, 20 renderer checks and all 62
-Chromium/WebKit phone checks. Opt-in live tests remain separate. Local `pnpm package:mac` and
-`release:stage-public-download` passed; CI performed unsigned packaging only.
-
-[Earlier Connections-polish CI](https://github.com/ljang0/sia-v2/actions/runs/37856750700) passed source,
-Electron and all 20 renderer checks, then failed one WebKit phone case (61 passed). Its trace
-showed an empty composer after the automation's fill call and no command request; the delayed
-acknowledgement scenario had not begun. Ten focused local repeats passed. The test now uses real
-key input and asserts both drafts before send/acknowledgement, preserving every delivery assertion
-and the 20-second limit. Ten focused repeats and all 62 phone checks passed after that test-only
-change. [Replacement CI](https://github.com/ljang0/sia-v2/actions/runs/37859613752)
-passed on `9adb2949fef743ff9f3c2ee135dd870c3e340c10`, including the full phone suite and
-unsigned universal packaging; the signed runtime is unchanged.
-The local full pilot gate, signed package verification and complete local HTTP installer download
-passed.
-
-The Connections-polish source `32a916c` passed `pnpm test:pilot` on October 8, 2026: build, formatting, lint, quality,
-workspace types and unit gates, **1,215 desktop unit tests**, **45 Electron tests** and **20 renderer
-tests**. Seven desktop tests and four live Electron tests remain opt-in and were skipped.
-
-[CI for the preceding cancellation repair](https://github.com/ljang0/sia-v2/actions/runs/37819301018)
-passed, including all **62 Chromium/WebKit phone checks** and unsigned universal packaging.
-Local release signing is recorded separately above; the CI signing job was not run.
-
-[CI for the preceding signed source](https://github.com/ljang0/sia-v2/actions/runs/37583850875) passed,
-including all 60 Chromium/WebKit phone checks and unsigned universal package verification.
-The preceding iMessage-repair source
-[passed CI](https://github.com/ljang0/sia-v2/actions/runs/37581928176), including all **60 phone-browser
-checks** across Chromium and WebKit and unsigned universal package verification. Browser fixtures do
-not establish physical phone or messaging-service delivery. Unsigned CI artifacts are not distributable.
-
-[CI for the permission repair](https://github.com/ljang0/sia-v2/actions/runs/37592543879)
-passed the source gates but timed out in one WebKit phone theme case (59 passed). Trace inspection
-showed that all view/theme and screenshot assertions completed before its final resume assertion
-reached the total test deadline. Commit `418f647` separates light and dark into individual tests,
-retaining every assertion and the same 20-second limit. The focused four cases passed locally;
-all 62 local cases passed (31 Chromium, 31 WebKit). [CI rerun](https://github.com/ljang0/sia-v2/actions/runs/37599286070) passed all 62 phone checks and unsigned universal packaging. The next documentation-only run, [cf97709](https://github.com/ljang0/sia-v2/actions/runs/37600713235), failed one Chromium typing-animation assertion (61 passed). Its trace sampled only the starting and ending heights during a busy render. The test now advances the actual CSS transitions to fixed intermediate times; three repeats on each browser passed without changing product animation or dropping assertions. Verify the latest PR checks before merging.
-
-The integrated suite retains its visual and concurrency assertions. Electron screenshots use sRGB
-at 1× backing scale; no image tolerance was increased. The theme-restoration check waits for the
-first window. Concurrent worktrees are created before their two tasks start, avoiding a setup-time
-race without extending task delays or assertion deadlines. Bot and phone-browser tests wait for
-observable connection, draft and attachment states rather than fixed short sleeps.
-
-## Repairs found through live work
-
-- CUA found an empty **More apps** section when no optional connector was available, and
-  Connections copy still mentioned the disabled Calendar connector. Source `32a916c` hides only
-  the empty section, retains existing connected/error states, and removes that stale copy.
-  The complete local pilot gate passed, as did all 62 Chromium/WebKit phone checks. CUA reviewed
-  compact navigation, dialogs, menus, conversation controls and settings with disposable data;
-  the Electron surface audit exercised nine settings, library views and 125%/200% zoom.
-
-- A final CUA check on `0d4b87f` found that cancelled proposed file edits appeared as completed
-  changes with an Undo offer, despite independent proof that the file was absent. Ending a turn
-  or restoring a profile now marks an unfinished file-change activity unsuccessful; only a
-  completed file-tool event proves the edit happened. Confirmed earlier edits retain their status.
-  Cancelled streams also stop reporting successful task completion. Three regressions reproduced
-  the failure; the `cfd1a61` signed retest passes: file absent, activity error, no Undo offer,
-  cancelled trajectory outcome, only “Stopped” in Messages, and Stopped after LAN browser reload.
-
-- STOP clears relay tracking before cancellation emits its final idle snapshot, preventing an
-  incorrect “Done” reply. Two regressions failed before the fix and passed afterward; the signed
-  retest returned only “Stopped” and the disposable file stayed absent.
-- Approved outgoing files are copied into a private per-send directory inside Messages’ permitted
-  data directory. The original file remains untouched; staging rejects symlinks and cleans failed,
-  completed and stale sends. Three attachment regressions failed before the fix and passed after.
-  The signed live voice retest delivered a 24,286-byte MP3 that decoded and completed playback.
-
-- An idle phone relay treated an unsolicited or delayed YES/NO/OK as a new model request.
-  It now reports that no approval is waiting and starts no task. Genuine follow-up questions
-  still accept these answers. Six regressions failed before the fix; all 46 relay tests pass.
-- Dismissed Radix dialogs and menus depended on CSS exit animations completing. When rendering
-  stalled, an invisible modal could continue intercepting input. Closed overlays now unmount
-  immediately. Agent Cancel and the Settings menu failed with deliberately paused exit animations
-  before the fix; all three input-recovery checks pass afterward. The Access panel retains its
-  existing bounded timer. Working-folder copy also no longer implies it bounds native Mac access.
-
-- A release-signed lab manifest with omitted optional arguments was incorrectly rejected: schema
-  defaults changed its canonical payload before signature verification. The same ordering also
-  hid whitespace-only edits to signed display text. Source now verifies the original signed
-  payload before applying defaults or trimming. Both regressions failed before the fix and pass
-  afterward. The full gate and CI passed. The replacement signed app accepted the same valid
-  manifest, exposed its model, and completed a local ACP protocol-fixture turn. A changed manifest
-  was rejected with a signature error and the lab route was absent from AI settings. Normal launch
-  without the manifest was restored. This checks admission, not external lab/model conformance.
-
-- Background phone answers no longer read the renderer’s selected-conversation snapshot. That
-  optimization had removed the actual answer before the relay finished, producing **Sia › Done.**
-  in the live self-test. A regression reproduced that exact failure before the fix. The relay now
-  reads complete in-process state for answers, approvals and result files; tests keep a different
-  conversation selected throughout. The renderer retains its smaller, faster updates.
-
-- Outbound reply failures now remain visible through successful inbox polls, with **Needs attention**
-  and a useful recovery message. A successful reply to another contact does not hide the failed
-  recipient. Raw send-process errors stay out of the renderer. File and voice-reply failures are
-  also reported. This diagnostic repair does not itself establish successful handset delivery.
-- Returned files and voice notes carry a bounded, encrypted, short-lived content fingerprint so
-  their sent/received self-chat copies cannot start another task, including after restart. Tests
-  cover renamed copies, changed content, explicit captions, later reuse and expired markers.
-
-- Closed apps are now labeled **Open to check**, with an **Open app** action, instead of
-  **Needs you**. The guided pass still verifies them before completing and preserves actual
-  denied states. Live System Settings showed every Sia Automation switch on while four target
-  apps were closed; Apple’s permission API cannot verify a closed target. The fixed checklist
-  does not treat unknown access as granted or reopen apps during passive checks. The preceding `9eb1eea` signed
-  candidate completed the guided pass and displayed **Mac access is ready**, with every permission
-  allowed. The operator subsequently enabled automatic local actions; the setting survived restart and a
-  fresh Calculator task completed without an approval card. Phone turns retain confirmation.
-  After restart, closed targets correctly return to **Open to check**, without implying a denied grant.
-- The supported Codex download now shows byte progress and permits a slow progressing download for
-  up to 45 minutes, with a two-minute stalled-stream deadline. SHA-512 verification, size limits,
-  admitted versions and atomic installation remain enforced. Real GUI setup installed admitted
-  Codex `0.153.0`; the installed global `0.154.0` was correctly reported incompatible.
-- An unavailable pinned model is shown explicitly. Selecting a replacement resolves and persists
-  its full allowed execution route while preserving harness and credential source.
-- The obsolete mandatory-research task gate was removed. Signed-in users can leave sharing off,
-  decline or pause it and still complete tasks. Only explicit accepted consent captures research.
-  No live research consent was supplied. The separate staged connector-test enrollment below
-  does not enable research capture.
-- Foreground guidance tells the model to restore and inspect the authorized app after an approval,
-  prefer app-scoped controls and combine a small action with verification when practical. This is
-  model guidance; native shell commands still use the provider's approval boundary.
-- A real self-addressed iMessage reached Sia and produced an answer, but the old decoder included
-  binary length bytes or archive metadata in message text. Sia then treated its own malformed
-  prefixed replies as new tasks. The relay was turned off. The replacement reads the root
-  attributed string with bounded binary parsing and rejects unknown formats without guessing.
-  Independent Foundation-generated synthetic archives cover short commands, Unicode, line breaks,
-  attachments, long lengths and exact reply/approval text.
-- Self-message deduplication now pairs sent and received copies, preserving a second YES for a
-  different pending approval within one minute. Tests cover both copy arrival orders and exact
-  request binding.
-- Messages search now decodes archived bodies before filtering and limiting. Modern message text
-  is searchable without matching archive metadata. Tests cover sender/name matching, empty text,
-  case-insensitive body search and plain-text precedence.
-
-The initial iMessage answer followed by echoes remains a **failed live test**. The preceding signed candidate (`4be6bfc`)
-subsequently received one self-addressed test intact and produced the exact requested answer, with
-no extra task over more than 30 seconds (the relay polls every two seconds). That test originated
-on the Mac through an individually approved explicit-recipient action. A later physical-phone request
-on `9eb1eea` reached the app at 09:27:14 UTC and produced the exact answer at 09:27:19 UTC, but the
-operator reported **No reply arrived** on the handset. A subsequent scoped read found two copies
-of **Sia › Done.** at 09:27:19 UTC, confirming the background-snapshot defect. An explicit
-`messages_send` diagnostic at 10:06:53 UTC succeeded and its exact marker appeared in sent/received
-self records; physical receipt remains unconfirmed. The initial requested-answer test remains recorded as failed; the repaired Mac-originated test below passed.
-The corrected candidate subsequently received the operator’s physical-phone request at 16:35:46 UTC
-and generated **SIA-PHONE-FIXED-OK** at 16:35:57 UTC. The operator explicitly confirmed the exact
-**Sia › SIA-PHONE-FIXED-OK** reply arrived on the handset. This passes the physical-phone text round
-trip. Repeated commands, approvals and media remain required.
-
-## Live evidence and limitations
-
-On `64b40df`, the signed app created and read back a disposable file with exactly
-`SIA-LOCAL-DEMO-OK` in 13 seconds; independent bytes matched. A focused spending rehearsal on
-`2898c71` then passed with the real GPT-5.6-Sol model and Sia controller: 23.875 seconds, two
-approved local writes, net spending $2,499 and subscriptions $59. It used fictional data and
-no GUI or external account tools. The initial invocation found an incompatible global Codex;
-the retained successful run used Sia's admitted 0.153.0 runtime. These results do not complete
-the physical-phone NO/YES action gate or the signed-app interactive rehearsal.
-
-| Area                       | Observed result                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Remaining check                                                                                                                                                           |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Signed app and persistence | The `0d4b87f` replacement passed signature, staple and Gatekeeper checks, then restored authenticated conversations and the selected GPT-5.6-Sol route in the existing isolated profile without an observed sign-in or Keychain prompt. Real iMessage tasks and the paired LAN browser reconnected.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | Clean macOS user and actual alpha.24 upgrade.                                                                                                                             |
-| Email and setup            | Earlier signed candidate requested a live email code, rejected a wrong code, then reached authenticated setup after the operator entered the delivered valid code. Managed runtime restart preserved its profile.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                | New recipient, expired code and resend acceptance on the final candidate.                                                                                                 |
-| Model task                 | Real Codex completed a disposable CSV task with all expected totals and grand total 31.50.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       | Each optional provider route on the final signed app.                                                                                                                     |
-| GitHub                     | Development app read PR #20 and matched an independent GitHub check. Signed-profile consent/read remains unverified; the earlier Chrome-control blocker is no longer the current CUA status.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Signed-profile consent/read, disconnect, cancelled reconnect, reconnect and relaunch.                                                                                     |
-| Mac control                | The preceding signed candidate (`4be6bfc`) activated and inspected Calculator, cleared it, entered 123 × 456 with a foreground guard, and produced 56088. Independent native UI inspection confirmed both expression and result. TextEdit changed only the requested third line and saved; independent bytes preserved Unicode, other lines and final LF. Finder renamed the fixture to a Unicode name; its window and unchanged file bytes were independently checked. Commands were individually approved with window-only capture and compact-command guidance. On the preceding signed candidate (`9eb1eea`), a fresh automatic-mode Calculator task completed 17 × 19 = 323 in 1m40s; independent AX and window screenshot matched. It recovered from an initial process-not-running check and needed no operator approval. | Lock/sleep recovery and mid-input cancellation; clean-user permissions.                                                                                                   |
-| UI and update check        | Signed About screen visibly included alpha.25, the Brand S icon and company logo. Its authenticated update check completed with “You’re on the latest version.”                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  | Final candidate cold/warm timing, long streaming response, cancellation and live reduced-motion check.                                                                    |
-| iMessage                   | Earlier `0925e66` handset text round trip was operator-confirmed. Mac-originated live `2898c71` checks passed NO/YES actions, STATUS, stale YES, NEW and photo understanding. Signed `0d4b87f` passed corrected STOP and a fresh denied-then-approved exact file write/read-back, with completion in Messages.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   | Physical handset origin and receipt for actions, approval commands and media; no full parity claim.                                                                       |
-| Wi-Fi remote               | On `2898c71`, a paired Chrome client on the Mac completed an exact reply and file action with Mac-side approvals; reload restored its result. On `0d4b87f`, the same private link reconnected after replacement and displayed the latest iMessage task completion. Tokenless access remained rejected in earlier testing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | Physical phone pairing, task and reconnect; Mac-browser evidence is not handset evidence.                                                                                 |
-| Telegram and Discord       | Implemented, with automated channel and attachment checks. No configured disposable test bots were confirmed.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    | Operator enters test-bot tokens directly in Sia, then real pairing, messages, approvals, media and disconnect.                                                            |
-| Voice                      | On signed `0d4b87f`, a synthetic WAV sent via real iMessage transcribed correctly and returned the requested three-word text plus audio. The received MP3 was saved through Messages, decoded without errors and played to completion in QuickTime after source cleanup.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         | Physical microphone/Fn, in-app voice, handset-originated voice notes and handset playback. Audible spoken words were not independently transcribed from the returned MP3. |
-
-The final Calculator draft initially encountered a changed live model catalog; Sia rejected the
-unavailable pinned choice and preserved the draft. After relaunch, the catalog offered that model
-again. Stopping the later self-message sender at an approval expired the card and allowed the queued relay task to complete; no further sender action was observed. After recovering input and reviewing compact commands, the preceding signed candidate completed the Calculator check recorded above. This does not establish reliable unattended Mac control.
-
-During manual retesting, recipient-entry focus changed and a phone-number-only message went to an
-unintended conversation. Undo Send was invoked but independent confirmation was blocked by
-automatic approval review protecting unrelated conversation privacy. The operator was asked to
-confirm removal. Native Messages input stopped for that session. On October 8, authorized CUA self-tests resumed with the exact recipient and draft checked before each send; retained transcripts exclude unrelated conversations. Automated Electron tests and
-manual Mac input now run in separate phases; the complete recipient and draft must be inspected
-before a separate Send action. See [manual acceptance](./manual-acceptance.md).
-
-## External services and release gates
-
-The operator's designated test account initially lacked the `ConnectorTesters` group. Under the
-release-testing authorization, only that account was enrolled in the existing staged tester group;
-it has no attached AWS role. After a normal signed-app restart on `0925e66`, Connections showed
-**Available for this account**. Google setup reached **Awaiting approval**; cancelling returned
-both selected providers to **Not connected** and re-enabled setup. Provider consent and a data read
-were not completed; Slack was queued behind Google and did not start. Other accounts and public
-connector eligibility were unchanged. Telegram and Discord still have no test bots configured.
-
-The approved **Use my Mac / On my screen / Bypass on** preference, authenticated conversations,
-texting Ready and Wi-Fi remote Ready survived the earlier signed restart. macOS grants were
-retained. Closed System Events and Safari remained **Open to check**, while the other nine required
-permissions showed Allowed. The `64b40df` replacement restored authenticated conversations and the
-lab fixture's completed result without an observed sign-in or Keychain prompt. The latest
-`2898c71` replacement also restored the authenticated profile and unsent draft. Its live runtime
-catalog offers GPT-5.6-Sol, but the saved GPT-6-Astra choice is unavailable. Submission correctly
-stopped before a turn. On October 8, leaving full screen and using Window → Center restored CUA
-input. GPT-5.6-Sol was selected for the phone conversation and saved as the Sia agent default;
-NEW then created a working fresh conversation. The agent editor saved and dismissed normally.
-The `0d4b87f` replacement retained that model choice and authenticated profile. Its live STOP, voice-delivery and NO/YES file-action retests passed. Physical-handset action and receipt remain separate gates. iPhone Mirroring reported that the paired phone could not be found, so CUA could not complete those handset checks.
-
-Read-only production checks found `sia-alpha` in `UPDATE_COMPLETE`, SES production sending enabled,
-sender-domain verification and DKIM successful, all 17 alarms `OK` with actions enabled, and a
-confirmed email subscription. Homepage, privacy, terms and support returned successful responses;
-`/download/` returned 404 because alpha.25 has not been published. Anonymous session, catalog,
-voice-catalog and release-feed requests returned 401. Those checks do not establish every
-authenticated endpoint or alarm delivery during an actual incident.
-
-On October 12, reviewed change set `sia-code-audit-1269001` updated only the control, deletion and
-research-export Lambda code from `1269001`, retaining every deployed non-Code property and parameter.
-CloudFormation completed with no replacements; all three deployed package hashes match the local
-release bundles. The Meta streaming Lambda remains the September 24 deployment. All 17 alarms
-remain OK with actions enabled; protected session/catalog/voice/release endpoints still reject
-anonymous access. The branded SES settings and 30-day refresh lifetime are unchanged. Rollback
-packages and the exact previous template were preserved. Live research-job rehearsal is still
-required before research recruitment. The source's proposed ten-year setting has **not** been
-deployed and must not be applied incidentally. The protected GitHub release
-environment has cloud/update configuration but no Apple signing secrets. Local signing uses the
-existing Developer ID certificate and named Keychain profile; no password is stored in source.
-
-Before distribution:
-
-1. Complete the exact-artifact checks in [manual acceptance](./manual-acceptance.md), including
-   clean-user install, alpha.24 upgrade, every enabled permission, real Mac control, physical voice,
-   phone tasks/approvals/media and connector reconnect.
-2. Complete live BYOK with a test provider entered directly in Settings and any external lab route.
-   Signed lab-manifest admission and tamper rejection now pass with a local protocol fixture; that
-   fixture does not establish external provider success.
-3. The nine [demo cases](./demo.md) and four follow-ups passed again with a real model and fictional
-   local data. Complete the live account portions for advertised workflows; purchase, cancellation
-   and outreach rehearsals require their specific approval.
-4. Keep Google and Slack restricted to their approved tester cohort until the independent
-   [connector distribution gates](./connector-distribution-readiness.md) pass.
-5. Confirm exposed credentials were revoked/replaced and assign the support/incident owner, as
-   required by [release status](./release-status.md). This pass did not rotate credentials.
-6. Record the owner's confirmation of redistribution permission for the pinned Notch components.
-   [Third-party notices](../THIRD_PARTY_NOTICES.md#notch-native-assistant-components) record no license
-   file at that revision; separate permission has not yet been confirmed in this verification.
-
-Research recruitment is separate and requires
-[research release sign-off](./research-release-signoff.md). Signing, staging or automated success
-does not grant research approval. Durable source-specific seen/read state, offline cloud scheduling
-and complete binary/scanned tax-document coverage remain unproven.
+Earlier artifact hashes, source commits, cloud deployments and live rehearsals remain available in
+the [prior acceptance record](https://github.com/ljang0/sia-v2/blob/c81bb40c483c92f5d483c5980352408caa3ed5c7/docs/public-release.md).
+They apply to the versions named there; they do not establish current-artifact acceptance.
+The last published alpha.24 pilot remains recorded in [release evidence](./release-evidence.md).
 
 ## Publication
 
-`pnpm release:stage-public-download` passed for the exact final candidate. A complete local HTTP
-download returned 267,351,819 bytes with the recorded SHA-256, matching the manifest. The temporary
-loopback server was stopped afterward. Staging and local transfer are not publication. After all recipient gates pass, publish with the
-site's `deploy --public-release` flow and verify an unauthenticated external recipient download and
-its hash. The authenticated signed update feed is a separate step in [release.md](./release.md).
-Keep the prior published signed artifact available for rollback.
+The alpha.34 handoff folder is prepared locally with the installer, checksums, proposal, setup
+notes and third-party notices. It is an acceptance candidate, not a published release. Keep private
+recipient lists and download links outside Git. After the remaining [release gates](./release-status.md)
+pass and the owner authorizes distribution, follow [release operations](./release.md) and verify the
+recipient's downloaded hash. Keep alpha.33 available for rollback. Research recruitment retains
+its separate [sign-off](./research-release-signoff.md).

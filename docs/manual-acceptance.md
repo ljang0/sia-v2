@@ -15,6 +15,15 @@ test. The source candidate is `0.1.0-alpha.34`; its signed artifact and hashes m
 [`public-release.md`](./public-release.md). The last published pilot artifact remains
 `0.1.0-alpha.24`, recorded in [`release-evidence.md`](./release-evidence.md).
 
+## Current handoff scope
+
+The owner selected Mac first, with iPhone following later. For this handoff, complete the signed
+Mac signup/permissions, provider login, Chrome, file/result, native input, cancellation/restart,
+lock/sleep and voice checks. Record the exact artifact and any unsupported feature clearly.
+The physical iPhone, TestFlight, phone relay and texting sections below remain follow-on acceptance;
+they are not claimed as passed or required for the first Mac-only handoff. Public connectors and
+additional model engines retain their own admission gates.
+
 ## Automated gate
 
 From a clean checkout:

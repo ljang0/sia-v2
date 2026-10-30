@@ -43,6 +43,11 @@ ConsolidationScheduler PROMOTE/DISTILL instructions through Sia's existing runti
 that revision does not include a license file. Attribution and adaptation details are preserved in
 `apps/desktop/native/voice/README.md`; no replacement license is asserted for the original sources.
 
+On October 30, 2026, the Sia repository owner confirmed that they own the relevant source rights
+when asked about redistribution of these sources and compiled components with Sia. This records
+the owner's confirmation for the release; the pinned-source provenance and upstream license-file
+status above remain unchanged. It does not grant a new public license to third parties.
+
 ## React Bits Dither, Spotlight Card and Gradient Text
 
 The desktop, launcher, and phone aurora use the

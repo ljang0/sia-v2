@@ -15,7 +15,8 @@ local files and Mac apps, shows progress, and supports stopping a task. Afterwar
 rates the result and can add a reason or optional comment. Start the pilot with explicit
 action confirmations and disposable tasks; expand access only after acceptance.
 
-The proposed first cohort uses macOS 14+ and one admitted engine, Codex App Server. A sponsor
+The owner selected a Mac-first handoff, with iPhone following later. The proposed first cohort
+uses macOS 14+ and one admitted engine, Codex App Server. A sponsor
 can supply compatible hosted models through Sia's existing relay; each model still needs a
 live compatibility check. The iPhone companion and additional engines have separate acceptance
 gates. A reviewer can explore the UI with fake services without cloud credentials or model spend.
@@ -53,9 +54,9 @@ with Arena's existing rankings would be agreed together.
 Alpha.34 is signed and notarized. The full automated gate, signed-app upgrade, fresh CSV
 creation/readback/preview, restart, cancellation and native Calculator input passed. Alpha.33
 additionally passed a fresh-profile sign-in check. Alpha.34 adds explicit Chrome setup; its live
-connection still needs the operator's access confirmation. Background new-tab creation is
-unsupported. Browser acceptance, clean macOS-account setup, redistribution permissions and
-release ownership must be resolved before distribution. See [release status](./release-status.md)
+connection is approved but not yet verified. Background new-tab creation is unsupported. The owner
+confirmed ownership of the relevant native source rights. Browser acceptance, clean macOS-account
+setup and release ownership must be resolved before distribution. See [release status](./release-status.md)
 for current evidence; passing fake-service tests is not live acceptance.
 
 Start with the [README setup and task path](../README.md), then
