@@ -586,7 +586,11 @@ export function Conversation({
       data-file-dragging={draggingFiles ? 'true' : undefined}
       {...dropTargetProps}
     >
-      <Aurora className={layout.conversationAurora} pauseWhenUnfocused />
+      <Aurora
+        className={layout.conversationAurora}
+        pauseWhenUnfocused
+        still={Boolean(preview)}
+      />
       {findOpen ? (
         <ConversationFind
           query={findQuery}

@@ -422,6 +422,25 @@ export class CuaService {
   ): Promise<unknown> {
     if (!CUA_TOOLS.has(tool)) throw new Error(`CUA tool ${tool} is not exposed by Sia.`);
     signal?.throwIfAborted();
+    // Copy/Cut changes the system pasteboard even when key delivery stays in
+    // another window. Do not overwrite the person's clipboard to move files.
+    if (
+      context.kind === 'turn' &&
+      context.backgroundOnly &&
+      tool === 'hotkey' &&
+      Array.isArray(args.keys)
+    ) {
+      const keys = args.keys
+        .filter((key): key is string => typeof key === 'string')
+        .map((key) => key.toLowerCase());
+      if (
+        keys.some((key) => ['cmd', 'command', 'super', 'meta', 'win'].includes(key)) &&
+        keys.some((key) => key === 'c' || key === 'x')
+      )
+        throw new Error(
+          'Background Copy and Cut would change your clipboard. Use a supported drag or another clipboard-free action.',
+        );
+    }
     // Native menus have no delivery ceiling, and an app may activate itself
     // after a background launch. Neither can guarantee background-only delivery.
     // Refuse before driver initialization, queueing or input, not after delivery.

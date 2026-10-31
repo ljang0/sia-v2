@@ -40,6 +40,41 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+it.each([
+  ['cmd', 'c'],
+  ['command', 'X'],
+  ['super', 'shift', 'c'],
+  ['meta', 'option', 'c'],
+  ['win', 'x'],
+])('refuses background clipboard writes before native delivery: %j', async (...keys) => {
+  const factory = vi.fn(() => successfulDriver({}));
+  const service = new CuaService(authorization(), { driverFactory: factory });
+  await expect(
+    service.call(
+      'hotkey',
+      { pid: 42, window_id: 91, keys, delivery_mode: 'background' },
+      { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+    ),
+  ).rejects.toThrow('would change your clipboard');
+  expect(factory).not.toHaveBeenCalled();
+  await service.shutdown();
+});
+
+it('preserves explicitly permitted foreground Copy', async () => {
+  const driver = successfulDriver({});
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await service.call(
+      'hotkey',
+      { pid: 42, window_id: 91, keys: ['cmd', 'c'], delivery_mode: 'foreground' },
+      { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: false },
+    );
+    expect(driver.callTool).toHaveBeenCalledOnce();
+  } finally {
+    await service.shutdown();
+  }
+});
+
 it('records content-free authorization diagnostics without retrying the native operation', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   const driver = {
