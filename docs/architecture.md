@@ -366,7 +366,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   phone, schedules, journal and notifications, even when Codex completed its response normally.
   Cmd+E no longer collects accessibility content. Fn activation captures only the frontmost
   app's name and bundle ID through NSWorkspace; it does not walk accessibility content. The host
-  strips legacy queued activation context to that same identity before model dispatch. A fresh
+  strips legacy queued activation context to that same identity before model dispatch. The old Fn
+  accessibility walk and mode switches are removed, so settings changes cannot restore them. A fresh
   tool screenshot remains required for UI observation. Native helper context/screenshot commands
   remain internal legacy test surfaces, unavailable to the visual model runtime.
   **Work in background** under Settings → Computer → Where Sia works is the Use my Mac default:
@@ -914,7 +915,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   and synced to AWS. A turn that invokes Gmail, Drive, Docs, Sheets, or Slides is excluded in full;
   Google Workspace action results remain only in the normal local user-facing transcript, and the
   diagnostic trajectory excludes the entire turn. Each consented turn automatically records an
-  `episode.started` route (`mac_foreground_native`, `mac_background_cua`, or `connected_apps`) and a
+  `episode.started` route (`mac_foreground_cua`, `mac_background_cua`, or `connected_apps` for
+  visual sessions; `mac_foreground_native` only for legacy assisted sessions), an explicit
+  `computerControlMode` policy, and a
   capture-finished evidence summary with event counts, background CUA observation references, and
   a digest of the captured events. Background CUA's existing snapshot and action results carry the
   task-visible images and verification IDs; capture does not take extra screenshots or read browser

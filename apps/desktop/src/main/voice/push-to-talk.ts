@@ -68,8 +68,6 @@ type Command = {
   phase?: 'idle' | 'working' | 'waiting';
   enabled?: boolean;
   accessibility?: boolean;
-  mac?: boolean;
-  visionOnly?: boolean;
   id?: string;
   label?: string;
   text?: string;
@@ -193,8 +191,6 @@ interface Options {
 export class PushToTalkService {
   readonly #options: Options;
   #contextEnabled = false;
-  #macContext = false;
-  #visionOnlyContext = false;
   #practice = false;
   readonly #taskThreads = new Map<string, { task: VoiceTask; generation: number }>();
   #speechGeneration = 0;
@@ -226,22 +222,10 @@ export class PushToTalkService {
     };
   }
 
-  setContextEnabled(enabled: boolean, mac = false, visionOnly = false): void {
-    this.#visionOnlyContext = visionOnly;
-    if (visionOnly && this.#recording) {
-      const context = visualActivationContext(this.#recording.context);
-      if (context) this.#recording.context = context;
-      else delete this.#recording.context;
-    }
-    this.#macContext = mac;
+  setContextEnabled(enabled: boolean): void {
     this.#contextEnabled = enabled;
     if (!enabled && this.#recording) delete this.#recording.context;
-    this.#helper?.send({
-      type: 'context',
-      enabled: enabled && !this.#practice,
-      mac,
-      visionOnly,
-    });
+    this.#helper?.send({ type: 'context', enabled: enabled && !this.#practice });
   }
 
   /** Onboarding uses the real Fn/audio path without reading app context or starting work. */
@@ -250,7 +234,7 @@ export class PushToTalkService {
     this.cancel();
     this.#practice = enabled;
     this.#view = { ...this.#view, practice: enabled, practiceTranscript: undefined };
-    this.setContextEnabled(this.#contextEnabled, this.#macContext, this.#visionOnlyContext);
+    this.setContextEnabled(this.#contextEnabled);
     this.#changed();
   }
   view(): PushToTalkView {
@@ -362,8 +346,6 @@ export class PushToTalkService {
       helper.send({
         type: 'context',
         enabled: this.#contextEnabled && !this.#practice,
-        mac: this.#macContext,
-        visionOnly: this.#visionOnlyContext,
       });
       this.syncTasks();
     }
@@ -428,9 +410,7 @@ export class PushToTalkService {
       void this.#begin(
         event.id,
         this.#contextEnabled && !this.#practice && event.context
-          ? this.#visionOnlyContext
-            ? visualActivationContext(event.context)
-            : JSON.stringify(event.context)
+          ? visualActivationContext(event.context)
           : undefined,
       );
       return;

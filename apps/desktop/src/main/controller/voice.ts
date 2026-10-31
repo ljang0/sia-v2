@@ -109,8 +109,6 @@ export class VoiceControls {
     this.pushToTalk.setContextEnabled(
       this.ctx.assistant.library.view().context ||
         this.ctx.computerAccess.accessMode() === 'mac',
-      this.ctx.computerAccess.accessMode() === 'mac',
-      this.ctx.deps.visionOnly === true,
     );
     this.pushToTalk.setPractice(this.ctx.state.preferences.onboarding?.step === 'practice');
     this.pushToTalk.syncAccess();

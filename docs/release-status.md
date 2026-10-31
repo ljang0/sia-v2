@@ -61,17 +61,18 @@ managed Codex 0.160.0 passed a no-turn hosted-session isolation probe; this is c
 not real-task acceptance.
 Visual tool schemas omit semantic references, setters, OCR and menu APIs; a concise visual prompt
 replaces the native/assisted recipe for that route. On-screen visual actions default to foreground
-delivery, and background policy stays enforced. Voice activation captures app identity only, without
-walking accessibility content; persisted activation context is stripped to that same identity.
+delivery, and background policy stays enforced. Voice activation captures app identity only; its old accessibility walk and mode switches are removed,
+so changing Computer or Library settings cannot restore them; persisted activation context is stripped to that same identity.
 Launcher semantic capture is disabled. Native memory retains preferences and relevant notes but
 omits captured UI text and native-script instructions, including when memory preparation fails.
 Bounded capture/protection timing and signed real-task acceptance remain required. Research
-episode route names still carry legacy foreground/background labels; add explicit visual-control
-provenance before using new traces for Arena evaluation. CI exposed new patch sources missing from the cache's diff check;
+episodes now identify the configured visual/assisted policy separately from the delivery route,
+with per-tool event counts and separate browser/native observations. Historical records without
+the policy remain unknown; neither counts nor screenshots establish independent task success. CI exposed new patch sources missing from the cache's diff check;
 that verification is corrected and passed twice against a fresh pinned upstream sparse checkout.
 Divergent and unexpected local source files remain refused without replacement.
-The production-default source passed `pnpm test:pilot`: build, formatting, lint, quality,
-types, native/shared checks, 1,928 desktop tests, 46 desktop end-to-end tests, 40 renderer tests
+The alpha.57 candidate source passed `pnpm test:pilot`: build, formatting, lint, quality,
+types, native/shared checks, 1,933 desktop tests, 46 desktop end-to-end tests, 40 renderer tests
 and 72 Chromium/WebKit phone tests. These automated transport/authorization and UI checks are not
 evidence of visual task skill. Continue also retires obsolete Chrome setup markers from the
 previous execution while retaining its history. No new signed artifact contains these changes yet;

@@ -666,6 +666,60 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
+  it.each([
+    ['mac', true, 'mac_background_cua'],
+    ['mac', false, 'mac_foreground_cua'],
+    ['connected', false, 'connected_apps'],
+  ] as const)(
+    'records the visual policy independently of the %s delivery route (%s)',
+    async (mode, background, route) => {
+      const { controller, repository } = await createHarness({ visionOnly: true });
+      try {
+        await controller.invoke('computer.setAccessMode', { mode, background });
+        await controller.invoke('research.setCapture', {
+          enabled: true,
+          consentVersion: 'alpha-research-v3-raw',
+        });
+        const created = await controller.invoke('agents.save', {
+          name: 'Visual provenance',
+          instructions: '',
+          provider: 'codex',
+          model: 'gpt-5.6-sol',
+          workspace: '/tmp/sia-workspace',
+        });
+        const { threadId } = await controller.invoke('threads.create', {
+          agentId: created.agentId,
+        });
+        await controller.invoke('threads.send', { threadId, text: 'Record this test turn' });
+        await vi.waitFor(() =>
+          expect(
+            repository
+              .list<ResearchBatchView>('research')
+              .flatMap(({ events }) => events)
+              .some(({ payload }) => payload.eventType === 'turn.capture_finished'),
+          ).toBe(true),
+        );
+        const events = repository
+          .list<ResearchBatchView>('research')
+          .flatMap(({ events }) => events);
+        expect(
+          events.find(({ payload }) => payload.eventType === 'episode.started')?.payload.data,
+        ).toMatchObject({ route, computerControlMode: 'vision' });
+        expect(
+          events.find(({ payload }) => payload.eventType === 'turn.capture_finished')?.payload
+            .data,
+        ).toMatchObject({
+          evidence: {
+            configuredComputerControlMode: 'vision',
+            independentTaskVerification: 'not_available',
+          },
+        });
+      } finally {
+        await controller.shutdown();
+      }
+    },
+  );
+
   it('captures task-visible background CUA observations only after raw research consent', async () => {
     const { controller, repository } = await createHarness();
     try {

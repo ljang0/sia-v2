@@ -156,13 +156,31 @@ export function summarizeRawEpisode(
   let computerSnapshots = 0;
   let computerActions = 0;
   let computerImages = 0;
+  let browserSnapshots = 0;
+  let browserActions = 0;
+  let browserImages = 0;
+  const gatewayActionsByTool = new Map<string, number>();
+  let configuredComputerControlMode = 'unknown';
   const observationEventIds: string[] = [];
   for (const event of events) {
+    if (event.payload.eventType === 'episode.started' && isRecord(event.payload.data)) {
+      const mode = event.payload.data.computerControlMode;
+      if (mode === 'vision' || mode === 'assisted') configuredComputerControlMode = mode;
+    }
     if (event.payload.eventType === 'provider.tool') providerToolEvents += 1;
     if (event.payload.eventType !== 'sia.action_result' || !isRecord(event.payload.data))
       continue;
     gatewayActions += 1;
     const name = event.payload.data.name;
+    if (typeof name === 'string')
+      gatewayActionsByTool.set(name, (gatewayActionsByTool.get(name) ?? 0) + 1);
+    if (name === 'browser_snapshot' || name === 'browser_action') {
+      if (name === 'browser_snapshot') browserSnapshots += 1;
+      else browserActions += 1;
+      const result = event.payload.data.result;
+      if (isRecord(result) && Array.isArray(result.images))
+        browserImages += result.images.length;
+    }
     if (name !== 'computer_snapshot' && name !== 'computer_action') continue;
     if (name === 'computer_snapshot') computerSnapshots += 1;
     else computerActions += 1;
@@ -175,6 +193,11 @@ export function summarizeRawEpisode(
     recordedEventCount: events.length,
     providerToolEvents,
     gatewayActions,
+    gatewayActionsByTool: Object.fromEntries(gatewayActionsByTool),
+    configuredComputerControlMode,
+    browserSnapshots,
+    browserActions,
+    browserImages,
     computerSnapshots,
     computerActions,
     computerImages,

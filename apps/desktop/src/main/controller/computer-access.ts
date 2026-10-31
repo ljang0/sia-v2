@@ -137,7 +137,6 @@ export class ComputerAccess {
     if (fallback !== undefined) this.ctx.state.preferences.macBackgroundFallback = fallback;
     this.ctx.speech.pushToTalk?.setContextEnabled(
       this.ctx.assistant.library.view().context || this.accessMode() === 'mac',
-      this.accessMode() === 'mac',
     );
     this.ctx.commit();
     return this.ctx.resultSnapshot();

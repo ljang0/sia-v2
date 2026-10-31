@@ -539,7 +539,6 @@ export class AssistantFeatures {
     }
     this.ctx.speech.pushToTalk?.setContextEnabled(
       result.context || this.ctx.computerAccess.accessMode() === 'mac',
-      this.ctx.computerAccess.accessMode() === 'mac',
     );
     this.ctx.commit();
     return {

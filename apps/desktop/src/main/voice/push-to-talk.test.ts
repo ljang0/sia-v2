@@ -166,13 +166,11 @@ describe('Fn push-to-talk sessions', () => {
 
   it('transcribes practice without dispatching a task or reading app context, then restores normal Fn', async () => {
     const h = harness();
-    h.service.setContextEnabled(true, true);
+    h.service.setContextEnabled(true);
     h.service.setPractice(true);
     expect(h.native.send).toHaveBeenCalledWith({
       type: 'context',
       enabled: false,
-      mac: true,
-      visionOnly: false,
     });
     const id = randomUUID();
     h.event({ type: 'hold', id, context: { app: 'Safari', bundleID: 'com.apple.Safari' } });
@@ -193,8 +191,6 @@ describe('Fn push-to-talk sessions', () => {
     expect(h.native.send).toHaveBeenCalledWith({
       type: 'context',
       enabled: true,
-      mac: true,
-      visionOnly: false,
     });
     release(h, await listen(h));
     await flush();
@@ -422,7 +418,7 @@ it('includes pinned Fn context only after opting in and clears it when disabled 
   expect(h.send).toHaveBeenLastCalledWith(
     h.target(),
     'Please summarize this document.',
-    JSON.stringify(context),
+    JSON.stringify({ app: context.app, bundleID: context.bundleID }),
   );
   const third = randomUUID();
   h.event({ type: 'hold', id: third, context });
@@ -631,15 +627,15 @@ it.each(['muted', 'cancelled'] as const)('never speaks a %s Fn task', async (rea
   expect(h.voice.speak).not.toHaveBeenCalled();
 });
 
-it('requests identity-only activation and strips legacy helper UI content in visual mode', async () => {
+it('requests identity-only activation and strips legacy helper UI content across settings changes', async () => {
   const h = harness();
-  h.service.setContextEnabled(true, true, true);
+  h.service.setContextEnabled(true);
   expect(h.native.send).toHaveBeenCalledWith({
     type: 'context',
     enabled: true,
-    mac: true,
-    visionOnly: true,
   });
+  h.service.setContextEnabled(false);
+  h.service.setContextEnabled(true);
   const id = randomUUID();
   h.event({
     type: 'hold',
@@ -665,14 +661,10 @@ it('requests identity-only activation and strips legacy helper UI content in vis
   expect(h.native.send).toHaveBeenCalledWith({
     type: 'context',
     enabled: false,
-    mac: true,
-    visionOnly: true,
   });
   h.service.setPractice(false);
   expect(h.native.send).toHaveBeenCalledWith({
     type: 'context',
     enabled: true,
-    mac: true,
-    visionOnly: true,
   });
 });

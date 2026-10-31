@@ -24,7 +24,8 @@ after cleanup. The staging hook removes Finder/resource-fork metadata but does n
 strip quarantine. If metadata returns during signing, use an unsynced checkout or build directory
 and repeat strict signature verification.
 
-An external alpha release must be created with `pnpm package:mac`. The command fails unless all of the following are present:
+An external alpha release must be created with `pnpm package:mac`. Packaging explicitly disables
+Electron Builder publication; distribution is a separate operator action. The command fails unless all of the following are present:
 
 - `CSC_LINK` and `CSC_KEY_PASSWORD` for a Developer ID Application certificate, or `CSC_NAME` for
   an installed certificate on a secured release Mac;

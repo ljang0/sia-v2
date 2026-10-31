@@ -209,11 +209,6 @@ Task { @MainActor in
     precondition(FnContext.blockedIdentity("com.1password.1password"))
     precondition(FnContext.blockedIdentity("com.apple.Terminal"))
     precondition(!FnContext.blockedIdentity("com.apple.TextEdit"))
-    precondition(FnContext.protectedLabel("AXSecureTextField"))
-    precondition(FnContext.protectedLabel("Sign in to your account"))
-    precondition(FnContext.protectedLabel("Verification code"))
-    precondition(FnContext.protectedLabel("Authentication required"))
-    precondition(!FnContext.protectedLabel("AXTextArea Document"))
     // Retina capture is normalized to logical points before the model sees it.
     let logicalSize = MacScreenshot.imageSize(points: CGSize(width: 1710, height: 1107))
     precondition(logicalSize == CGSize(width: 1710, height: 1107))

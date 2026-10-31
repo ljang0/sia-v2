@@ -649,8 +649,11 @@ export class Turns {
           this.ctx.computerAccess.accessMode() === 'mac'
             ? this.ctx.computerAccess.backgroundControl()
               ? 'mac_background_cua'
-              : 'mac_foreground_native'
+              : this.ctx.deps.visionOnly
+                ? 'mac_foreground_cua'
+                : 'mac_foreground_native'
             : 'connected_apps',
+        computerControlMode: this.ctx.deps.visionOnly ? 'vision' : 'assisted',
         provider: thread.provider,
         model: thread.model,
         harnessId: thread.harnessId,
