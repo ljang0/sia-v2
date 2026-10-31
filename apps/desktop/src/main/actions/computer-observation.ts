@@ -113,6 +113,9 @@ export class ComputerObservation {
     const hasProtectedControls = (value: unknown) =>
       windowHasProtectedControls(value, {
         browserBundleId: browserState?.status === 'ready' ? browserState.bundleID : undefined,
+        nativeAppBundleId: this.ctx.computer.apps
+          .get(binding.appId)
+          ?.identity?.replace(/^bundle:/, ''),
       });
     // A missing helper AX window is not a driver refusal. Let CUA resolve and
     // initialize the exact window once, then revalidate browser metadata before
@@ -303,9 +306,19 @@ export class ComputerObservation {
           data: { observation_pending: true },
         };
     }
+    // Inventory titles can outlive navigation within a native window (for example,
+    // Finder changing folders). Prefer the current, uniquely identified AX window.
+    const capturedWindows = findElementRecords(raw, 'window').filter(
+      (record) => firstString(record, ['role', 'type']) === 'AXWindow',
+    );
+    const capturedTitle =
+      capturedWindows.length === 1
+        ? firstString(capturedWindows[0]!, ['title', 'label', 'name'])
+        : undefined;
     const rawTitle =
       readableContext?.title ||
       (browserState?.status === 'ready' ? browserState.title : undefined) ||
+      capturedTitle ||
       binding.title;
     const title = redactOptionalText(rawTitle);
     const privateLinks =

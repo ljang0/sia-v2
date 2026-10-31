@@ -247,19 +247,26 @@ export class BrowserSession {
           // every attachment lets a user detach and reattach without restarting Sia,
           // while resetBrowserCapabilities still revokes every prior model-visible ref.
           const browserSessionId = `sia-browser-${randomUUID()}`;
-          const prepared = await this.ctx.deps.computer.call(
-            'browser_prepare',
-            {
-              pid: chromePid,
-              window_id: candidate.id,
-              session: browserSessionId,
-              strategy: { kind: 'existing_profile' },
-              // The connection UI explains that Chrome may appear during setup.
-              // Automatic attachment never grants foreground setup permission.
-              delivery_mode: options.auto ? 'background' : 'foreground',
-            },
-            directContext,
-          );
+          let prepared: unknown;
+          try {
+            prepared = await this.ctx.deps.computer.call(
+              'browser_prepare',
+              {
+                pid: chromePid,
+                window_id: candidate.id,
+                session: browserSessionId,
+                strategy: { kind: 'existing_profile' },
+                // The connection UI explains that Chrome may appear during setup.
+                // Automatic attachment never grants foreground setup permission.
+                delivery_mode: options.auto ? 'background' : 'foreground',
+              },
+              directContext,
+            );
+          } finally {
+            // Only direct setup may activate Chrome. Automatic/model attachment must never
+            // change focus; explicit setup returns to Sia before any continuation can run.
+            if (!options.auto) await this.ctx.deps.returnToAppAfterBrowserSetup?.();
+          }
           const prepareFailure = resultRefusal(prepared);
           if (prepareFailure) throw new Error(prepareFailure.reason ?? prepareFailure.summary);
           const state = await this.ctx.deps.computer.call(

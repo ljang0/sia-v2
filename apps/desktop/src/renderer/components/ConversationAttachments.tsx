@@ -80,7 +80,10 @@ export function AttachmentPreviewDialog({
     <Dialog.Root open={Boolean(preview)} onOpenChange={onOpenChange}>
       <Dialog.Portal>
         <Dialog.Overlay className={dialogs.dialogOverlay} />
-        <Dialog.Content className={`${dialogs.alertDialogContent} ${styles.attachmentPreview}`}>
+        <Dialog.Content
+          data-attachment-preview
+          className={`${dialogs.alertDialogContent} ${styles.attachmentPreview}`}
+        >
           <div className={styles.attachmentPreviewHeader}>
             <Dialog.Title>{preview?.attachment.name}</Dialog.Title>
             <Dialog.Close asChild>

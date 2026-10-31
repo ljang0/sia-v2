@@ -2,6 +2,8 @@ import ImageIO
 import AppKit
 import Foundation
 
+try testWorkspaceMove()
+
 let observationID = "08E364E9-ED45-459B-895C-0508CA680E53"
 func observationLine(_ changes: [String: Any] = [:]) -> String {
     var fields: [String: Any] = ["id": observationID, "operation": "browser", "pid": 42, "window_id": 91]

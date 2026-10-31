@@ -116,36 +116,13 @@
 }
 
 .workingLabel {
-  background: linear-gradient(
-      90deg,
-      var(--text-secondary) 0%,
-      var(--text-secondary) 38%,
-      var(--text-primary) 50%,
-      var(--text-secondary) 62%,
-      var(--text-secondary) 100%
-    )
-    0 0 / 250% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation:
-    workingLabelIn var(--motion-surface) var(--ease-out-soft) both,
-    workingShimmer var(--motion-sweep) linear infinite;
+  animation: workingLabelIn var(--motion-surface) var(--ease-out-soft) both;
 }
 
 @keyframes workingLabelIn {
   from {
     opacity: 0;
     transform: translateY(var(--motion-nudge));
-  }
-}
-
-@keyframes workingShimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0% 0;
   }
 }
 

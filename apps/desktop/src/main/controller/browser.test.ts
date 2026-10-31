@@ -65,6 +65,7 @@ describe('DesktopController', () => {
   it.each([false, true])(
     'allows foreground Chrome setup only for a direct connection (automatic=%s)',
     async (automatic) => {
+      const returnToAppAfterBrowserSetup = vi.fn(async () => undefined);
       const browserComputer = {
         ...computer,
         call: vi.fn(async (tool: string, args: Record<string, unknown>) => {
@@ -82,12 +83,16 @@ describe('DesktopController', () => {
             return { prepared: true };
           }
           if (tool === 'get_browser_state') {
+            expect(returnToAppAfterBrowserSetup).toHaveBeenCalledOnce();
             return { target_id: 'target', tab_id: 'tab', url: 'https://example.test/' };
           }
           return {};
         }),
       };
-      const { controller } = await createHarness({ computer: browserComputer });
+      const { controller } = await createHarness({
+        computer: browserComputer,
+        returnToAppAfterBrowserSetup,
+      });
       if (automatic) {
         await controller.invoke('computer.setTrust', { trust: 'auto' });
         await controller.invoke('computer.setAccessMode', { mode: 'connected' });
@@ -106,6 +111,7 @@ describe('DesktopController', () => {
           browserComputer.call.mock.calls.some(([name]) => name === 'get_browser_state'),
         ).toBe(false);
       }
+      expect(returnToAppAfterBrowserSetup).toHaveBeenCalledTimes(automatic ? 0 : 1);
       await controller.shutdown();
     },
   );
@@ -323,7 +329,7 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('explains Chrome-owned remote-debugging consent refusals', async () => {
+  it('explains wrong-target refusals without recommending broader access', async () => {
     const browserComputer = {
       ...computer,
       call: vi.fn(async (tool: string) => {
@@ -347,12 +353,12 @@ describe('DesktopController', () => {
 
     expect(snapshot.browser).toMatchObject({
       status: 'error',
-      detail: expect.stringMatching(/chrome:\/\/inspect.*Allow remote debugging/i),
+      detail: expect.stringMatching(/could not verify the selected Chrome window/i),
     });
     await controller.shutdown();
   });
 
-  it('explains the one-time Chrome permission when reconnect waits for consent', async () => {
+  it('explains reconnect failure without asserting a permission cause', async () => {
     const browserComputer = {
       ...computer,
       call: vi.fn(async (tool: string) => {
@@ -376,7 +382,9 @@ describe('DesktopController', () => {
 
     expect(snapshot.browser).toMatchObject({
       status: 'error',
-      detail: expect.stringMatching(/Click Allow.*one-time Chrome security step/i),
+      detail: expect.stringMatching(
+        /If Chrome shows.*Allow remote debugging.*review that prompt/i,
+      ),
     });
     expect(snapshot.browser.detail).not.toContain('browser_reconnect_exhausted');
     await controller.shutdown();
@@ -636,7 +644,9 @@ describe('DesktopController', () => {
 });
 
 describe('connect Chrome and continue', () => {
-  async function recoveryHarness(options: { fail?: boolean; pause?: Promise<void> } = {}) {
+  async function recoveryHarness(
+    options: { fail?: boolean; pause?: Promise<void>; returnToApp?: () => Promise<void> } = {},
+  ) {
     const nativeCall = vi.fn(async (tool: string, _args: Record<string, unknown>) => {
       if (tool === 'list_apps')
         return { apps: [{ pid: 42, name: 'Google Chrome', bundle_id: 'com.google.Chrome' }] };
@@ -662,6 +672,7 @@ describe('connect Chrome and continue', () => {
     const { controller } = await createHarness({
       computer: { ...computer, call: nativeCall },
       runCommand: async () => '',
+      ...(options.returnToApp ? { returnToAppAfterBrowserSetup: options.returnToApp } : {}),
     });
     const created = await controller.invoke('agents.save', {
       name: 'Study',
@@ -679,6 +690,37 @@ describe('connect Chrome and continue', () => {
       .timeline.findLast((item) => item.threadId === threadId && item.kind === 'user')!.id;
     return { controller, nativeCall, threadId, userMessageId };
   }
+  it('waits for the return to Sia before resuming the saved request', async () => {
+    let finishReturn!: () => void;
+    const returnToApp = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishReturn = resolve;
+        }),
+    );
+    const { controller, threadId, userMessageId } = await recoveryHarness({ returnToApp });
+    try {
+      await controller.invoke('browser.connectAndContinue', { threadId, userMessageId });
+      expect(returnToApp).not.toHaveBeenCalled();
+      const pending = controller.invoke('browser.connectAndContinue', {
+        threadId,
+        userMessageId,
+        windowId: 7,
+      });
+      await vi.waitFor(() => expect(returnToApp).toHaveBeenCalledOnce());
+      expect(
+        controller.snapshot().timeline.filter((item) => item.kind === 'user'),
+      ).toHaveLength(1);
+      finishReturn();
+      const result = await pending;
+      expect(result.browser.status).toBe('attached');
+      expect(result.timeline.filter((item) => item.kind === 'user')).toHaveLength(2);
+    } finally {
+      finishReturn?.();
+      await controller.shutdown();
+    }
+  });
+
   it('offers window choice first, then continues exactly once in the pinned conversation and preserves drafts', async () => {
     const h = await recoveryHarness();
     const { controller, threadId, userMessageId } = h;
@@ -771,7 +813,7 @@ describe('connect Chrome and continue', () => {
         windowId: 7,
       });
       expect(result.browser.status).toBe('error');
-      expect(result.browser.detail).toContain('permission');
+      expect(result.browser.detail).toContain('could not complete the Chrome connection');
       expect(result.timeline.filter((item) => item.kind === 'user')).toHaveLength(1);
     } finally {
       await controller.shutdown();

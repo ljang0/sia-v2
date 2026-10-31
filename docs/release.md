@@ -12,6 +12,12 @@ Named research, privacy, security, support, and release approval is recorded in
 
 Local CI intentionally builds an unsigned universal `.app` only to exercise both native architectures. That artifact is not distributable and must never be presented as signed or notarized.
 
+For internal Developer ID QA builds, `verify-packaged-app.mjs --arch=arm64
+--signing=signed-qa --output=release-qa43` checks the package, runtime, pinned identity and
+strict signature without claiming notarization. This does not replace the `--signing=release`
+gate, which also requires notarized app and DMG artifacts. The voice helper is always universal,
+including in a single-architecture QA app.
+
 Build release artifacts from a checkout outside iCloud Drive or another File Provider-managed
 folder. A managed Documents directory can recreate Finder metadata while Apple signs an app, even
 after cleanup. The staging hook removes Finder/resource-fork metadata but does not disable sync or
@@ -30,6 +36,12 @@ An external alpha release must be created with `pnpm package:mac`. The command f
   `SIA_RELEASE_UPDATE_MANIFEST_PUBLIC_KEY`, set to the pinned base64url Ed25519 SPKI public key.
 
 The release command writes a strict non-secret `sia-cloud.json` resource before signing. Production ignores process-environment API/Cognito destinations, so the bearer-token destination is covered by the application signature. It generates a deterministic license corpus from the installed pnpm store and copies Electron and Chromium's unmodified distribution licenses. It then builds a universal macOS 14+ app and DMG, signs both with Developer ID, notarizes and staples both, and verifies the app with `codesign --deep --strict` plus execute assessment and the DMG with strict signature plus open assessment. `xcrun stapler validate` must pass for both the app and DMG before distribution.
+
+The Cua SDK includes a small source patch for Chrome consent scanning. Both development and
+release resolve the same locally built platform packages. The build pins the upstream revision,
+compiler and patch, and packages a provenance record beside each SDK. Review
+[`native/cua/README.md`](../apps/desktop/native/cua/README.md) before updating that pin; never
+replace a packaged dylib by hand and call it a release. Rustup is required on the build Mac.
 
 Packaged verification uses `file` and `lipo` to require both architectures in the main executable, Electron framework, crash handler, and all four helper executables. It checks the appropriate architecture in each CUA and UniFFI native runtime, verifies the full MPL-2.0 body and Electron/Chromium resources, dynamically probes CUA on the CI host architecture, and runs the packaged MCP bridge in Electron's Node mode. Static architecture checks do not claim to execute the non-host architecture.
 

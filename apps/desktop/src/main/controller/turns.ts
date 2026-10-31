@@ -402,7 +402,11 @@ export class Turns {
       running.abort();
       if (activeTurnId) {
         this.ctx.approvals.revokeApprovalsForTurn(threadId, activeTurnId);
-        await this.ctx.runtime?.cancel(threadId, activeTurnId).catch(() => undefined);
+        // Stop is acknowledged after aborting local work and revoking its grants.
+        // Provider interruption can take a full RPC timeout; do not keep queued
+        // messages or the Stop button waiting for it. The runner still owns its
+        // workspace/window leases until provider cleanup actually finishes.
+        void this.ctx.runtime?.cancel(threadId, activeTurnId).catch(() => undefined);
       }
     }
     const queuedTurnIds = this.queued

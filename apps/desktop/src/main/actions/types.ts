@@ -6,6 +6,8 @@ import type { CuaService } from '../mac/cua-service.js';
 import type { ConnectionId } from '../../shared/bridge.js';
 import type { LocalConnectorService } from '../connectors/local-connectors.js';
 
+import type { WorkspaceFileMove } from '../mac/workspace-file-move.js';
+
 /** Narrow structural boundary used by the desktop host and by unit tests. */
 export type CuaToolCaller = Pick<CuaService, 'call'>;
 
@@ -49,6 +51,7 @@ export interface ScheduleActionHost {
 }
 
 export interface DesktopActionBackendOptions {
+  readonly workspaceFileMove?: WorkspaceFileMove;
   readonly assistantAction?: (
     request: ValidatedActionInvocation,
   ) => Promise<ActionExecutionResult>;

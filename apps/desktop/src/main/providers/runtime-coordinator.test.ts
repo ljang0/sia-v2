@@ -308,6 +308,7 @@ describe('Use my Mac native execution', () => {
           'skill_run',
           'computer_read_file',
           'computer_write_file',
+          'computer_move_file',
           'memory_vault',
         ]),
       );

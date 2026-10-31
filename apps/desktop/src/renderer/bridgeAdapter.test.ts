@@ -619,3 +619,18 @@ describe('bridge renderer plan usage', () => {
     });
   });
 });
+
+it('keeps screen setup actionable while macOS direct capture approval is missing', () => {
+  const source = snapshot([]);
+  source.computer.accessibility = true;
+  source.computer.screenRecording = true;
+  source.computer.captureConsentRequired = true;
+  source.computer.verified = 'failed';
+  expect(mapDesktopSnapshot(source).computer).toMatchObject({
+    accessibility: 'allowed',
+    screenRecording: 'not-requested',
+    verified: 'failed',
+  });
+  source.computer.captureConsentRequired = false;
+  expect(mapDesktopSnapshot(source).computer.screenRecording).toBe('allowed');
+});

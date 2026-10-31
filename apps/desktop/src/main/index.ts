@@ -1,3 +1,4 @@
+import { workspaceFileMover } from './mac/workspace-file-move.js';
 import { BrowserWindowService } from './mac/browser-window.js';
 import { backgroundControlUnavailable } from './controller/computer-access.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
@@ -597,6 +598,14 @@ async function performApplicationCreation(): Promise<void> {
         shell.showItemInFolder(path);
       },
       openExternal: openSafeExternal,
+      returnToAppAfterBrowserSetup: async () => {
+        // Explicit connection setup can activate Chrome. Return to the existing Sia window
+        // before the saved background task resumes; never reopen a window the person closed.
+        if (shutdownStarted || !mainWindow || mainWindow.isDestroyed() || quietFixture) return;
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+      },
       ...(localConnectors ? { localConnectors } : {}),
       openMessages: () => shell.openExternal('sms:', { activate: true }),
       ...(!fakeServices ? { requestMicrophonePermission } : {}),
@@ -690,6 +699,11 @@ async function performApplicationCreation(): Promise<void> {
     rendererLoad = loadRenderer(window, rendererDevUrl);
     rendererLoad.catch(() => undefined);
     const actionBackend = new DesktopActionBackend({
+      workspaceFileMove: workspaceFileMover(
+        app.isPackaged
+          ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
+          : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
+      ),
       computerUnavailable: async () =>
         backgroundControlUnavailable(await computer.permissions()),
       macAutomation: runMacAutomation,

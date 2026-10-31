@@ -1,8 +1,11 @@
 # Release status
 
-Updated October 30, 2026. **Distribution is not ready.** Alpha.38 is signed and notarized.
-Two real document workflows completed concurrently with all five result previews verified. The last
-published Mac pilot is alpha.24; no new invitations or public download have been authorized.
+Updated October 31, 2026. **Distribution is not ready.** Universal notarized alpha.53 passed its
+full local gate and package checks. A background accordion click worked, but both outing and
+meal-planning research stalled during navigation/read recovery. Alpha.54 fixes a proven CDP-session
+leak, but a fresh household task on its signed arm64 QA build still stalled after a recipe click.
+The full local gate, strict signature and packaged-runtime checks passed; live acceptance failed.
+The last published Mac pilot is alpha.24; no new distribution is authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
 is the initially admitted engine. The [Arena proposal](./arena-proposal.md) describes a bounded
@@ -27,33 +30,23 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.38 full local pilot gate passed: 1,779 desktop unit, 46 Electron, 31 renderer, 72 phone-browser and 66 action-gateway tests. [Artifact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41157278849) passed. | Re-run runtime gates after application changes. |
-| Signed Mac package | Alpha.38 from `e0abb66ffa68f5560aa826b7e49c747ec51d39fa` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Any runtime change requires a new signed candidate. |
-| Signed app continuity | Alpha.38 retained the QA profile, settings and history without a new Keychain prompt. After a full quit/relaunch, cancellation persisted and matrix/CSV previews reopened. | Physical and clean-account acceptance. |
-| Everyday usefulness | Two real GPT-6-Astra tasks overlapped in separate default folders: a three-file reviewer packet and a two-file release plan. Contents and all previews checked; no corrective prompts. A later cancellation left the separate task working; foreground TextEdit typing was preserved. Ten thread switches: median 762.5 ms / worst 868 ms including CUA overhead. | Repeat fresh runs, real-source browser research and personal planning, foreground-user coexistence during GUI input, clipboard preservation, default browser setup/recovery and broader latency measurements. GUI loops still serialize. |
-| Browser | Alpha.37 background IANA read/navigation and explicit same-window detach/reconnect passed. Alpha.38 adds default setup and in-conversation recovery with regression coverage. | Signed alpha.38 live setup/recovery and unexpected expiry. Native operator CUA Chrome inspection timed out; no suitable disposable window was identified in Sia's picker. Background new-tab creation is unsupported by driver 0.37.0. |
-| New recipient | Alpha.36 with an empty app profile showed only email sign-in, with no private app content. | Clean macOS-account signup, permissions, provider login cancel/retry, lock/sleep and voice acceptance. An empty profile is not a clean OS account; no fresh account or second Mac is currently available. |
-| Cloud feedback | Ratings/account deletion deployed; a synthetic authenticated rating reached the report. October 30: 18 alarms OK with actions enabled, five Lambdas Active/Successful, anonymous catalog/report/release requests return 401. | Recheck if configuration changes before invitations. |
-| iPhone follow-on | Build 31 is Ready to Test in internal Pilot QA; native tests, signed archive and Apple processing passed. | Deferred from this Mac-first handoff. Physical-device checks and external beta review remain. |
-| Ownership | The owner confirmed ownership of the relevant Notch source rights. Provenance remains in THIRD_PARTY_NOTICES.md. Lawrence Jang is the support/incident owner. | Record the private recipient list and final release decision before invitations. |
+| Source | Alpha.54 full local gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web and native/shared checks including 230 browser regressions. | Exact-source CI. |
+| Signed package | Universal alpha.53 passed signing, notarization, stapling, Gatekeeper and packaged runtime checks. Internal arm64 alpha.54 passed strict Developer ID signing and packaged-runtime checks; it is not notarized. | Final universal candidate and live acceptance. |
+| Useful work | Earlier signed builds saved verified research and native briefs. Alpha.53 outing/dinner tasks and a fresh alpha.54 dinner task failed during browser work; no requested planning files were produced. | Complete and independently verify both everyday tasks, then repeat on the final artifact. |
+| Background/concurrency | Alpha.53 delivered an accordion click while a separate TextEdit note was edited. Note/clipboard preserved; ten switches median 968.5 ms, Stop visible within 819 ms including CUA. | Reliable navigation, paired GUI work, contention/cancellation, responsiveness and repeats. |
+| Setup/recovery | Alpha.53 retained profile/history; explicit Chrome setup resumed the saved request in 2.951 seconds. | Final-candidate restart/expiry recovery and clean-account setup. No fresh Mac account or second Mac is available. |
+| Physical use | Existing grants work on the QA Mac. | Keep-awake, lock/sleep and voice. This Mac refuses Sia and independent caffeinate display-awake assertions. |
+| Cloud | October 30: 18 alarms OK, five Lambdas Active/Successful; anonymous protected requests return 401. Synthetic authenticated rating reached the report. | Recheck changed configuration before invitations. |
+| Ownership | Source rights confirmed; Lawrence Jang owns support/incidents. | Private recipient list and final release decision before invitations. |
+| iPhone | Build 31 Ready to Test internally; tests, signed archive and Apple processing passed. | Deferred from this Mac-first handoff. |
 
-## Current fixes
+See [exact artifact evidence](./public-release.md) for hashes, timings and retained failures.
+Alpha.51 refuses known new-context link clicks before input, then explains existing-tab navigation
+from observed URLs. It does not disable the focus guard or grant control of another tab.
 
-Alpha.38 includes Chrome in default Mac setup with an explicit opt-out, and adds a host-triggered
-**Connect Chrome & continue** control to Mac conversations. Existing approved sessions are reused
-only for the same process/window; revoked or expired access must be reconnected deliberately.
-macOS and Chrome still own their permission decisions. The signed-app consent path remains unverified.
-
-Real alpha.37 work exposed three additional problems: outside-workspace files needed Add files,
-only one generated file received a preview, and document-only tasks unnecessarily held the whole GUI
-lane. Alpha.38 explains attachments, adds controls for all validated output files, and acquires the
-GUI lane only on the first GUI call. Its real document retest produced five checked files with five
-working previews while both tasks overlapped. GUI calls still reserve the lane through completion;
-parallel control of physical windows is unsupported.
-
-The [real-work demo guide](./demo.md) records prompts, failures, interventions, measured outcomes
-and limits. Fake-service regression checks and small Calculator/CSV smoke tasks remain useful but
-are not everyday-use acceptance. No real-source browser research pass is claimed for alpha.38.
+Default Mac setup includes Chrome with a deliberate opt-out. Choosing a window authorizes its
+explicit connection setup, including Chrome's exact prompt. Task tools cannot approve permission
+dialogs. macOS grants remain person-owned. Expiry, revocation and restart need actionable recovery.
 
 ## Release decision
 

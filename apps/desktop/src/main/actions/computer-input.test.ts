@@ -2,6 +2,63 @@ import { describe, expect, it, vi } from 'vitest';
 import { DesktopActionBackend } from './desktop-action-backend.js';
 import { dataRecord, fakeCua, grantedComputerTarget, request } from './test-support.js';
 
+it('can save a TextEdit brief after its body explains sign-in', async () => {
+  let body = 'Original proposal';
+  const revised =
+    'Reviewer brief\nParticipants install the app, sign in, choose a model, complete useful Mac tasks, and rate the results. Authentication remains with the person. Distribution acceptance is still pending.';
+  const cua = fakeCua(async (name, args) => {
+    if (name === 'list_apps')
+      return { apps: [{ pid: 42, name: 'TextEdit', bundle_id: 'com.apple.TextEdit' }] };
+    if (name === 'list_windows')
+      return {
+        windows: [{ pid: 42, window_id: 91, app_name: 'TextEdit', title: 'Proposal.txt' }],
+      };
+    if (name === 'get_window_state')
+      return {
+        elements: [
+          { role: 'AXTextArea', label: body, value: body, element_token: 's00000001:3' },
+        ],
+      };
+    if (name === 'set_value') body = String(args.value);
+    if (name === 'set_value' || name === 'hotkey')
+      return { effect: 'unverifiable', delivery: { mode: 'background' } };
+    throw new Error(`Unexpected ${name}`);
+  });
+  const backend = new DesktopActionBackend({
+    cua,
+    macBrowserAccess: () => true,
+    macBackgroundControl: () => true,
+  });
+  const target = await grantedComputerTarget(backend);
+  const ids = { app_id: target.appId, window_id: target.windowId };
+  const before = dataRecord((await backend.invoke(request('computer_snapshot', ids))).data);
+  const edited = await backend.invoke(
+    request('computer_action', {
+      ...ids,
+      snapshot_id: before.snapshot_id,
+      action: 'set',
+      text: revised,
+      element_ref: (before.elements as Record<string, unknown>[])[0]!.element_ref,
+      include_image: false,
+    }),
+  );
+  expect(edited.outcome, edited.summary).toBe('accepted_unverified');
+  expect(body).toBe(revised);
+  const after = dataRecord((await backend.invoke(request('computer_snapshot', ids))).data);
+  const saved = await backend.invoke(
+    request('computer_action', {
+      ...ids,
+      snapshot_id: after.snapshot_id,
+      action: 'key',
+      value: 's',
+      modifiers: ['cmd'],
+      include_image: false,
+    }),
+  );
+  expect(saved.outcome, saved.summary).toBe('accepted_unverified');
+  expect(cua.call.mock.calls.filter(([name]) => name === 'hotkey')).toHaveLength(1);
+});
+
 it.each([
   {
     name: 'reported foreground delivery',
@@ -328,7 +385,11 @@ it('sets an exact field with the current driver contract and observes its new va
   expect(cua.call.mock.calls.filter(([name]) => name === 'set_value')).toHaveLength(1);
 });
 
-it.each(['Timed out waiting for input acknowledgement', 'read ECONNRESET'])(
+it.each([
+  'Timed out waiting for input acknowledgement',
+  'read ECONNRESET',
+  'CUA incomplete: background_drag_requires_pointer',
+])(
   'preserves uncertain delivery and revokes the old input target after %s',
   async (message) => {
     let saved = 0;
@@ -377,6 +438,10 @@ it.each(['Timed out waiting for input acknowledgement', 'read ECONNRESET'])(
     expect(result.outcome).toBe('accepted_unverified');
     expect(result.data).toMatchObject({ input_delivery_uncertain: true });
     expect(result.summary).toMatch(/inspect|observe/i);
+    if (message.includes('background_drag_requires_pointer')) {
+      expect(result.data).toMatchObject({ blocker_code: 'background_drag_requires_pointer' });
+      expect(result.summary).toContain('do not retry this background drag');
+    }
     expect(saved).toBe(1);
     expect((await backend.invoke(action)).outcome).toBe('stale');
     expect(saved).toBe(1);

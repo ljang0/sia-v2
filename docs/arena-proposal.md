@@ -53,18 +53,19 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Alpha.38 is signed and notarized, with its full local pilot gate and artifact-source CI passing.
-Two real GPT-6-Astra tasks overlapped in separate folders: a three-document technical-review packet
-and a five-day release plan with a CSV tracker. All five saved outputs and previews were independently
-checked; neither task needed a corrective prompt. Cancelling a later planning task left the separate
-evidence-review task running. These results establish useful document work, not general desktop
-reliability. Real-source browser research, default Chrome setup/recovery, foreground-user coexistence
-during GUI input, clean macOS-account setup/provider retry, and physical voice/lock/sleep acceptance
-remain open. GUI loops still serialize, and background browser new-tab creation is unsupported.
-The installer and review packet are prepared locally; distribution still requires these gates
-and the owner's release decision.
-The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
-owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.
+Signed internal rehearsals completed useful sourced comparisons, native proposal editing, practical
+visitor planning and reviewer packets made from real project documents. Outputs were checked
+independently, and failures were retained. Universal notarized alpha.53 delivered a background
+accordion click while an unrelated note was edited, but outing and dinner/grocery planning both
+stalled in browser navigation/read recovery. Alpha.54 fixes a proven CDP-session leak; navigation
+recovery and full acceptance remain open. A signed
+installer is not proof of readiness.
+
+Repeated final-artifact workflows, concurrent use, responsiveness, restart and physical acceptance
+remain gates. Clean-account testing is unavailable on the current Mac. Background new-tab creation
+and Finder file drag remain unsupported. See [release status](./release-status.md) and
+[artifact evidence](./public-release.md) for exact versions, timings and limitations. Lawrence Jang
+is the support/incident owner, and the relevant native source rights are confirmed.
 
 Try the [real-work demo guide](./demo.md), which preserves failures and corrective interventions.
 Start with the [README setup and task path](../README.md), then

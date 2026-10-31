@@ -31,11 +31,12 @@ provider and real public sources or explicitly designated user material. Do not 
 seeded replies, tiny invented data, or direct operator work that bypasses Sia. Keep private source
 material and recordings outside Git. Calculator and small CSV checks remain useful smoke tests.
 
-| Workflow                 | Useful deliverable                                                                                                                                                                                                                     | Independent verification                                                                                                                                |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Arena technical research | Compare Cua, Browser Use and Playwright from their current official documentation; produce a concise decision brief covering native vs browser control, background behavior, setup, limitations and what Arena would need to evaluate. | Open cited sources, check every consequential comparison, verify file contents and links, and distinguish documented capability from observed behavior. |
-| Document preparation     | Use the actual Sia proposal and release notes to prepare a reviewer brief, installation checklist and unresolved-questions list, without overstating readiness.                                                                        | Compare outputs with source files, verify exact version/hash and remaining gates, open every saved deliverable in its normal app.                       |
-| Personal planning        | Research a real upcoming outing or work trip from current official schedules and venue information; produce a usable itinerary, alternatives, budget assumptions and source links. Do not book or message anyone.                      | Independently verify dates, opening/transport times, feasibility and arithmetic. Record any clarification needed rather than inventing preferences.     |
+| Workflow                 | Useful deliverable                                                                                                                                                                                                                     | Independent verification                                                                                                                                              |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arena technical research | Compare Cua, Browser Use and Playwright from their current official documentation; produce a concise decision brief covering native vs browser control, background behavior, setup, limitations and what Arena would need to evaluate. | Open cited sources, check every consequential comparison, verify file contents and links, and distinguish documented capability from observed behavior.               |
+| Document preparation     | Use the actual Sia proposal and release notes to prepare a reviewer brief, installation checklist and unresolved-questions list, without overstating readiness.                                                                        | Compare outputs with source files, verify exact version/hash and remaining gates, open every saved deliverable in its normal app.                                     |
+| Personal planning        | Research a real upcoming outing or work trip from current official schedules and venue information; produce a usable itinerary, alternatives, budget assumptions and source links. Do not book or message anyone.                      | Independently verify dates, opening/transport times, feasibility and arithmetic. Record any clarification needed rather than inventing preferences.                   |
+| Household planning       | Prepare five practical weekday dinners and one consolidated grocery list from real published recipes, with portions, ingredient reuse and a prep schedule. State household/diet assumptions; do not order groceries.                   | Check recipe sources, serving multipliers, consolidated quantities, pantry assumptions and realistic preparation times. Verify the saved plan and list independently. |
 
 For each run record the original natural-language request, artifact version/hash, provider/model,
 start/end time, tool calls, failures/retries, operator interventions and independently inspected
@@ -57,7 +58,7 @@ work runs and report observed median/worst time. A task with no progress for 30 
 visible explanation and working cancel control. Do not call performance acceptable without measurements.
 
 On the default setup path, include background Chrome readiness when Chrome is installed. The
-person approves macOS/Chrome prompts and selects the intended window during setup, with a clear
+person approves macOS prompts and selects the intended Chrome window during setup, with a clear
 way to decline browser access. Verify a fresh background read, repeat across tasks, and relaunch.
 After revocation/expiry, show a plain-language recovery action that resumes the original request
 after reconnection without replaying completed input. Never count access to a different window as
@@ -130,7 +131,8 @@ Complete physical voice, lock/sleep, and clean-user checks below before public d
 
 Use a disposable Chrome window with a public test page. In Settings → Connections, read the
 setup disclosure and choose Connect Chrome or that exact window. Chrome may appear briefly;
-the tester reviews any Chrome permission prompt. A successful connection must be followed by a
+the disclosure must explain that choosing a window lets the native setup flow confirm Chrome’s
+exact connection prompt. Task tools must not operate permission dialogs. A successful connection must be followed by a
 fresh browser read before Sia reports it as attached. Denying permission must leave a clear error
 with no usable browser grant.
 
@@ -485,8 +487,9 @@ Public connector distribution additionally requires the independent evidence in
 
 ## Browser, deletion, and recovery
 
-- [ ] Attach one dedicated signed-in Chrome window. Approve Chrome's own remote-debugging prompt if
-      it appears; Sia must not automate that prompt. Read a permitted page, then verify an incognito
+- [ ] Attach one dedicated signed-in Chrome window through the disclosed setup flow. Only that
+      explicit flow may confirm its exact Chrome connection prompt; task tools must not. Read a
+      permitted page, then verify an incognito
       page, password field, authentication route, stale element reference, and unapproved origin are
       refused.
 - [ ] Detach and reattach Chrome. Old origins and element references must remain invalid. Restart Sia

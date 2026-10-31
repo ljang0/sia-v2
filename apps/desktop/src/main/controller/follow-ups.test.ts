@@ -163,6 +163,42 @@ describe('follow-up messages while a turn runs', () => {
     }
   });
 
+  it('acknowledges Stop and drops queued messages while provider interruption is pending', async () => {
+    const { runtime, turns, release } = followUpRuntime();
+    const interruption = Promise.withResolvers<void>();
+    runtime.cancel.mockImplementation(async () => {
+      await interruption.promise;
+      return undefined;
+    });
+    const { controller, threadId, thread, users } = await startThread(runtime);
+    try {
+      const first = await controller.invoke('threads.send', { threadId, text: 'Summarize' });
+      await vi.waitFor(() => expect(release.has(first.turnId)).toBe(true));
+      await controller.invoke('threads.send', { threadId, text: 'Queued before Stop' });
+
+      await controller.invoke('threads.cancel', { threadId });
+      expect(runtime.cancel).toHaveBeenCalledWith(threadId, first.turnId);
+      expect(thread().status).toBe('idle');
+      expect(users().map(({ text }) => text)).toEqual(['Summarize']);
+      expect(controller.snapshot().timeline.at(-1)?.title).toBe('Task cancelled');
+
+      // A quick new request cannot overlap the stopped runner's cleanup.
+      const next = await controller.invoke('threads.send', { threadId, text: 'New request' });
+      expect(thread()).toMatchObject({
+        status: 'queued',
+        queueReason: 'Finishing the stopped task.',
+      });
+      expect(turns).toHaveLength(1);
+      await vi.waitFor(() => expect(release.has(next.turnId)).toBe(true));
+      release.get(next.turnId)!();
+      await vi.waitFor(() => expect(thread().status).toBe('idle'));
+      expect(turns.map(({ turnId }) => turnId)).toEqual([first.turnId, next.turnId]);
+    } finally {
+      interruption.resolve();
+      await controller.shutdown();
+    }
+  });
+
   it('removes a queued follow-up before it starts, and Stop drops the rest', async () => {
     const { runtime, turns, release } = followUpRuntime();
     const { controller, threadId, thread, users } = await startThread(runtime);

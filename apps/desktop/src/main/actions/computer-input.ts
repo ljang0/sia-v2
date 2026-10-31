@@ -240,11 +240,18 @@ export class ComputerInput {
       typeof args.y === 'number' &&
       ['click', 'drag', 'type'].includes(String(args.action));
     const backgroundDelivery = this.ctx.macBrowserAccess() && args.delivery !== 'foreground';
-    const inputRoute: BackgroundInputRoute = ['type', 'key'].includes(String(args.action))
-      ? 'pid_keyboard'
-      : pixel || args.action === 'scroll'
-        ? 'window_pointer'
-        : 'accessibility';
+    // An exact element lets type_text use the driver's semantic-only AX path.
+    // A refused process-keyboard route does not forbid that path; the driver
+    // still proves ancestry and refuses any unsafe keyboard fallback. Pixels
+    // do not carry element authority and retain the keyboard preflight below.
+    const inputRoute: BackgroundInputRoute =
+      args.action === 'type' && address && !pixel
+        ? 'accessibility'
+        : ['type', 'key'].includes(String(args.action))
+          ? 'pid_keyboard'
+          : pixel || args.action === 'scroll'
+            ? 'window_pointer'
+            : 'accessibility';
     if (backgroundDelivery) {
       const unavailable = backgroundRouteRefusal(
         capability.backgroundInput,
@@ -288,7 +295,14 @@ export class ComputerInput {
       });
       const denied = resultRefusal(current);
       if (denied) return denied;
-      if (windowHasProtectedControls(current, { browserBundleId: verifiedBrowserBundleId }))
+      if (
+        windowHasProtectedControls(current, {
+          browserBundleId: verifiedBrowserBundleId,
+          nativeAppBundleId: this.ctx.computer.apps
+            .get(binding.appId)
+            ?.identity?.replace(/^bundle:/, ''),
+        })
+      )
         return refused('Pixel actions are blocked on windows containing protected controls.');
       if (backgroundDelivery) {
         const availability = windowBackgroundInput(current, binding);
@@ -455,16 +469,19 @@ export class ComputerInput {
       if (inputWasRefused(error)) return classifyFailure(error);
       this.ctx.computer.snapshots.delete(snapshotId);
       this.ctx.computer.latestSnapshot.delete(binding.id);
+      const incompleteDrag = message === 'CUA incomplete: background_drag_requires_pointer';
       return {
         outcome: 'accepted_unverified',
-        summary:
-          'The input may have been delivered, but its acknowledgement could not be verified. Observe the exact window and inspect the intended result before continuing; do not replay the action.',
+        summary: incompleteDrag
+          ? 'macOS started a drag-and-drop session, but its drop needs the physical pointer. Inspect the exact window for changes; do not retry this background drag. Use authorized file tools if the task allows them, or explain the remaining step.'
+          : 'The input may have been delivered, but its acknowledgement could not be verified. Observe the exact window and inspect the intended result before continuing; do not replay the action.',
         reason: message,
         data: {
           app_id: binding.appId,
           window_id: binding.id,
           input_delivery_uncertain: true,
           previous_snapshot_id: snapshotId,
+          ...(incompleteDrag ? { blocker_code: 'background_drag_requires_pointer' } : {}),
           next_step:
             'Capture fresh state and reconcile the saved item, receipt, or other semantic result. The previous input target has been revoked. An absent immediate acknowledgement does not prove the write failed.',
         },

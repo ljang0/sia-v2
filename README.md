@@ -27,7 +27,10 @@ for an OpenAI Responses-compatible endpoint. Setup does not require an API key.
   see [architecture](./docs/architecture.md).
 - **Default setup includes Chrome.** Choose its task window or explicitly continue without it;
   Chrome still owns its permission prompt. Google Workspace, Slack, Notion and GitHub are optional. Calendar, Tasks and Outlook connectors are disabled. **Use my Mac** requires its
-  macOS grants before finishing setup; **Connected apps only** does not require Mac permissions.
+  macOS grants before finishing setup: Accessibility, Screen Recording, Automation for installed
+  supported apps, and Full Disk Access for Messages history. **Set up Sia** walks those grants
+  in order; macOS still requires the person to approve them. **Connected apps only** does not
+  require Mac permissions.
 - **Schedules** repeat until paused or deleted; one-time schedules run once. Sia must stay open and
   the Mac awake for local tasks and schedules.
 - **Research capture is off** unless a person separately agrees to it. The pilot is not a research
@@ -77,7 +80,9 @@ It also states which browser, background and concurrent-use checks remain unfini
 
 ## Set up
 
-Requirements: macOS 14+, Node 24+, pnpm 11+, and Xcode command-line tools.
+Requirements: macOS 14+, Node 24+, pnpm 11+, Xcode command-line tools, and
+[rustup](https://rustup.rs) for the pinned native driver build. The first build compiles the
+driver; later builds reuse verified outputs. See [native provenance](apps/desktop/native/cua/README.md).
 
 ```sh
 pnpm install --frozen-lockfile

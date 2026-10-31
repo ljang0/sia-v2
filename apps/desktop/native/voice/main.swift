@@ -206,6 +206,20 @@ final class VoiceHelper {
     }
 }
 
+if CommandLine.arguments.count >= 2 && CommandLine.arguments[1] == "--workspace-file-move" {
+    guard CommandLine.arguments.count == 6 else { exit(2) }
+    var result: [String: Any]
+    do {
+        result = try WorkspaceMove.move(root: CommandLine.arguments[2], source: CommandLine.arguments[3],
+                                        destination: CommandLine.arguments[4], expected: CommandLine.arguments[5])
+    } catch let error as WorkspaceMove.Failure {
+        result = ["moved": false, "error": error.message]
+    } catch {
+        result = ["moved": false, "error": "Unable to inspect the file; no move was made."]
+    }
+    if let data = try? JSONSerialization.data(withJSONObject: result) { FileHandle.standardOutput.write(data) }
+    exit(0)
+}
 if CommandLine.arguments == [CommandLine.arguments[0], "--notch-engine"] {
     runNotchEngine()
     exit(0)

@@ -22,6 +22,7 @@ const RUNTIME_TOOL_LABELS: Record<string, string> = {
   computer_list_files: 'Listing workspace files',
   computer_read_file: 'Reading a workspace file',
   computer_write_file: 'Saving a workspace report',
+  computer_move_file: 'Organizing a workspace file',
   computer_snapshot: 'Looking at a window',
   computer_action: 'Acting on the Mac',
 };

@@ -71,6 +71,11 @@ export class MacBrowserControl {
   constructor(
     private readonly ctx: ActionBackendContext,
     private readonly inventory: ComputerInventory,
+    private readonly withWindow: (
+      window: ComputerWindowBinding,
+      request: ValidatedActionInvocation,
+      run: () => Promise<ActionExecutionResult>,
+    ) => Promise<ActionExecutionResult>,
   ) {}
 
   /** Only the trusted connection picker may supply this exact-window grant. */
@@ -262,7 +267,7 @@ export class MacBrowserControl {
             ? { browser_connection_required: true }
             : {}),
           next_step: this.#preparationAttempted.has(window.id)
-            ? 'Background setup was already attempted for this window. Do not repeat setup. If Chrome shows its own permission prompt, the person must review it; Sia must not approve it. This is browser access, not website sign-out. Never fall back to native off-Space input or foreground control.'
+            ? 'Background setup was already attempted for this window. Do not repeat setup. Do not approve Chrome permission prompts from task tools. Use the explicit Connect Chrome & continue flow. This is browser access, not website sign-out. Never fall back to native off-Space input or foreground control.'
             : 'Use computer_open_url with prepare_only:true, this exact app_id and window_id, and the ordinary website needed for the task. That acting tool can restore browser access and list existing tabs without navigating. Never fall back to native off-Space browser input or foreground control.',
         },
       };
@@ -521,6 +526,17 @@ export class MacBrowserControl {
             'Use computer_list and pass an exact existing Chromium app_id and window_id. Safari retains its native window controls. Do not use an OS opener or assume a default profile.',
         },
       };
+    // Resolve implicit single-window selection before locking, so callers cannot
+    // bypass another turn's reservation by omitting the public window reference.
+    const target = window;
+    return this.withWindow(target, request, () => this.#openWindowUrl(target, request, url));
+  }
+
+  async #openWindowUrl(
+    window: ComputerWindowBinding,
+    request: ValidatedActionInvocation,
+    url: string,
+  ): Promise<ActionExecutionResult> {
     if (!(await this.inventory.windowStillValid(window, request)))
       return stale('The browser window changed.');
     const tabs = await this.#read(

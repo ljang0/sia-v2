@@ -259,7 +259,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   identifiers, and creates read back their native object. An unconfirmed create is never reported as
   success. macOS Automation permission remains app-specific; scripts cannot bypass it.
   Onboarding and Computer settings share `SetupMacAccess`, a sequential, user-started permission
-  guide with typed, fixed-target requests for System Events, Safari, Chrome, Calendar,
+  guide. Use my Mac onboarding requires Accessibility, Screen Recording, Full Disk Access for
+  Messages history, and Automation for installed supported apps before completion; this requirement
+  does not become optional when the first task only uses public documents. The guide uses typed, fixed-target requests for System Events, Safari, Chrome, Calendar,
   Reminders, Finder, and Messages. The native helper's permission-only mode uses
   `AEDeterminePermissionToAutomateTarget`; background checks never prompt or launch apps.
   Explicit requests open only the selected app and may show its macOS consent prompt.
@@ -350,7 +352,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   the turn fails before any model call with a plain next step (allow access, or choose On my screen)
   and the Continue task banner. The background route uses
   `@trycua/cua-driver` through `CuaService` in the Electron main process, without a VM or driver daemon.
-  The SDK and both bundled Mac native libraries are pinned together at 0.37.0. Sia explicitly
+  The SDK and both bundled Mac native libraries are pinned together at 0.38.0. Sia explicitly
   requests structured `elements` and verbose background-route metadata; the driver's compact
   markdown default cannot support Sia's protected-field checks or input grants. Actions use only
   observed snapshot-bound element tokens, without the retired index/snapshot input arguments.
@@ -415,7 +417,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   identity is never assumed, and no cookie or login is copied.
   The driver profile grant for the same exact native PID/window is reused across tasks, rather
   than making each new conversation appear to lose browser consent. Public tab/snapshot/input
-  refs and local browser capabilities are still revoked at each turn boundary. The SDK retains
+  refs and local browser capabilities are still revoked at each turn boundary. Explicit connection
+  setup creates a Standard-mode SDK host lease with a fifteen-minute idle and eight-hour absolute
+  lifetime. This applies the configured host limits instead of the implicit five-minute session
+  default. No background heartbeat reads pages; expiry/revocation remains terminal and requires
+  the existing recovery flow. Model actions cannot create that host lease. The SDK retains
   its process-identity and grant-expiry checks. An expired named session is never revived:
   a fresh authorized website-open request may request a new profile grant after read-only
   discovery; neither session renewal nor observation failure replays input. A different native
@@ -524,11 +530,15 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   account identifiers and authentication controls. This refusal returns no supplemental text, OCR,
   images or input refs, and the fresh-read revocation prevents reuse of an older ordinary grant.
   Literal password discussion in otherwise ordinary document prose is not a structural field marker.
-  Background also exposes `computer_list_files`, `computer_read_file` and `computer_write_file`
+  Background also exposes `computer_list_files`, `computer_read_file`, `computer_write_file` and `computer_move_file`
   through ActionGateway. They read bounded UTF-8 data files and create new txt/md/csv/tsv/json
-  reports in the host-pinned task workspace. Updating an existing file requires the SHA-256 from
+  reports in the host-pinned task workspace. Ordinary subfolders are supported.
+  `computer_move_file` uses the signed native helper’s exclusive rename with a current SHA-256,
+  creates destination folders, never overwrites and verifies unchanged bytes at the new path.
+  File operations stay within ordinary UTF-8 data files up to 256 KB; they do not use Finder,
+  clipboard or foreground input. Source/destination operations share path locks across turns. Updating an existing file requires the SHA-256 from
   its latest read; stale revisions are refused, and concurrent Sia writes are serialized. Creation
-  never replaces an existing file. They cannot traverse subdirectories, follow file links, read
+  never replaces an existing file. They cannot leave the pinned workspace, follow file links, read
   hidden/credential files or open apps. Writes return disk readback and a
   SHA-256 digest; arbitrary filesystem and native script operations still use the native route.
   Both Mac routes record the structured
@@ -646,10 +656,18 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   Provider preparation finishes before acquiring GUI ownership; foreground screen context is
   captured after the lease is held, immediately before sending the turn.
   Native and foreground-recovery tasks reserve a whole-task `global_focus` lease up front. Strict
-  background tasks acquire it only at their first computer inventory, observation, opening, or input
-  call, through ActionGateway. Independent file/document/model work can therefore run concurrently;
-  once GUI work begins, it stays exclusive through task completion. Physical-window parallel GUI
-  control is not yet supported. Fn audio capture can proceed while a task runs. Notch's progress-aware
+  background tasks acquire a shared desktop permit at their first GUI call through ActionGateway.
+  Each has isolated computer/browser references and recovery state, disposed when its turn lease ends.
+  The backend resolves opaque window references to physical process/window identities and holds an
+  exclusive lease on each observed or controlled window until completion. Independent windows can
+  progress concurrently; the same window queues. Conflicting attempts to acquire a second window
+  are refused rather than allowing circular waits. Foreground takeover waits for background GUI
+  owners and takes priority over newly arriving ones. The native driver still orders individual
+  calls and enforces focus guards. Independent file/model work needs no desktop permit.
+  Resource waits appear in the conversation with their reason and Stop guidance; the notice
+  completes when access is acquired or the waiting task is cancelled.
+  These alpha.39 changes require signed-app acceptance; alpha.38 only verified document concurrency.
+  Fn audio capture can proceed while a task runs. Notch's progress-aware
   watchdog checks after 180 seconds without provider activity; one hour remains the task limit,
   excluding approval/input waits. Pending native commands and host tools protect quiet work; their
   own bounds and the one-hour task limit remain. An otherwise silent turn gets a bounded metadata-only

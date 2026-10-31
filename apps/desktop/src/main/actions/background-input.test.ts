@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { windowBackgroundInput } from './background-input.js';
 import { DesktopActionBackend } from './desktop-action-backend.js';
 import { dataRecord, fakeCua, grantedComputerTarget, request } from './test-support.js';
 
@@ -95,6 +96,8 @@ describe('native window input availability', () => {
       reportInElement: false,
       malformed: false,
       protected: false,
+      textElement: false,
+      nativeTypingRefusal: undefined as string | undefined,
     };
     const cua = fakeCua(async (tool) => {
       if (tool === 'list_apps')
@@ -127,12 +130,16 @@ describe('native window input availability', () => {
               ? [{ role: 'AXSecureTextField' }]
               : state.reportInElement
                 ? [{ role: 'AXStaticText', background_input: report }]
-                : [],
+                : state.textElement
+                  ? [{ role: 'AXTextField', label: 'Name', element_token: 's00000001:0' }]
+                  : [],
           },
           images: [{ mimeType: 'image/png', dataBase64: png.toString('base64') }],
         };
       }
-      return { effect: 'unverifiable', delivery: { mode: 'background' } };
+      return ['type_text', 'press_key'].includes(tool) && state.nativeTypingRefusal
+        ? { error_code: state.nativeTypingRefusal }
+        : { effect: 'unverifiable', delivery: { mode: 'background' } };
     });
     const backend = new DesktopActionBackend({
       cua,
@@ -141,6 +148,45 @@ describe('native window input availability', () => {
     });
     return { backend, cua, state };
   }
+
+  it.each([
+    [undefined, 'accepted_unverified'],
+    ['same_pid_keyboard_ambiguity', 'needs_foreground'],
+    ['element_outside_target_window', 'refused'],
+  ] as const)(
+    'allows exact-element semantic typing but preserves the native refusal %s',
+    async (nativeRefusal, expectedOutcome) => {
+      const { backend, cua, state } = harness();
+      state.status = 'matched';
+      state.keyboardOnly = true;
+      state.textElement = true;
+      state.nativeTypingRefusal = nativeRefusal;
+      const target = await grantedComputerTarget(backend);
+      const ids = { app_id: target.appId, window_id: target.windowId };
+      const snapshot = await backend.invoke(request('computer_snapshot', ids));
+      const data = dataRecord(snapshot.data);
+      const elements = data.elements as Array<{ element_ref: string }>;
+      const result = await backend.invoke(
+        request('computer_action', {
+          ...ids,
+          snapshot_id: data.snapshot_id,
+          element_ref: elements[0]!.element_ref,
+          action: 'type',
+          text: 'Review packet',
+        }),
+      );
+      expect(result.outcome).toBe(expectedOutcome);
+      const inputs = cua.call.mock.calls.filter(([tool]) => tool === 'type_text');
+      expect(inputs).toHaveLength(1);
+      expect(inputs[0]?.[1]).toMatchObject({
+        pid: 42,
+        window_id: 91,
+        element_token: 's00000001:0',
+        delivery_mode: 'background',
+        text: 'Review packet',
+      });
+    },
+  );
 
   it.each([true, false])(
     'keeps an unresolved Slack screenshot observation-only and respects foreground policy (%s)',
@@ -184,62 +230,54 @@ describe('native window input availability', () => {
     },
   );
 
-  it('uses empty-AX screenshot controls when the exact pointer route is available, despite a refused keyboard route', async () => {
-    const { backend, cua, state } = harness();
-    state.status = 'matched';
-    state.keyboardOnly = true;
-    const target = await grantedComputerTarget(backend);
-    const ids = { app_id: target.appId, window_id: target.windowId };
-    const snapshot = await backend.invoke(
-      request('computer_snapshot', { ...ids, include_image: true }),
-    );
-    const data = dataRecord(snapshot.data);
-    expect(data).toMatchObject({ observation_only: false, pixel_actions_available: true });
-    expect(
-      (
-        await backend.invoke(
-          request('computer_action', {
-            ...ids,
-            snapshot_id: data.snapshot_id,
-            action: 'key',
-            value: 'return',
-          }),
-        )
-      ).outcome,
-    ).toBe('needs_foreground');
-    expect(cua.call.mock.calls.some(([tool]) => tool === 'press_key')).toBe(false);
-    expect(
-      (
-        await backend.invoke(
-          request('computer_action', {
-            ...ids,
-            snapshot_id: data.snapshot_id,
-            action: 'type',
-            x: 20,
-            y: 30,
-            text: 'Blocked',
-          }),
-        )
-      ).outcome,
-    ).toBe('needs_foreground');
-    expect(cua.call.mock.calls.some(([tool]) => tool === 'type_text')).toBe(false);
-    expect(
-      (
-        await backend.invoke(
-          request('computer_action', {
-            ...ids,
-            snapshot_id: data.snapshot_id,
-            action: 'click',
-            x: 20,
-            y: 30,
-          }),
-        )
-      ).outcome,
-    ).toBe('accepted_unverified');
-    expect(cua.call.mock.calls.filter(([tool]) => tool === 'click')).toHaveLength(1);
-  });
+  it.each([
+    ['key', undefined, 'accepted_unverified'],
+    ['key', 'same_pid_keyboard_ambiguity', 'needs_foreground'],
+    ['key', 'window_not_key', 'needs_foreground'],
+    ['type', undefined, 'accepted_unverified'],
+    ['type', 'same_pid_keyboard_ambiguity', 'needs_foreground'],
+    ['type', 'window_not_key', 'needs_foreground'],
+  ] as const)(
+    'defers ambiguous %s to exact-window native validation (%s), without replay',
+    async (action, nativeRefusal, outcome) => {
+      const { backend, cua, state } = harness();
+      state.status = 'matched';
+      state.keyboardOnly = true;
+      state.nativeTypingRefusal = nativeRefusal;
+      const target = await grantedComputerTarget(backend);
+      const ids = { app_id: target.appId, window_id: target.windowId };
+      const snapshot = await backend.invoke(
+        request('computer_snapshot', { ...ids, include_image: true }),
+      );
+      const data = dataRecord(snapshot.data);
+      expect(data).toMatchObject({ observation_only: false, pixel_actions_available: true });
+      expect(dataRecord(data.background_input).routes).toContainEqual({
+        route: 'pid_keyboard',
+        status: 'requires_check',
+        reason: 'same_pid_keyboard_ambiguity',
+      });
+      const result = await backend.invoke(
+        request('computer_action', {
+          ...ids,
+          snapshot_id: data.snapshot_id,
+          action,
+          ...(action === 'key' ? { value: 'return' } : { x: 20, y: 30, text: 'Review packet' }),
+        }),
+      );
+      expect(result.outcome).toBe(outcome);
+      const inputs = cua.call.mock.calls.filter(
+        ([tool]) => tool === (action === 'key' ? 'press_key' : 'type_text'),
+      );
+      expect(inputs).toHaveLength(1);
+      expect(inputs[0]?.[1]).toMatchObject({
+        pid: 42,
+        window_id: 91,
+        delivery_mode: 'background',
+      });
+    },
+  );
 
-  it('rechecks keyboard availability as well as pointer availability before atomic pixel typing', async () => {
+  it('passes a newly ambiguous pixel type to the native exact-window check', async () => {
     const { backend, cua, state } = harness();
     state.status = 'matched';
     const target = await grantedComputerTarget(backend);
@@ -247,9 +285,8 @@ describe('native window input availability', () => {
     const snapshot = await backend.invoke(
       request('computer_snapshot', { ...ids, include_image: true }),
     );
-    // Another window appeared after the original observation. Pixel clicking is
-    // still available, but keyboard dispatch is now ambiguous and must not run.
     state.keyboardOnly = true;
+    state.nativeTypingRefusal = 'same_pid_keyboard_ambiguity';
     const result = await backend.invoke(
       request('computer_action', {
         ...ids,
@@ -261,7 +298,7 @@ describe('native window input availability', () => {
       }),
     );
     expect(result.outcome).toBe('needs_foreground');
-    expect(cua.call.mock.calls.some(([tool]) => tool === 'type_text')).toBe(false);
+    expect(cua.call.mock.calls.filter(([tool]) => tool === 'type_text')).toHaveLength(1);
   });
 
   it('rechecks route availability before pixel input and resumes after a fresh matched observation', async () => {
@@ -333,4 +370,26 @@ describe('native window input availability', () => {
       expect(cua.call.mock.calls.some(([tool]) => tool === 'click')).toBe(false);
     },
   );
+});
+
+it.each([
+  'off_space_or_ax_unresolved',
+  'minimized_or_hidden_window',
+  'screen_locked',
+  'owner_pid_mismatch',
+])('does not reinterpret other keyboard refusals: %s', (reason) => {
+  const result = windowBackgroundInput(
+    {
+      background_input: {
+        exact_window: { status: 'matched', pid: 42, window_id: 91 },
+        routes: ['accessibility', 'window_pointer', 'pid_keyboard'].map((route) => ({
+          route,
+          status: 'refused',
+          reason,
+        })),
+      },
+    },
+    { pid: 42, windowId: 91 },
+  );
+  expect(result?.routes.every((route) => route.status === 'refused')).toBe(true);
 });

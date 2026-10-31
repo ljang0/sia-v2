@@ -18,7 +18,9 @@ export function GradientText({
     if (!element) return;
     let visible = true;
     const sync = () => {
-      element.style.animationPlayState = document.hidden || !visible ? 'paused' : 'running';
+      // An inline "running" style would override the conversation's pause while a
+      // preview is open or its window is unfocused.
+      element.dataset.visibilityPaused = String(document.hidden || !visible);
     };
     const observer =
       typeof IntersectionObserver === 'undefined'

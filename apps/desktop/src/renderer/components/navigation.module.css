@@ -423,7 +423,7 @@ aside.navigation {
     opacity var(--motion-fast) var(--ease-standard),
     transform var(--motion-standard) var(--ease-spring);
   /* Each signal has its own gesture, so the dock is legible at a glance: unread pops in once,
-     working sends out a slow sonar ring, needing you pops then breathes, a problem pops and holds. */
+     working and needing you breathe, a problem pops and holds. */
   animation: badgePop var(--motion-emphasis) var(--ease-out-soft) both;
 }
 .taskSignal[data-signal='working'] {
@@ -449,16 +449,18 @@ aside.navigation {
 }
 @keyframes signalPulse {
   0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--signal-working) 55%, transparent);
+    opacity: 1;
+    transform: scale(1);
   }
   70%,
   100% {
-    box-shadow: 0 0 0 6px transparent;
+    opacity: 0.6;
+    transform: scale(0.84);
   }
 }
 @keyframes signalBreathe {
   50% {
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--signal-needs-you) 26%, transparent);
+    opacity: 0.65;
   }
 }
 /* A problem arrives with a ring that settles, without bounce. */

@@ -1,8 +1,15 @@
 # Useful work to try in Sia
 
 Use the exact signed candidate recorded in [release status](./release-status.md) and
-[artifact evidence](./public-release.md). Distribution is not approved. The examples below use
-actual public project documents and a real admitted model; they are not fake-service demos.
+[artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
+public project documents and a real admitted model; fake-service demos are separate.
+
+**Current evidence:** internal signed alpha.49 completed repeated research, native briefs, file
+organization, practical visitor planning and full reviewer packets. Universal notarized alpha.53
+delivered a background accordion click, but outing and dinner/grocery planning both stalled during
+browser navigation/read recovery. Alpha.54 fixes a proven CDP-session leak; full signed acceptance
+and the cause of the navigation stalls remain open.
+The linked evidence records exact versions, timing, recovered errors and remaining gates.
 
 ## Start here
 
@@ -17,8 +24,9 @@ actual public project documents and a real admitted model; they are not fake-ser
 4. Use a fresh conversation and new output filenames for every repeat. Inspect the actual saved
    files and their previews, rather than accepting the model's completion claim.
 
-Chrome connection is part of alpha.38's default Mac setup, with a deliberate opt-out. macOS and
-Chrome still require their own permission decisions. Existing profiles can use the conversation's
+Chrome connection is part of default Mac setup, with a deliberate opt-out. Choosing a window
+authorizes its explicit connection setup, including the exact Chrome prompt. macOS grants remain
+person-owned. Existing profiles can use the conversation's
 **Connect Chrome & continue** control when the host reports missing browser access. These new
 paths require signed-candidate acceptance; unit tests do not establish live consent behavior.
 
@@ -42,19 +50,6 @@ Check the exact version/hash against the attached evidence; verify every factual
 source path. Count the brief's words. Follow the first-hour instructions literally and record any
 missing input or manual correction. All three results must have working Preview/Open controls.
 
-**Recorded alpha.37 outcome:** the initial path-only request stopped after 18 seconds without
-outputs. Attaching the five documents produced three files in 39 seconds, but only one preview.
-The first-hour guide used fake services incorrectly and had nonportable citations. Two corrective
-requests were needed to obtain an actual-plan, real-document walkthrough. This is assisted partial
-coverage, not a first-run pass.
-
-**Signed alpha.38 outcome:** with the five sources attached before the initial request, GPT-6-Astra
-produced all three files without corrective input. The brief was 484 words, cited paths existed,
-the first-hour path used the real signed app and ChatGPT plan, and all three previews opened.
-UI work segments were 5 seconds and 3 minutes 3 seconds. The attached evidence predated alpha.38
-acceptance; correctly reporting alpha.37 evidence was required. This was one fresh-conversation run,
-not proof of repeatability or a fresh recipient completing the walkthrough.
-
 ## Demo 2: make a practical release-week plan
 
 Attach [release status](./release-status.md), [manual acceptance](./manual-acceptance.md) and
@@ -72,18 +67,6 @@ Parse the CSV independently. Check unique task IDs, valid dependencies, owner, e
 daily workload, dates, and agreement between the two outputs. Clean-account testing must remain
 blocked while no suitable account or second Mac is available. No invitation should be sent.
 
-**Recorded alpha.37 outcome:** a real GPT-6-Astra run using the attached documents produced both
-outputs without corrective input. Independent checks found 12 unique tasks, no missing dependency
-IDs, the requested owner, and estimated daily workloads of 6–8 hours; the unavailable clean-account
-check remained unscheduled. UI work segments were 16 seconds and 2 minutes 50 seconds. Only one
-result had a preview. This verifies document planning, not browser or native-app control.
-
-**Signed alpha.38 outcome:** a fresh conversation produced both files without corrective input,
-while Demo 1 was working in its separate folder. Both previews opened. The CSV had 12 unique tasks,
-valid dependencies, Lawrence Jang as owner, and 35 estimated task-hours over November 2–6, plus
-separately described contingency. Clean-account execution stayed blocked. UI work segments were
-17 seconds and 2 minutes 36 seconds; a task-tracking step failed and recovered automatically.
-
 ## Demo 3: explain the actual codebase
 
 Attach [AGENTS](../AGENTS.md), [README](../README.md), [architecture](./architecture.md),
@@ -100,9 +83,72 @@ Check each source path exists and that the summary preserves the separate provid
 Sia-hosted action boundaries. Verify the reading times total 45 minutes. A prose summary is not a
 verified call graph, deployment audit, or model-comparison result.
 
-**Recorded alpha.37 outcome:** the path-only attempt stopped after 38 seconds. Adding the five
-actual documents let the retry finish in 45 seconds. The saved guide was inspected and all linked
-repository paths existed. Record the attachment intervention; this was not an unassisted first run.
+## Demo 4: plan a useful visit from live sources
+
+Use a fresh conversation and an approved public Chrome tab. Keep personal tabs out of scope.
+Replace the date if it is no longer in the future; record the actual date used.
+
+> Prepare a practical afternoon plan for an Arena researcher visiting CMU in Pittsburgh on
+> Saturday, November 7, 2026. Assume a 1 pm start and return by 7 pm at Cohon University Center,
+> no car, and a $60 total budget including food and transport. Label these as assumptions,
+> not a booked trip. Include a worthwhile museum or cultural stop, a meal, realistic walking
+> or public-transit time, and a rainy-weather alternative. Check current official hours,
+> admission and transit information. Cite direct sources, flag anything unverified, and show
+> the budget arithmetic. Do not book, sign in, contact anyone, or use personal browsing data.
+> Save cmu-visitor-plan.md in this conversation's folder, verify it and link it. Work in the
+> background using only the connected public Chrome window and reuse its existing tab.
+
+Check feasibility, admission and meal timing, return margin, budget arithmetic, uncertainty
+labels, source support, saved contents and preview. Type independently in another app while
+browser input occurs; afterward paste a pre-existing clipboard canary and compare it.
+
+## Demo 5: organize the real review deliverables
+
+Use a selected task working folder containing the actual outputs from Demos 1–3 in an `Inbox`
+subfolder. Record their initial hashes. Do not treat a typed external path as a file access grant.
+
+> Organize the six project deliverables in Inbox into Review packet, Planning and Evidence
+> subfolders, according to their contents. Keep their filenames and bytes unchanged, never
+> overwrite an existing file, and leave anything ambiguous in Inbox with an explanation.
+> Use the available file tools; do not use Finder drag, clipboard operations or foreground
+> control. Verify each destination and the remaining Inbox, and report exactly what moved.
+
+Independently compare every source/destination hash and count. Run this alongside the browser
+planning task while typing in a third app. This checks practical background file work, not
+simultaneous GUI input in two apps. Native-app GUI concurrency still needs its separate acceptance.
+
+## Demo 6: edit a real proposal in a native app
+
+Open a disposable TextEdit copy of the actual Arena proposal before starting. Keep another app
+active, and identify the exact document. Strict background mode cannot launch arbitrary apps.
+
+> Turn the already-open TextEdit copy of the Arena proposal into a 250–350 word technical-review
+> brief. Preserve the Mac-first scope, proposed evaluation, actual evidence and remaining gates.
+> Do not imply an agreement, validated ranking or accepted distribution build. Include next steps,
+> save and verify the document. Use only this document's normal UI, without shell/file APIs,
+> clipboard operations, foreground control or changes to other documents. Do not send or publish it.
+
+Independently check the saved bytes, word count, factual claims and absence of unsaved changes.
+Run alongside browser research in a separate conversation; check that successful GUI actions
+actually interleave. Merely overlapping task lifetimes does not establish concurrent control.
+
+## Everyday assistant acceptance
+
+The owner requested a couple of ordinary personal-assistant tasks. Alongside the outing plan,
+run this household-planning request in a fresh conversation. These are acceptance scenarios;
+they are not recorded passes until the signed app produces independently verified outputs.
+
+> Plan five weekday dinners for two adults using real published recipes. Assume no dietary
+> restrictions, basic kitchen equipment and at most 35 minutes of active cooking per dinner;
+> label those assumptions. Reuse ingredients to limit waste. Save dinner-plan.md and grocery-list.md
+> in this conversation's folder. Include recipe links, portions, total versus active time, a short
+> prep schedule, and one consolidated grocery list with quantities. Separate pantry assumptions
+> from items to buy. Do not invent current prices, order groceries or send anything. Read back
+> both files and check the ingredient totals against the recipes and chosen serving sizes.
+
+Inspect the original recipes and saved files independently, including serving conversions and
+ingredient totals. Run alongside another useful task, then verify cancellation and recovery.
+Use these explicit test assumptions rather than implying knowledge of the owner's household.
 
 ## Background work, concurrency and responsiveness
 
@@ -121,20 +167,8 @@ scenarios in [manual acceptance](./manual-acceptance.md#real-work-and-concurrent
 - Measure cold/warm startup, send feedback, ten thread switches, stop latency and total duration.
   Preserve failures and manual interventions; repeat each main workflow in two fresh conversations.
 
-Alpha.37 serialized independent document tasks behind a whole-task GUI lease. Alpha.38 defers that
-lease until the first GUI tool call. GUI action loops still serialize; parallel control of different
-physical windows is not yet supported. Background browser new-tab creation is also unsupported.
-Do not promise these capabilities or silently enable foreground fallback to make a test pass.
-
-On alpha.38, ten conversation switches during a real evidence-review task measured median 762.5 ms
-and worst 868 ms from CUA click to fresh accessibility state. Stop returned a separate task to Ready
-with a cancellation message in 807 ms while the evidence-review task kept working. These measurements
-include automation overhead; they do not instrument the internal dispatch cutoff. Exact foreground
-TextEdit text was retained during document work. GUI input concurrency and clipboard preservation
-remain open. The alpha.37 baseline was median 809 ms / worst 1,073 ms with a full test gate also running;
-the differing conditions do not support a performance-improvement claim.
-Native Chrome inspection through the operator CUA tool timed out during browser preparation;
-no real-source browser demo was completed by that attempt.
+For exact timings, interventions and pass/fail outcomes, use the current
+[acceptance record](./public-release.md). Older versions are not evidence for this candidate.
 
 ## Developer regression fixtures
 

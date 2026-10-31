@@ -1,0 +1,661 @@
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
+index c401f20..1ff10a5 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
+@@ -64,6 +64,7 @@ const EXISTING_PROFILE_METHODS: &[&str] = &[
+     "Page.navigate",
+     "Runtime.callFunctionOn",
+     "Runtime.evaluate",
++    "Runtime.releaseObject",
+     "Target.activateTarget",
+     "Target.attachToTarget",
+     "Target.detachFromTarget",
+@@ -326,6 +327,12 @@ impl CdpConnection {
+         }
+     }
+ 
++    /// This one bounded event attachment intentionally outlives an operation.
++    /// It is retained by the connection and closes with that connection.
++    pub fn is_dialog_session(&self, session_id: &str) -> bool {
++        self.demux.session_targets.lock().unwrap().contains_key(session_id)
++    }
++
+     pub fn has_dialog_session(&self, target_id: &str) -> bool {
+         self.demux
+             .session_targets
+@@ -392,6 +399,11 @@ impl CdpConnection {
+         match tokio::time::timeout(CALL_TIMEOUT, rx).await {
+             Err(_) => {
+                 self.demux.pending.lock().unwrap().remove(&id);
++                // Explicit QA diagnostics: method only, never target/session
++                // identities, URLs, parameters, page content or credentials.
++                if std::env::var_os("SIA_CUA_CONSENT_DIAGNOSTICS").is_some() {
++                    eprintln!("[sia:cdp] timed_out method={method}");
++                }
+                 anyhow::bail!("CDP {method} timed out after {CALL_TIMEOUT:?}")
+             }
+             Ok(Err(_)) => anyhow::bail!("CDP socket closed during {method}"),
+@@ -1199,7 +1211,10 @@ mod tests {
+         conn.call(None, "Target.getTargets", json!({}))
+             .await
+             .expect("reviewed method remains available");
+-        assert_eq!(&*seen.lock().unwrap(), &["Target.getTargets"]);
++        conn.call(None, "Runtime.releaseObject", json!({ "objectId": "preflight-node" }))
++            .await
++            .expect("preflight must release its temporary remote object");
++        assert_eq!(&*seen.lock().unwrap(), &["Target.getTargets", "Runtime.releaseObject"]);
+     }
+ 
+     #[tokio::test]
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
+index 1d0940c..04377a4 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
+@@ -247,6 +247,43 @@ fn endpoint_access_class(
+     }
+ }
+ 
++/// One operation's flattened attachment. Parent attachments also own any
++/// auto-attached frame sessions. Keep it alive through input/readback and
++/// release it on every normal return, refusal or future cancellation.
++pub(crate) struct AttachedSession {
++    connection: Arc<CdpConnection>,
++    id: String,
++}
++
++impl std::ops::Deref for AttachedSession {
++    type Target = String;
++
++    fn deref(&self) -> &Self::Target {
++        &self.id
++    }
++}
++
++impl Drop for AttachedSession {
++    fn drop(&mut self) {
++        // Dialog inspection deliberately retains one Page-enabled observer
++        // per target until this bounded browser connection closes.
++        if self.connection.is_dialog_session(&self.id) {
++            return;
++        }
++        // Drop cannot await. The connection's bounded call owns cleanup,
++        // without detaching another operation's session or closing a shared
++        // browser socket. Runtime teardown closes the socket itself.
++        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
++            let connection = self.connection.clone();
++            let id = self.id.clone();
++            runtime.spawn(async move {
++                let _ = connection.call(None, "Target.detachFromTarget",
++                    json!({ "sessionId": id })).await;
++            });
++        }
++    }
++}
++
+ /// Everything revalidation proves before a mutation proceeds. The
+ /// `record`/`tab` evidence rides along for future callers even though
+ /// the v1 tools only need the attached connection.
+@@ -259,7 +296,7 @@ pub(crate) struct ValidatedTab {
+     /// the bind-time geometry retained in `record`.
+     pub native: NativeWindowInfo,
+     /// Flattened CDP session id attached to the tab's target.
+-    pub cdp_session: String,
++    pub cdp_session: AttachedSession,
+ }
+ 
+ fn viewport_point_to_screen(
+@@ -1260,9 +1297,9 @@ impl BrowserEngine {
+     /// Attach (flattened) to a tab's target and return the CDP session id.
+     async fn attach(
+         &self,
+-        conn: &CdpConnection,
++        conn: &Arc<CdpConnection>,
+         cdp_target_id: &str,
+-    ) -> Result<String, BrowserRefusal> {
++    ) -> Result<AttachedSession, BrowserRefusal> {
+         let attached = conn
+             .call(
+                 None,
+@@ -1276,7 +1313,7 @@ impl BrowserEngine {
+                     format!("cannot attach to tab target {cdp_target_id}: {e}"),
+                 )
+             })?;
+-        attached
++        let id = attached
+             .get("sessionId")
+             .and_then(Value::as_str)
+             .map(str::to_owned)
+@@ -1285,7 +1322,8 @@ impl BrowserEngine {
+                     BrowserRefusalCode::BrowserTabNotFound,
+                     format!("attach to {cdp_target_id} returned no sessionId"),
+                 )
+-            })
++            })?;
++        Ok(AttachedSession { connection: conn.clone(), id })
+     }
+ 
+     // ── Binding (get_browser_state, pid + window_id mode) ──────────────
+@@ -1745,7 +1783,7 @@ impl BrowserEngine {
+         // feedback is safer than drawing a cursor over another tab.
+         let tab_is_active = tab_visibility_proven(&validated.conn, &validated.cdp_session).await;
+ 
+-        let screen_point = if cdp_session == validated.cdp_session {
++        let screen_point = if cdp_session == validated.cdp_session.as_str() {
+             validated
+                 .conn
+                 .call(Some(cdp_session), "Page.getLayoutMetrics", json!({}))
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
+index d709315..33f41ca 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
+@@ -46,6 +46,8 @@ pub enum BrowserRefusalCode {
+     /// The trusted Input-domain route is unavailable and the caller did
+     /// not explicitly request the `dom_event` route.
+     BrowserInputTrustUnavailable,
++    /// A background click would open a different browsing context. No input was sent.
++    BrowserNewContextRefused,
+     /// The discovered endpoint's ownership proof does not attribute it
+     /// to the target process.
+     BrowserEndpointOwnerMismatch,
+@@ -84,6 +86,7 @@ impl BrowserRefusalCode {
+             Self::BrowserTabNotFound => "browser_tab_not_found",
+             Self::BrowserRefStale => "browser_ref_stale",
+             Self::BrowserInputTrustUnavailable => "browser_input_trust_unavailable",
++            Self::BrowserNewContextRefused => "browser_new_context_refused",
+             Self::BrowserEndpointOwnerMismatch => "browser_endpoint_owner_mismatch",
+             Self::BrowserConsentRequired => "browser_consent_required",
+             Self::BrowserConsentRevoked => "browser_consent_revoked",
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
+index df04401..5db475b 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
+@@ -51,6 +51,83 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
+ 
+ // ── Shared helpers ───────────────────────────────────────────────────────────
+ 
++// A real signed-app task followed a target=_blank link and activated Chrome.
++// Read the live bound node before dispatch; do not rewrite the page or replace
++// a click with navigation. The caller can choose a separate, authorized navigation.
++const BACKGROUND_LINK_NEW_CONTEXT: &str = r#"function siaNewContext() {
++  const element = this.nodeType === 1 ? this : this.parentElement;
++  if (!element) return null;
++  // Chromium rejects Element.closest in throwOnSideEffect evaluation.
++  // These DOM reads are admitted; retain the restriction and bound the walk.
++  let anchor = element;
++  let remaining = 512;
++  while (anchor) {
++    if (--remaining === 0) return null;
++    const name = anchor.localName;
++    if ((name === 'a' || name === 'area') && anchor.getAttribute('href') !== null) break;
++    anchor = anchor.parentElement;
++  }
++  if (!anchor) return false;
++  const target = (anchor.getAttribute('target') ||
++    anchor.ownerDocument.querySelector('base[target]')?.getAttribute('target') || '').toLowerCase();
++  return target !== '' && target !== '_self';
++}"#;
++
++async fn background_link_opens_context(
++    conn: &CdpConnection,
++    cdp: &str,
++    backend: i64,
++) -> Result<bool, BrowserRefusal> {
++    let unavailable = || {
++        BrowserRefusal::new(
++            BrowserRefusalCode::BrowserActionUnavailable,
++            "the link's browsing context could not be checked; no input was sent",
++        )
++    };
++    let resolved = conn
++        .call(
++            Some(cdp),
++            "DOM.resolveNode",
++            json!({ "backendNodeId": backend }),
++        )
++        .await
++        .map_err(|_| unavailable())?;
++    let object = resolved
++        .get("object")
++        .and_then(|v| v.get("objectId"))
++        .and_then(Value::as_str)
++        .ok_or_else(unavailable)?;
++    let result = conn
++        .call(
++            Some(cdp),
++            "Runtime.callFunctionOn",
++            json!({
++                "objectId": object,
++                "functionDeclaration": BACKGROUND_LINK_NEW_CONTEXT,
++                "returnByValue": true,
++                "silent": true,
++                "throwOnSideEffect": true,
++            }),
++        )
++        .await;
++    let _ = conn
++        .call(
++            Some(cdp),
++            "Runtime.releaseObject",
++            json!({ "objectId": object }),
++        )
++        .await;
++    let result = result.map_err(|_| unavailable())?;
++    if result.get("exceptionDetails").is_some() {
++        return Err(unavailable());
++    }
++    result
++        .get("result")
++        .and_then(|v| v.get("value"))
++        .and_then(Value::as_bool)
++        .ok_or_else(unavailable)
++}
++
+ const DOM_CLICK_READBACK: &str = r#"function() {
+   const bounded = value => typeof value === 'string' ? value.slice(0, 512) : null;
+   const attr = name => bounded(this.getAttribute(name));
+@@ -1338,6 +1415,19 @@ impl Tool for BrowserClickTool {
+         let conn = &validated.conn;
+         let cdp = cdp_session.as_str();
+ 
++        if !foreground {
++            if let Some(backend) = backend_node_id {
++                match background_link_opens_context(conn, cdp, backend).await {
++                    Ok(false) => {},
++                    Ok(true) => return BrowserRefusal::new(
++                        BrowserRefusalCode::BrowserNewContextRefused,
++                        "this link opens another browsing context; use an observed URL with browser_navigate to stay in the existing tab",
++                    ).to_tool_result(),
++                    Err(refusal) => return refusal.to_tool_result(),
++                }
++            }
++        }
++
+         // dom_event route: explicit opt-in only.
+         if route == "dom_event" {
+             let backend = backend_node_id.expect("checked above");
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
+index d5f50d2..4842e1d 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
+@@ -76,6 +76,7 @@ pub(super) struct FixtureState {
+     omit_primary_target: bool,
+     /// Make `Browser.getWindowForTarget` for T1 answer this CDP error.
+     primary_window_error: Option<(i64, String)>,
++    background_new_context: Value,
+     dom_click_changes_readback: bool,
+     dom_click_readback_available: bool,
+     dom_click_stall_after: Option<usize>,
+@@ -115,6 +116,7 @@ impl Default for FixtureState {
+             viewport_css_height: 600.0,
+             tab_visible: true,
+             select_outcome: Value::Null,
++            background_new_context: json!(false),
+             dom_click_changes_readback: true,
+             dom_click_readback_available: true,
+             dom_click_stall_after: None,
+@@ -705,12 +707,23 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+                 }
+             }
+             "DOM.focus"
++            | "Page.enable"
++            | "Target.detachFromTarget"
+             | "Emulation.setFocusEmulationEnabled"
+             | "Input.dispatchMouseEvent"
+             | "Input.insertText" => MockReply::ok(json!({})),
+             "DOM.resolveNode" => MockReply::ok(json!({
+                 "object": { "objectId": format!("obj-{}", call.params["backendNodeId"]) }
+             })),
++            "Runtime.releaseObject" => MockReply::ok(json!({})),
++            "Runtime.callFunctionOn"
++                if call.params["functionDeclaration"]
++                    .as_str()
++                    .is_some_and(|f| f.contains("function siaNewContext")) =>
++            {
++                assert_eq!(call.params["throwOnSideEffect"], true);
++                MockReply::ok(json!({ "result": { "value": st.background_new_context.clone() } }))
++            }
+             "Runtime.callFunctionOn"
+                 if call.params["functionDeclaration"]
+                     .as_str()
+@@ -1880,6 +1893,65 @@ fn recorded_calls(f: &Fixture, method: &str) -> Vec<(Option<String>, Value)> {
+         .collect()
+ }
+ 
++#[tokio::test]
++async fn completed_browser_operations_release_their_parent_cdp_sessions() {
++    let f = fixture_with(|st| st.oopif_present = false).await;
++    let (target, tab) = bind(&f).await;
++    for _ in 0..3 {
++        let snap = semantic_snapshot(&f, &target, &tab).await;
++        assert_eq!(snap["status"], "ok", "{snap}");
++    }
++    let validated = f.engine.revalidate_for_mutation(SESSION, &target, Some(&tab))
++        .await.expect("valid exact tab");
++    let live_session = validated.cdp_session.clone();
++    // A failed independent operation must clean up its own attachment without
++    // releasing this still-live validation on the same tab and connection.
++    f.state.lock().unwrap().screenshot_data = "not-a-png".to_owned();
++    assert!(f.engine.capture_tab_screenshot(SESSION, &target, &tab).await.is_err());
++    assert!(!recorded_calls(&f, "Target.detachFromTarget").iter()
++        .any(|(_, params)| params["sessionId"] == live_session),
++        "a live operation must retain its attachment");
++    drop(validated);
++    let attached = f.state.lock().unwrap().tab_sessions;
++    tokio::time::timeout(std::time::Duration::from_secs(1), async {
++        loop {
++            let detached = recorded_calls(&f, "Target.detachFromTarget");
++            if (1..=attached).all(|id| detached.iter()
++                .any(|(parent, params)| parent.is_none() && params["sessionId"] == format!("tab-sess-{id}"))) {
++                break;
++            }
++            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
++        }
++    }).await.expect("completed observations and validations must release every parent CDP session");
++}
++
++#[tokio::test]
++async fn temporary_session_cleanup_preserves_the_dialog_event_observer() {
++    let f = fixture_with(|st| st.oopif_present = false).await;
++    let (target, tab) = bind(&f).await;
++    let inspected = super::tools::BrowserDialogTool::new(f.engine.clone()).invoke(json!({
++        "target_id": target, "tab_id": tab, "session": SESSION, "action": "inspect"
++    })).await;
++    assert_eq!(structured(&inspected)["status"], "ok");
++    let observer = recorded_calls(&f, "Page.enable").last().unwrap().0.clone().unwrap();
++    let snap = semantic_snapshot(&f, &target, &tab).await;
++    assert_eq!(snap["status"], "ok");
++    let attached = f.state.lock().unwrap().tab_sessions;
++    tokio::time::timeout(std::time::Duration::from_secs(1), async {
++        loop {
++            let detached = recorded_calls(&f, "Target.detachFromTarget");
++            if (1..=attached).filter(|id| format!("tab-sess-{id}") != observer)
++                .all(|id| detached.iter().any(|(parent, params)|
++                    parent.is_none() && params["sessionId"] == format!("tab-sess-{id}"))) {
++                assert!(!detached.iter().any(|(_, params)| params["sessionId"] == observer),
++                    "dialog events must keep arriving between operations");
++                break;
++            }
++            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
++        }
++    }).await.expect("temporary sessions must be released while the observer stays attached");
++}
++
+ // ── Snapshot composition ─────────────────────────────────────────────────────
+ 
+ #[tokio::test]
+@@ -2755,6 +2827,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
+     );
+ }
+ 
++#[tokio::test]
++async fn background_new_context_refuses_before_input_and_preserves_foreground_choice() {
++    for route in ["trusted", "dom_event"] {
++        for new_context in [json!(true), Value::Null, json!(false)] {
++            let f = fixture().await;
++            let (target, tab) = bind(&f).await;
++            let snap = snapshot(&f, &target, &tab).await;
++            let node = ref_of(&snap, "iframe", "inner-btn");
++            f.state.lock().unwrap().background_new_context = new_context.clone();
++            let result = BrowserClickTool::new(f.engine.clone())
++                .invoke(json!({
++                    "target_id": target, "tab_id": tab, "ref": node, "session": SESSION,
++                    "input_route": route,
++                }))
++                .await;
++            if new_context != json!(false) {
++                let s = structured(&result);
++                let expected = if new_context == json!(true) {
++                    "browser_new_context_refused"
++                } else {
++                    "browser_action_unavailable"
++                };
++                assert_eq!(s["refusal"]["code"], expected, "{s}");
++                assert!(recorded_calls(&f, "Input.dispatchMouseEvent").is_empty());
++                assert!(!f.state.lock().unwrap().dom_click_focused);
++                assert!(recorded_calls(&f, "Emulation.setFocusEmulationEnabled").is_empty());
++                assert!(recorded_calls(&f, "Page.navigate").is_empty());
++            } else {
++                assert!(!result.is_error.unwrap_or(false), "{result:?}");
++            }
++        }
++    }
++    let f = fixture().await;
++    let (target, tab) = bind(&f).await;
++    let snap = snapshot(&f, &target, &tab).await;
++    let node = ref_of(&snap, "iframe", "inner-btn");
++    f.state.lock().unwrap().background_new_context = json!(true);
++    BrowserClickTool::new(f.engine.clone())
++        .invoke(json!({
++            "target_id": target, "tab_id": tab, "ref": node, "session": SESSION,
++            "delivery_mode": "foreground",
++        }))
++        .await;
++    assert_eq!(recorded_calls(&f, "Input.dispatchMouseEvent").len(), 2);
++}
++
+ #[tokio::test]
+ async fn click_routes_oopif_refs_through_the_contained_child_session() {
+     let f = fixture().await;
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs
+index 09007a5..f6adf9a 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs
+@@ -266,7 +266,8 @@ impl From<crate::browser::refusal::BrowserRefusalCode> for ToolRefusalCode {
+             BrowserRefusalCode::BrowserOriginOutsideScope => Self::BrowserOriginOutsideScope,
+             // Not a browser-specific code: the shared background refusal is
+             // classified through `ToolErrorClass::BackgroundUnavailable`.
+-            BrowserRefusalCode::BackgroundUnavailable => Self::Other,
++            BrowserRefusalCode::BackgroundUnavailable
++            | BrowserRefusalCode::BrowserNewContextRefused => Self::Other,
+         }
+     }
+ }
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
+index 681c636..a748f2c 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
+@@ -216,6 +216,19 @@ pub(crate) fn walk_native_chrome_bounded(
+     )
+ }
+ 
++/// Observe Chrome-owned native consent surfaces once across the approved
++/// process. Excludes page content and does not mutate focus or controls.
++pub(crate) fn walk_native_chrome_for_consent(pid: i32, max_elements: usize) -> TreeWalkResult {
++    walk_tree_with_web_content(
++        pid,
++        None,
++        None,
++        DEFAULT_MAX_DEPTH,
++        WalkBudget::nodes_only(max_elements),
++        false,
++    )
++}
++
+ /// [`walk_tree_bounded`] under a caller's [`WalkBudget`]: the walk also stops
+ /// when the budget's `timeout_ms` runs out, returning the partial tree. Each
+ /// AX call is bounded by the per-element messaging timeout, so the walk
+@@ -313,6 +326,15 @@ fn walk_tree_with_web_content(
+ 
+         // Walk each top-level child at depth 0.
+         for child in walk_these {
++            // Browser setup/consent lives in window chrome, never in the app
++            // menu bar. Rewalking that same large menu for every Chrome window
++            // can exhaust the consent deadline before reaching its sheet.
++            // Ordinary observations still include the menu bar.
++            if !include_web_content
++                && copy_string_attr(child, "AXRole").as_deref() == Some("AXMenuBar")
++            {
++                continue;
++            }
+             walk_element(
+                 child,
+                 0,
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
+index 82dac61..74d90b1 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
+@@ -1,7 +1,6 @@
+ //! Exact macOS handling for Chrome's browser-owned remote-debugging consent.
+ 
+ use std::time::{Duration, Instant};
+-use std::{collections::HashSet, iter};
+ 
+ use core_foundation::base::{CFRelease, CFTypeRef};
+ use cua_driver_core::browser::{
+@@ -9,9 +8,13 @@ use cua_driver_core::browser::{
+ };
+ 
+ use crate::ax::bindings::{kAXErrorSuccess, perform_action, AXUIElementRef};
+-use crate::ax::tree::{walk_native_chrome_bounded, AXNode, TreeWalkResult};
++use crate::ax::tree::{walk_native_chrome_for_consent, AXNode, TreeWalkResult};
+ 
+ const CONSENT_MAX_ELEMENTS: usize = 5_000;
++// A complete same-process AX scan can take nearly four seconds on a loaded Mac.
++// Allow the exact prompt action and its disappearance check within one bounded
++// attempt; keep all identity, truncation and ambiguity refusals unchanged.
++const CONSENT_TIMEOUT: Duration = Duration::from_secs(8);
+ 
+ fn refusal(code: BrowserRefusalCode, message: impl Into<String>) -> BrowserRefusal {
+     BrowserRefusal::new(code, message)
+@@ -42,27 +45,15 @@ fn release_actionable_nodes(nodes: &[AXNode]) {
+     }
+ }
+ 
+-fn consent_surface_ids(
+-    windows: impl IntoIterator<Item = crate::windows::WindowInfo>,
+-    pid: i32,
+-    approved_window_id: u32,
+-) -> Vec<u32> {
+-    let mut windows = windows
+-        .into_iter()
+-        .filter(|window| {
+-            window.pid == pid
+-                && window.title != "Allow remote debugging?"
+-                && !window.title.trim().is_empty()
+-                && window.bounds.width > 0.0
+-                && window.bounds.height > 0.0
+-        })
+-        .collect::<Vec<_>>();
+-    windows.sort_by_key(|window| std::cmp::Reverse(window.z_index));
+-    let mut seen = HashSet::new();
+-    iter::once(approved_window_id)
+-        .chain(windows.into_iter().map(|window| window.window_id))
+-        .filter(|window_id| seen.insert(*window_id))
+-        .collect()
++fn require_consent_window_owner(owner: crate::windows::WindowOwner) -> Result<(), BrowserRefusal> {
++    if matches!(owner, crate::windows::WindowOwner::SamePid) {
++        Ok(())
++    } else {
++        Err(refusal(
++            BrowserRefusalCode::BrowserWrongTargetRefused,
++            "the approved browser window is no longer owned by the approved process",
++        ))
++    }
+ }
+ 
+ pub(super) const CHINESE_PROMPT: &str = "要允许远程调试吗？";
+@@ -207,14 +198,14 @@ impl Drop for ConsentTrees {
+ }
+ 
+ fn read_consent_trees(pid: i32, window_id: u32) -> Result<ConsentTrees, BrowserRefusal> {
++    require_consent_window_owner(crate::windows::resolve_window_owner(pid, window_id))?;
+     let mut trees = ConsentTrees(Vec::new());
+-    for candidate in consent_surface_ids(crate::windows::all_windows(), pid, window_id) {
+-        trees.push(walk_native_chrome_bounded(
+-            pid,
+-            candidate,
+-            CONSENT_MAX_ELEMENTS,
+-        ))?;
+-    }
++    // Chrome's native consent sheet may be an application child rather than
++    // an attached child of the selected window. Walk the approved process's
++    // native surfaces once: per-window walks repeat the same global sheet
++    // and menu, while unrelated off-Space lookups consume the consent budget.
++    // Web content stays excluded and all exact/ambiguous sheet checks remain.
++    trees.push(walk_native_chrome_for_consent(pid, CONSENT_MAX_ELEMENTS))?;
+     Ok(trees)
+ }
+ 
+@@ -310,10 +301,12 @@ pub async fn handle(
+             "the approved browser window is outside the macOS window-id range",
+         )
+     })?;
+-    let deadline = Instant::now() + Duration::from_secs(4);
++    let started = Instant::now();
++    let deadline = started + CONSENT_TIMEOUT;
+     let mut saw_prompt = false;
+     let mut accepted_prompt = false;
+     loop {
++        let scan_started = Instant::now();
+         let trees = tokio::task::spawn_blocking(move || read_consent_trees(pid, window_id))
+             .await
+             .map_err(|error| {
+@@ -326,6 +319,16 @@ pub async fn handle(
+             .0
+             .iter()
+             .any(|nodes| remote_debugging_sheet_present(nodes));
++        if std::env::var_os("SIA_CUA_CONSENT_DIAGNOSTICS").is_some() {
++            eprintln!(
++                "[sia:cua-consent] scan_ms={} nodes={} prompt_present={} accepted_prompt={} elapsed_ms={}",
++                scan_started.elapsed().as_millis(),
++                trees.0.iter().map(Vec::len).sum::<usize>(),
++                prompt_present,
++                accepted_prompt,
++                started.elapsed().as_millis(),
++            );
++        }
+         saw_prompt |= prompt_present;
+         if let Some(outcome) = settled_after_scan(
+             accepted_prompt,
+@@ -506,37 +509,21 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn consent_surfaces_keep_approved_window_then_frontmost_normal_windows() {
+-        let window = |window_id, title: &str, z_index| crate::windows::WindowInfo {
+-            window_id,
+-            pid: 42,
+-            app_name: "Google Chrome".to_owned(),
+-            title: title.to_owned(),
+-            bounds: crate::windows::WindowBounds {
+-                x: 0.0,
+-                y: 0.0,
+-                width: 1200.0,
+-                height: 800.0,
++    fn consent_scan_requires_the_approved_process_to_still_own_the_window() {
++        use crate::windows::WindowOwner;
++        assert!(require_consent_window_owner(WindowOwner::SamePid).is_ok());
++        for owner in [
++            WindowOwner::Unknown,
++            WindowOwner::ForeignPid {
++                owner_pid: 99,
++                owner_app_name: "Other app".into(),
+             },
+-            layer: 0,
+-            z_index,
+-            is_on_screen: true,
+-            current_space_id: None,
+-            on_current_space: Some(true),
+-            space_ids: None,
+-        };
+-        assert_eq!(
+-            consent_surface_ids(
+-                [
+-                    window(7, "Approved", 10),
+-                    window(8, "Frontmost", 30),
+-                    window(9, "Allow remote debugging?", 40),
+-                ],
+-                42,
+-                7,
+-            ),
+-            vec![7, 8]
+-        );
++        ] {
++            assert_eq!(
++                require_consent_window_owner(owner).unwrap_err().code,
++                BrowserRefusalCode::BrowserWrongTargetRefused
++            );
++        }
+     }
+ 
+     fn captured_chinese_sheet() -> Vec<AXNode> {

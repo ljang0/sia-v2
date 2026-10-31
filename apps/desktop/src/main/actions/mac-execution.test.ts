@@ -51,6 +51,7 @@ describe('Notch response port', () => {
         'skill_run',
         'computer_read_file',
         'computer_write_file',
+        'computer_move_file',
       ]),
     );
   });
