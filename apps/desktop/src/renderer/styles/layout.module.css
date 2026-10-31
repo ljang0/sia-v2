@@ -8,6 +8,15 @@
   color: var(--text-primary);
 }
 
+/* A preview's blur covers the entire shell. Even small presence pulses behind
+   it otherwise repaint that full surface continuously. Keep the portaled
+   preview itself live (including its loader), while freezing covered motion. */
+:global(body:has([data-attachment-preview])) .appShell *,
+:global(body:has([data-attachment-preview])) .appShell *::before,
+:global(body:has([data-attachment-preview])) .appShell *::after {
+  animation-play-state: paused !important;
+}
+
 .mainPane {
   position: relative;
   isolation: isolate;

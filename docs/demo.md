@@ -4,12 +4,12 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
 public project documents and a real admitted model; fake-service demos are separate.
 
-**Current evidence:** internal signed alpha.43 completed the visitor plan in 3m51s with checked
-sources, arithmetic and preview while independent TextEdit work and the clipboard survived.
-The overlapping Finder task created folders but moved none: background file drag needs the
-physical pointer. A file-tool recovery also failed because that build lacked file moves.
-Alpha.44 source adds a direct file route; its signed-app acceptance is still pending. Preserve
-those failures when recording a later success. Earlier version evidence remains in Git history.
+**Current evidence:** internal signed alpha.44 filed six actual project documents correctly in
+each of two fresh runs, preserving every hash, independent typing and the clipboard. Two native
+TextEdit tasks saved useful proposal briefs; the second hit a final scroll limitation. Both
+public-source plans saved after browser recovery, so neither is an unassisted repeat pass.
+Browser/native GUI concurrency remains unaccepted. Alpha.45 source corrects premature browser
+session expiry; signed-app acceptance is pending. See [the exact record](./public-release.md).
 
 ## Start here
 
@@ -49,19 +49,6 @@ Check the exact version/hash against the attached evidence; verify every factual
 source path. Count the brief's words. Follow the first-hour instructions literally and record any
 missing input or manual correction. All three results must have working Preview/Open controls.
 
-**Recorded alpha.37 outcome:** the initial path-only request stopped after 18 seconds without
-outputs. Attaching the five documents produced three files in 39 seconds, but only one preview.
-The first-hour guide used fake services incorrectly and had nonportable citations. Two corrective
-requests were needed to obtain an actual-plan, real-document walkthrough. This is assisted partial
-coverage, not a first-run pass.
-
-**Signed alpha.38 outcome:** with the five sources attached before the initial request, GPT-6-Astra
-produced all three files without corrective input. The brief was 484 words, cited paths existed,
-the first-hour path used the real signed app and ChatGPT plan, and all three previews opened.
-UI work segments were 5 seconds and 3 minutes 3 seconds. The attached evidence predated alpha.38
-acceptance; correctly reporting alpha.37 evidence was required. This was one fresh-conversation run,
-not proof of repeatability or a fresh recipient completing the walkthrough.
-
 ## Demo 2: make a practical release-week plan
 
 Attach [release status](./release-status.md), [manual acceptance](./manual-acceptance.md) and
@@ -79,18 +66,6 @@ Parse the CSV independently. Check unique task IDs, valid dependencies, owner, e
 daily workload, dates, and agreement between the two outputs. Clean-account testing must remain
 blocked while no suitable account or second Mac is available. No invitation should be sent.
 
-**Recorded alpha.37 outcome:** a real GPT-6-Astra run using the attached documents produced both
-outputs without corrective input. Independent checks found 12 unique tasks, no missing dependency
-IDs, the requested owner, and estimated daily workloads of 6–8 hours; the unavailable clean-account
-check remained unscheduled. UI work segments were 16 seconds and 2 minutes 50 seconds. Only one
-result had a preview. This verifies document planning, not browser or native-app control.
-
-**Signed alpha.38 outcome:** a fresh conversation produced both files without corrective input,
-while Demo 1 was working in its separate folder. Both previews opened. The CSV had 12 unique tasks,
-valid dependencies, Lawrence Jang as owner, and 35 estimated task-hours over November 2–6, plus
-separately described contingency. Clean-account execution stayed blocked. UI work segments were
-17 seconds and 2 minutes 36 seconds; a task-tracking step failed and recovered automatically.
-
 ## Demo 3: explain the actual codebase
 
 Attach [AGENTS](../AGENTS.md), [README](../README.md), [architecture](./architecture.md),
@@ -106,10 +81,6 @@ Attach [AGENTS](../AGENTS.md), [README](../README.md), [architecture](./architec
 Check each source path exists and that the summary preserves the separate provider-native and
 Sia-hosted action boundaries. Verify the reading times total 45 minutes. A prose summary is not a
 verified call graph, deployment audit, or model-comparison result.
-
-**Recorded alpha.37 outcome:** the path-only attempt stopped after 38 seconds. Adding the five
-actual documents let the retry finish in 45 seconds. The saved guide was inspected and all linked
-repository paths existed. Record the attachment intervention; this was not an unassisted first run.
 
 ## Demo 4: plan a useful visit from live sources
 
@@ -130,14 +101,35 @@ Check feasibility, admission and meal timing, return margin, budget arithmetic, 
 labels, source support, saved contents and preview. Type independently in another app while
 browser input occurs; afterward paste a pre-existing clipboard canary and compare it.
 
-**Engineering-probe outcome:** four official sources, a checked $45 plan plus $15 contingency,
-meal-price and walking estimates clearly labeled, and a mostly indoor rain alternative. The
-preview opened. TextEdit was confirmed active and both its text and clipboard survived.
-Initial Chrome foreground caused a pause: the operator activated TextEdit through Finder and
-pressed Continue once. The resumed run took 4m04s / 23 steps / three problem steps, including
-stale-reference recovery and a task-tracking failure; no corrective task prompt was sent.
-Total recorded request time was about 4m55s. This used alpha.42 with an experimental native SDK;
-repeat on the exact signed candidate before treating it as release acceptance.
+## Demo 5: organize the real review deliverables
+
+Use a selected task working folder containing the actual outputs from Demos 1–3 in an `Inbox`
+subfolder. Record their initial hashes. Do not treat a typed external path as a file access grant.
+
+> Organize the six project deliverables in Inbox into Review packet, Planning and Evidence
+> subfolders, according to their contents. Keep their filenames and bytes unchanged, never
+> overwrite an existing file, and leave anything ambiguous in Inbox with an explanation.
+> Use the available file tools; do not use Finder drag, clipboard operations or foreground
+> control. Verify each destination and the remaining Inbox, and report exactly what moved.
+
+Independently compare every source/destination hash and count. Run this alongside the browser
+planning task while typing in a third app. This checks practical background file work, not
+simultaneous GUI input in two apps. Native-app GUI concurrency still needs its separate acceptance.
+
+## Demo 6: edit a real proposal in a native app
+
+Open a disposable TextEdit copy of the actual Arena proposal before starting. Keep another app
+active, and identify the exact document. Strict background mode cannot launch arbitrary apps.
+
+> Turn the already-open TextEdit copy of the Arena proposal into a 250–350 word technical-review
+> brief. Preserve the Mac-first scope, proposed evaluation, actual evidence and remaining gates.
+> Do not imply an agreement, validated ranking or accepted distribution build. Include next steps,
+> save and verify the document. Use only this document's normal UI, without shell/file APIs,
+> clipboard operations, foreground control or changes to other documents. Do not send or publish it.
+
+Independently check the saved bytes, word count, factual claims and absence of unsaved changes.
+Run alongside browser research in a separate conversation; check that successful GUI actions
+actually interleave. Merely overlapping task lifetimes does not establish concurrent control.
 
 ## Background work, concurrency and responsiveness
 
@@ -156,20 +148,8 @@ scenarios in [manual acceptance](./manual-acceptance.md#real-work-and-concurrent
 - Measure cold/warm startup, send feedback, ten thread switches, stop latency and total duration.
   Preserve failures and manual interventions; repeat each main workflow in two fresh conversations.
 
-Alpha.37 serialized independent document tasks behind a whole-task GUI lease. Alpha.38 defers that
-lease until the first GUI tool call. Alpha.39 introduces per-window ownership, but its signed real GUI tasks failed; parallel control of
-different physical windows is not accepted. Background browser new-tab creation is also unsupported.
-Do not promise these capabilities or silently enable foreground fallback to make a test pass.
-
-On alpha.38, ten conversation switches during a real evidence-review task measured median 762.5 ms
-and worst 868 ms from CUA click to fresh accessibility state. Stop returned a separate task to Ready
-with a cancellation message in 807 ms while the evidence-review task kept working. These measurements
-include automation overhead; they do not instrument the internal dispatch cutoff. Exact foreground
-TextEdit text was retained during document work. GUI input concurrency and clipboard preservation
-remain open. The alpha.37 baseline was median 809 ms / worst 1,073 ms with a full test gate also running;
-the differing conditions do not support a performance-improvement claim.
-Native Chrome inspection through the operator CUA tool timed out during browser preparation;
-no real-source browser demo was completed by that attempt.
+For exact timings, interventions and pass/fail outcomes, use the current
+[acceptance record](./public-release.md). Older versions are not evidence for this candidate.
 
 ## Developer regression fixtures
 
@@ -210,18 +190,3 @@ a new evidence directory. Close the lab with the launcher’s `stop --config` co
 controlled lab, not ordinary-app acceptance; follow [manual acceptance](./manual-acceptance.md)
 for that separate gate. Never convert a blocked native run into a simulated pass. Keep prompts, transcripts, screenshots, timings and file hashes outside Git; retain failed
 attempts when a later retry succeeds. Only exact-candidate acceptance supports a release decision.
-
-## Demo 5: organize the real review deliverables
-
-Use a selected task working folder containing the actual outputs from Demos 1–3 in an `Inbox`
-subfolder. Record their initial hashes. Do not treat a typed external path as a file access grant.
-
-> Organize the six project deliverables in Inbox into Review packet, Planning and Evidence
-> subfolders, according to their contents. Keep their filenames and bytes unchanged, never
-> overwrite an existing file, and leave anything ambiguous in Inbox with an explanation.
-> Use the available file tools; do not use Finder drag, clipboard operations or foreground
-> control. Verify each destination and the remaining Inbox, and report exactly what moved.
-
-Independently compare every source/destination hash and count. Run this alongside the browser
-planning task while typing in a third app. This checks practical background file work, not
-simultaneous GUI input in two apps. Native-app GUI concurrency still needs its separate acceptance.

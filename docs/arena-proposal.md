@@ -53,12 +53,12 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-The latest internal signed alpha.43 build completed a sourced CMU visitor plan in 3m51s.
-Its facts, budget arithmetic, saved preview, independent TextEdit typing and clipboard preservation
-were checked. The simultaneous filing task failed: macOS file drag-and-drop requires the physical
-pointer, and Sia lacked a workspace file-move tool. Alpha.44 source adds verified, non-overwriting
-file moves and fixes a preview animation that kept running while paused; signed-app acceptance is
-pending. Alpha.42 remains the latest notarized candidate, not an accepted distribution build.
+Internal signed alpha.44 completed two file-organization runs with unchanged file hashes and two
+native TextEdit proposal edits with saved briefs. Public-source visitor plans completed after
+connection recovery; they are assisted successes. Browser session expiry prevented a clean repeat
+and interleaved native/browser execution. Alpha.45 source corrects the session-lifetime mismatch;
+exact signed-app acceptance is pending. Alpha.42 remains the latest notarized candidate, not an
+accepted distribution build.
 
 Distribution remains blocked on repeatable useful workflows, simultaneous native/browser work,
 restart/reconnect behavior, responsiveness and the remaining clean-account and physical acceptance

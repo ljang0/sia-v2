@@ -415,7 +415,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   identity is never assumed, and no cookie or login is copied.
   The driver profile grant for the same exact native PID/window is reused across tasks, rather
   than making each new conversation appear to lose browser consent. Public tab/snapshot/input
-  refs and local browser capabilities are still revoked at each turn boundary. The SDK retains
+  refs and local browser capabilities are still revoked at each turn boundary. Explicit connection
+  setup creates a Standard-mode SDK host lease with a fifteen-minute idle and eight-hour absolute
+  lifetime. This applies the configured host limits instead of the implicit five-minute session
+  default. No background heartbeat reads pages; expiry/revocation remains terminal and requires
+  the existing recovery flow. Model actions cannot create that host lease. The SDK retains
   its process-identity and grant-expiry checks. An expired named session is never revived:
   a fresh authorized website-open request may request a new profile grant after read-only
   discovery; neither session renewal nor observation failure replays input. A different native

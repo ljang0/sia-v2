@@ -1,11 +1,55 @@
 import { expect, it, vi } from 'vitest';
 import { CuaService } from './cua-service.js';
+import { browserSessionDriver } from './cua-browser-session.js';
 
 // Real driver, no model, no permissions UI, no browser/window inspection or input.
 const real =
   process.platform === 'darwin' && process.env.SIA_REAL_CUA_SESSION_PROBE === '1'
     ? it
     : it.skip;
+
+real('declares the browser lifetime and keeps explicit revocation terminal', async () => {
+  const cua = await import('@trycua/cua-driver');
+  const native = cua.CuaDriver.createConfigured(
+    cua.ConfiguredDriverOptions.new({
+      claudeCodeCompatibility: false,
+      authorization: cua.RuntimeAuthorizationOptions.new({
+        allowedModes: [cua.SessionPermissionMode.Standard],
+        compatibilityMode: cua.SessionPermissionMode.Standard,
+        unrestrictedAcknowledged: false,
+        maxSessionTtlSeconds: 28_800n,
+        maxIdleTtlSeconds: 900n,
+      }),
+    }),
+  );
+  const driver = await browserSessionDriver(native);
+  const label = 'sia-browser-lifecycle-probe';
+  try {
+    driver.prepareBrowserSession(label);
+    const call = (name: string) => driver.callTool(name, JSON.stringify({ session: label }));
+    // An ordinary read must lazily establish the configured lifetime too:
+    // production browser preparation does not call start_session first.
+    const started = await call('list_apps');
+    expect(started.errorCode).toBeUndefined();
+    const state = await call('get_session');
+    expect(state.errorCode).toBeUndefined();
+    const lifecycle = JSON.parse(state.structuredJson ?? state.rawJson) as {
+      session: string;
+      expires_in_seconds: number;
+    };
+    expect(lifecycle.session).toBe(label);
+    expect(lifecycle.expires_in_seconds).toBeGreaterThan(890);
+    expect(lifecycle.expires_in_seconds).toBeLessThanOrEqual(900);
+    const ended = await call('end_session');
+    expect(ended.errorCode).toBeUndefined();
+    driver.prepareBrowserSession(label); // Repeating preparation must not revive it.
+    const refused = await call('get_session');
+    expect(refused.errorCode ?? refused.rawJson).toMatch(/session_ended|session_revoked/);
+  } finally {
+    await driver.shutdown();
+    driver.uniffiDestroy();
+  }
+});
 
 real(
   'renews ended inventory in the real runtime without ending another session',

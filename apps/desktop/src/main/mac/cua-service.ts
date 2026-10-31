@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { ComputerPermissionsView as ComputerView } from '../../shared/bridge.js';
+import {
+  browserSessionDriver,
+  BROWSER_SESSION_IDLE_SECONDS,
+  BROWSER_SESSION_SECONDS,
+} from './cua-browser-session.js';
 
 const CUA_TOOLS = new Set([
   'list_apps',
@@ -68,6 +73,7 @@ interface DriverResult {
 }
 
 interface DriverLike {
+  prepareBrowserSession?: (label: string) => void;
   callTool(
     name: string,
     argumentsJson: string,
@@ -520,6 +526,14 @@ export class CuaService {
       const result = await waitForAbort(
         Promise.resolve().then(async () => {
           operation.signal.throwIfAborted();
+          if (
+            tool === 'browser_prepare' &&
+            context.kind === 'direct_user' &&
+            context.operation === 'browser_attach' &&
+            typeof args.session === 'string' &&
+            args.session.startsWith('sia-browser-')
+          )
+            driver!.prepareBrowserSession?.(args.session);
           // The driver's compact default omits structured controls and route metadata.
           // Both are required for protected-field checks and exact background grants.
           const input =
@@ -773,8 +787,8 @@ export class CuaService {
       allowedModes: [cua.SessionPermissionMode.Standard, cua.SessionPermissionMode.Bounded],
       compatibilityMode: cua.SessionPermissionMode.Standard,
       unrestrictedAcknowledged: false,
-      maxSessionTtlSeconds: 28_800n,
-      maxIdleTtlSeconds: 900n,
+      maxSessionTtlSeconds: BROWSER_SESSION_SECONDS,
+      maxIdleTtlSeconds: BROWSER_SESSION_IDLE_SECONDS,
     });
     const options = cua.ConfiguredDriverOptions.new({
       claudeCodeCompatibility: false,
@@ -795,7 +809,9 @@ export class CuaService {
         });
       },
     };
-    return cua.CuaDriver.createConfiguredWithAuthorizationHost(options, host) as DriverLike;
+    return browserSessionDriver(
+      cua.CuaDriver.createConfiguredWithAuthorizationHost(options, host),
+    );
   }
 
   async #authorize(request: AuthorizationRequest): Promise<'allow' | 'deny' | 'cancel'> {

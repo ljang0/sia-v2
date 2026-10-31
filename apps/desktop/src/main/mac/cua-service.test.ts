@@ -40,6 +40,26 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+it('declares a browser lease only for the explicit connection UI', async () => {
+  const driver = { ...successfulDriver({}), prepareBrowserSession: vi.fn() };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  const args = { session: 'sia-browser-approved', pid: 42, window_id: 91 };
+  try {
+    await service.call('browser_prepare', args, directContext);
+    expect(driver.prepareBrowserSession).toHaveBeenCalledExactlyOnceWith(args.session);
+    driver.prepareBrowserSession.mockClear();
+    await service.call('get_browser_state', args, directContext);
+    await service.call('browser_prepare', args, {
+      kind: 'turn',
+      threadId: 'thread',
+      turnId: 'turn',
+    });
+    expect(driver.prepareBrowserSession).not.toHaveBeenCalled();
+  } finally {
+    await service.shutdown();
+  }
+});
+
 it.each([
   ['cmd', 'c'],
   ['command', 'X'],

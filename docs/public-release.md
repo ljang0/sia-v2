@@ -3,52 +3,65 @@
 ## Current decision — October 31, 2026
 
 The owner selected **Mac first; iPhone follows** and confirmed ownership of the relevant Notch
-source rights. Alpha.42 is signed and notarized; internal alpha.43 fixes Chrome reconnection.
-Ordinary background file organization and parallel GUI acceptance remain incomplete. **External pilot release is not complete.**
+source rights. Alpha.42 is signed and notarized; internal alpha.44 passes repeated file organization.
+Browser continuity and parallel GUI acceptance remain incomplete. **External pilot release is not complete.**
 No new artifacts were published or invitations sent; the last published Mac pilot remains alpha.24.
 
-## Internal alpha.43 QA candidate
+## Internal alpha.44 QA candidate
 
-The current QA app is an **arm64 Developer ID signed internal build, not notarized or
-accepted for distribution**, from `8180ddee65e7fd98ef2a191bff4b5a5e1670f498`.
-Its app.asar SHA-256 is `9ee6429e718c0ce2165f17e5fcb7e5591f83e115715b83d6e89860841101490e`.
-Strict signature, package/runtime, SDK provenance and license checks passed. The initial source
-pilot gate passed 1,821 desktop unit, 46 Electron, 31 renderer, 72 phone-browser and 72 gateway
-tests plus 11 native consent regressions. License additions then passed two focused tests and
-both-architecture native builds. The QA profile/history survived the upgrade.
-
-Chrome consent scanning now uses one native application walk instead of scanning every
-same-process surface. The engineering probe measured 1,670 ms instead of 7,656 ms against a
-four-second deadline; post-action verification took 215 ms. The patch preserves approved-process
-ownership, exact consent identity, ambiguity/truncation refusal and the deadline. The packaged
-alpha.43 app also reconnected the same approved public window successfully. An app restart still
-requires selecting that window again. See [native build provenance](../apps/desktop/native/cua/README.md).
+The current QA app is an **arm64 Developer ID signed internal build, not notarized or accepted
+for distribution**, from `9338a1b8824cca6751333b9b0149bc2b70025f63`.
+App.asar SHA-256: `f799b6a4bd0323f37556cdf0324fbef447b4164ce8eb44ce272fe51bf01fc898`.
+Strict signatures, package/runtime, SDK provenance and license checks passed. Profile/history
+survived the upgrade without a Keychain prompt. Test-only follow-up `092006d119c56f564353cf4efa1b43a771182078`
+passed the complete local pilot gate and [CI, including unsigned universal packaging](https://github.com/ljang0/sia-v2/actions/runs/41180267503).
+The gate included 1,826 desktop units, 46 Electron, 32 renderer, 72 phone-browser and 73 gateway tests.
 
 ### Real work, independently checked
 
-| Workflow                             | Result                                                                                                                                                                                                                         | Limits                                                                                                                                                |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Practical CMU visitor plan           | Read official museum/dining/transit sources and saved a readable itinerary with rain alternative, checked budget and explicit estimates. 3m51s, no browser intervention. Preview opened; typing and clipboard canary survived. | Hypothetical visitor scenario using real sources; no booking. One packaged alpha.43 run, following a separate engineering-probe pass.                 |
-| Finder filing alongside browser work | Created Review packet, Planning and Evidence folders. All six source files retained their original hashes in Inbox.                                                                                                            | Failed: macOS drag-and-drop follows the physical pointer. Two initial operator activation/Continue interventions. This is not a parallel GUI success. |
-| File-tool recovery                   | Explicit follow-up permitted file tools without GUI-only constraint.                                                                                                                                                           | Failed: current background tools only handle top-level files and cannot move files into folders. No additional file changes.                          |
+| Workflow                                                | Result                                                                                                                                                                                               | Limits                                                                                                                                                                                  |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| File organization, two fresh conversations              | Six actual project deliverables each moved into three correct folders; all hashes unchanged, both Inboxes empty. First run: 36 seconds / 19 steps. Independent typing and clipboard canary survived. | Uses bounded file tools, not Finder drag. Ordinary UTF-8 text formats only, at most 256 KB each.                                                                                        |
+| TextEdit proposal editing, two fresh conversations      | Saved 327- and 332-word briefs from actual proposal copies using native UI. Content, limits and saved bytes checked. Finder was foreground.                                                          | Second run's final scroll was refused with same-process keyboard ambiguity; saved brief was independently verified.                                                                     |
+| Public-source visitor planning, two fresh conversations | Both saved plans after recovery; museum/dining/fare claims and budget checked. Second preview opened.                                                                                                | First required restart connection and foreground recovery. Second failed after the native browser session expired, then finished after reconnect. Neither is an unassisted repeat pass. |
+| Concurrent GUI work                                     | Browser and native task lifetimes overlapped.                                                                                                                                                        | Browser blocked until after native work finished. No interleaved successful browser/native GUI execution; concurrency is not accepted.                                                  |
 
-Planning output SHA-256: `8c7e7d5ae83e65691914661894a884ef25b001160a60d0c1e29e76f17ba84b5f`.
-Independent primary checks covered [museum hours/admission](https://carnegieart.org/visit/come-visit/),
-[dining hours](https://carnegieart.org/visit/dine-with-us/) and
-[transit fares](https://www.rideprt.org/fares-and-payment/). The $50 base plan plus $5.50 optional
-transit reserve leaves $4.50 of the $60 limit. Food prices, walking times, weather and date-specific
-availability were explicitly estimates or unknowns. Private exact prompts, timings, screenshots,
-checks and interventions are retained in `alpha43-artifacts/real-work`.
+The plan's $45.32 main spend plus $5.50 transit reserve leaves $9.18 of the $60 budget.
+Primary checks: [museum](https://carnegieart.org/visit/come-visit/),
+[dining hours](https://carnegieart.org/visit/dine-with-us/),
+[menu](https://thecafecarnegie.com/menu.html), [fares](https://www.rideprt.org/fares-and-payment/).
+Walking times, tax allowance and future availability remain explicitly estimated or unverified.
+This is a hypothetical visitor request using real sources; no booking occurred.
 
-Preview idle sampling still showed about 21% GPU-process and 5% renderer CPU, compared with about
-1% in Settings (short `top` samples, not a controlled benchmark). A subsequent source fix removes
-an inline gradient animation style that overrode pause CSS. The regression fails before the fix
-and passes afterward; live package performance remains to be rechecked. Other subsequent changes
-preserve uncertainty after partial native drags and explain the unsupported background filing
-route instead of encouraging retries. Their focused 119-unit and renderer regression checks
-passed. The full source pilot gate on `a25bd7b` then passed 1,823 desktop units, 46 Electron,
-32 renderer, 72 phone-browser and 72 gateway tests. Alpha.44 now adds bounded workspace file moves;
-its source and signed-artifact gates remain pending.
+| Saved output            | SHA-256                                                            |
+| ----------------------- | ------------------------------------------------------------------ |
+| Visitor plan, first run | `46e32d9ff60292e60cda065f3b84652bf61cd4f492b01565a9ec1c754513b995` |
+| Visitor plan, repeat    | `40a3ef51561736a5c6740ed93c3f646549e95158801d055e90c26bbf24f314ae` |
+| Native brief, first run | `8c2a2983fb94365804739b3881e79dfec52ea4362c2473514b3bb9bfa2a7ecd6` |
+| Native brief, repeat    | `83183e9da6ca420462fa49dc3b4efd3f258a20749d68e11de6a23e383fe1b746` |
+
+Ten thread switches during filing measured 1,335 ms median / 2,345 ms worst, including CUA
+observation overhead. Only filing was active; the browser had paused. This does not meet the
+one-second observation target or establish pure UI latency. Settings clicks returned in
+108–203 ms; observed total control round trips were 827–1,223 ms. Preview sampling (11 one-second samples after discarding the first) still showed elevated GPU/renderer CPU; see the correction below.
+Exact private prompts, trajectories, timings, hashes, screenshots and interventions are retained
+in `alpha44-artifacts/real-work`.
+
+### Alpha.45 source correction under test
+
+The browser repeat exposed the native implicit session's five-minute idle expiry. Sia configured
+a fifteen-minute host idle limit but never created a host lease, so that limit did not apply.
+The source now declares a Standard-mode browser lease through the supported SDK, only during
+explicit connection setup. It retains the fifteen-minute idle/eight-hour absolute bounds; expiry,
+revocation and app restart still require connection recovery. It does not poll pages or revive
+expired authority. A real-runtime lifecycle/revocation probe and 89 focused tests passed.
+The result preview also pauses covered shell animations, including presence pulses, which otherwise
+keep repainting its full-window blur. A renderer regression confirms covered motion stops and
+resumes on close. Live CPU must be remeasured on the new package. Full gates and exact signed-app
+acceptance remain pending. The session fix does not solve restart recovery.
+
+Earlier alpha.43 results and failed Finder/file-tool attempts remain in
+[the previous record](https://github.com/ljang0/sia-v2/blob/092006d/docs/public-release.md).
 
 ## Exact alpha.42 artifact and live result
 
