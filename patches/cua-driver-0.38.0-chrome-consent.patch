@@ -1,5 +1,5 @@
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
-index c401f20..09f2ac8 100644
+index c401f20..1ff10a5 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
 @@ -64,6 +64,7 @@ const EXISTING_PROFILE_METHODS: &[&str] = &[
@@ -10,7 +10,32 @@ index c401f20..09f2ac8 100644
      "Target.activateTarget",
      "Target.attachToTarget",
      "Target.detachFromTarget",
-@@ -1199,7 +1200,10 @@ mod tests {
+@@ -326,6 +327,12 @@ impl CdpConnection {
+         }
+     }
+ 
++    /// This one bounded event attachment intentionally outlives an operation.
++    /// It is retained by the connection and closes with that connection.
++    pub fn is_dialog_session(&self, session_id: &str) -> bool {
++        self.demux.session_targets.lock().unwrap().contains_key(session_id)
++    }
++
+     pub fn has_dialog_session(&self, target_id: &str) -> bool {
+         self.demux
+             .session_targets
+@@ -392,6 +399,11 @@ impl CdpConnection {
+         match tokio::time::timeout(CALL_TIMEOUT, rx).await {
+             Err(_) => {
+                 self.demux.pending.lock().unwrap().remove(&id);
++                // Explicit QA diagnostics: method only, never target/session
++                // identities, URLs, parameters, page content or credentials.
++                if std::env::var_os("SIA_CUA_CONSENT_DIAGNOSTICS").is_some() {
++                    eprintln!("[sia:cdp] timed_out method={method}");
++                }
+                 anyhow::bail!("CDP {method} timed out after {CALL_TIMEOUT:?}")
+             }
+             Ok(Err(_)) => anyhow::bail!("CDP socket closed during {method}"),
+@@ -1199,7 +1211,10 @@ mod tests {
          conn.call(None, "Target.getTargets", json!({}))
              .await
              .expect("reviewed method remains available");
@@ -22,6 +47,103 @@ index c401f20..09f2ac8 100644
      }
  
      #[tokio::test]
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
+index 1d0940c..04377a4 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
+@@ -247,6 +247,43 @@ fn endpoint_access_class(
+     }
+ }
+ 
++/// One operation's flattened attachment. Parent attachments also own any
++/// auto-attached frame sessions. Keep it alive through input/readback and
++/// release it on every normal return, refusal or future cancellation.
++pub(crate) struct AttachedSession {
++    connection: Arc<CdpConnection>,
++    id: String,
++}
++
++impl std::ops::Deref for AttachedSession {
++    type Target = String;
++
++    fn deref(&self) -> &Self::Target {
++        &self.id
++    }
++}
++
++impl Drop for AttachedSession {
++    fn drop(&mut self) {
++        // Dialog inspection deliberately retains one Page-enabled observer
++        // per target until this bounded browser connection closes.
++        if self.connection.is_dialog_session(&self.id) {
++            return;
++        }
++        // Drop cannot await. The connection's bounded call owns cleanup,
++        // without detaching another operation's session or closing a shared
++        // browser socket. Runtime teardown closes the socket itself.
++        if let Ok(runtime) = tokio::runtime::Handle::try_current() {
++            let connection = self.connection.clone();
++            let id = self.id.clone();
++            runtime.spawn(async move {
++                let _ = connection.call(None, "Target.detachFromTarget",
++                    json!({ "sessionId": id })).await;
++            });
++        }
++    }
++}
++
+ /// Everything revalidation proves before a mutation proceeds. The
+ /// `record`/`tab` evidence rides along for future callers even though
+ /// the v1 tools only need the attached connection.
+@@ -259,7 +296,7 @@ pub(crate) struct ValidatedTab {
+     /// the bind-time geometry retained in `record`.
+     pub native: NativeWindowInfo,
+     /// Flattened CDP session id attached to the tab's target.
+-    pub cdp_session: String,
++    pub cdp_session: AttachedSession,
+ }
+ 
+ fn viewport_point_to_screen(
+@@ -1260,9 +1297,9 @@ impl BrowserEngine {
+     /// Attach (flattened) to a tab's target and return the CDP session id.
+     async fn attach(
+         &self,
+-        conn: &CdpConnection,
++        conn: &Arc<CdpConnection>,
+         cdp_target_id: &str,
+-    ) -> Result<String, BrowserRefusal> {
++    ) -> Result<AttachedSession, BrowserRefusal> {
+         let attached = conn
+             .call(
+                 None,
+@@ -1276,7 +1313,7 @@ impl BrowserEngine {
+                     format!("cannot attach to tab target {cdp_target_id}: {e}"),
+                 )
+             })?;
+-        attached
++        let id = attached
+             .get("sessionId")
+             .and_then(Value::as_str)
+             .map(str::to_owned)
+@@ -1285,7 +1322,8 @@ impl BrowserEngine {
+                     BrowserRefusalCode::BrowserTabNotFound,
+                     format!("attach to {cdp_target_id} returned no sessionId"),
+                 )
+-            })
++            })?;
++        Ok(AttachedSession { connection: conn.clone(), id })
+     }
+ 
+     // ── Binding (get_browser_state, pid + window_id mode) ──────────────
+@@ -1745,7 +1783,7 @@ impl BrowserEngine {
+         // feedback is safer than drawing a cursor over another tab.
+         let tab_is_active = tab_visibility_proven(&validated.conn, &validated.cdp_session).await;
+ 
+-        let screen_point = if cdp_session == validated.cdp_session {
++        let screen_point = if cdp_session == validated.cdp_session.as_str() {
+             validated
+                 .conn
+                 .call(Some(cdp_session), "Page.getLayoutMetrics", json!({}))
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
 index d709315..33f41ca 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
@@ -152,7 +274,7 @@ index df04401..5db475b 100644
          if route == "dom_event" {
              let backend = backend_node_id.expect("checked above");
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-index d5f50d2..8d38d62 100644
+index d5f50d2..4842e1d 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 @@ -76,6 +76,7 @@ pub(super) struct FixtureState {
@@ -171,7 +293,15 @@ index d5f50d2..8d38d62 100644
              dom_click_changes_readback: true,
              dom_click_readback_available: true,
              dom_click_stall_after: None,
-@@ -711,6 +713,15 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -705,12 +707,23 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+                 }
+             }
+             "DOM.focus"
++            | "Page.enable"
++            | "Target.detachFromTarget"
+             | "Emulation.setFocusEmulationEnabled"
+             | "Input.dispatchMouseEvent"
+             | "Input.insertText" => MockReply::ok(json!({})),
              "DOM.resolveNode" => MockReply::ok(json!({
                  "object": { "objectId": format!("obj-{}", call.params["backendNodeId"]) }
              })),
@@ -187,7 +317,73 @@ index d5f50d2..8d38d62 100644
              "Runtime.callFunctionOn"
                  if call.params["functionDeclaration"]
                      .as_str()
-@@ -2755,6 +2766,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
+@@ -1880,6 +1893,65 @@ fn recorded_calls(f: &Fixture, method: &str) -> Vec<(Option<String>, Value)> {
+         .collect()
+ }
+ 
++#[tokio::test]
++async fn completed_browser_operations_release_their_parent_cdp_sessions() {
++    let f = fixture_with(|st| st.oopif_present = false).await;
++    let (target, tab) = bind(&f).await;
++    for _ in 0..3 {
++        let snap = semantic_snapshot(&f, &target, &tab).await;
++        assert_eq!(snap["status"], "ok", "{snap}");
++    }
++    let validated = f.engine.revalidate_for_mutation(SESSION, &target, Some(&tab))
++        .await.expect("valid exact tab");
++    let live_session = validated.cdp_session.clone();
++    // A failed independent operation must clean up its own attachment without
++    // releasing this still-live validation on the same tab and connection.
++    f.state.lock().unwrap().screenshot_data = "not-a-png".to_owned();
++    assert!(f.engine.capture_tab_screenshot(SESSION, &target, &tab).await.is_err());
++    assert!(!recorded_calls(&f, "Target.detachFromTarget").iter()
++        .any(|(_, params)| params["sessionId"] == live_session),
++        "a live operation must retain its attachment");
++    drop(validated);
++    let attached = f.state.lock().unwrap().tab_sessions;
++    tokio::time::timeout(std::time::Duration::from_secs(1), async {
++        loop {
++            let detached = recorded_calls(&f, "Target.detachFromTarget");
++            if (1..=attached).all(|id| detached.iter()
++                .any(|(parent, params)| parent.is_none() && params["sessionId"] == format!("tab-sess-{id}"))) {
++                break;
++            }
++            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
++        }
++    }).await.expect("completed observations and validations must release every parent CDP session");
++}
++
++#[tokio::test]
++async fn temporary_session_cleanup_preserves_the_dialog_event_observer() {
++    let f = fixture_with(|st| st.oopif_present = false).await;
++    let (target, tab) = bind(&f).await;
++    let inspected = super::tools::BrowserDialogTool::new(f.engine.clone()).invoke(json!({
++        "target_id": target, "tab_id": tab, "session": SESSION, "action": "inspect"
++    })).await;
++    assert_eq!(structured(&inspected)["status"], "ok");
++    let observer = recorded_calls(&f, "Page.enable").last().unwrap().0.clone().unwrap();
++    let snap = semantic_snapshot(&f, &target, &tab).await;
++    assert_eq!(snap["status"], "ok");
++    let attached = f.state.lock().unwrap().tab_sessions;
++    tokio::time::timeout(std::time::Duration::from_secs(1), async {
++        loop {
++            let detached = recorded_calls(&f, "Target.detachFromTarget");
++            if (1..=attached).filter(|id| format!("tab-sess-{id}") != observer)
++                .all(|id| detached.iter().any(|(parent, params)|
++                    parent.is_none() && params["sessionId"] == format!("tab-sess-{id}"))) {
++                assert!(!detached.iter().any(|(_, params)| params["sessionId"] == observer),
++                    "dialog events must keep arriving between operations");
++                break;
++            }
++            tokio::time::sleep(std::time::Duration::from_millis(5)).await;
++        }
++    }).await.expect("temporary sessions must be released while the observer stays attached");
++}
++
+ // ── Snapshot composition ─────────────────────────────────────────────────────
+ 
+ #[tokio::test]
+@@ -2755,6 +2827,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
      );
  }
  

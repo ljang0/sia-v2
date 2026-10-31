@@ -42,6 +42,14 @@ was rejected by that evaluator even for ordinary links, so the preflight uses a 
 walk instead. The side-effect restriction remains enabled. Temporary remote objects are released
 through the reviewed CDP method policy. These engine checks are not signed-app acceptance.
 
+Each operation now owns its temporary parent CDP attachment through input/readback and releases
+that exact session on completion or refusal. The one registered dialog-event observer per target
+is intentionally retained until its bounded browser connection closes. This also releases its child attachments without closing the
+shared browser socket or detaching another operation. A regression reproduced retained parent
+sessions before the fix and verifies cleanup while an independent validation remains live.
+The relation to observed navigation stalls is not established. Opt-in
+`SIA_CUA_CONSENT_DIAGNOSTICS` timeout logs contain only the CDP method, never parameters or page data.
+
 ## Build and inspect
 
 Install Rust through [rustup](https://rustup.rs) in addition to the normal Sia prerequisites.

@@ -5,9 +5,10 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 public project documents and a real admitted model; fake-service demos are separate.
 
 **Current evidence:** internal signed alpha.49 completed repeated research, native briefs, file
-organization, practical visitor planning and full reviewer packets. Universal notarized alpha.52
-saved a verified native brief but failed concurrent browser work. Alpha.53 fixes a click defect
-reproduced in real Chromium; full signed acceptance and navigation recovery remain open.
+organization, practical visitor planning and full reviewer packets. Universal notarized alpha.53
+delivered a background accordion click, but outing and dinner/grocery planning both stalled during
+browser navigation/read recovery. Alpha.54 fixes a proven CDP-session leak; full signed acceptance
+and the cause of the navigation stalls remain open.
 The linked evidence records exact versions, timing, recovered errors and remaining gates.
 
 ## Start here
