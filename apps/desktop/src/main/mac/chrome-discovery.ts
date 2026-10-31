@@ -123,10 +123,10 @@ export function browserAttachmentError(error: unknown): string {
     return 'Chrome could not distinguish that window from another open window. Choose a window showing a unique page, or close the duplicate and retry.';
   }
   if (message.includes('browser_reconnect_exhausted')) {
-    return 'Chrome is waiting for permission. Click Allow in the “Allow remote debugging?” prompt, then try again. This is a one-time Chrome security step.';
+    return 'Sia could not complete the Chrome connection. If Chrome shows “Allow remote debugging?”, review that prompt, then choose your window again. Your website action has not been replayed.';
   }
   if (message.includes('browser_wrong_target_refused')) {
-    return 'Chrome refused the connection. One-time fix: open chrome://inspect in Chrome, tick “Allow remote debugging” (port 9222), restart Chrome — after that Sia connects automatically. Or click Allow on Chrome’s prompt when it appears.';
+    return 'Sia could not verify the selected Chrome window or its connection prompt. Choose your intended window again, or report this connection problem if it persists.';
   }
   return message;
 }

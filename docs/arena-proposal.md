@@ -53,14 +53,14 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Alpha.40 is signed and notarized, with its exact-source local pilot gate and CI passing.
-It completed one real-source browser comparison in about two minutes while TextEdit remained
-active; the saved report, official links and preview were checked. Earlier alpha.38 runs produced
-five checked reviewer-packet/planning outputs concurrently. These are useful results, not general
-desktop reliability: alpha.40's Finder filing failed with multiple Finder windows open. Repeatability,
-parallel GUI control, clipboard preservation, clean macOS-account setup/provider retry, default
-Chrome recovery, and physical voice/lock/sleep acceptance remain open. Background browser new-tab
-creation is unsupported. Distribution remains blocked on these gates and the owner's release decision.
+Alpha.41 is signed and notarized, with its full local pilot gate and exact-source CI passing. It filed six real documents through Finder with matching destination hashes, but
+took 5m27s, recovered from six failed steps and changed the shared clipboard. Alpha.40 completed
+one sourced browser report while TextEdit stayed active; alpha.41 could not reconnect that approved
+window. Earlier alpha.38 runs produced five checked reviewer-packet/planning outputs concurrently.
+These results support a technical review, not a claim of general desktop readiness. Clipboard
+preservation, Chrome recovery, repeatability, parallel GUI control, clean macOS-account setup/provider
+retry, and physical voice/lock/sleep acceptance remain open. Background browser new-tab creation is
+unsupported. Distribution remains blocked on these gates and the owner's release decision.
 The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
 owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.
 

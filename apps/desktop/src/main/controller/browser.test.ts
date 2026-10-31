@@ -323,7 +323,7 @@ describe('DesktopController', () => {
     await controller.shutdown();
   });
 
-  it('explains Chrome-owned remote-debugging consent refusals', async () => {
+  it('explains wrong-target refusals without recommending broader access', async () => {
     const browserComputer = {
       ...computer,
       call: vi.fn(async (tool: string) => {
@@ -347,12 +347,12 @@ describe('DesktopController', () => {
 
     expect(snapshot.browser).toMatchObject({
       status: 'error',
-      detail: expect.stringMatching(/chrome:\/\/inspect.*Allow remote debugging/i),
+      detail: expect.stringMatching(/could not verify the selected Chrome window/i),
     });
     await controller.shutdown();
   });
 
-  it('explains the one-time Chrome permission when reconnect waits for consent', async () => {
+  it('explains reconnect failure without asserting a permission cause', async () => {
     const browserComputer = {
       ...computer,
       call: vi.fn(async (tool: string) => {
@@ -376,7 +376,9 @@ describe('DesktopController', () => {
 
     expect(snapshot.browser).toMatchObject({
       status: 'error',
-      detail: expect.stringMatching(/Click Allow.*one-time Chrome security step/i),
+      detail: expect.stringMatching(
+        /If Chrome shows.*Allow remote debugging.*review that prompt/i,
+      ),
     });
     expect(snapshot.browser.detail).not.toContain('browser_reconnect_exhausted');
     await controller.shutdown();
@@ -771,7 +773,7 @@ describe('connect Chrome and continue', () => {
         windowId: 7,
       });
       expect(result.browser.status).toBe('error');
-      expect(result.browser.detail).toContain('permission');
+      expect(result.browser.detail).toContain('could not complete the Chrome connection');
       expect(result.timeline.filter((item) => item.kind === 'user')).toHaveLength(1);
     } finally {
       await controller.shutdown();

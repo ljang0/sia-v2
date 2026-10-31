@@ -64,6 +64,75 @@ it('records content-free authorization diagnostics without retrying the native o
   }
 });
 
+it.each([
+  ['browser consent observation was truncated', 'consent_observation_incomplete'],
+  [
+    'multiple browser consent actions matched the requested decision',
+    'consent_identity_ambiguous',
+  ],
+  [
+    'Chrome remote-debugging consent did not settle for reconnect attempt 1',
+    'consent_not_settled',
+  ],
+  ['unknown proof failure', 'target_unverified'],
+])(
+  'classifies browser proof failure without exposing native content: %s',
+  async (message, hint) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const driver = {
+      ...successfulDriver({}),
+      callTool: vi.fn(async () => ({
+        errorCode: 'browser_wrong_target_refused',
+        rawJson: JSON.stringify({ message, resource: 'private-resource' }),
+      })),
+    };
+    const service = new CuaService(authorization(), { driverFactory: () => driver });
+    try {
+      await expect(service.call('browser_prepare', {}, directContext)).rejects.toThrow(
+        'CUA refused: browser_wrong_target_refused',
+      );
+      expect(driver.callTool).toHaveBeenCalledOnce();
+      expect(warn).toHaveBeenCalledExactlyOnceWith(
+        `[sia:cua-browser] native_refusal tool=browser_prepare hint=${hint}`,
+      );
+    } finally {
+      await service.shutdown();
+      warn.mockRestore();
+    }
+  },
+);
+
+it.each([
+  ['direct_capture_consent_required', 'direct_capture_consent_required'],
+  ['px_frame_mismatch', 'frame_mismatch'],
+  ['px_capture_unavailable', 'capture_unavailable'],
+  ['unspecified', 'image_missing'],
+])('preserves AX state and classifies an omitted screenshot: %s', async (code, hint) => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const value = {
+    elements: [{ role: 'AXButton', label: 'private-content' }],
+    screenshot_error: { code },
+  };
+  const driver = successfulDriver(value);
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    expect(
+      await service.call(
+        'get_window_state',
+        { pid: 42, window_id: 91, include_screenshot: true },
+        directContext,
+      ),
+    ).toEqual(value);
+    expect(driver.callTool).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      `[sia:cua-capture] screenshot_missing hint=${hint}`,
+    );
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
+});
+
 it.each(['invoke_menu', 'launch_app'])(
   'refuses unbounded %s before creating a driver in a background-only turn',
   async (tool) => {
@@ -641,6 +710,47 @@ describe('confirming granted access through the driver', () => {
       verified: 'failed',
       detail: expect.stringContaining('Your permissions have not been reset'),
     });
+  });
+
+  it('requires direct capture setup despite TCC grants and prompts only on an explicit request', async () => {
+    let allowed = false;
+    const { cua } = service(async (name) =>
+      name === 'list_windows'
+        ? { rawJson: JSON.stringify({ windows: [finderWindow] }) }
+        : allowed
+          ? { rawJson: '{}', images: [{ mimeType: 'image/png', dataBase64: 'iVBORw0KGgo=' }] }
+          : {
+              rawJson: JSON.stringify({
+                screenshot_error: {
+                  code: 'px_capture_unavailable',
+                  reason: 'direct_capture_consent_required: screen capture skipped.',
+                },
+              }),
+            },
+    );
+    try {
+      await expect(cua.permissions()).resolves.toMatchObject({
+        status: 'needs_permission',
+        accessibility: true,
+        screenRecording: true,
+        captureConsentRequired: true,
+      });
+      expect(permissionUi.getSources).not.toHaveBeenCalled();
+      expect(permissionUi.openExternal).not.toHaveBeenCalled();
+      permissionUi.getSources.mockImplementationOnce(async () => {
+        allowed = true;
+        return [];
+      });
+      await expect(cua.requestPermissions('screenRecording')).resolves.toMatchObject({
+        status: 'ready',
+        verified: 'confirmed',
+      });
+      expect(permissionUi.getSources).toHaveBeenCalledOnce();
+      expect(permissionUi.openExternal).not.toHaveBeenCalled();
+      expect(permissionUi.accessibility).not.toHaveBeenCalled();
+    } finally {
+      await cua.shutdown();
+    }
   });
 
   it('stays unconfirmed, not failed, when no other window is open', async () => {

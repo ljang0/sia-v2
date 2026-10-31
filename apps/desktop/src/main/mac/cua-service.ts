@@ -77,6 +77,8 @@ interface DriverLike {
   uniffiDestroy?: () => void;
 }
 
+type AccessVerification = 'confirmed' | 'unconfirmed' | 'failed' | 'needs_capture_consent';
+
 export type CorePermission = 'accessibility' | 'screenRecording';
 export interface CorePermissionStatus {
   accessibility: boolean;
@@ -163,9 +165,9 @@ export class CuaService {
   #permissionRequest: Promise<ComputerView> | undefined;
   #verification:
     | { result: 'confirmed' | 'unconfirmed' }
-    | { result: 'failed'; checkedAt: number }
+    | { result: 'failed' | 'needs_capture_consent'; checkedAt: number }
     | undefined;
-  #verifying: Promise<'confirmed' | 'unconfirmed' | 'failed'> | undefined;
+  #verifying: Promise<AccessVerification> | undefined;
   readonly #hostPid: number;
   readonly #verifyAccessEnabled: boolean;
   #callTail: Promise<void> = Promise.resolve();
@@ -232,6 +234,16 @@ export class CuaService {
           return { status: 'ready', accessibility, screenRecording };
         // The grants decide what Sia may attempt; the check only tells setup whether it works.
         const verified = await this.#verifyAccess();
+        if (verified === 'needs_capture_consent')
+          return {
+            status: 'needs_permission',
+            accessibility,
+            screenRecording,
+            captureConsentRequired: true,
+            verified: 'failed',
+            detail:
+              'Finish See your screen in Settings → Computer. macOS needs one more approval for Sia to capture app windows directly.',
+          };
         return {
           status: 'ready',
           accessibility,
@@ -283,11 +295,17 @@ export class CuaService {
 
   async #requestPermissions(permission?: CorePermission): Promise<ComputerView> {
     // An explicit request re-checks a failed functional check right away.
-    if (this.#verification?.result === 'failed') this.#verification = undefined;
+    if (
+      this.#verification?.result === 'failed' ||
+      this.#verification?.result === 'needs_capture_consent'
+    )
+      this.#verification = undefined;
     const current = await this.permissions();
     if (current.status === 'ready' || current.status === 'unavailable') return current;
     const missing = (name: CorePermission) =>
-      !current[name] && !current.relaunchFor?.includes(name);
+      (!current[name] ||
+        (name === 'screenRecording' && current.captureConsentRequired === true)) &&
+      !current.relaunchFor?.includes(name);
     const target = permission ?? (['accessibility', 'screenRecording'] as const).find(missing);
     if (this.#platform === 'darwin' && target && missing(target)) {
       const { systemPreferences, shell, desktopCapturer } = await import('electron');
@@ -311,6 +329,7 @@ export class CuaService {
             fetchWindowIcons: false,
           })
           .catch(() => undefined);
+        this.#verification = undefined;
         const after = await this.permissions();
         if (!after.screenRecording && !after.relaunchFor?.includes('screenRecording'))
           await shell.openExternal(
@@ -326,16 +345,22 @@ export class CuaService {
    * macOS can list a grant that the running process cannot use yet; this is what turns
    * "allowed" into "works". Nothing is stored or sent anywhere.
    */
-  #verifyAccess(): Promise<'confirmed' | 'unconfirmed' | 'failed'> {
+  #verifyAccess(): Promise<AccessVerification> {
     const cached = this.#verification;
     if (cached?.result === 'confirmed' || cached?.result === 'unconfirmed')
       return Promise.resolve(cached.result);
-    if (cached?.result === 'failed' && Date.now() - cached.checkedAt < 15_000)
-      return Promise.resolve('failed');
+    if (
+      cached &&
+      'checkedAt' in cached &&
+      Date.now() - cached.checkedAt < (cached.result === 'failed' ? 15_000 : 2_000)
+    )
+      return Promise.resolve(cached.result);
     this.#verifying ??= this.#runAccessCheck()
       .then((result) => {
         this.#verification =
-          result === 'failed' ? { result, checkedAt: Date.now() } : { result };
+          result === 'failed' || result === 'needs_capture_consent'
+            ? { result, checkedAt: Date.now() }
+            : { result };
         return result;
       })
       .finally(() => {
@@ -344,7 +369,7 @@ export class CuaService {
     return this.#verifying;
   }
 
-  async #runAccessCheck(): Promise<'confirmed' | 'unconfirmed' | 'failed'> {
+  async #runAccessCheck(): Promise<AccessVerification> {
     const context: CuaAuthorizationContext = { kind: 'direct_user', operation: 'access_check' };
     const signal = AbortSignal.timeout(10_000);
     try {
@@ -361,6 +386,18 @@ export class CuaService {
         context,
         signal,
       );
+      const value = isCuaCallResult(state) ? state.value : state;
+      if (typeof value === 'object' && value !== null && 'screenshot_error' in value) {
+        const error = value.screenshot_error;
+        if (
+          typeof error === 'object' &&
+          error !== null &&
+          'reason' in error &&
+          typeof error.reason === 'string' &&
+          error.reason.startsWith('direct_capture_consent_required:')
+        )
+          return 'needs_capture_consent';
+      }
       const images = isCuaCallResult(state) ? state.images.length : 0;
       const refused =
         typeof state === 'object' &&
@@ -495,6 +532,19 @@ export class CuaService {
         operation.signal,
       );
       if (result.errorCode) {
+        if (result.errorCode === 'browser_wrong_target_refused') {
+          // Classify known native proof failures without logging page/clipboard
+          // content, target identities, or the raw native error payload.
+          const raw = result.structuredJson ?? result.rawJson;
+          const hint = raw.includes('browser consent observation was truncated')
+            ? 'consent_observation_incomplete'
+            : /multiple.*consent|consent.*conflicting decisions/.test(raw)
+              ? 'consent_identity_ambiguous'
+              : raw.includes('consent did not settle')
+                ? 'consent_not_settled'
+                : 'target_unverified';
+          console.warn(`[sia:cua-browser] native_refusal tool=${tool} hint=${hint}`);
+        }
         if (result.errorCode === 'authorization_host_failed') {
           // Keep callback/transport diagnostics without recording resource identities,
           // URLs, request digests or the driver's potentially content-bearing message.
@@ -509,6 +559,23 @@ export class CuaService {
           );
         }
         throw new Error(`CUA refused: ${result.errorCode}`);
+      }
+      if (
+        tool === 'get_window_state' &&
+        args.include_screenshot === true &&
+        !result.images?.length
+      ) {
+        // A valid AX observation can omit an unprovable screenshot. Preserve the
+        // usable controls, but retain a content-free reason for live diagnostics.
+        const raw = result.structuredJson ?? result.rawJson;
+        const hint = raw.includes('direct_capture_consent_required')
+          ? 'direct_capture_consent_required'
+          : raw.includes('px_frame_mismatch')
+            ? 'frame_mismatch'
+            : raw.includes('px_capture_unavailable')
+              ? 'capture_unavailable'
+              : 'image_missing';
+        console.warn(`[sia:cua-capture] screenshot_missing hint=${hint}`);
       }
       const json = result.structuredJson ?? result.rawJson;
       let parsed: unknown;

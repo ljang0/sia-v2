@@ -197,4 +197,17 @@ Finder filing still failed after an operator-assisted resume. Navigation and fol
 worked, but exact-field rename and pixel typing did not. Six input files remained unchanged in
 Inbox and one empty untitled folder was left behind. The two requests overlapped, but their GUI
 input did not; do not present this as concurrent computer-use acceptance. Clipboard preservation
-and a second fresh-conversation run remain open. See [exact results](./public-release.md#alpha40-real-gui-results).
+and a second fresh-conversation run remain open. See [exact results](./public-release.md#prior-alpha40-browser-result).
+
+## Alpha.41 real filing and recovery
+
+Finder organized all six actual project deliverables into the requested 3/2/1 folders, left Inbox
+empty, and passed independent hash checks without a corrective prompt. TextEdit was confirmed
+active and foreground typing survived. The app reported 5m27s / 67 steps with six problem steps;
+do not call that fast or frictionless. Clipboard preservation failed: copying/moving in Finder
+replaced the canary with three filenames. A fresh run that forbade shared-clipboard commands stopped before filing: requested snapshots
+supplied no usable pixel targets, and all six input files remained unchanged.
+
+Browser research stopped before source reading. The inline connection control showed the picker,
+but the approved public window still failed after Chrome consent. There was no overlapping browser
+input and no research report. See [exact results](./public-release.md#alpha41-real-gui-results).

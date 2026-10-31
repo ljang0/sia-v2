@@ -370,6 +370,23 @@ it('does not restart or re-request live permissions because an available window 
   expect(onRestart).not.toHaveBeenCalled();
 });
 
+it('offers the direct capture approval step without reporting Mac access ready', async () => {
+  const { snapshot, api, complete, rerender } = setup();
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.verified = 'failed';
+  snapshot.computer.automation!.safari = 'ready';
+  rerender();
+  expect(screen.queryByText('Mac access is ready.')).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Allow all' }));
+  await waitFor(() =>
+    expect(api.requestComputerPermissions).toHaveBeenCalledExactlyOnceWith('screenRecording'),
+  );
+  expect(
+    screen.getByText(/Choose Allow if macOS asks whether Sia may capture your screen directly/),
+  ).toBeTruthy();
+  expect(complete).not.toHaveBeenCalled();
+});
+
 it('offers a relaunch fallback when a needed grant still reads as off after asking', async () => {
   const onRestart = vi.fn(async (_skipped: string[]) => {});
   const { snapshot } = setup(false, onRestart);
