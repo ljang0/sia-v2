@@ -589,7 +589,7 @@ export function Conversation({
       <Aurora
         className={layout.conversationAurora}
         pauseWhenUnfocused
-        still={Boolean(preview)}
+        still={Boolean(preview) || thread.events.length > 0}
       />
       {findOpen ? (
         <ConversationFind

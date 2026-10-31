@@ -53,12 +53,13 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Internal signed alpha.44 completed two file-organization runs with unchanged file hashes and two
-native TextEdit proposal edits with saved briefs. Public-source visitor plans completed after
-connection recovery; they are assisted successes. Browser session expiry prevented a clean repeat
-and interleaved native/browser execution. Alpha.45 source corrects the session-lifetime mismatch;
-exact signed-app acceptance is pending. Alpha.42 remains the latest notarized candidate, not an
-accepted distribution build.
+Internal signed alpha.44 completed two file-organization runs with unchanged hashes and two
+saved native proposal edits. Alpha.45 passed its full local automated gate. A signed diagnostic
+copy then completed a sourced visitor plan and a saved proposal brief with interleaved browser
+and native actions, without corrective task messages. That is one useful concurrent run, not
+repeatability or release acceptance: production Chrome setup failed three times, and conversation
+CPU remains excessive. Alpha.46 is addressing setup timing and decorative rendering cost.
+Alpha.42 remains the latest notarized candidate, not an accepted distribution build.
 
 Distribution remains blocked on repeatable useful workflows, simultaneous native/browser work,
 restart/reconnect behavior, responsiveness and the remaining clean-account and physical acceptance

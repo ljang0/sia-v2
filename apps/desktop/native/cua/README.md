@@ -16,7 +16,11 @@ native application surfaces once and omits the menu bar. Web content remains exc
 The approved window must still belong to the approved process; exact native-sheet identity,
 ambiguous-button rejection, truncation refusal and post-click disappearance checks remain.
 It does not grant macOS permissions, change Chrome's setting, expand browser scope, or
-remove the consent deadline. The initial engineering probe connected in 1.7 seconds;
+remove the consent deadline. The bounded attempt now allows eight seconds: a signed-app
+scan took 3.8 seconds before the exact action and another 2.0 seconds to confirm disappearance,
+leaving the original four-second cutoff too close to ordinary scan latency. Optional
+`SIA_CUA_CONSENT_DIAGNOSTICS=1` logs only scan timings, counts and booleans for QA.
+The initial engineering probe connected in 1.7 seconds;
 repeatability and exact release acceptance remain separate gates.
 
 ## Build and inspect

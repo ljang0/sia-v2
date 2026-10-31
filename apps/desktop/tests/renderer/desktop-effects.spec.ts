@@ -203,8 +203,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(transcript).toHaveCount(1);
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
     await expect(send).toBeVisible();
-    await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'dither');
-    await expect(page.locator('.dither-aurora-field canvas')).toBeVisible();
+    // Once work starts, keep the color without a continuously rendered backdrop.
+    await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'still');
+    await expect(page.locator('.dither-aurora-field canvas')).toHaveCount(0);
     await page.screenshot({ path: info.outputPath(`conversation-${colorScheme}.png`) });
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Voice', exact: true })).toBeVisible();
@@ -703,6 +704,21 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     } else {
       expect(motion.breath).not.toBe('none');
       expect(motion.ring).not.toBe('none');
+      await expect(page.locator('.dither-aurora-field canvas')).toHaveCount(0);
+      const paintedProperties = await page.evaluate(() =>
+        document
+          .getAnimations()
+          .filter((animation) => animation.effect?.getTiming().iterations === Infinity)
+          .flatMap((animation) =>
+            (animation.effect as KeyframeEffect).getKeyframes().flatMap(Object.keys),
+          )
+          .filter((property) =>
+            ['boxShadow', 'backgroundPosition', 'filter', 'backgroundColor', 'color'].includes(
+              property,
+            ),
+          ),
+      );
+      expect(paintedProperties).toEqual([]);
     }
   });
 }

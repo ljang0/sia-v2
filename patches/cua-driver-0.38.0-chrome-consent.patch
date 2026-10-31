@@ -39,7 +39,7 @@ index 681c636..a748f2c 100644
                  child,
                  0,
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
-index 82dac61..38dac27 100644
+index 82dac61..74d90b1 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
 @@ -1,7 +1,6 @@
@@ -50,7 +50,7 @@ index 82dac61..38dac27 100644
  
  use core_foundation::base::{CFRelease, CFTypeRef};
  use cua_driver_core::browser::{
-@@ -9,7 +8,7 @@ use cua_driver_core::browser::{
+@@ -9,9 +8,13 @@ use cua_driver_core::browser::{
  };
  
  use crate::ax::bindings::{kAXErrorSuccess, perform_action, AXUIElementRef};
@@ -58,8 +58,14 @@ index 82dac61..38dac27 100644
 +use crate::ax::tree::{walk_native_chrome_for_consent, AXNode, TreeWalkResult};
  
  const CONSENT_MAX_ELEMENTS: usize = 5_000;
++// A complete same-process AX scan can take nearly four seconds on a loaded Mac.
++// Allow the exact prompt action and its disappearance check within one bounded
++// attempt; keep all identity, truncation and ambiguity refusals unchanged.
++const CONSENT_TIMEOUT: Duration = Duration::from_secs(8);
  
-@@ -42,27 +41,15 @@ fn release_actionable_nodes(nodes: &[AXNode]) {
+ fn refusal(code: BrowserRefusalCode, message: impl Into<String>) -> BrowserRefusal {
+     BrowserRefusal::new(code, message)
+@@ -42,27 +45,15 @@ fn release_actionable_nodes(nodes: &[AXNode]) {
      }
  }
  
@@ -96,7 +102,7 @@ index 82dac61..38dac27 100644
  }
  
  pub(super) const CHINESE_PROMPT: &str = "要允许远程调试吗？";
-@@ -207,14 +194,14 @@ impl Drop for ConsentTrees {
+@@ -207,14 +198,14 @@ impl Drop for ConsentTrees {
  }
  
  fn read_consent_trees(pid: i32, window_id: u32) -> Result<ConsentTrees, BrowserRefusal> {
@@ -118,7 +124,38 @@ index 82dac61..38dac27 100644
      Ok(trees)
  }
  
-@@ -506,37 +493,21 @@ mod tests {
+@@ -310,10 +301,12 @@ pub async fn handle(
+             "the approved browser window is outside the macOS window-id range",
+         )
+     })?;
+-    let deadline = Instant::now() + Duration::from_secs(4);
++    let started = Instant::now();
++    let deadline = started + CONSENT_TIMEOUT;
+     let mut saw_prompt = false;
+     let mut accepted_prompt = false;
+     loop {
++        let scan_started = Instant::now();
+         let trees = tokio::task::spawn_blocking(move || read_consent_trees(pid, window_id))
+             .await
+             .map_err(|error| {
+@@ -326,6 +319,16 @@ pub async fn handle(
+             .0
+             .iter()
+             .any(|nodes| remote_debugging_sheet_present(nodes));
++        if std::env::var_os("SIA_CUA_CONSENT_DIAGNOSTICS").is_some() {
++            eprintln!(
++                "[sia:cua-consent] scan_ms={} nodes={} prompt_present={} accepted_prompt={} elapsed_ms={}",
++                scan_started.elapsed().as_millis(),
++                trees.0.iter().map(Vec::len).sum::<usize>(),
++                prompt_present,
++                accepted_prompt,
++                started.elapsed().as_millis(),
++            );
++        }
+         saw_prompt |= prompt_present;
+         if let Some(outcome) = settled_after_scan(
+             accepted_prompt,
+@@ -506,37 +509,21 @@ mod tests {
      }
  
      #[test]
