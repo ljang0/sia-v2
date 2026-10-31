@@ -9,7 +9,7 @@ No new artifacts were published or invitations sent; the last published Mac pilo
 
 ## Internal alpha.44 QA candidate
 
-The current QA app is an **arm64 Developer ID signed internal build, not notarized or accepted
+The alpha.44 QA app is an **arm64 Developer ID signed internal build, not notarized or accepted
 for distribution**, from `9338a1b8824cca6751333b9b0149bc2b70025f63`.
 App.asar SHA-256: `f799b6a4bd0323f37556cdf0324fbef447b4164ce8eb44ce272fe51bf01fc898`.
 Strict signatures, package/runtime, SDK provenance and license checks passed. Profile/history
@@ -47,18 +47,34 @@ one-second observation target or establish pure UI latency. Settings clicks retu
 Exact private prompts, trajectories, timings, hashes, screenshots and interventions are retained
 in `alpha44-artifacts/real-work`.
 
-### Alpha.45 source correction under test
+### Alpha.45 signed QA result
+
+Internal arm64 Developer ID signed alpha.45 is built from
+`a5e1705464290318999d06e4d953fbcaaaac104c`; it is **not notarized or accepted for distribution**.
+App.asar SHA-256: `5cf64c97236c01dec3468ddb2fb85ec46c2650f0bb6496fa392a10d08e1c14a6`.
+Strict signatures, package/runtime, SDK provenance and license checks passed; profile/history
+survived without a Keychain prompt. The full local pilot gate passed: 1,827 desktop unit,
+46 Electron, 33 renderer, 72 phone-browser and 73 gateway tests.
 
 The browser repeat exposed the native implicit session's five-minute idle expiry. Sia configured
 a fifteen-minute host idle limit but never created a host lease, so that limit did not apply.
-The source now declares a Standard-mode browser lease through the supported SDK, only during
-explicit connection setup. It retains the fifteen-minute idle/eight-hour absolute bounds; expiry,
+Alpha.45 declares a Standard-mode browser lease through the supported SDK, only during explicit
+connection setup. It retains the fifteen-minute idle/eight-hour absolute bounds; expiry,
 revocation and app restart still require connection recovery. It does not poll pages or revive
 expired authority. A real-runtime lifecycle/revocation probe and 89 focused tests passed.
-The result preview also pauses covered shell animations, including presence pulses, which otherwise
-keep repainting its full-window blur. A renderer regression confirms covered motion stops and
-resumes on close. Live CPU must be remeasured on the new package. Full gates and exact signed-app
-acceptance remain pending. The session fix does not solve restart recovery.
+
+**Live Chrome setup failed three times**, each with `consent_not_settled`, before any model task.
+The operator accepted the exact pending native Chrome prompt after the second failure; the next
+attempt still failed and left another prompt visible. Only the designated public museum window
+was selected. The complete connection flow and useful browser/native concurrency remain blocked;
+the lifecycle probe does not establish them. Native consent timing is being diagnosed separately.
+
+The result preview now pauses covered shell animations, including presence pulses. A renderer
+regression verifies pause, resume and composer usability. On the installed alpha.45 app, eleven
+one-second samples after discarding the first showed GPU median/max 0.0%/0.0% and renderer
+median/max 0.0%/2.2%, versus alpha.44's 28.3%/30.3% and 7.8%/8.1%. These are short process-CPU
+spot checks, with the automated gate running during alpha.45 sampling, not a controlled battery
+or latency benchmark. Private evidence is in `alpha45-artifacts/real-work`.
 
 Earlier alpha.43 results and failed Finder/file-tool attempts remain in
 [the previous record](https://github.com/ljang0/sia-v2/blob/092006d/docs/public-release.md).

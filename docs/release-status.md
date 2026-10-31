@@ -28,7 +28,7 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.44 production source plus test-only `092006d` passed full local pilot and CI gates, including unsigned universal packaging. | Alpha.45 session-lifetime fix needs its full gate and signed-app acceptance. |
+| Source | Alpha.44 production source plus test-only `092006d` passed full local pilot and CI gates, including unsigned universal packaging. | Alpha.45 full local gate passed; live Chrome setup failed before model work. |
 | Signed Mac package | Alpha.42 from `c50782a873455719ee12bc931248aa0ad4f5c1fd` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Live acceptance is failing; signature success is not product readiness. |
 | Signed app continuity | Alpha.42 retained the QA profile, settings and history without a new Keychain prompt. | Physical and clean-account acceptance. |
 | Everyday usefulness | Alpha.44: two file-organization repeats with all six hashes intact; two saved native proposal briefs; typing and clipboard preserved during filing. | Second native run had a final scroll refusal. Browser recovery prevented concurrent GUI acceptance. Repeat on the final candidate. |
@@ -49,13 +49,17 @@ scroll limitation in the repeat. The exact hashes and qualifications are in [art
 Both browser planning attempts needed recovery. The second exposed a five-minute native implicit
 session lifetime despite Sia's fifteen-minute host configuration. Alpha.45 source creates a
 Standard-mode host lease during explicit connection setup, retaining expiry and revocation.
-A real native-runtime probe confirmed the declared lifetime and terminal revocation; full source
-and signed-app gates remain pending. This does not establish restart persistence.
+A real native-runtime probe confirmed the declared lifetime and terminal revocation. The full
+alpha.45 local pilot gate passed, but three signed-app Chrome setup attempts failed with
+`consent_not_settled`; accepting the pending Chrome prompt did not repair the next attempt.
+Native consent timing is under diagnosis. This does not establish restart persistence.
 
 Browser/native task lifetimes overlapped, but successful GUI actions did not interleave. Ten
 thread switches during filing measured 1,335 ms median / 2,345 ms worst including CUA observation;
 this misses the one-second observation target and is not a pure paint-latency measurement.
-Cancellation isolation, same-window contention and preview CPU still need current-candidate checks.
+Cancellation isolation and same-window contention still need current-candidate checks. Alpha.45
+preview CPU spot checks improved to GPU median 0.0% and renderer median 0.0%, with covered
+animation pause/resume verified; see the qualified measurements in the artifact record.
 
 Default Mac setup includes Chrome with a deliberate opt-out. **Connect Chrome & continue**
 preserves the saved request. macOS and Chrome still own permission decisions; no program can
