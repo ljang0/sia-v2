@@ -1,6 +1,6 @@
 # Release status
 
-Updated October 31, 2026. **Distribution is not ready.** Alpha.47 is signed and notarized.
+Updated October 31, 2026. **Distribution is not ready.** Alpha.48 is signed and notarized, but live browser research failed.
 Internal signed alpha.46 completed concurrent public research and native proposal editing, plus
 verified filing. Final-candidate repeats, restart recovery and physical acceptance remain open.
 The last published Mac pilot is alpha.24; no new invitations or public download have been authorized.
@@ -28,9 +28,9 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.46 `6a2356b` passed the complete local pilot and CI gates, including unsigned universal packaging. | Alpha.48 full gate and exact-source CI. |
-| Signed Mac package | Alpha.47 from `61b3aacecc132ec4f3897c257d2e3b7445451a81` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Build and accept the final candidate; signature success is not product readiness. |
-| Signed app continuity | Alpha.47 retained the QA profile, settings and history without a new Keychain prompt. | Physical and clean-account acceptance. |
+| Source | Alpha.46 `6a2356b` passed the complete local pilot and CI gates, including unsigned universal packaging. | Alpha.49 exact-source CI and signed live acceptance; complete alpha.49 local gate passed. |
+| Signed Mac package | Alpha.48 from `d07060a6a8edf469905f30b21698282dbe808dfd` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Build and accept the final candidate; signature success is not product readiness. |
+| Signed app continuity | Alpha.48 retained the QA profile, settings and history without a new Keychain prompt. | Physical and clean-account acceptance. |
 | Everyday usefulness | Alpha.46: sourced plan and native brief with interleaved GUI actions; six-file packet with unchanged hashes. | Repeat, cancellation isolation and same-window contention on the final candidate. |
 | Browser | Alpha.46 connected three times and completed sourced planning; diagnostic alpha.45 survived 343.590 seconds idle. | Restart recovery and expiry UX on final candidate. Background new-tab creation remains unsupported. |
 | New recipient | Alpha.36 with an empty app profile showed only email sign-in, with no private app content. | Clean macOS-account signup, permissions, provider login cancel/retry, lock/sleep and voice acceptance. An empty profile is not a clean OS account; no fresh account or second Mac is currently available. |
@@ -47,8 +47,16 @@ live connection attempts succeeded; a sourced visitor plan and saved native prop
 with interleaved actions. Filing six actual project documents preserved every hash. The complete
 alpha.46 local pilot gate passed. Alpha.47 passed its full local gate and universal notarization, but live restart recovery still
 needed operator continuation because Chrome remained foreground. Alpha.48 returns to Sia after
-explicit setup before resuming, and corrects the remaining progress copy; its full gate and signed
-acceptance are pending.
+explicit setup before resuming, and corrects the remaining progress copy. Its complete local gate and universal notarization passed.
+Live explicit setup returned to Sia and resumed automatically; native editing saved a faithful
+343-word brief while foreground typing and the clipboard survived. Browser navigation then lost
+its acknowledgement and origin/access checking failed, twice including an assisted continuation.
+The same public page also briefly stopped answering independent CUA reads. Root cause is unproven.
+A waiting browser task sent no input and cancelled execution in 202 ms, but the cancellation notice
+took 30.112 seconds. Alpha.49 removes that provider-reply delay from Stop and deduplicates native
+interruptions; it adds content-free browser transport/origin diagnostics. The complete alpha.49
+local gate passed (1,832 desktop units, 46 Electron, 33 renderer, 72 phone-web); exact-source CI
+and signed live checks remain pending. This is not a current-candidate concurrency or research pass.
 
 Ten switches during filing measured median 815 ms / worst 1,068 ms including CUA observation.
 GPU load improved in short spot checks, but working renderer CPU remains elevated; task conditions

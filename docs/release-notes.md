@@ -1,4 +1,8 @@
-# Sia 0.1.0-alpha.48
+# Sia 0.1.0-alpha.49
+
+Stop now acknowledges local cancellation without waiting for a slow provider reply. Queued follow-ups
+are removed immediately; the old task retains its workspace/window locks until cleanup finishes.
+Repeated cancellation signals share one provider interruption. Live signed-app verification is pending.
 
 Explicit Chrome setup now returns to the existing Sia window before a saved task resumes, avoiding
 an immediate background-input pause when setup left Chrome in front. Automatic attachment and

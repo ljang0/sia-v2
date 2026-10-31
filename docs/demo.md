@@ -4,15 +4,12 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
 public project documents and a real admitted model; fake-service demos are separate.
 
-**Current evidence:** notarized alpha.47 saved a sourced control-tool comparison and native brief,
-but its restart recovery needed operator continuation; alpha.48 is addressing that interruption.
-Earlier internal signed alpha.46 completed public-source planning and a native
-proposal brief with interleaved browser/TextEdit actions and no corrective messages. It also filed
-six actual project documents with unchanged hashes. Three Chrome connections succeeded; ten thread
-switches during filing took median 815 ms / worst 1,068 ms including observation. Final-candidate
-repeats, cancellation/contention, restart recovery and physical acceptance remain open. Working
-renderer CPU and this Mac's failing keep-awake assertions are recorded limitations. See
-[the exact record](./public-release.md); useful rehearsals do not establish broad desktop readiness.
+**Current evidence:** notarized alpha.48 returned to Sia after Chrome setup and automatically
+resumed research. Native proposal editing saved a verified 343-word brief; the foreground draft
+and clipboard were preserved. Browser navigation then stalled twice and the research did not
+complete. Cancellation stopped execution in 202 ms but the visible notice took 30.112 seconds;
+alpha.49 addresses that delay. Earlier alpha.46 completed interleaved browser/native work and
+verified filing. These are version-specific observations, not final release acceptance.
 
 ## Start here
 

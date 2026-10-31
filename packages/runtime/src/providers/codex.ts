@@ -560,12 +560,15 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   }
 
   async #interrupt(active: ActiveTurn, nativeTurnId: string): Promise<void> {
-    const peer = await this.#peer();
-    await peer.request(
-      'turn/interrupt',
-      { threadId: active.session.nativeId, turnId: nativeTurnId },
-      { timeoutMs: this.#timeout },
-    );
+    active.interruption ??= (async () => {
+      const peer = await this.#peer();
+      await peer.request(
+        'turn/interrupt',
+        { threadId: active.session.nativeId, turnId: nativeTurnId },
+        { timeoutMs: this.#timeout },
+      );
+    })();
+    await active.interruption;
   }
 
   #learnNativeTurnId(active: ActiveTurn, nativeTurnId: string): void {

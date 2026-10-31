@@ -125,29 +125,39 @@ it('preserves partial drag delivery instead of claiming no input was sent', asyn
   }
 });
 
-it('records content-free authorization diagnostics without retrying the native operation', async () => {
-  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-  const driver = {
-    ...successfulDriver({}),
-    callTool: vi.fn(async () => ({
-      errorCode: 'authorization_host_failed',
-      rawJson: JSON.stringify({ message: 'request timed out', resource: 'private-resource' }),
-    })),
-  };
-  const service = new CuaService(authorization(), { driverFactory: () => driver });
-  try {
-    await expect(service.call('get_browser_state', {}, directContext)).rejects.toThrow(
-      'CUA refused: authorization_host_failed',
-    );
-    expect(driver.callTool).toHaveBeenCalledOnce();
-    expect(warn).toHaveBeenCalledExactlyOnceWith(
-      '[sia:cua-authorization] native_refusal tool=get_browser_state hint=request_timeout callback_started=0 callback_completed=0',
-    );
-  } finally {
-    await service.shutdown();
-    warn.mockRestore();
-  }
-});
+it.each([
+  ['request timed out', 'request_timeout'],
+  [
+    'could not prove the live top-level browser document: CDP Page.getFrameTree timed out after 20s',
+    'browser_transport_timeout',
+  ],
+  ['browser observation did not attest a live top-level origin', 'browser_origin_unavailable'],
+])(
+  'records content-free authorization diagnostics without retrying: %s',
+  async (message, hint) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const driver = {
+      ...successfulDriver({}),
+      callTool: vi.fn(async () => ({
+        errorCode: 'authorization_host_failed',
+        rawJson: JSON.stringify({ message, resource: 'private-resource' }),
+      })),
+    };
+    const service = new CuaService(authorization(), { driverFactory: () => driver });
+    try {
+      await expect(service.call('get_browser_state', {}, directContext)).rejects.toThrow(
+        'CUA refused: authorization_host_failed',
+      );
+      expect(driver.callTool).toHaveBeenCalledOnce();
+      expect(warn).toHaveBeenCalledExactlyOnceWith(
+        `[sia:cua-authorization] native_refusal tool=get_browser_state hint=${hint} callback_started=0 callback_completed=0`,
+      );
+    } finally {
+      await service.shutdown();
+      warn.mockRestore();
+    }
+  },
+);
 
 it.each([
   ['browser consent observation was truncated', 'consent_observation_incomplete'],
@@ -610,6 +620,32 @@ it.each(['get_window_state', 'list_windows'])(
     }
   },
 );
+
+it('records a browser transport timeout without leaking page content or retrying input', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const driver = successfulDriver({
+    isError: true,
+    content: [
+      {
+        type: 'text',
+        text: 'Page.navigate failed: CDP Page.navigate timed out after 20s; private-page',
+      },
+    ],
+  });
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(service.call('browser_navigate', {}, directContext)).rejects.toThrow(
+      'CUA tool browser_navigate failed without a structured result.',
+    );
+    expect(driver.callTool).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      '[sia:cua-browser] native_error tool=browser_navigate hint=browser_transport_timeout',
+    );
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
+});
 
 it.each(['unchanged', 'changed', 'unknown'])(
   'preserves input uncertainty and the focus check after an MCP error: %s',

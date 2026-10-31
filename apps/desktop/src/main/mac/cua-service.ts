@@ -591,11 +591,15 @@ export class CuaService {
           // Keep callback/transport diagnostics without recording resource identities,
           // URLs, request digests or the driver's potentially content-bearing message.
           const raw = result.structuredJson ?? result.rawJson;
-          const hint = raw.includes('request timed out')
-            ? 'request_timeout'
-            : /denied in (?:standard|bounded) mode/.test(raw)
-              ? 'mode_denied'
-              : 'unspecified';
+          const hint = /CDP [A-Za-z.]+ timed out/.test(raw)
+            ? 'browser_transport_timeout'
+            : raw.includes('live top-level')
+              ? 'browser_origin_unavailable'
+              : raw.includes('request timed out')
+                ? 'request_timeout'
+                : /denied in (?:standard|bounded) mode/.test(raw)
+                  ? 'mode_denied'
+                  : 'unspecified';
           console.warn(
             `[sia:cua-authorization] native_refusal tool=${tool} hint=${hint} callback_started=${this.#authorizationProgress.started} callback_completed=${this.#authorizationProgress.completed}`,
           );
@@ -636,6 +640,11 @@ export class CuaService {
       // Some driver failures use an MCP envelope instead of errorCode. Its text
       // can contain app content, so never release it as an observation or error.
       const nativeToolError = isNativeToolError(parsed);
+      if (nativeToolError && tool.startsWith('browser_')) {
+        console.warn(
+          `[sia:cua-browser] native_error tool=${tool} hint=${/CDP [A-Za-z.]+ timed out/.test(json) ? 'browser_transport_timeout' : 'unspecified'}`,
+        );
+      }
       if (nativeToolError) parsed = { native_tool_error: true };
       if (protectDesktop) {
         const foreground = await this.#foregroundPid(driver, operation.signal);

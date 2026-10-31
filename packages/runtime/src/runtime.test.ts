@@ -3046,6 +3046,65 @@ describe('Codex turn resilience', () => {
     }
   });
 
+  it('shares a pending interruption between abort and repeated explicit Stop', async () => {
+    const interrupted = Promise.withResolvers<void>();
+    const reply = Promise.withResolvers<unknown>();
+    const interrupts: unknown[] = [];
+    let server!: ReturnType<typeof linkedPeers>;
+    const peers = codexServer(
+      async (p) => {
+        server = p;
+        return { turn: { id: 'native-turn' } };
+      },
+      async (params) => {
+        interrupts.push(params);
+        interrupted.resolve();
+        return await reply.promise;
+      },
+    );
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      const session = await adapter.createSession(sessionOptions);
+      const controller = new AbortController();
+      const finished = (async () => {
+        for await (const _event of adapter.sendTurn(
+          session,
+          { turnId: 't1', text: 'hi' },
+          controller.signal,
+        )) {
+          /* drain the provider stream */
+        }
+      })();
+      // A Stop before the start reply must still be delivered once the id arrives.
+      controller.abort();
+      await interrupted.promise;
+      const repeatedStops = Promise.all([
+        adapter.cancelTurn(session, 't1'),
+        adapter.cancelTurn(session, 't1'),
+      ]);
+      reply.resolve({});
+      await repeatedStops;
+      expect(interrupts).toEqual([{ threadId: 'native-thread', turnId: 'native-turn' }]);
+      await server.server.notify('turn/completed', {
+        threadId: 'native-thread',
+        turn: { id: 'native-turn', status: 'interrupted' },
+      });
+      await finished;
+    } finally {
+      reply.resolve({});
+      await adapter.dispose();
+    }
+  });
+
   it('unsubscribes and forgets a closed session', async () => {
     const unsubscribed: unknown[] = [];
     const peers = codexServer(
