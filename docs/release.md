@@ -12,6 +12,12 @@ Named research, privacy, security, support, and release approval is recorded in
 
 Local CI intentionally builds an unsigned universal `.app` only to exercise both native architectures. That artifact is not distributable and must never be presented as signed or notarized.
 
+For internal Developer ID QA builds, `verify-packaged-app.mjs --arch=arm64
+--signing=signed-qa --output=release-qa43` checks the package, runtime, pinned identity and
+strict signature without claiming notarization. This does not replace the `--signing=release`
+gate, which also requires notarized app and DMG artifacts. The voice helper is always universal,
+including in a single-architecture QA app.
+
 Build release artifacts from a checkout outside iCloud Drive or another File Provider-managed
 folder. A managed Documents directory can recreate Finder metadata while Apple signs an app, even
 after cleanup. The staging hook removes Finder/resource-fork metadata but does not disable sync or

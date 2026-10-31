@@ -20,10 +20,10 @@ if (
   !requestedArch ||
   !['arm64', 'x64', 'universal'].includes(requestedArch) ||
   !signingMode ||
-  !['unsigned', 'release'].includes(signingMode)
+  !['unsigned', 'signed-qa', 'release'].includes(signingMode)
 ) {
   throw new Error(
-    'Usage: verify-packaged-app.mjs --arch=arm64|x64|universal --signing=unsigned|release [--output=directory]',
+    'Usage: verify-packaged-app.mjs --arch=arm64|x64|universal --signing=unsigned|signed-qa|release [--output=directory]',
   );
 }
 
@@ -106,9 +106,10 @@ await verifyLicenseResources();
 
 const executableArchitectures =
   requestedArch === 'universal' ? ['arm64', 'x86_64'] : [toLipoArch(requestedArch)];
+// The voice build always emits a universal helper, including in single-arch QA apps.
+verifyMachOArchitectures(voiceHelperPath, ['arm64', 'x86_64']);
 for (const binaryPath of [
   executablePath,
-  voiceHelperPath,
   join(
     contentsPath,
     'Frameworks',
@@ -287,9 +288,12 @@ if (requestedArch === 'universal' || requestedArch === process.arch) {
 }
 
 if (signingMode === 'release') verifyReleaseSignature();
+else if (signingMode === 'signed-qa') verifyDeveloperSignature();
 else verifyNotReleaseSigned();
 
 console.log(`Verified ${signingMode} packaged Sia app: ${appPath}`);
+if (signingMode === 'signed-qa')
+  console.log('Internal QA only: notarization and distribution artifacts were not verified.');
 
 async function requirePath(path) {
   try {
@@ -566,7 +570,7 @@ function validateUpdateConfiguration(value) {
   }
 }
 
-function verifyReleaseSignature() {
+function verifyDeveloperSignature() {
   runSystem('/usr/bin/codesign', ['--verify', '--deep', '--strict', '--verbose=2', appPath]);
   const details = runSystem('/usr/bin/codesign', ['-dv', '--verbose=4', appPath], true);
   const output = `${details.stdout}\n${details.stderr}`;
@@ -585,6 +589,10 @@ function verifyReleaseSignature() {
   });
   if (readPlistRaw('CFBundleShortVersionString') !== desktopPackage.version)
     throw new Error('Packaged version does not match the release source.');
+}
+
+function verifyReleaseSignature() {
+  verifyDeveloperSignature();
   runSystem('/usr/sbin/spctl', ['--assess', '--type', 'execute', '--verbose=4', appPath]);
   runSystem('/usr/bin/xcrun', ['stapler', 'validate', appPath]);
 
