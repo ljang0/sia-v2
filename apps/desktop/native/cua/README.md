@@ -58,8 +58,11 @@ The staged vision-only host route uses screenshot coordinates for pointer input 
 It checks the current caret before and after focus emulation, refuses protected or unproven fields,
 inserts text once and restores focus emulation even after uncertain delivery. Visual capture
 checks its protection snapshot document identity before and after the image. The host forwards
-a hash of live frame/loader identities with input; reloads at the same URL revoke it, including
-reloads triggered by focus emulation. This token never reaches model responses. Its host-only check
+a hash of live frame/loader identities and CSS viewport state with input. Same-URL reloads,
+scrolling, resizing, pan and zoom changes revoke it, including changes during focus emulation.
+Capture also rechecks the viewport after the image and returns no image if it changed. Missing or
+invalid viewport metadata refuses input; optional zoom metadata remains explicitly absent when
+Chrome does not report it. This token never reaches model responses. Its host-only check
 returns a boolean, never field contents or an element target. Browser keyboard commands are still
 pending; this mode accepts text only.
 

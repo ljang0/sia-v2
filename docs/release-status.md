@@ -36,15 +36,17 @@ and targets, skip text/OCR helpers, reject semantic input and revoke stale/faile
 The background browser now has staged image-only responses, verified screenshot-to-viewport
 coordinates, pointer delivery and text insertion into a visually focused field. It rechecks page
 protection before input and refuses stale/mismatched images or unknown delivery without replay.
-A host-only document token binds capture and input to the live frame/loader identities, including
-same-URL reloads and reloads triggered by focus emulation. Capture checks its protection snapshot
-identity before and after the image; no identity token or semantic content is exposed to the model.
+A host-only token binds capture and input to the live frame/loader identities and CSS viewport
+state (scroll position, pan offsets, size, scale and reported zoom). Reloads, including same-URL
+reloads, and viewport changes before input or during focus emulation revoke the old image. Capture
+checks its protection snapshot identity and viewport before and after the image; no identity token
+or semantic content is exposed to the model.
 Host-side DOM inspection remains for protection and new-tab guards; it supplies no model targets.
 Browser keyboard commands are not migrated yet. Semantic snapshot traversal also remains internally,
 so this change does not establish latency improvement. This option is **not enabled in the shipping
-host yet**: browser keyboard support, viewport scroll/zoom revalidation, bounded capture/protection
-timing, foreground runtime/tool isolation, model schemas and prompts, all-route regression checks
-and signed real-task acceptance must land before cutover.
+host yet**: browser keyboard support, bounded capture/protection timing, foreground runtime/tool
+isolation, model schemas and prompts, all-route regression checks and signed real-task acceptance
+must land before cutover.
 The current staged implementation passed `pnpm test:pilot`: build, formatting, lint, quality,
 types, native/shared checks, 1,899 desktop tests, 46 desktop end-to-end tests, 36 renderer tests
 and 72 Chromium/WebKit phone tests. These automated transport/authorization and UI checks are not

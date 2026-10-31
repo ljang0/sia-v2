@@ -61,7 +61,7 @@ index c401f20..045b28f 100644
  
      #[tokio::test]
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
-index 1d0940c..aff8061 100644
+index 1d0940c..bf5305e 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
 @@ -247,6 +247,43 @@ fn endpoint_access_class(
@@ -125,7 +125,39 @@ index 1d0940c..aff8061 100644
      pub data_base64: String,
      pub width: u32,
      pub height: u32,
-@@ -551,6 +589,13 @@ pub(crate) struct LocalFrameTree {
+@@ -515,6 +553,31 @@ fn browser_screenshot_viewport(
+     })
+ }
+ 
++/// Bind the image to CSS viewport state as well as the document. The token remains
++/// host-only: it exposes neither page content nor coordinates to the model.
++fn visual_observation_token(document: &str, metrics: &Value) -> Result<String, BrowserRefusal> {
++    let viewport = metrics.get("cssVisualViewport").ok_or_else(|| {
++        refuse(BrowserRefusalCode::BrowserRefStale, "CSS viewport state could not be proven; capture a fresh screenshot")
++    })?;
++    let mut values = Vec::new();
++    for field in ["pageX", "pageY", "offsetX", "offsetY", "clientWidth", "clientHeight", "scale", "zoom"] {
++        // CDP marks zoom optional. Absence is recorded, never guessed as 1.
++        if field == "zoom" && viewport.get(field).is_none() {
++            values.push(None);
++            continue;
++        }
++        let value = viewport.get(field).and_then(Value::as_f64)
++            .filter(|v| v.is_finite())
++            .ok_or_else(|| refuse(BrowserRefusalCode::BrowserRefStale, "CSS viewport state is incomplete; capture a fresh screenshot"))?;
++        if matches!(field, "clientWidth" | "clientHeight" | "scale" | "zoom") && value <= 0.0 {
++            return Err(refuse(BrowserRefusalCode::BrowserRefStale, "CSS viewport geometry is invalid; capture a fresh screenshot"));
++        }
++        values.push(Some(value));
++    }
++    let encoded = serde_json::to_vec(&(document, values)).expect("finite viewport values serialize");
++    Ok(format!("{:x}", Sha256::digest(encoded)))
++}
++
+ /// Whether OOPIF content could be composed into the snapshot.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+ pub(crate) enum OopifStatus {
+@@ -551,6 +614,13 @@ pub(crate) struct LocalFrameTree {
  }
  
  impl LocalFrameTree {
@@ -139,7 +171,7 @@ index 1d0940c..aff8061 100644
      fn main_identity(&self) -> FrameIdentity {
          FrameIdentity {
              frame_id: self.main_frame_id.clone(),
-@@ -1260,9 +1305,9 @@ impl BrowserEngine {
+@@ -1260,9 +1330,9 @@ impl BrowserEngine {
      /// Attach (flattened) to a tab's target and return the CDP session id.
      async fn attach(
          &self,
@@ -151,7 +183,7 @@ index 1d0940c..aff8061 100644
          let attached = conn
              .call(
                  None,
-@@ -1276,7 +1321,7 @@ impl BrowserEngine {
+@@ -1276,7 +1346,7 @@ impl BrowserEngine {
                      format!("cannot attach to tab target {cdp_target_id}: {e}"),
                  )
              })?;
@@ -160,7 +192,7 @@ index 1d0940c..aff8061 100644
              .get("sessionId")
              .and_then(Value::as_str)
              .map(str::to_owned)
-@@ -1285,7 +1330,8 @@ impl BrowserEngine {
+@@ -1285,7 +1355,8 @@ impl BrowserEngine {
                      BrowserRefusalCode::BrowserTabNotFound,
                      format!("attach to {cdp_target_id} returned no sessionId"),
                  )
@@ -170,7 +202,7 @@ index 1d0940c..aff8061 100644
      }
  
      // ── Binding (get_browser_state, pid + window_id mode) ──────────────
-@@ -1745,7 +1791,7 @@ impl BrowserEngine {
+@@ -1745,7 +1816,7 @@ impl BrowserEngine {
          // feedback is safer than drawing a cursor over another tab.
          let tab_is_active = tab_visibility_proven(&validated.conn, &validated.cdp_session).await;
  
@@ -179,11 +211,11 @@ index 1d0940c..aff8061 100644
              validated
                  .conn
                  .call(Some(cdp_session), "Page.getLayoutMetrics", json!({}))
-@@ -1977,6 +2023,21 @@ impl BrowserEngine {
+@@ -1977,6 +2048,22 @@ impl BrowserEngine {
          }
      }
  
-+    /// Host-owned screenshot authority: same-URL reloads must revoke coordinate input.
++    /// Host-owned screenshot authority: reloads, scrolling and zoom revoke stale input.
 +    pub(super) async fn verify_visual_document(
 +        &self, tab: &ValidatedTab, expected: Option<&str>,
 +    ) -> Result<(), BrowserRefusal> {
@@ -191,9 +223,10 @@ index 1d0940c..aff8061 100644
 +        let tree = self.local_frame_tree(&tab.conn, &tab.cdp_session).await
 +            .map_err(|_| refuse(BrowserRefusalCode::BrowserRefStale,
 +                "the visual input document could not be checked; no input sent"))?;
-+        if tree.visual_document() != expected {
-+            return Err(refuse(BrowserRefusalCode::BrowserRefStale,
-+                "the document changed since its screenshot; no input sent"));
++        let metrics = tab.conn.call(Some(&tab.cdp_session), "Page.getLayoutMetrics", json!({}))
++            .await.map_err(|_| refuse(BrowserRefusalCode::BrowserRefStale, "the visual viewport could not be checked; no input sent"))?;
++        if visual_observation_token(&tree.visual_document(), &metrics)? != expected {
++            return Err(refuse(BrowserRefusalCode::BrowserRefStale, "the document or viewport changed since its screenshot; no input sent"));
 +        }
 +        Ok(())
 +    }
@@ -201,7 +234,7 @@ index 1d0940c..aff8061 100644
      // ── Read-side: page snapshot (ref minting) ──────────────────────────
  
      /// Capture the exact page target's current viewport through its attached
-@@ -1988,6 +2049,7 @@ impl BrowserEngine {
+@@ -1988,6 +2075,7 @@ impl BrowserEngine {
          session: &str,
          target_id: &str,
          tab_id: &str,
@@ -209,11 +242,11 @@ index 1d0940c..aff8061 100644
      ) -> Result<BrowserTabScreenshot, BrowserRefusal> {
          let record = self.store.get_target(session, target_id)?;
          let tab = record.tabs.get(tab_id).cloned().ok_or_else(|| {
-@@ -1998,6 +2060,21 @@ impl BrowserEngine {
+@@ -1998,11 +2086,28 @@ impl BrowserEngine {
          })?;
          let conn = self.connection_for_record(session, &record).await?;
          let cdp_session = self.attach(&conn, &tab.cdp_target_id).await?;
-+        let visual_document = if let Some(id) = expected_snapshot {
++        let document_identity = if let Some(id) = expected_snapshot {
 +            let identity = tab.snapshots.get(&id)
 +                .filter(|s| s.generation == record.generation)
 +                .and_then(|s| s.semantic_root_identity.as_ref())
@@ -231,7 +264,14 @@ index 1d0940c..aff8061 100644
          let metrics = conn
              .call(Some(&cdp_session), "Page.getLayoutMetrics", json!({}))
              .await
-@@ -2065,7 +2142,17 @@ impl BrowserEngine {
+             .map_err(|error| route_err("Page.getLayoutMetrics failed", error))?;
+         let viewport = browser_screenshot_viewport(&metrics)?;
++        let visual_document = document_identity.as_deref()
++            .map(|document| visual_observation_token(document, &metrics)).transpose()?;
+         let response = conn
+             .call(
+                 Some(&cdp_session),
+@@ -2065,7 +2170,18 @@ impl BrowserEngine {
                  "PNG dimensions must be non-zero",
              ));
          }
@@ -239,9 +279,10 @@ index 1d0940c..aff8061 100644
 +            let tree = self.local_frame_tree(&conn, &cdp_session).await
 +                .map_err(|_| refuse(BrowserRefusalCode::BrowserRefStale,
 +                    "the captured document identity could not be checked"))?;
-+            if tree.visual_document() != expected {
-+                return Err(refuse(BrowserRefusalCode::BrowserRefStale,
-+                    "the document changed during capture; no image returned"));
++            let metrics = conn.call(Some(&cdp_session), "Page.getLayoutMetrics", json!({}))
++                .await.map_err(|_| refuse(BrowserRefusalCode::BrowserRefStale, "the captured viewport could not be checked; no image returned"))?;
++            if visual_observation_token(&tree.visual_document(), &metrics)? != expected {
++                return Err(refuse(BrowserRefusalCode::BrowserRefStale, "the document or viewport changed during capture; no image returned"));
 +            }
 +        }
          Ok(BrowserTabScreenshot {
@@ -249,7 +290,7 @@ index 1d0940c..aff8061 100644
              data_base64,
              width,
              height,
-@@ -2603,7 +2690,7 @@ impl BrowserEngine {
+@@ -2603,7 +2719,7 @@ impl BrowserEngine {
                  continuation.offset,
                  DEFAULT_SEMANTIC_NODE_BUDGET,
                  continuation.query.as_deref(),
@@ -258,7 +299,7 @@ index 1d0940c..aff8061 100644
              );
              let start_index = snapshot
                  .refs
-@@ -2643,7 +2730,7 @@ impl BrowserEngine {
+@@ -2643,7 +2759,7 @@ impl BrowserEngine {
                              SemanticContinuation {
                                  offset,
                                  query: continuation.query.clone(),
@@ -267,7 +308,7 @@ index 1d0940c..aff8061 100644
                                  oopif_supported: continuation.oopif_supported,
                                  oopif_frames: continuation.oopif_frames,
                              },
-@@ -2654,12 +2741,10 @@ impl BrowserEngine {
+@@ -2654,12 +2770,10 @@ impl BrowserEngine {
              return Ok(outcome);
          }
  
@@ -284,7 +325,7 @@ index 1d0940c..aff8061 100644
              None => None,
          };
          let record = self.store.get_target(session, target_id)?;
-@@ -2791,11 +2876,21 @@ impl BrowserEngine {
+@@ -2791,11 +2905,21 @@ impl BrowserEngine {
              semantic.complete = false;
          }
  
@@ -307,7 +348,7 @@ index 1d0940c..aff8061 100644
          );
          let next_offset = page.next_offset;
          let snapshot_id = self.store.mint_snapshot_id();
-@@ -2829,7 +2924,7 @@ impl BrowserEngine {
+@@ -2829,7 +2953,7 @@ impl BrowserEngine {
                              SemanticContinuation {
                                  offset,
                                  query: query.map(str::to_owned),
@@ -316,6 +357,42 @@ index 1d0940c..aff8061 100644
                                  oopif_supported: matches!(oopif, OopifStatus::Attached(_)),
                                  oopif_frames: oopif.frames(),
                              },
+@@ -3013,6 +3137,35 @@ async fn live_title(conn: &Arc<CdpConnection>, cdp_target_id: &str, fallback: &s
+ 
+ #[cfg(test)]
+ mod tests {
++    #[test]
++    fn visual_viewport_token_requires_css_geometry_and_tracks_optional_zoom() {
++        use serde_json::json;
++        let metrics = json!({"cssVisualViewport": {
++            "pageX": 0.0, "pageY": 0.0, "offsetX": 0.0, "offsetY": 0.0,
++            "clientWidth": 800.0, "clientHeight": 600.0, "scale": 1.0
++        }});
++        let token = super::visual_observation_token("document", &metrics).unwrap();
++        for field in ["pageX", "pageY", "offsetX", "offsetY", "clientWidth", "clientHeight", "scale"] {
++            let mut missing = metrics.clone();
++            missing["cssVisualViewport"].as_object_mut().unwrap().remove(field);
++            assert!(super::visual_observation_token("document", &missing).is_err(), "{field}");
++            let mut malformed = metrics.clone();
++            malformed["cssVisualViewport"][field] = json!("unknown");
++            assert!(super::visual_observation_token("document", &malformed).is_err(), "{field}");
++        }
++        for field in ["clientWidth", "clientHeight", "scale", "zoom"] {
++            for value in [0.0, -1.0] {
++                let mut invalid = metrics.clone();
++                invalid["cssVisualViewport"][field] = json!(value);
++                assert!(super::visual_observation_token("document", &invalid).is_err(), "{field}");
++            }
++        }
++        let mut zoom = metrics.clone();
++        zoom["cssVisualViewport"]["zoom"] = json!(1.0);
++        assert_ne!(super::visual_observation_token("document", &zoom).unwrap(), token);
++        assert!(super::visual_observation_token("document", &json!({"visualViewport": metrics["cssVisualViewport"]})).is_err());
++    }
++
+     use super::*;
+ 
+     #[test]
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/mod.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/mod.rs
 index 070d6c0..6a294de 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/mod.rs
@@ -329,7 +406,7 @@ index 070d6c0..6a294de 100644
  #[cfg(test)]
  pub(crate) mod mock_cdp;
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/pointer.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/pointer.rs
-index bc741d9..2c1f242 100644
+index bc741d9..2055a76 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/pointer.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/pointer.rs
 @@ -110,6 +110,7 @@ enum Location {
@@ -353,7 +430,7 @@ index bc741d9..2c1f242 100644
                      "type": "object",
                      "properties": {
 -                        "target_id": { "type": "string", "description": "Opaque target id minted by get_browser_state." },
-+                        "visual_document": { "type": "string", "description": "Host-owned document token from a visual screenshot; refuse if it changed." },
++                        "visual_document": { "type": "string", "description": "Host-owned document and CSS viewport token from a visual screenshot; refuse if it changed." },
 +                    "target_id": { "type": "string", "description": "Opaque target id minted by get_browser_state." },
                          "tab_id": { "type": "string", "description": "Opaque tab id minted by get_browser_state." },
                          "session": required_session_schema(),
@@ -683,7 +760,7 @@ index 68f2099..96f1e08 100644
      pub oopif_frames: usize,
  }
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
-index df04401..1e55d60 100644
+index df04401..d0b0286 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 @@ -51,6 +51,105 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
@@ -844,7 +921,7 @@ index df04401..1e55d60 100644
                  "properties": {
                      "target_id": schema_target_id(),
                      "tab_id": schema_tab_id(),
-+                    "visual_document": { "type": "string", "description": "Host-owned document token from a visual screenshot; refuse if it changed." },
++                    "visual_document": { "type": "string", "description": "Host-owned document and CSS viewport token from a visual screenshot; refuse if it changed." },
                      "session": schema_session(),
                      "ref": schema_ref(),
                      "x": { "type": "number", "description": "Viewport x (CSS px) — alternative to ref." },
@@ -909,7 +986,7 @@ index df04401..1e55d60 100644
                  "properties": {
                      "target_id": schema_target_id(),
                      "tab_id": schema_tab_id(),
-+                    "visual_document": { "type": "string", "description": "Host-owned document token from a visual screenshot; refuse if it changed." },
++                    "visual_document": { "type": "string", "description": "Host-owned document and CSS viewport token from a visual screenshot; refuse if it changed." },
                      "session": schema_session(),
                      "text": { "type": "string", "description": "Text to type." },
                      "ref": schema_ref(),
@@ -965,10 +1042,10 @@ index df04401..1e55d60 100644
              Ok(value) => value,
              Err(error) => return error,
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-index d5f50d2..e4a6228 100644
+index d5f50d2..6d86fef 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-@@ -57,13 +57,19 @@ pub(super) struct FixtureState {
+@@ -57,14 +57,29 @@ pub(super) struct FixtureState {
      tab_sessions: u64,
      oopif_sessions: u64,
      fail_key_down_after: Option<usize>,
@@ -986,9 +1063,19 @@ index d5f50d2..e4a6228 100644
 +    reload_during_capture: bool,
 +    reload_on_focus: bool,
      viewport_css_width: f64,
++    viewport_page_x: f64,
++    viewport_page_y: f64,
++    viewport_offset_x: f64,
++    viewport_offset_y: f64,
++    viewport_scale: f64,
++    viewport_zoom: f64,
++    viewport_change_during_capture: bool,
++    viewport_change_on_focus: bool,
++    viewport_metrics_missing: bool,
      viewport_css_height: f64,
      tab_visible: bool,
-@@ -76,6 +82,7 @@ pub(super) struct FixtureState {
+     select_outcome: Value,
+@@ -76,6 +91,7 @@ pub(super) struct FixtureState {
      omit_primary_target: bool,
      /// Make `Browser.getWindowForTarget` for T1 answer this CDP error.
      primary_window_error: Option<(i64, String)>,
@@ -996,7 +1083,7 @@ index d5f50d2..e4a6228 100644
      dom_click_changes_readback: bool,
      dom_click_readback_available: bool,
      dom_click_stall_after: Option<usize>,
-@@ -99,13 +106,19 @@ impl Default for FixtureState {
+@@ -99,22 +115,38 @@ impl Default for FixtureState {
              omit_primary_target: false,
              primary_window_error: None,
              main_loader: "L_MAIN_1".into(),
@@ -1016,7 +1103,18 @@ index d5f50d2..e4a6228 100644
              semantic_html_style: String::new(),
              semantic_full_dom_fails: false,
              semantic_full_dom_times_out: false,
-@@ -115,6 +128,7 @@ impl Default for FixtureState {
+             semantic_truncated_dom: false,
+             screenshot_data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZJrAAAAAASUVORK5CYII=".into(),
+             viewport_css_width: 800.0,
++            viewport_page_x: 0.0,
++            viewport_page_y: 0.0,
++            viewport_offset_x: 0.0,
++            viewport_offset_y: 0.0,
++            viewport_scale: 1.0,
++            viewport_zoom: 1.0,
++            viewport_change_during_capture: false,
++            viewport_change_on_focus: false,
++            viewport_metrics_missing: false,
              viewport_css_height: 600.0,
              tab_visible: true,
              select_outcome: Value::Null,
@@ -1024,7 +1122,7 @@ index d5f50d2..e4a6228 100644
              dom_click_changes_readback: true,
              dom_click_readback_available: true,
              dom_click_stall_after: None,
-@@ -548,7 +562,12 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -548,7 +580,12 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                      "node": large_semantic_document(&st.semantic_html_style)["root"]["children"][0].clone()
                  }))
              }
@@ -1038,7 +1136,7 @@ index d5f50d2..e4a6228 100644
              "Accessibility.getFullAXTree" if is_tab => {
                  let frame_id = call.params["frameId"].as_str().unwrap_or("F_MAIN");
                  if st.semantic_large_page {
-@@ -561,7 +580,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -561,7 +598,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                  {"nodeId": "oopif-root", "ignored": false,
                   "role": {"value": "RootWebArea"}, "childIds": ["oopif-input"]},
                  {"nodeId": "oopif-input", "parentId": "oopif-root", "ignored": false,
@@ -1047,7 +1145,7 @@ index d5f50d2..e4a6228 100644
                   "name": {"value": "Embedded input"},
                   "properties": [{"name": "editable", "value": {"value": "plaintext"}}],
                   "childIds": []}
-@@ -586,7 +605,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -586,17 +623,26 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                  }
              }
              "DOMSnapshot.captureSnapshot" if is_oopif => MockReply::ok(semantic_layout_snapshot(
@@ -1055,8 +1153,18 @@ index d5f50d2..e4a6228 100644
 +                &[90, st.oopif_input_backend_id],
                  &[[0.0, 0.0, 300.0, 100.0], [10.0, 10.0, 120.0, 30.0]],
              )),
++            "Page.getLayoutMetrics" if st.viewport_metrics_missing => MockReply::ok(json!({})),
              "Page.getLayoutMetrics" => MockReply::ok(json!({
-@@ -597,6 +616,10 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+                 "cssVisualViewport": {
+-                    "pageX": 0.0,
+-                    "pageY": 0.0,
++                    "pageX": st.viewport_page_x,
++                    "pageY": st.viewport_page_y,
++                    "offsetX": st.viewport_offset_x,
++                    "offsetY": st.viewport_offset_y,
++                    "scale": st.viewport_scale,
++                    "zoom": st.viewport_zoom,
+                     "clientWidth": st.viewport_css_width,
                      "clientHeight": st.viewport_css_height
                  }
              })),
@@ -1067,19 +1175,23 @@ index d5f50d2..e4a6228 100644
              "Runtime.evaluate"
                  if call.params["expression"] == "document.visibilityState === 'visible'" =>
              {
-@@ -608,6 +631,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -608,6 +654,8 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                  }))
              }
              "Page.captureScreenshot" if is_tab => {
 +                if st.reload_during_capture { st.main_loader = "reloaded".into(); }
++                if st.viewport_change_during_capture { st.viewport_page_y += 120.0; }
                  MockReply::ok(json!({"data": st.screenshot_data.clone()}))
              }
              "Page.navigate" if is_tab => MockReply::ok(json!({
-@@ -704,13 +728,33 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -704,13 +752,36 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                      MockReply::ok(json!({}))
                  }
              }
 +            "Emulation.setFocusEmulationEnabled" => {
++                if call.params["enabled"] == true && st.viewport_change_on_focus {
++                    st.viewport_page_y += 120.0;
++                }
 +                if call.params["enabled"] == true && st.reload_on_focus {
 +                    st.main_loader = "reloaded".into();
 +                }
@@ -1110,7 +1222,7 @@ index d5f50d2..e4a6228 100644
              "Runtime.callFunctionOn"
                  if call.params["functionDeclaration"]
                      .as_str()
-@@ -1880,6 +1924,65 @@ fn recorded_calls(f: &Fixture, method: &str) -> Vec<(Option<String>, Value)> {
+@@ -1880,6 +1951,65 @@ fn recorded_calls(f: &Fixture, method: &str) -> Vec<(Option<String>, Value)> {
          .collect()
  }
  
@@ -1176,7 +1288,7 @@ index d5f50d2..e4a6228 100644
  // ── Snapshot composition ─────────────────────────────────────────────────────
  
  #[tokio::test]
-@@ -2326,6 +2429,57 @@ async fn semantic_query_and_content_scope_are_read_only_and_precise() {
+@@ -2326,6 +2456,57 @@ async fn semantic_query_and_content_scope_are_read_only_and_precise() {
      assert!(recorded_calls(&f, "Target.activateTarget").is_empty());
  }
  
@@ -1234,7 +1346,7 @@ index d5f50d2..e4a6228 100644
  #[tokio::test]
  async fn navigation_targets_an_inactive_tab_without_activating_it() {
      let f = fixture().await;
-@@ -2755,6 +2909,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
+@@ -2755,6 +2936,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
      );
  }
  
@@ -1287,7 +1399,7 @@ index d5f50d2..e4a6228 100644
  #[tokio::test]
  async fn click_routes_oopif_refs_through_the_contained_child_session() {
      let f = fixture().await;
-@@ -3603,3 +3803,139 @@ async fn method_unsupported_keeps_the_electron_none_path() {
+@@ -3603,3 +3830,200 @@ async fn method_unsupported_keeps_the_electron_none_path() {
      assert_eq!(tabs.len(), 1, "{s}");
      assert_eq!(tabs[0]["url"], "https://fixture.test/");
  }
@@ -1424,6 +1536,67 @@ index d5f50d2..e4a6228 100644
 +                assert!(recorded_calls(&f, "Input.dispatchMouseEvent").is_empty());
 +                assert!(recorded_calls(&f, "Input.insertText").is_empty());
 +            } else { assert!(!result.is_error.unwrap_or(false), "{result:?}"); }
++        }
++    }
++}
++
++#[tokio::test]
++async fn visual_viewport_change_during_capture_returns_no_image() {
++    let f = fixture_with(|s| s.viewport_change_during_capture = true).await;
++    let (target, tab) = bind(&f).await;
++    let result = GetBrowserStateTool::new(f.engine.clone()).invoke(json!({
++        "target_id": target, "tab_id": tab, "session": SESSION,
++        "snapshot_format": "semantic_v2", "include_screenshot": true, "require_visual_identity": true,
++    })).await;
++    assert_eq!(structured(&result)["refusal"]["code"], "browser_ref_stale");
++    assert!(!result.content.iter().any(|c| matches!(c, Content::Image { .. })));
++}
++
++#[tokio::test]
++async fn visual_viewport_change_revokes_pointer_and_text_before_delivery() {
++    for action in ["click", "scroll", "drag", "type"] {
++        for change in ["page_x", "page_y", "offset_x", "offset_y", "width", "height", "scale", "zoom", "missing", "focus"] {
++            let f = fixture().await;
++            let (target, tab) = bind(&f).await;
++            let observed = GetBrowserStateTool::new(f.engine.clone()).invoke(json!({
++                "target_id": target, "tab_id": tab, "session": SESSION,
++                "snapshot_format": "semantic_v2", "include_screenshot": true, "require_visual_identity": true,
++            })).await;
++            let snap = structured(&observed);
++            let token = snap["screenshot"]["visual_document"].as_str().expect("visual token");
++            {
++                let mut state = f.state.lock().unwrap();
++                match change {
++                    "page_x" => state.viewport_page_x = 120.0,
++                    "page_y" => state.viewport_page_y = 120.0,
++                    "offset_x" => state.viewport_offset_x = 10.0,
++                    "offset_y" => state.viewport_offset_y = 10.0,
++                    "width" => state.viewport_css_width = 780.0,
++                    "height" => state.viewport_css_height = 580.0,
++                    "scale" => state.viewport_scale = 1.25,
++                    "zoom" => state.viewport_zoom = 1.25,
++                    "missing" => state.viewport_metrics_missing = true,
++                    "focus" => state.viewport_change_on_focus = true,
++                    _ => unreachable!(),
++                }
++            }
++            let mut args = json!({"target_id": target, "tab_id": tab, "session": SESSION,
++                "visual_document": token, "x": 10, "y": 20,
++                "action": action, "mode": "focused", "text": "one write"});
++            if action == "drag" { args["to_x"] = json!(20); args["to_y"] = json!(30); }
++            if action == "scroll" { args["delta_y"] = json!(100); }
++            let result = match action {
++                "click" => BrowserClickTool::new(f.engine.clone()).invoke(args).await,
++                "type" => BrowserTypeTool::new(f.engine.clone()).invoke(args).await,
++                _ => super::pointer::BrowserPointerTool::new(f.engine.clone()).invoke(args).await,
++            };
++            assert_eq!(structured(&result)["refusal"]["code"], "browser_ref_stale", "{action}/{change}: {result:?}");
++            assert!(recorded_calls(&f, "Input.dispatchMouseEvent").is_empty(), "{action}/{change}");
++            assert!(recorded_calls(&f, "Input.insertText").is_empty(), "{action}/{change}");
++            if change == "focus" {
++                let focus = recorded_calls(&f, "Emulation.setFocusEmulationEnabled");
++                assert_eq!(focus.last().unwrap().1["enabled"], false);
++            }
 +        }
 +    }
 +}
