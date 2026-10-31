@@ -71,6 +71,11 @@ export class MacBrowserControl {
   constructor(
     private readonly ctx: ActionBackendContext,
     private readonly inventory: ComputerInventory,
+    private readonly withWindow: (
+      window: ComputerWindowBinding,
+      request: ValidatedActionInvocation,
+      run: () => Promise<ActionExecutionResult>,
+    ) => Promise<ActionExecutionResult>,
   ) {}
 
   /** Only the trusted connection picker may supply this exact-window grant. */
@@ -521,6 +526,17 @@ export class MacBrowserControl {
             'Use computer_list and pass an exact existing Chromium app_id and window_id. Safari retains its native window controls. Do not use an OS opener or assume a default profile.',
         },
       };
+    // Resolve implicit single-window selection before locking, so callers cannot
+    // bypass another turn's reservation by omitting the public window reference.
+    const target = window;
+    return this.withWindow(target, request, () => this.#openWindowUrl(target, request, url));
+  }
+
+  async #openWindowUrl(
+    window: ComputerWindowBinding,
+    request: ValidatedActionInvocation,
+    url: string,
+  ): Promise<ActionExecutionResult> {
     if (!(await this.inventory.windowStillValid(window, request)))
       return stale('The browser window changed.');
     const tabs = await this.#read(

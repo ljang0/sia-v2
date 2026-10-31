@@ -23,6 +23,7 @@ import { MessagesActions } from './messages-actions.js';
 import { ScheduleActions } from './schedule-actions.js';
 import type { DesktopActionBackendOptions } from './types.js';
 import type { WindowOperations } from './window-operations.js';
+import type { ComputerWindowBinding } from './computer-grants.js';
 
 /**
  * Translates Sia's small canonical tool surface into CUA and cloud calls.
@@ -55,7 +56,11 @@ export class DesktopActionSession implements ActionBackend {
     this.#observation = new ComputerObservation(this.#ctx, this.#inventory);
     this.#input = new ComputerInput(this.#ctx, this.#inventory, this.#observation);
     this.#browser = new BrowserActions(this.#ctx, this.#inventory);
-    this.#macBrowser = new MacBrowserControl(this.#ctx, this.#inventory);
+    this.#macBrowser = new MacBrowserControl(
+      this.#ctx,
+      this.#inventory,
+      (window, request, run) => this.#withWindow(window, window.id, request, run),
+    );
     this.#connectors = new ConnectorActions(this.#ctx);
     this.#messages = new MessagesActions(options.messages, options.openFullDiskAccessSettings);
     this.#schedules = new ScheduleActions(options.schedules);
@@ -127,26 +132,32 @@ export class DesktopActionSession implements ActionBackend {
     const windowId = request.arguments.window_id;
     if (
       typeof windowId === 'string' &&
-      ['computer_snapshot', 'computer_action', 'computer_open_url'].includes(request.name)
+      ['computer_snapshot', 'computer_action'].includes(request.name)
     ) {
       const window = this.#ctx.computer.windows.get(windowId);
-      const key = window ? `${window.pid}:${window.windowId}` : windowId;
-      try {
-        if (window && request.context.backgroundOnly && request.context.lease)
-          await request.context.lease.acquire(
-            { kind: 'app_window', id: key },
-            request.context.signal,
-          );
-        return await this.windowOperations.run(key, request.context.signal, () =>
-          this.#invokeOrdered(request),
-        );
-      } catch (error) {
-        if (request.context.signal?.aborted)
-          return refused('Action cancelled before execution.');
-        throw error;
-      }
+      return this.#withWindow(window, windowId, request, () => this.#invokeOrdered(request));
     }
     return this.#invokeOrdered(request);
+  }
+
+  async #withWindow(
+    window: ComputerWindowBinding | undefined,
+    windowId: string,
+    request: ValidatedActionInvocation,
+    run: () => Promise<ActionExecutionResult>,
+  ): Promise<ActionExecutionResult> {
+    const key = window ? `${window.pid}:${window.windowId}` : windowId;
+    try {
+      if (window && request.context.backgroundOnly && request.context.lease)
+        await request.context.lease.acquire(
+          { kind: 'app_window', id: key },
+          request.context.signal,
+        );
+      return await this.windowOperations.run(key, request.context.signal, run);
+    } catch (error) {
+      if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
+      throw error;
+    }
   }
 
   async #invokeOrdered(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {

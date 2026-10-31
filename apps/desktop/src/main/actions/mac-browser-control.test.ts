@@ -136,6 +136,47 @@ function harness() {
 }
 
 describe('Mac background Chromium uses the dedicated Cua browser route', () => {
+  it.each(['explicit', 'implicit'])(
+    'reserves the physical window before %s URL selection can read or navigate',
+    async (selection) => {
+      const h = harness();
+      const leases = new LocalLeaseCoordinator();
+      const a = await leases.startTurn({ turnId: 'a', threadId: 'a' });
+      const b = await leases.startTurn({ turnId: 'b', threadId: 'b' });
+      try {
+        h.state.prepared = true;
+        const first = await h.target('a', a);
+        const second = selection === 'explicit' ? await h.target('b', b) : {};
+        const observed = await h.backend.invoke(h.request('computer_snapshot', first, 'a', a));
+        expect(observed.data).toMatchObject({ tabs: [{ navigation_only: true }] });
+        h.call.mockClear();
+        const pending = h.backend.invoke(
+          h.request(
+            'computer_open_url',
+            { ...second, url: 'https://public.example/guide' },
+            'b',
+            b,
+          ),
+        );
+        await vi.waitFor(() => expect(leases.snapshotQueue()).toHaveLength(1));
+        expect(
+          h.call.mock.calls.some(([tool]) =>
+            ['get_browser_state', 'browser_prepare', 'browser_navigate'].includes(tool),
+          ),
+        ).toBe(false);
+        a.release();
+        expect((await pending).outcome).toBe('verified');
+        expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_navigate')).toHaveLength(
+          1,
+        );
+        expect(h.state.url).toBe('https://public.example/guide');
+      } finally {
+        a.release();
+        b.release();
+      }
+    },
+  );
+
   it('propagates connection changes into isolated turn sessions and revokes their input refs', async () => {
     const h = harness();
     const leases = new LocalLeaseCoordinator();
