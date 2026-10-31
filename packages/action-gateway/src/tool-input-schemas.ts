@@ -117,12 +117,14 @@ const computerAction = z
         });
       if (
         (x !== undefined || y !== undefined || to_x !== undefined || to_y !== undefined) &&
-        (!coordinates || element_ref || !['click', 'drag', 'type', 'scroll'].includes(action))
+        (!coordinates ||
+          element_ref ||
+          !['click', 'drag', 'type', 'scroll', 'key'].includes(action))
       )
         context.addIssue({
           code: 'custom',
           message:
-            'Use either an element reference or complete screenshot coordinates for click/drag/type/scroll.',
+            'Use either an element reference or complete screenshot coordinates for click/drag/type/scroll/key.',
         });
       if (action !== 'drag' && (to_x !== undefined || to_y !== undefined))
         context.addIssue({ code: 'custom', message: 'End coordinates only apply to drag.' });

@@ -138,6 +138,23 @@ Private `alpha68-stream-geometry` and `alpha69-stream-metadata` retain receipts,
 metadata and results. Neither is a distribution candidate or completed task. Probe code was removed,
 the QA process exited, and the signed alpha.67 app was restored without launching it.
 
+Signed internal arm64 alpha.71 extends the canonical native key action with optional screenshot
+coordinates, reusing pixel preflight and the existing focus-then-key driver operation. The full
+pilot gate passed: 1,956 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus
+shared/native and build/static checks. The signed package and installed ASAR were verified.
+A fresh assistant attempted the existing reviewer brief without procedural hints. Cmd+A at
+`(695,72)` returned `accepted_unverified` through synthetic background events in 1,932 ms.
+The post-action and recovery images showed no visible filename selection. The assistant stopped
+after 30.077 seconds without typing, saving, closing or reopening. The destination remains empty.
+No operator TextEdit input occurred; QA was quit and process exit verified afterward.
+
+Alpha.71 ASAR: `b454b42e8120760a724f8f19b8aca04ee313f9e195749454499dbe7ed2d01a31`.
+Base: `38925821d4d8a8b96bf9554fe34cb1b292b960c4`; captured diff:
+`a6210884276f535330890f19bc1773daee973991d1ff0b2181cf4e48453fd49c`.
+Private `alpha71-coordinate-keys` retains the exact source, package/install receipts, prompt,
+trace, screenshots and failed result. It is internal arm64 QA, not notarized distribution.
+Native keyboard delivery and Save/reopen remain unverified.
+
 Signed internal arm64 alpha.70 pairs completed stream pixels with their own geometry and proves
 the source origin from fresh parent/sheet bounds. Its CFNumber status reader accepts completed
 frames that the pinned dependency's enum cast missed. The full local pilot gate passed: build,

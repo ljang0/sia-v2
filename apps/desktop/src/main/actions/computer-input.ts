@@ -251,7 +251,7 @@ export class ComputerInput {
     const pixel =
       typeof args.x === 'number' &&
       typeof args.y === 'number' &&
-      ['click', 'drag', 'type', 'scroll'].includes(String(args.action));
+      ['click', 'drag', 'type', 'scroll', 'key'].includes(String(args.action));
     const backgroundDelivery =
       this.ctx.macBrowserAccess() && !this.ctx.foregroundDelivery(args);
     // An exact element lets type_text use the driver's semantic-only AX path.
@@ -320,8 +320,9 @@ export class ComputerInput {
         return refused('Pixel actions are blocked on windows containing protected controls.');
       if (backgroundDelivery) {
         const availability = windowBackgroundInput(current, binding);
-        const routes: BackgroundInputRoute[] =
-          args.action === 'type' ? ['window_pointer', 'pid_keyboard'] : ['window_pointer'];
+        const routes: BackgroundInputRoute[] = ['type', 'key'].includes(String(args.action))
+          ? ['window_pointer', 'pid_keyboard']
+          : ['window_pointer'];
         for (const route of routes) {
           const unavailable = backgroundRouteRefusal(availability, route, request);
           if (unavailable) return unavailable;
@@ -470,9 +471,10 @@ export class ComputerInput {
           ? args.modifiers.filter((value): value is string => typeof value === 'string')
           : [];
         tool = modifiers.length ? 'hotkey' : 'press_key';
+        const target = { ...base, ...(pixel ? { x: args.x, y: args.y } : {}) };
         input = modifiers.length
-          ? { ...base, keys: [...modifiers, normalizedKey] }
-          : { ...base, key: normalizedKey };
+          ? { ...target, keys: [...modifiers, normalizedKey] }
+          : { ...target, key: normalizedKey };
         break;
       }
       default:

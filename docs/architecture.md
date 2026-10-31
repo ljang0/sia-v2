@@ -62,6 +62,12 @@ operating contract for on-screen and background work. The Codex `mac-hosted` ses
 provider-native tools for both policies; it is independent of the host's foreground lease. Backend
 validation remains authoritative even if a caller ignores the advertised schema.
 
+Native coordinate-targeted keys reuse `computer-input.ts`'s pixel preflight and the driver's
+existing focus-then-key operation. They require both pointer and keyboard availability, compare
+the private capture geometry again before input, and return a fresh image for effect verification.
+The canonical gateway schema owns valid argument combinations; `visual-tools.ts` only projects
+that contract. There is no separate Save-dialog action or shortcut fallback.
+
 [`codex-tool-results.ts`](../packages/runtime/src/providers/codex-tool-results.ts) owns the
 provider response encoding and image-forwarding instructions. Codex Code Mode returns dynamic-tool
 text and image data URLs as newline-separated strings. The model must forward image lines to

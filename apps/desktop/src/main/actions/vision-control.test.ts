@@ -28,6 +28,7 @@ async function fixture(background = true) {
     width: 800,
     height: 600,
   };
+  let pointerAllowed = true;
   const inputs: Array<{ tool: string; args: Record<string, unknown> }> = [];
   const cua = fakeCua(async (tool, args) => {
     if (tool === 'list_apps')
@@ -39,6 +40,16 @@ async function fixture(background = true) {
       return {
         value: {
           capture_geometry: geometry,
+          background_input: {
+            exact_window: { pid: 42, window_id: 91, status: 'matched' },
+            routes: ['accessibility', 'window_pointer', 'pid_keyboard'].map((route) => ({
+              route,
+              status: route === 'window_pointer' && !pointerAllowed ? 'refused' : 'available',
+              ...(route === 'window_pointer' && !pointerAllowed
+                ? { reason: 'window_hidden' }
+                : {}),
+            })),
+          },
           elements: [
             {
               role: capture === 'protected' ? 'AXSecureTextField' : 'AXTextArea',
@@ -76,6 +87,9 @@ async function fixture(background = true) {
   return {
     cua,
     inputs,
+    pointer: (allowed: boolean) => {
+      pointerAllowed = allowed;
+    },
     geometry: (next: typeof geometry) => {
       geometry = next;
     },
@@ -259,3 +273,67 @@ it.each(['changed', 'missing'] as const)(
     expect(h.inputs).toEqual([]);
   },
 );
+
+it.each([
+  { value: 'Return', modifiers: [], tool: 'press_key', payload: { key: 'return' } },
+  { value: 'a', modifiers: ['cmd'], tool: 'hotkey', payload: { keys: ['cmd', 'a'] } },
+])(
+  'focuses the screenshot point before $tool and retains its geometry proof',
+  async ({ value, modifiers, tool, payload }) => {
+    const h = await fixture();
+    const first = await h.snapshot();
+    const result = await h.act(dataRecord(first.data).snapshot_id, {
+      action: 'key',
+      value,
+      modifiers,
+      x: 25,
+      y: 30,
+    });
+    expect(h.inputs).toEqual([
+      {
+        tool,
+        args: expect.objectContaining({
+          ...payload,
+          x: 25,
+          y: 30,
+          delivery_mode: 'background',
+          capture_geometry: expect.objectContaining({
+            surface: expect.objectContaining({ pid: 42, window_id: 91 }),
+          }),
+        }),
+      },
+    ]);
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(result.images).toHaveLength(1);
+  },
+);
+
+it('refuses a coordinate-targeted key when the field becomes protected before input', async () => {
+  const h = await fixture();
+  const first = await h.snapshot();
+  h.mode('protected');
+  const result = await h.act(dataRecord(first.data).snapshot_id, {
+    action: 'key',
+    value: 'a',
+    modifiers: ['cmd'],
+    x: 25,
+    y: 30,
+  });
+  expect(result.outcome).toBe('refused');
+  expect(h.inputs).toEqual([]);
+});
+
+it('does not send a key when its coordinate focus route is refused', async () => {
+  const h = await fixture();
+  const first = await h.snapshot();
+  h.pointer(false);
+  const result = await h.act(dataRecord(first.data).snapshot_id, {
+    action: 'key',
+    value: 'a',
+    modifiers: ['cmd'],
+    x: 25,
+    y: 30,
+  });
+  expect(['stale', 'refused', 'needs_foreground']).toContain(result.outcome);
+  expect(h.inputs).toEqual([]);
+});

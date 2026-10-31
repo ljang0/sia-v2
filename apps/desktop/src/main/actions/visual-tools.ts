@@ -91,7 +91,10 @@ export function visualTools(tools: readonly ToolDescriptor[]): ToolDescriptor[] 
             : 'Open an ordinary HTTP(S) website. In background mode pass the exact granted Chromium app/window and optional task tab. prepare_only restores that connection without navigation. On screen uses the system opener; observe and verify the resulting window before input. Never use navigation to bypass a protected surface.'
           : snapshot
             ? 'Capture a fresh screenshot of the exact granted window or tab. Inspect the image; no extracted text or semantic targets are provided. A failed capture grants no input.'
-            : 'Send one screenshot-coordinate pointer action, literal text, or named key to the exact observed window or tab. Use its latest snapshot_id and original image coordinates. Inspect the returned image before the next action; never replay uncertain input.',
+            : 'Send one screenshot-coordinate pointer action, literal text, or named key to the exact observed window or tab. Use its latest snapshot_id and original image coordinates. Inspect the returned image before the next action; never replay uncertain input.' +
+              (tool.name === 'computer_action'
+                ? ' For a native key action, x/y focuses the chosen field before the key or shortcut in one operation. Omit x/y only when the intended control already has keyboard focus.'
+                : ''),
         inputSchema: { ...tool.inputSchema, properties },
       };
     });

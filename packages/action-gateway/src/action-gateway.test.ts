@@ -1106,3 +1106,26 @@ it.each([
   expect(requestApproval).toHaveBeenCalledOnce();
   expect(backend.invoke).toHaveBeenCalledOnce();
 });
+
+it('admits native key coordinates only as a complete exclusive screenshot target', () => {
+  const base = {
+    app_id: 'app:notes',
+    window_id: 'window:notes',
+    snapshot_id: 'snapshot:notes',
+    action: 'key',
+    value: 'a',
+    modifiers: ['cmd'],
+  };
+  expect(parseActionArguments('computer_action', { ...base, x: 25, y: 30 })).toMatchObject({
+    x: 25,
+    y: 30,
+  });
+  for (const target of [
+    { x: 25 },
+    { y: 30 },
+    { x: 25, y: 30, element_ref: 'w:snapshot:0' },
+    { x: 25, y: 30, to_x: 50, to_y: 60 },
+  ]) {
+    expect(() => parseActionArguments('computer_action', { ...base, ...target })).toThrow();
+  }
+});

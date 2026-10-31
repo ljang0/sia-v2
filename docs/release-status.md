@@ -95,6 +95,13 @@ Cmd-Shift-G with `needs_foreground/window_not_key`; its output folder remains em
 the coordinate correction, not completed native work or distribution readiness. QA was quit before
 further source work. The failed alpha.62/.63 keyboard experiments remain excluded.
 
+Signed internal alpha.71 admits coordinate-targeted native keys through the canonical schema and
+existing pixel preflight/focus-then-key path. The full pilot gate passed (1,956 desktop tests and
+the same Electron, renderer and phone-browser counts). A fresh assistant sent Cmd+A at the visible
+filename field; the driver returned `accepted_unverified`, but both subsequent screenshots showed
+no visible selection. Sia stopped without typing or saving. Native Save/reopen remains blocked;
+schema admission and successful dispatch do not establish working keyboard delivery.
+
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
 The release requires real-source research and writing, file/document preparation, and planning
