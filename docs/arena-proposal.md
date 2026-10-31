@@ -53,14 +53,16 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Alpha.41 is signed and notarized, with its full local pilot gate and exact-source CI passing. It filed six real documents through Finder with matching destination hashes, but
-took 5m27s, recovered from six failed steps and changed the shared clipboard. Alpha.40 completed
-one sourced browser report while TextEdit stayed active; alpha.41 could not reconnect that approved
-window. Earlier alpha.38 runs produced five checked reviewer-packet/planning outputs concurrently.
-These results support a technical review, not a claim of general desktop readiness. Clipboard
-preservation, Chrome recovery, repeatability, parallel GUI control, clean macOS-account setup/provider
-retry, and physical voice/lock/sleep acceptance remain open. Background browser new-tab creation is
-unsupported. Distribution remains blocked on these gates and the owner's release decision.
+Alpha.42 is signed and notarized, with full local gates and exact-source CI passing. It repairs
+missing direct-capture setup and provides real Finder screenshots, but a fresh clipboard-free
+filing task still stopped before moving files. Chrome recovery reports a native consent timeout.
+Alpha.41 previously filed six real documents with matching hashes in 5m27s, but changed the shared
+clipboard. Alpha.40 completed one sourced browser report with TextEdit active; alpha.38 produced
+five checked document/planning outputs concurrently. These results support technical review,
+not general desktop readiness. Reliable filing, clipboard preservation, Chrome recovery,
+repeatability, parallel GUI control, clean macOS-account setup/provider retry, and physical
+voice/lock/sleep acceptance remain open. Background browser new-tab creation is unsupported.
+Distribution remains blocked on these gates and the owner's release decision.
 The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
 owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.
 

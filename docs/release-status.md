@@ -1,7 +1,7 @@
 # Release status
 
-Updated October 31, 2026. **Distribution is not ready.** Alpha.41 is signed and notarized.
-Finder filing passed, but shared clipboard interference and Chrome reconnection still block acceptance.
+Updated October 31, 2026. **Distribution is not ready.** Alpha.42 is signed and notarized.
+Direct-capture setup now works; real Finder filing, clipboard-safe completion and Chrome recovery still block acceptance.
 On alpha.38, two real document workflows completed concurrently with all five result previews verified. The last
 published Mac pilot is alpha.24; no new invitations or public download have been authorized.
 
@@ -28,11 +28,11 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.41 exact-source full pilot gate passed: 1,803 desktop unit, 46 Electron, 31 renderer, 72 phone-browser and 72 action-gateway tests. [CI](https://github.com/ljang0/sia-v2/actions/runs/41168497120) passed. | Alpha.42 source changes require fresh gates, signing and live acceptance. |
-| Signed Mac package | Alpha.41 from `084878875dcae00fa561b015bc49691a85948fe8` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Live acceptance is failing; signature success is not product readiness. |
-| Signed app continuity | Alpha.41 retained the QA profile, settings and history without a new Keychain prompt. | Physical and clean-account acceptance. |
-| Everyday usefulness | Alpha.38 completed two real document tasks concurrently with five checked previews. Alpha.41 filed all six real documents correctly with matching hashes in 5m27s; six steps needed recovery. | Fix the observed clipboard overwrite; repeat useful workflows and verify parallel GUI results and responsiveness. |
-| Browser | Alpha.40 read three official sources, saved a checked 751-word comparison and opened its preview in about 120 seconds with TextEdit active. | Alpha.41 stopped before reading sources. Inline recovery showed the picker, but the approved public window still failed to reconnect after Chrome consent. Fix recovery and repeat real work. Background new-tab creation remains unsupported. |
+| Source | Alpha.42 exact-source full pilot gate passed: 1,814 desktop unit, 46 Electron, 31 renderer, 72 phone-browser and 72 action-gateway tests. [CI](https://github.com/ljang0/sia-v2/actions/runs/41171344097) passed. | Further native input/reconnect work requires new exact-source acceptance. |
+| Signed Mac package | Alpha.42 from `c50782a873455719ee12bc931248aa0ad4f5c1fd` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Live acceptance is failing; signature success is not product readiness. |
+| Signed app continuity | Alpha.42 retained the QA profile, settings and history without a new Keychain prompt. | Physical and clean-account acceptance. |
+| Everyday usefulness | Alpha.38 completed two real document tasks concurrently with five checked previews. Alpha.41 filed all six real documents correctly with matching hashes in 5m27s; six steps needed recovery. Alpha.42’s clipboard-free rerun got real screenshots but failed before filing. | Fix the observed clipboard overwrite; repeat useful workflows and verify parallel GUI results and responsiveness. |
+| Browser | Alpha.40 read three official sources, saved a checked 751-word comparison and opened its preview in about 120 seconds with TextEdit active. | Alpha.41 stopped before reading sources; alpha.42 recovery reports native consent_not_settled. Inline recovery showed the picker, but the approved public window still failed to reconnect after Chrome consent. Fix recovery and repeat real work. Background new-tab creation remains unsupported. |
 | New recipient | Alpha.36 with an empty app profile showed only email sign-in, with no private app content. | Clean macOS-account signup, permissions, provider login cancel/retry, lock/sleep and voice acceptance. An empty profile is not a clean OS account; no fresh account or second Mac is currently available. |
 | Cloud feedback | Ratings/account deletion deployed; a synthetic authenticated rating reached the report. October 30: 18 alarms OK with actions enabled, five Lambdas Active/Successful, anonymous catalog/report/release requests return 401. | Recheck if configuration changes before invitations. |
 | iPhone follow-on | Build 31 is Ready to Test in internal Pilot QA; native tests, signed archive and Apple processing passed. | Deferred from this Mac-first handoff. Physical-device checks and external beta review remain. |
@@ -52,13 +52,14 @@ and input fixes. Its first browser research run passed with a newly prepared ord
 isolate the cause of the earlier authorization failure. Alpha.41 corrects Sia over-refusing exact-element typing and exact-window keyboard validation
 when generic process keyboard input is ambiguous. Its signed Finder run completed the real filing
 task, but exposed shared-clipboard interference. Native target checks and refusals remain authoritative.
-Alpha.42 source work corrects misleading Chrome reconnect guidance and adds content-free proof-failure
+Alpha.42 corrects misleading Chrome reconnect guidance and adds content-free proof-failure
 diagnostics, including requested screenshots omitted by the driver. A clipboard-free filing
 attempt stopped because it had no usable pixel targets, despite Accessibility and Screen Recording
 reporting Allowed. The separate QA app location lacks macOS’s additional direct-capture approval.
 Alpha.42 also keeps See your screen actionable when the driver identifies this missing approval,
-and requests it only from explicit setup. Signed-app retesting remains required; neither browser
-reconnection nor clipboard preservation is established.
+and requests it only from explicit setup. Signed-app setup cleared the warning and provided real
+Finder screenshots. The filing rerun still failed before moving files; neither browser recovery
+nor a completed clipboard-preserving workflow is established.
 
 Alpha.38 includes Chrome in default Mac setup with an explicit opt-out, and adds a host-triggered
 **Connect Chrome & continue** control to Mac conversations. Existing approved sessions are reused

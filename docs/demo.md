@@ -1,5 +1,11 @@
 # Useful work to try in Sia
 
+Latest candidate: **alpha.42**, exact source `c50782a`. Its signed setup fixed the missing direct-capture
+approval and real Finder screenshots now arrive. A fresh clipboard-free filing run still failed
+before moving files (about 84 seconds); all six hashes and the clipboard canary remained unchanged.
+Chrome reconnection failed with native `consent_not_settled`. Neither a completed clipboard-safe
+workflow nor parallel GUI use is accepted. See [exact evidence](./public-release.md).
+
 Use the exact signed candidate recorded in [release status](./release-status.md) and
 [artifact evidence](./public-release.md). Distribution is not approved. The examples below use
 actual public project documents and a real admitted model; they are not fake-service demos.

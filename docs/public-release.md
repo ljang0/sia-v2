@@ -3,11 +3,46 @@
 ## Current decision — October 31, 2026
 
 The owner selected **Mac first; iPhone follows** and confirmed ownership of the relevant Notch
-source rights. Alpha.41 is signed and notarized. Real Finder filing passed, but it changed the
-shared clipboard; Chrome reconnection failed. **External pilot release is not complete.**
+source rights. Alpha.42 is signed and notarized. It repairs missing direct-capture setup, but
+real Finder filing and Chrome reconnection still fail. **External pilot release is not complete.**
 No new artifacts were published or invitations sent; the last published Mac pilot remains alpha.24.
 
-## Exact alpha.41 artifact
+## Exact alpha.42 artifact and live result
+
+Built from `c50782a873455719ee12bc931248aa0ad4f5c1fd`. The full local pilot gate passed:
+1,814 desktop unit, 46 Electron, 31 renderer, 72 phone-browser and 72 action-gateway tests.
+[Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41171344097) passed. Universal
+signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged-runtime checks
+passed. App notarization `963caef5-b8a9-4798-ba39-51936ee4156e` and DMG notarization
+`2863c540-1510-4ad3-ad5a-e3a24862a722` were Accepted.
+
+| Artifact                           | SHA-256                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `Sia-0.1.0-alpha.42-universal.dmg` | `53d6f8ed73a9530e2dfa969bac99817cb830ce979e8c806770a37ec11ffd39c2` |
+| `Sia-0.1.0-alpha.42-universal.zip` | `570a3bde3a23306fa56a8523709fea5e36fdf98dc037b0c5cbd39194d0938f6d` |
+| Installed QA `app.asar`            | `e13312de6a266b6634c0b41b217c61668dc2a2d8ac3b27e532afb0b982e7bff0` |
+
+The separate QA copy retained its profile and history. Its driver reported
+`direct_capture_consent_required` despite the existing TCC grants. **See your screen** correctly
+stayed actionable; after its explicit setup action, the warning cleared and a real Finder task
+received 1365×647 screenshots with pixel actions available. The operator's attempt to inspect
+macOS UserNotificationCenter was refused by CUA; that app was not controlled or bypassed.
+
+The fresh clipboard-free Finder task still **failed before filing**, after about 84 seconds.
+Command-Up and two pointer actions were acknowledged without reaching the parent folder.
+All six real project files remained in Inbox with matching hashes. The original clipboard canary
+was independently pasted afterward and matched, but a failed task is not a successful
+clipboard-preserving workflow. The initial app inventory did not establish TextEdit as foreground;
+the later independent typing cannot establish simultaneous foreground work for this run.
+
+Chrome recovery selected only the approved public Browser Harness window. The operator completed
+its existing Chrome consent prompt, but native diagnostics reported `consent_not_settled`.
+The pinned driver uses a four-second consent deadline and scans same-process Chrome windows;
+ten windows were listed. Slow scanning is a hypothesis requiring further diagnosis. No settings
+were changed, unrelated window attached, or browser restarted. Parallel GUI work and distribution
+remain unaccepted. Exact prompts and private evidence are in the alpha.42 artifact folder.
+
+## Prior alpha.41 artifact
 
 Built from `084878875dcae00fa561b015bc49691a85948fe8`. The full local `pnpm test:pilot`
 gate passed: 1,803 desktop unit, 46 Electron, 31 renderer, 72 Chromium/WebKit phone and
@@ -140,7 +175,7 @@ The last published alpha.24 pilot remains recorded in [release evidence](./relea
 
 ## Publication
 
-The alpha.38 artifact folder is prepared locally with the installer, checksums, signed-package verification and private
+The alpha.42 artifact folder is prepared locally with the installer, checksums, signed-package verification and private
 real-work evidence. It is an acceptance candidate, not a published release. Keep private
 recipient lists and download links outside Git. After the remaining [release gates](./release-status.md)
 pass and the owner authorizes distribution, follow [release operations](./release.md) and verify the
