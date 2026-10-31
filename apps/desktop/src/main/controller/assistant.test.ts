@@ -9,6 +9,79 @@ import { NotchVault } from '../notch/vault.js';
 import type { RuntimeTurnInput } from '../providers/runtime-coordinator.js';
 import { createController, createHarness } from './test-support.js';
 
+it.each([false, true])(
+  'keeps native skills as owner references in visual mode, background=%s',
+  async (background) => {
+    const directory = await mkdtemp(join(tmpdir(), 'sia-visual-skills-'));
+    const { controller } = await createHarness({
+      visionOnly: true,
+      defaultWorkspaceRoot: directory,
+    });
+    try {
+      await controller.invoke('computer.setAccessMode', { mode: 'mac', background });
+      const { agentId } = await controller.invoke('agents.save', {
+        name: 'Visual skill boundary',
+        instructions: '',
+        model: 'gpt-5.6-sol',
+      });
+      const saved = await controller.invoke('assistant.library', {
+        operation: 'saveSkill',
+        entry: {
+          agentId,
+          title: 'Legacy native routine',
+          description: 'Owner reference',
+          execution: 'native',
+          source: '#!/bin/bash\nprintf legacy-native-reference\n',
+        },
+      });
+      const skill = saved.skills!.find((entry) => entry.agentId === agentId)!;
+      const before = controller.snapshot().threads.length;
+      await expect(
+        controller.invoke('assistant.library', {
+          operation: 'runSkill',
+          id: skill.id,
+          input: {},
+        }),
+      ).rejects.toThrow('vision-only control');
+      expect(controller.snapshot().threads).toHaveLength(before);
+      const { threadId } = await controller.invoke('threads.create', { agentId });
+      const { turnId } = await controller.invoke('threads.send', {
+        threadId,
+        text: 'Read my skills',
+      });
+      const result = await controller.assistantAction(
+        {
+          name: 'assistant_library',
+          arguments: {},
+          descriptor: getActionToolDescriptor('assistant_library')!,
+          context: {
+            sessionId: 'fixture',
+            threadId,
+            turnId,
+            provider: 'codex',
+            workspace: directory,
+          },
+        },
+        vi.fn(),
+      );
+      expect(JSON.stringify(result)).toContain('gateway Bash');
+      expect(JSON.stringify(result)).not.toMatch(
+        /exec_command|legacy-native-reference|native Bash\/AppleScript/,
+      );
+      const owner = await controller.invoke('assistant.library', { operation: 'list' });
+      expect(owner.skills).toContainEqual(
+        expect.objectContaining({
+          id: skill.id,
+          source: expect.stringContaining('legacy-native-reference'),
+        }),
+      );
+    } finally {
+      await controller.shutdown();
+      await rm(directory, { recursive: true, force: true });
+    }
+  },
+);
+
 it('keeps legacy private links out of model-facing library reads without deleting owner records', async () => {
   const { controller, repository } = await createHarness();
   try {

@@ -86,6 +86,12 @@ are not part of the alpha.57 artifact above and do not yet establish a live fix.
 source passed the full local pilot gate with 1,941 desktop tests and the same native/E2E, renderer
 and phone counts; 155 focused checks cover the changed boundaries.
 
+Alpha.58 additionally removes the native-skill UI branch and enforces the visual policy across
+library reads and skill launches. All local pilot-gate stages completed with 1,942 desktop tests
+and the same native/E2E, renderer and phone counts. One obsolete native-creation E2E expectation
+was updated; its three-test library file and the remaining stages passed separately. This source
+has not yet been signed or accepted in real tasks.
+
 Retain the alpha.56 QA backup for rollback. Its assisted-mode successes and interventions are
 in the [previous acceptance record](https://github.com/ljang0/sia-v2/blob/47352213cfe9bf254a39d3a1094ad765902d4a1b/docs/public-release.md);
 they do not validate vision-only control. Do not overlap real QA with Electron/renderer gates

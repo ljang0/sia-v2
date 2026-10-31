@@ -73,13 +73,22 @@ types, native/shared checks, 1,933 desktop tests, 46 desktop end-to-end tests, 4
 and 72 Chromium/WebKit phone tests. These automated transport/authorization and UI checks are not
 evidence of visual task skill. Continue also retires obsolete Chrome setup markers from the
 previous execution while retaining its history. Universal alpha.57 passed signing, notarization,
-stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. Exact-source CI is
+stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. Exact-source CI
 passed. The first real visual tasks exposed browser input/re-observation failures and native
 Save-dialog targeting failures; meal planning recovered with an operator prompt. See the
 [artifact record](./public-release.md) for exact results, interventions and hashes. Source follow-ups
 add a bounded stale-capture read retry, content-free pointer/link guard diagnostics and remove
 obsolete native-script promises from settings. Their live effect is not yet verified. This follow-up passed the full local pilot gate with
 1,941 desktop tests and the same native, E2E, renderer and phone counts.
+
+The alpha.58 source also aligns the skills library with the visual policy: both Mac delivery modes
+use sandboxed gateway skills, model-facing library reads omit native execution recipes, and legacy
+native source stays owner-editable with Run disabled. This removes obsolete UI mode branches.
+All local pilot-gate stages passed: 1,942 desktop tests, 46 Electron tests, 40 renderer tests,
+72 Chromium/WebKit phone tests and native/shared checks, plus build, formatting, lint, quality
+and types. The initial Electron run found one obsolete native-creation expectation; its updated
+three-test library file passed, and the remaining renderer/phone stages completed separately.
+Signed alpha.58 verification and exact-source CI remain pending.
 
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
@@ -98,7 +107,7 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.55 full local gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web and native/shared checks including 235 browser regressions. Alpha.56 full local gate passed with 1,864 desktop tests and the same E2E/native counts; exact-source CI passed. | Exact-source CI for the vision-only default and final universal artifact repeats. |
+| Source | Alpha.58 local pilot-gate stages passed: 1,942 desktop, 46 Electron, 40 renderer, 72 phone-web and native/shared checks including 248 browser regressions. The alpha.57 artifact source passed exact-source CI, including universal package verification. | Alpha.58 exact-source CI and final universal artifact repeats. |
 | Signed package | Universal vision-only alpha.57 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Fix and repeat failed real tasks on the final artifact. |
 | Useful work | Alpha.57 saved a source-checked three-dinner plan and consolidated groceries after recovery; previews loaded. Native TextEdit Save failed. | Unattended browser recovery, native Save/reopen and the sourced outing (which also stopped on refused clicks). |
 | Background/concurrency | Alpha.56 native editing progressed during slow browser observation. Stop during Save/readback showed cancellation within 1,149 ms including CUA; read-only recovery preserved saved work and browser access. Ten switches median 1,151 ms / worst 2,432 ms. | Final-artifact concurrency, contention/recovery repeats and clipboard preservation. |

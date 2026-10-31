@@ -12,12 +12,10 @@ export function ExecutableSkills({
   library,
   agentId,
   command,
-  mode,
 }: {
   library: AssistantLibraryView;
   agentId: string;
   command(input: AssistantLibraryCommand): Promise<boolean>;
-  mode: 'native' | 'gateway';
 }) {
   const [editor, setEditor] = useState<Partial<AssistantSkill>>();
   const [runner, setRunner] = useState<AssistantSkill>();
@@ -30,11 +28,7 @@ export function ExecutableSkills({
       <div className={styles.heading}>
         <div>
           <h3>Executable skills</h3>
-          <p>
-            {mode === 'native'
-              ? 'Native Bash and AppleScript routines, discovered from your agent’s skill folder on every request. Runs follow your action approval setting.'
-              : 'Reusable Bash routines. Each run asks you to review its code and app actions.'}
-          </p>
+          <p>Reusable Bash routines. Each run asks you to review its code and app actions.</p>
         </div>
         <button
           disabled={!agentId}
@@ -42,11 +36,9 @@ export function ExecutableSkills({
             setEditor({
               title: '',
               description: '',
-              execution: mode,
+              execution: 'gateway',
               source:
-                mode === 'native'
-                  ? '#!/bin/bash\n# Add a reusable procedure; quote script arguments.\n'
-                  : "# Read the permitted apps.\nsia_action computer_list '{}'\nprintf '%s\\n' \"$SIA_RESULT\" >&2\n",
+                "# Read the permitted apps.\nsia_action computer_list '{}'\nprintf '%s\\n' \"$SIA_RESULT\" >&2\n",
             })
           }
         >
@@ -61,8 +53,8 @@ export function ExecutableSkills({
               <strong>{entry.title}</strong>
               <p>{entry.description}</p>
               {entry.path && <small>{entry.path}</small>}
-              {skillUnavailableReason(mode, entry.execution) && (
-                <small>{skillUnavailableReason(mode, entry.execution)}</small>
+              {skillUnavailableReason('gateway', entry.execution) && (
+                <small>{skillUnavailableReason('gateway', entry.execution)}</small>
               )}
             </div>
             <details>
@@ -71,7 +63,7 @@ export function ExecutableSkills({
             </details>
             <div className={styles.actions}>
               <button
-                disabled={Boolean(skillUnavailableReason(mode, entry.execution))}
+                disabled={Boolean(skillUnavailableReason('gateway', entry.execution))}
                 onClick={() => {
                   setRunner(entry);
                   setInput('{}');
@@ -146,9 +138,8 @@ export function ExecutableSkills({
           </label>
           {editor.execution === 'native' ? (
             <p>
-              Use ordinary Bash and AppleScript with quoted script arguments. Sia adds a skill
-              metadata header and saves an executable file in your agent’s skill folder. Saving
-              does not run it. Verify the requested result when you use it.
+              Saved native source remains available for reference and editing. Vision-only tasks
+              do not execute it. Saving does not run it.
             </p>
           ) : (
             <p>

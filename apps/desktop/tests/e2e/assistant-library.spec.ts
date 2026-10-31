@@ -1,15 +1,28 @@
 import { expect, test } from '@playwright/test';
 import { launchIsolatedSia } from '../support/electron-harness';
 
-test('background skills use gateway execution and native titles survive restart', async () => {
+test('visual skills keep gateway execution across delivery modes and preserve native source', async () => {
   let sia = await launchIsolatedSia({ prefix: 'sia-skill-modes-' });
   const testRoot = sia.testRoot;
   try {
     let page = sia.page;
     page = await sia.completeSetup();
     await expect(page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
-    // New profiles work in the background; native skills are created On my screen.
-    await page.evaluate(() => window.sia.computer.setAccessMode('mac', false));
+    // Seed an owner-saved legacy native file, as an upgraded profile can contain.
+    await page.evaluate(async () => {
+      await window.sia.computer.setAccessMode('mac', false);
+      const snapshot = await window.sia.bootstrap();
+      await window.sia.assistantLibrary({
+        operation: 'saveSkill',
+        entry: {
+          agentId: snapshot.agents[0]!.id,
+          title: 'Inspect Finder',
+          description: 'Saved native reference',
+          execution: 'native',
+          source: '#!/bin/bash\nprintf legacy-native-reference\n',
+        },
+      });
+    });
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page.getByRole('button', { name: 'More settings' }).click();
     await page.getByRole('menuitem', { name: 'Assistant', exact: true }).click();
@@ -17,23 +30,19 @@ test('background skills use gateway execution and native titles survive restart'
       .getByRole('navigation', { name: 'Assistant sections' })
       .getByRole('button', { name: /^Skills/ })
       .click();
-    await page.getByRole('button', { name: 'New skill', exact: true }).click();
-    await page.getByLabel('Skill name', { exact: true }).fill('Inspect Finder');
-    await page
-      .getByLabel('When to use it', { exact: true })
-      .fill('Read the visible Finder folder.');
-    await page.getByRole('button', { name: 'Save skill', exact: true }).click();
     const native = page.getByRole('article').filter({ hasText: 'Inspect Finder' });
-    await expect(native.getByRole('button', { name: 'Run skill' })).toBeEnabled();
-
-    await page.evaluate(() => window.sia.computer.setAccessMode('mac', true, 'pause'));
     await expect(native.getByRole('button', { name: 'Run skill' })).toBeDisabled();
+    await native.getByText('View Bash source', { exact: true }).click();
+    await expect(native.locator('pre')).toContainText('legacy-native-reference');
     await page.getByRole('button', { name: 'New skill', exact: true }).click();
     await expect(page.getByLabel('Bash source')).toHaveValue(/sia_action/);
     await page.getByLabel('Skill name', { exact: true }).fill('List background apps');
     await page.getByLabel('When to use it', { exact: true }).fill('Find available apps.');
     await page.getByRole('button', { name: 'Save skill', exact: true }).click();
     const gateway = page.getByRole('article').filter({ hasText: 'List background apps' });
+    await expect(gateway.getByRole('button', { name: 'Run skill' })).toBeEnabled();
+    await page.evaluate(() => window.sia.computer.setAccessMode('mac', true, 'pause'));
+    await expect(native.getByRole('button', { name: 'Run skill' })).toBeDisabled();
     await expect(gateway.getByRole('button', { name: 'Run skill' })).toBeEnabled();
     const denied = await page.evaluate(async () => {
       const library = await window.sia.assistantLibrary({ operation: 'list' });
@@ -45,7 +54,7 @@ test('background skills use gateway execution and native titles survive restart'
         return String(error);
       }
     });
-    expect(denied).toContain('On my screen');
+    expect(denied).toContain('vision-only control');
     await gateway.getByRole('button', { name: 'Run skill' }).click();
     await page.getByRole('button', { name: 'Review run in a new conversation' }).click();
     await expect(page.getByText(/This was a practice reply/)).toBeVisible();
