@@ -120,6 +120,24 @@ Alpha.67 passed the full local pilot gate: build/static/shared checks, 1,950 des
 Documented skips remain in `pilot-gate.log`. Live QA began after packaging and all gates completed;
 the QA process was then quit through CUA and its exit verified.
 
+Internal read-only alpha.68 initially discarded stream frames because the dependency's decoded
+status was null. Alpha.69 removed that diagnostic filter and recorded actual stream geometry:
+the ordinary window had content scale 1; the expanded Save sheet had content scale
+`0.7325000166893005`, backing scale 2 and content/bounding rectangles
+`[0,0,586.0000133514404,348.67000794410706]`. Its screen rectangle remained
+`[532,356,586,476]`, the parent, despite the earlier proven 800-point sheet overhang. Thus a
+scale-only correction would still misplace the image origin. Production work must validate status,
+pair pixels with their own frame metadata, reconcile fresh exact-owned sheet bounds, and reject
+changed geometry before input. Enlarged image bounds alone must not widen synthetic input.
+
+Both turns used only app listing and one screenshot. Alpha.69's installed ASAR was
+`a1bb6054cee44a1ba6bda8db8586a4f444f30107fbd9037fa2a17c620e237a08`; its base was
+`311cdd03dd0caf14d8f50c8268fb6ecc7a3deb72`, with captured diff
+`97d7a0d33ffd8fe62d4b608f7cd8ca9b6fc15deb4f23377902c9db2960b3b35e`.
+Private `alpha68-stream-geometry` and `alpha69-stream-metadata` retain receipts, source, traces,
+metadata and results. Neither is a distribution candidate or completed task. Probe code was removed,
+the QA process exited, and the signed alpha.67 app was restored without launching it.
+
 ## Browser evidence retained from alpha.59
 
 The [alpha.59 record](https://github.com/ljang0/sia-v2/blob/b22d9c279eea120118d73083aa27281964dc727f/docs/public-release.md)

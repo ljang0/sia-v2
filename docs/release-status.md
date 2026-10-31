@@ -77,6 +77,13 @@ one new screenshot, four correct image-only facts and correct sheet-overhang rec
 zero computer inputs. The full local pilot gate passed. This verifies image handoff, not completed
 native work; expanded-sheet coordinate mapping and Save/reopen remain open.
 
+Read-only internal alpha.69 narrowed the coordinate failure: stream metadata reports
+`content_scale ≈ 0.7325` and backing scale 2, while `screen_rect` still names the parent window.
+Scale alone therefore cannot supply the captured sheet's origin. The next correction must pair
+same-frame pixels/metadata with fresh, proven sheet ownership and bounds, and reject stale geometry.
+The dependency's frame-status decoder returned null despite other metadata being available.
+Temporary probes were removed and signed alpha.67 restored; no input or task acceptance is credited.
+
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
 The release requires real-source research and writing, file/document preparation, and planning
