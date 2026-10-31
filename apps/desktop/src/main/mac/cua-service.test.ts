@@ -75,6 +75,36 @@ it('preserves explicitly permitted foreground Copy', async () => {
   }
 });
 
+it('preserves partial drag delivery instead of claiming no input was sent', async () => {
+  const driver = {
+    ...successfulDriver({}),
+    callTool: vi.fn(async () => ({
+      errorCode: 'background_unavailable',
+      rawJson: JSON.stringify({
+        effect: 'no_drop',
+        reason: 'drag_and_drop_session',
+        message: 'private window contents must not escape',
+      }),
+    })),
+  };
+  const service = new CuaService(authorization(), {
+    driverFactory: () => driver,
+    readForegroundPid: async () => 7,
+  });
+  try {
+    await expect(
+      service.call(
+        'drag',
+        { pid: 42, window_id: 91, delivery_mode: 'background' },
+        { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+      ),
+    ).rejects.toThrow(/^CUA incomplete: background_drag_requires_pointer$/);
+    expect(driver.callTool).toHaveBeenCalledOnce();
+  } finally {
+    await service.shutdown();
+  }
+});
+
 it('records content-free authorization diagnostics without retrying the native operation', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
   const driver = {

@@ -24,6 +24,9 @@
 .sia-gradient-text[data-appearance='calm'] {
   animation: none;
 }
+.sia-gradient-text[data-visibility-paused='true'] {
+  animation-play-state: paused;
+}
 @media (prefers-reduced-motion: reduce) {
   .sia-gradient-text {
     animation: none;

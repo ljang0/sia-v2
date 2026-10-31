@@ -328,7 +328,11 @@ it('sets an exact field with the current driver contract and observes its new va
   expect(cua.call.mock.calls.filter(([name]) => name === 'set_value')).toHaveLength(1);
 });
 
-it.each(['Timed out waiting for input acknowledgement', 'read ECONNRESET'])(
+it.each([
+  'Timed out waiting for input acknowledgement',
+  'read ECONNRESET',
+  'CUA incomplete: background_drag_requires_pointer',
+])(
   'preserves uncertain delivery and revokes the old input target after %s',
   async (message) => {
     let saved = 0;
@@ -377,6 +381,10 @@ it.each(['Timed out waiting for input acknowledgement', 'read ECONNRESET'])(
     expect(result.outcome).toBe('accepted_unverified');
     expect(result.data).toMatchObject({ input_delivery_uncertain: true });
     expect(result.summary).toMatch(/inspect|observe/i);
+    if (message.includes('background_drag_requires_pointer')) {
+      expect(result.data).toMatchObject({ blocker_code: 'background_drag_requires_pointer' });
+      expect(result.summary).toContain('do not retry this background drag');
+    }
     expect(saved).toBe(1);
     expect((await backend.invoke(action)).outcome).toBe('stale');
     expect(saved).toBe(1);

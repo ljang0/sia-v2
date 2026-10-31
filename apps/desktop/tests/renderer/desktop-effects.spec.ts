@@ -5,6 +5,24 @@ async function openAppearance(page: Page) {
   await page.getByRole('menuitem', { name: 'Appearance', exact: true }).click();
 }
 
+test('unfocused conversations pause gradient text as well as the WebGL backdrop', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/#demo');
+  await page.getByTitle('New conversation', { exact: true }).first().click();
+  const heading = page.getByRole('heading', { name: 'What would you like to do?' });
+  await expect(heading).toHaveCSS('animation-play-state', 'running');
+  // Emulate Electron's focus signal without relying on headless window-manager focus.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hasFocus', { configurable: true, value: () => false });
+    window.dispatchEvent(new Event('blur'));
+  });
+  await expect(page.locator('.sia-aurora')).toHaveAttribute('data-paused', 'true');
+  await expect(page.locator('.dither-aurora-field canvas')).toHaveCount(0);
+  await expect(heading).toHaveCSS('animation-play-state', 'paused');
+});
+
 for (const surface of ['agent', 'menu', 'access'] as const) {
   test(`${surface} closes without a running exit animation`, async ({ page }) => {
     await page.goto('/#demo');

@@ -1,7 +1,8 @@
 # Release status
 
 Updated October 31, 2026. **Distribution is not ready.** Alpha.42 is signed and notarized.
-Direct-capture setup now works; real Finder filing, clipboard-safe completion and Chrome recovery still block acceptance.
+Direct-capture setup and Chrome recovery now work in internal alpha.43 QA; ordinary background
+file organization, repeatable parallel GUI completion and responsiveness still block acceptance.
 On alpha.38, two real document workflows completed concurrently with all five result previews verified. The last
 published Mac pilot is alpha.24; no new invitations or public download have been authorized.
 
@@ -42,8 +43,10 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 Alpha.43 source adds the pinned native Chrome consent patch, persistent connection errors,
 a pre-input background Copy/Cut guard, fresh-reference guidance on task continuation, and
-paused background decoration while a document preview is open. Its source and signed-artifact
-gates are still pending. The clipboard guard is deliberately not represented as a comprehensive
+paused background decoration while a document preview is open. Its initial source pilot gate
+passed (1,821 desktop units, 46 Electron, 31 renderer, 72 phone-browser and 72 gateway tests).
+An internal signed arm64 build passed package/runtime/provenance checks, but it is not notarized.
+The clipboard guard is deliberately not represented as a comprehensive
 menu/clipboard sandbox.
 
 The engineering probe recovered Chrome in 1.7 seconds instead of a 7.7-second repeated scan,
@@ -57,6 +60,15 @@ Existing changes reserve individual physical windows, queue same-window work, an
 ownership only when a task first uses it. Document-only concurrency passed on alpha.38; two
 simultaneous native/browser tasks still need to complete on the exact candidate. The latest
 Finder probe failed with `window_not_key` while two Finder windows existed.
+
+The packaged alpha.43 rerun recovered Chrome and completed the practical visitor plan in 3m51s
+without a browser intervention, alongside the Finder task. The plan's facts, budget, saved preview,
+independent typing and clipboard canary passed. Finder created three folders but moved no files:
+native macOS file drag-and-drop requires the hardware pointer. A follow-up permitting file tools
+also failed because the background tools cannot traverse folders or move files. This is a product
+gap, not a successful parallel GUI demo. Later source fixes explain the drag limitation, preserve
+uncertainty after a partial drag, and stop an inline gradient animation from overriding pause
+styles. Those fixes passed focused regressions; final package acceptance remains pending.
 
 Default Mac setup includes Chrome with a deliberate opt-out. **Connect Chrome & continue**
 preserves the saved request. Existing approval is reused only for the same process/window;

@@ -551,6 +551,15 @@ export class CuaService {
         operation.signal,
       );
       if (result.errorCode) {
+        if (
+          tool === 'drag' &&
+          result.errorCode === 'background_unavailable' &&
+          (result.structuredJson ?? result.rawJson).includes('drag_and_drop_session')
+        ) {
+          // This arrives AFTER mouse-down/drag/release. Do not flatten it into
+          // the pre-input refusal used for a missing background delivery route.
+          throw new Error('CUA incomplete: background_drag_requires_pointer');
+        }
         if (result.errorCode === 'browser_wrong_target_refused') {
           // Classify known native proof failures without logging page/clipboard
           // content, target identities, or the raw native error payload.
