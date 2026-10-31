@@ -2,14 +2,48 @@
 
 ## Current decision — October 31, 2026
 
-**Distribution is not ready.** Universal notarized alpha.50 fixed the native-document failure,
-but a public link opened a new tab and interrupted background browser work. Alpha.51 adds a
-pre-click check for known links targeting another browsing context. Its focused native and desktop
-checks pass; the complete gate and signed live acceptance are pending. No artifacts were published
-or invitations sent. The last published Mac pilot remains alpha.24.
+**Distribution is not ready.** Universal notarized alpha.51 passed packaging and the full local
+pilot gate. Its two native document edits passed, but browser navigation and the next observation
+timed out; the practical plan was not produced. Alpha.52 adds one bounded retry for a read-only
+origin-attestation timeout before any host authorization callback, with a distinct loading error
+if it persists. It never retries input or an authorization decision. Alpha.52 passed the full local pilot gate: 1,858 desktop units, 46 Electron, 33 renderer,
+72 phone-web and native/shared checks. Its signed build, CI and live acceptance remain pending. Nothing was published; the last published Mac pilot is alpha.24.
 
 The owner selected **Mac first; iPhone follows**, confirmed the relevant Notch source rights,
 and named Lawrence Jang as support/incident owner.
+
+## Exact alpha.51 universal artifact
+
+Built from `34904a29785ab010a764c5a7568676317d359efe`. Universal app/DMG signing, notarization,
+stapling, Gatekeeper and packaged runtime checks passed. The full local gate passed: 1,851 desktop
+units, 46 Electron, 33 renderer, 72 phone-web, 71 native browser regressions and the other
+native/shared checks. [CI](https://github.com/ljang0/sia-v2/actions/runs/41198459584) was still running at this update.
+
+| Artifact                           | SHA-256                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `Sia-0.1.0-alpha.51-universal.dmg` | `6560aa1fa4bdc0f89cac24db1408415a340bc83bca5a80ff78bb758ce29d62f2` |
+| `Sia-0.1.0-alpha.51-universal.zip` | `aa4c4e1c4dbb4f65d10f047ded4245f61db5d683b4d8a48814b5ad8013731770` |
+| Installed QA `app.asar`            | `70e8abdcd043a30b24f10f8f4c6a3b79327d7a85f345daabfb9c0a10ddc8a523` |
+| Final native brief                 | `36c5af8300d63fecb356e5ae82a29cf55e0f3baef2df26cfd8a35d488aebaf28` |
+
+Fresh agents used the default ChatGPT plan. TextEdit produced a faithful 426-word brief, then a
+375-word revision with the first decision up front. Both saved and verified through native
+background controls, with no failed action; UI activity totals were 64 and 92 seconds. Saved bytes
+were independently checked. The second edit ran while browser research was active.
+
+The browser agent first needed the approved page identified by title because its inventory lacked
+the operator's window number. Explicit Chrome recovery then resumed the request automatically.
+Navigation to the museum timed out and the following read returned `authorization_host_failed`.
+Content-free diagnostics show a CDP timeout before the host callback, not a permission denial.
+Independent CUA also timed out reading that same public tab, then later read its settled Events
+page. No navigation was replayed, and no visitor plan was produced. The underlying transient
+stall is not proven fixed. The new-context-link guard was not reached in this run.
+
+Six switches during simultaneous tasks measured median 894.5 ms, worst 962 ms including CUA
+observation; click acknowledgements were 79–106 ms. These are not isolated rendering latencies.
+The clipboard canary survived and the original clipboard was restored privately. This is a
+native-edit pass and a browser/concurrency acceptance failure, not a successful paired workflow.
+Private evidence is under `alpha51-artifacts/real-work`.
 
 ## Exact alpha.50 universal artifact
 
@@ -17,7 +51,7 @@ Built from `3aeb38dff18f9b57ecb1ded4552354db58bf4353`. Universal signing, app/DM
 stapling, strict signatures, Gatekeeper and packaged runtime checks passed. The complete local
 pilot gate passed: 1,849 desktop units, 46 Electron, 33 renderer and 72 phone-web checks, plus
 native/shared-package checks. [Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41196040578)
-was still running at this evidence update.
+passed.
 
 | Artifact                           | SHA-256                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |
@@ -71,13 +105,13 @@ remains unproven. Private results are in `alpha49-artifacts/real-work`.
 
 ## Remaining acceptance and rollback
 
-Alpha.51 needs its complete gate, signed build and useful-work repeats. The native patch refuses
+Alpha.52 needs its signed build, exact-source CI and useful-work repeats. The native patch refuses
 known new-context links before input; the agent can read observed destinations and navigate the
 existing tab. It neither rewrites the webpage nor silently changes a click into navigation.
 Unknown preflight results refuse. JavaScript can still cause unexpected effects, so the existing
 post-input focus guard remains necessary. See the [native patch rationale](../apps/desktop/native/cua/README.md).
 
-The successful native fix still needs a fresh repeat. Alpha.50's exact-tab navigation change also
+The native fix passed two fresh-agent alpha.51 edits. Alpha.50's exact-tab navigation change also
 needs an observed navigation during operator app switching; its failed browser run reached a click
 instead. Do not infer that live pass from the unit tests. Contention/Stop, restart recovery and
 responsiveness remain final-candidate gates.
@@ -107,7 +141,7 @@ The owner selected iPhone as a follow-on release, so those checks do not gate th
 
 ## Publication
 
-The alpha.50 artifact folder is prepared locally with the installer, checksums, signed-package verification and private
+The alpha.51 artifact folder is prepared locally with the installer, checksums, signed-package verification and private
 real-work evidence. It is an acceptance candidate, not a published release. Keep private
 recipient lists and download links outside Git. After the remaining [release gates](./release-status.md)
 pass and the owner authorizes distribution, follow [release operations](./release.md) and verify the

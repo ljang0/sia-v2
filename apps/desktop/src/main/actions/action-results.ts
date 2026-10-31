@@ -42,6 +42,14 @@ export function classifyFailure(error: unknown): ActionExecutionResult {
       reason: message,
       data: { blocker_code: 'browser_new_context_refused', input_not_sent: true },
     };
+  if (normalized === 'cua refused: browser_observation_timeout')
+    return {
+      outcome: 'refused',
+      summary:
+        'The browser page did not respond after one bounded read retry. This does not mean permission was denied. Pause this task and report the loading problem. Once the page responds, continue by observing the same tab; do not repeat setup or replay earlier navigation or input whose result is uncertain.',
+      reason: message,
+      data: { blocker_code: 'browser_observation_timeout' },
+    };
   if (normalized === 'cua refused: authorization_host_failed')
     return {
       outcome: 'refused',

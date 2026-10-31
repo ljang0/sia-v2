@@ -1,6 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { classifyFailure, inputWasRefused, resultRefusal } from './action-results.js';
 
+it('distinguishes an exhausted browser read timeout from permission denial or safe input replay', () => {
+  const error = new Error('CUA refused: browser_observation_timeout');
+  const result = classifyFailure(error);
+  expect(result).toMatchObject({
+    outcome: 'refused',
+    data: { blocker_code: 'browser_observation_timeout' },
+  });
+  expect(result.summary).toContain('does not mean permission was denied');
+  expect(result.summary).toContain('do not repeat setup or replay');
+  expect(inputWasRefused(error)).toBe(false);
+  expect(result.data).not.toHaveProperty('input_not_sent');
+});
+
 it('explains a host authorization failure without treating uncertain input as safe to replay', () => {
   const error = new Error('CUA refused: authorization_host_failed');
   expect(classifyFailure(error)).toMatchObject({

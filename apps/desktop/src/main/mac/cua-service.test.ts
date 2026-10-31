@@ -127,10 +127,6 @@ it('preserves partial drag delivery instead of claiming no input was sent', asyn
 
 it.each([
   ['request timed out', 'request_timeout'],
-  [
-    'could not prove the live top-level browser document: CDP Page.getFrameTree timed out after 20s',
-    'browser_transport_timeout',
-  ],
   ['browser observation did not attest a live top-level origin', 'browser_origin_unavailable'],
 ])(
   'records content-free authorization diagnostics without retrying: %s',
@@ -152,6 +148,137 @@ it.each([
       expect(warn).toHaveBeenCalledExactlyOnceWith(
         `[sia:cua-authorization] native_refusal tool=get_browser_state hint=${hint} callback_started=0 callback_completed=0`,
       );
+    } finally {
+      await service.shutdown();
+      warn.mockRestore();
+    }
+  },
+);
+
+const observationTimeout = {
+  errorCode: 'authorization_host_failed',
+  rawJson: JSON.stringify({
+    message:
+      'could not prove the live top-level browser document: CDP Page.getFrameTree timed out after 20s',
+    resource: 'private-resource',
+  }),
+};
+
+it('does not retry a timed-out observation after a host authorization decision', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const driver = { ...successfulDriver({}), callTool: vi.fn() };
+  const service = new CuaService(
+    { authorize: async () => 'deny' },
+    {
+      driverFactory: (authorize) => {
+        driver.callTool.mockImplementation(async () => {
+          await authorize({
+            adapterId: 'private_observation',
+            riskClass: 'read',
+            permissionMode: 'standard',
+            publicSession: 's',
+            requestDigest: 'd',
+            humanSummary: 'Read approved page',
+            resourceJson: '{}',
+            expiresUnixMs: 0n,
+          });
+          return observationTimeout;
+        });
+        return driver;
+      },
+    },
+  );
+  try {
+    await expect(service.call('get_browser_state', {}, directContext)).rejects.toThrow(
+      /^CUA refused: authorization_host_failed$/,
+    );
+    expect(driver.callTool).toHaveBeenCalledOnce();
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
+});
+
+it('honors cancellation before a timed-out browser read can be retried', async () => {
+  const abort = new AbortController();
+  const driver = {
+    ...successfulDriver({}),
+    callTool: vi.fn(async () => {
+      abort.abort(new Error('Stopped by person.'));
+      return observationTimeout;
+    }),
+  };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(
+      service.call('get_browser_state', {}, directContext, abort.signal),
+    ).rejects.toThrow('Stopped by person.');
+    expect(driver.callTool).toHaveBeenCalledOnce();
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it('refreshes a timed-out browser observation once without changing its target or grant', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const driver = {
+    ...successfulDriver({}),
+    callTool: vi
+      .fn()
+      .mockResolvedValueOnce(observationTimeout)
+      .mockResolvedValueOnce({
+        rawJson: JSON.stringify({ status: 'ok', title: 'Settled page' }),
+      }),
+  };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  const args = { session: 'existing-grant', target_id: 'approved-window', tab_id: 'exact-tab' };
+  try {
+    await expect(service.call('get_browser_state', args, directContext)).resolves.toBeDefined();
+    expect(driver.callTool).toHaveBeenCalledTimes(2);
+    expect(driver.callTool.mock.calls[0]).toEqual(driver.callTool.mock.calls[1]);
+    expect(driver.callTool.mock.calls[0]?.[1]).toBe(JSON.stringify(args));
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      '[sia:cua-browser] observation_transport_retry attempt=1',
+    );
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
+});
+
+it('bounds repeated observation timeouts and reports transport failure without leaking content', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const driver = {
+    ...successfulDriver({}),
+    callTool: vi.fn().mockResolvedValue(observationTimeout),
+  };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(service.call('get_browser_state', {}, directContext)).rejects.toThrow(
+      /^CUA refused: browser_observation_timeout$/,
+    );
+    expect(driver.callTool).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('private-resource');
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
+});
+
+it.each(['browser_navigate', 'browser_click', 'browser_prepare'])(
+  'never replays %s after an origin transport timeout',
+  async (tool) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const driver = {
+      ...successfulDriver({}),
+      callTool: vi.fn().mockResolvedValue(observationTimeout),
+    };
+    const service = new CuaService(authorization(), { driverFactory: () => driver });
+    try {
+      await expect(service.call(tool, {}, directContext)).rejects.toThrow(
+        /^CUA refused: authorization_host_failed$/,
+      );
+      expect(driver.callTool).toHaveBeenCalledOnce();
     } finally {
       await service.shutdown();
       warn.mockRestore();

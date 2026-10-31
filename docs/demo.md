@@ -5,9 +5,9 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 public project documents and a real admitted model; fake-service demos are separate.
 
 **Current evidence:** internal signed alpha.49 completed repeated research, native briefs, file
-organization, practical visitor planning and full reviewer packets. Universal notarized alpha.50
-passed native editing but failed browser work on a new-tab link. Alpha.51's targeted check still
-needs full signed acceptance.
+organization, practical visitor planning and full reviewer packets. Universal notarized alpha.51
+passed two native edits but failed browser work during a navigation/read transport stall.
+Alpha.52 adds bounded read-only recovery and still needs full signed acceptance.
 The linked evidence records exact versions, timing, recovered errors and remaining gates.
 
 ## Start here

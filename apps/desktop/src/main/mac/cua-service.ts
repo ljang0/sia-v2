@@ -558,9 +558,25 @@ export class CuaService {
             foregroundBefore = foreground;
             backgroundTargetPid = targetPid;
           }
-          return ['list_apps', 'list_windows'].includes(tool) && args.session === undefined
-            ? this.#readInventory(driver!, tool, input, operation.signal)
-            : driver!.callTool(tool, JSON.stringify(input), { signal: operation.signal });
+          if (['list_apps', 'list_windows'].includes(tool) && args.session === undefined)
+            return this.#readInventory(driver!, tool, input, operation.signal);
+          const serialized = JSON.stringify(input);
+          const reply = await driver!.callTool(tool, serialized, { signal: operation.signal });
+          // A loading page can time out while the driver attests its origin,
+          // before the host is asked to authorize observation. Refresh that
+          // exact read once, under the same grant and overall timeout. Never
+          // replay navigation/input or retry a host authorization decision.
+          if (
+            tool === 'get_browser_state' &&
+            reply.errorCode === 'authorization_host_failed' &&
+            /CDP [A-Za-z.]+ timed out/.test(reply.structuredJson ?? reply.rawJson) &&
+            this.#authorizationProgress?.started === 0
+          ) {
+            operation.signal.throwIfAborted();
+            console.warn('[sia:cua-browser] observation_transport_retry attempt=1');
+            return driver!.callTool(tool, serialized, { signal: operation.signal });
+          }
+          return reply;
         }),
         operation.signal,
       );
@@ -603,6 +619,12 @@ export class CuaService {
           console.warn(
             `[sia:cua-authorization] native_refusal tool=${tool} hint=${hint} callback_started=${this.#authorizationProgress.started} callback_completed=${this.#authorizationProgress.completed}`,
           );
+          if (
+            tool === 'get_browser_state' &&
+            hint === 'browser_transport_timeout' &&
+            this.#authorizationProgress.started === 0
+          )
+            throw new Error('CUA refused: browser_observation_timeout');
         }
         throw new Error(`CUA refused: ${result.errorCode}`);
       }
