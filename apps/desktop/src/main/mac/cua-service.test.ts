@@ -1264,7 +1264,8 @@ describe('CuaService call boundaries', () => {
       expect(JSON.parse(driver.callTool.mock.calls[2]![1]).session).toBe(
         'existing-browser-grant',
       );
-      expect(factory).toHaveBeenCalledOnce();
+      expect(factory).toHaveBeenCalledTimes(2);
+      expect(driver.shutdown).not.toHaveBeenCalled();
     },
   );
 
@@ -1541,4 +1542,217 @@ describe('CuaService call boundaries', () => {
     await abortExpectation;
     expect(nativeSignal?.aborted).toBe(true);
   });
+});
+
+describe('independent browser and desktop work', () => {
+  const request = {
+    adapterId: 'window',
+    riskClass: 'input',
+    permissionMode: 'standard',
+    publicSession: 's',
+    requestDigest: 'd',
+    humanSummary: 'Edit document',
+    resourceJson: '{}',
+    expiresUnixMs: 0n,
+  };
+
+  it('lets desktop work finish while a browser observation is stalled', async () => {
+    vi.useFakeTimers();
+    const pending = Promise.withResolvers<{ rawJson: string }>();
+    const browser = successfulDriver({});
+    browser.callTool.mockImplementation(() => pending.promise);
+    const desktop = successfulDriver({ saved: true });
+    const factory = vi.fn().mockReturnValueOnce(browser).mockReturnValueOnce(desktop);
+    const service = new CuaService(authorization(), { driverFactory: factory });
+    const observation = service.call('get_browser_state', {}, directContext);
+    await vi.advanceTimersByTimeAsync(0);
+    let saved = false;
+    const edit = service.call('set_value', {}, directContext).then(() => {
+      saved = true;
+    });
+    await vi.advanceTimersByTimeAsync(1);
+    try {
+      expect(saved).toBe(true);
+      expect(desktop.callTool).toHaveBeenCalledOnce();
+    } finally {
+      pending.resolve({ rawJson: '{}' });
+      await Promise.all([observation, edit]);
+      await service.shutdown();
+    }
+  });
+
+  it('cancels a native operation without discarding a connected browser driver', async () => {
+    vi.useFakeTimers();
+    const browser = successfulDriver({ connected: true });
+    const native = successfulDriver({});
+    native.callTool.mockImplementation(() => new Promise(() => {}));
+    const factory = vi.fn().mockReturnValueOnce(browser).mockReturnValueOnce(native);
+    const service = new CuaService(authorization(), { driverFactory: factory });
+    await service.call('get_browser_state', { session: 'sia-browser-approved' }, directContext);
+    const abort = new AbortController();
+    const edit = service.call('set_value', {}, directContext, abort.signal);
+    const cancelled = edit.catch(() => 'cancelled');
+    await vi.advanceTimersByTimeAsync(0);
+    abort.abort(new Error('Stopped native task'));
+    await cancelled;
+    await vi.advanceTimersByTimeAsync(0);
+    try {
+      expect(browser.shutdown).not.toHaveBeenCalled();
+      expect(native.shutdown).toHaveBeenCalledOnce();
+      expect(
+        await service.call(
+          'get_browser_state',
+          { session: 'sia-browser-approved' },
+          directContext,
+        ),
+      ).toEqual({ connected: true });
+      expect(factory).toHaveBeenCalledTimes(2);
+      await service.call('end_session', { session: 'sia-browser-approved' }, directContext);
+      expect(browser.callTool.mock.calls.at(-1)?.[0]).toBe('end_session');
+    } finally {
+      await service.shutdown();
+    }
+  });
+
+  it('rejects callbacks from a retired driver during a fresh direct-user operation', async () => {
+    vi.useFakeTimers();
+    type Authorize = NonNullable<ConstructorParameters<typeof CuaService>[1]>['driverFactory'];
+    let oldAuthorize: Parameters<NonNullable<Authorize>>[0] | undefined;
+    const held = Promise.withResolvers<{ rawJson: string }>();
+    let instance = 0;
+    const broker = { authorize: vi.fn(async () => 'allow' as const) };
+    const service = new CuaService(broker, {
+      driverFactory: (authorize) => {
+        const driver = successfulDriver({});
+        if (++instance === 1) {
+          oldAuthorize = authorize;
+          driver.callTool.mockImplementation(() => new Promise(() => {}));
+        } else driver.callTool.mockImplementation(() => held.promise);
+        return driver;
+      },
+    });
+    const abort = new AbortController();
+    const old = service.call(
+      'click',
+      {},
+      { kind: 'turn', threadId: 'old', turnId: 'old' },
+      abort.signal,
+    );
+    const cancelled = old.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    abort.abort();
+    await cancelled;
+    const current = service.call('list_apps', {}, directContext);
+    await vi.advanceTimersByTimeAsync(0);
+    try {
+      expect(await oldAuthorize!(request)).toBe('cancel');
+      expect(broker.authorize).not.toHaveBeenCalled();
+    } finally {
+      held.resolve({ rawJson: '{}' });
+      await current;
+      await service.shutdown();
+    }
+  });
+
+  it('does not honor an approval that arrives after its operation was cancelled', async () => {
+    vi.useFakeTimers();
+    const decision = Promise.withResolvers<'allow'>();
+    let lateDecision: string | undefined;
+    const service = new CuaService(
+      { authorize: () => decision.promise },
+      {
+        driverFactory: (authorize) => ({
+          ...successfulDriver({}),
+          callTool: async () => {
+            lateDecision = await authorize(request);
+            return { rawJson: '{}' };
+          },
+        }),
+      },
+    );
+    const abort = new AbortController();
+    const call = service.call(
+      'click',
+      {},
+      { kind: 'turn', threadId: 't', turnId: 'u' },
+      abort.signal,
+    );
+    const cancelled = call.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    abort.abort();
+    await cancelled;
+    decision.resolve('allow');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lateDecision).toBe('cancel');
+    await service.shutdown();
+  });
+});
+
+it('keeps concurrent authorization contexts and timeout clocks independent', async () => {
+  vi.useFakeTimers();
+  const browserDecision = Promise.withResolvers<'deny'>();
+  const seen: string[] = [];
+  const service = new CuaService(
+    {
+      authorize: async (_request, context) => {
+        if (context.kind !== 'turn') throw new Error('Expected turn');
+        seen.push(context.threadId);
+        return context.threadId === 'browser' ? browserDecision.promise : 'allow';
+      },
+    },
+    {
+      callTimeoutMs: 25,
+      driverFactory: (authorize) => ({
+        ...successfulDriver({}),
+        callTool: async () => ({
+          rawJson: JSON.stringify({
+            decision: await authorize({
+              adapterId: 'test',
+              riskClass: 'input',
+              permissionMode: 'standard',
+              publicSession: 's',
+              requestDigest: 'd',
+              humanSummary: 'Test',
+              resourceJson: '{}',
+              expiresUnixMs: 0n,
+            }),
+          }),
+        }),
+      }),
+    },
+  );
+  const browser = service.call(
+    'get_browser_state',
+    {},
+    { kind: 'turn', threadId: 'browser', turnId: 'b' },
+  );
+  await vi.advanceTimersByTimeAsync(0);
+  const desktop = service.call(
+    'get_window_state',
+    {},
+    { kind: 'turn', threadId: 'desktop', turnId: 'd' },
+  );
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(await desktop).toEqual({ decision: 'allow' });
+  expect(seen).toEqual(['browser', 'desktop']);
+  browserDecision.resolve('deny');
+  expect(await browser).toEqual({ decision: 'deny' });
+  await service.shutdown();
+});
+
+it('cleans up both driver lanes even when one shutdown fails', async () => {
+  const browser = { ...successfulDriver({}), uniffiDestroy: vi.fn() };
+  browser.shutdown.mockRejectedValue(new Error('Shutdown failed'));
+  const native = { ...successfulDriver({}), uniffiDestroy: vi.fn() };
+  const service = new CuaService(authorization(), {
+    driverFactory: vi.fn().mockReturnValueOnce(browser).mockReturnValueOnce(native),
+  });
+  await service.call('get_browser_state', {}, directContext);
+  await service.call('get_window_state', {}, directContext);
+  await service.call('end_session', { session: 'sia-computer-test' }, directContext);
+  expect(native.callTool.mock.calls.at(-1)?.[0]).toBe('end_session');
+  await expect(service.shutdown()).rejects.toThrow('CUA driver shutdown failed');
+  expect(browser.uniffiDestroy).toHaveBeenCalledOnce();
+  expect(native.shutdown).toHaveBeenCalledOnce();
+  expect(native.uniffiDestroy).toHaveBeenCalledOnce();
 });

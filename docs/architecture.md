@@ -596,7 +596,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   suggestion still receives post-action observation: the input may already have worked. The model
   inspects that result before declaring failure or choosing another observed control; Sia never
   automatically retries the input in the foreground.
-  Each driver call's execution deadline starts after it owns the serialized queue; waiting for an
+  Browser and native desktop calls use separate runtime instances and queues, so a stalled browser
+  observation or cancelled native action cannot block or retire the other runtime. Each runtime's
+  authorization context and timeout clock are isolated; retired callbacks and late approvals fail
+  closed. Target leases still serialize competing work on the same physical window.
+  Each driver's execution deadline starts after it owns its lane's queue; waiting for an
   earlier call or the person's approval does not consume that execution budget. Caller cancellation
   remains available throughout queueing and execution. Cancelled waiters return promptly
   without overtaking the active call; late initialization cannot replace a recovered driver.

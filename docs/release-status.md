@@ -1,13 +1,12 @@
 # Release status
 
-Updated October 31, 2026. **Distribution is not ready.** Universal notarized alpha.53 passed its
-full local gate and package checks. A background accordion click worked, but both outing and
-meal-planning research stalled during navigation/read recovery. Alpha.54 fixes a proven CDP-session
-leak, but a fresh household task on its signed arm64 QA build still stalled after a recipe click.
-The full local gate, strict signature and packaged-runtime checks passed; live acceptance failed.
-Alpha.55 now fixes separately reproduced iframe snapshot collisions and unbounded parent traversal;
-Its full local pilot gate passed, including 235 native browser regressions. Signed acceptance
-remains pending.
+Updated October 31, 2026. **Distribution is not ready.** Internal signed arm64 alpha.55 completed
+real dinner/grocery planning, a sourced Pittsburgh outing, a shopping checklist after Stop/resume,
+and native TextEdit revision interleaved with background browsing. Outputs and previews were
+independently checked. Earlier alpha.53/.54 browser stalls remain in the linked historical record.
+Alpha.56 separates browser and desktop runtimes so one stalled or cancelled operation cannot
+block or retire the other, rejects late authorization callbacks, and fixes spaced Markdown links.
+Its full local pilot gate passed; exact-source CI and signed acceptance remain pending.
 The last published Mac pilot is alpha.24; no new distribution is authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
@@ -33,11 +32,11 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.54 full local gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web and native/shared checks including 230 browser regressions. Alpha.55 full local gate also passed with 235 native browser regressions. | Alpha.55 exact-source CI and signed acceptance. |
-| Signed package | Universal alpha.53 passed signing, notarization, stapling, Gatekeeper and packaged runtime checks. Internal arm64 alpha.54 passed strict Developer ID signing and packaged-runtime checks; it is not notarized. | Final universal candidate and live acceptance. |
-| Useful work | Earlier signed builds saved verified research and native briefs. Alpha.53 outing/dinner tasks and a fresh alpha.54 dinner task failed during browser work; no requested planning files were produced. | Complete and independently verify both everyday tasks, then repeat on the final artifact. |
-| Background/concurrency | Alpha.53 delivered an accordion click while a separate TextEdit note was edited. Note/clipboard preserved; ten switches median 968.5 ms, Stop visible within 819 ms including CUA. | Reliable navigation, paired GUI work, contention/cancellation, responsiveness and repeats. |
-| Setup/recovery | Alpha.53 retained profile/history; explicit Chrome setup resumed the saved request in 2.951 seconds. | Final-candidate restart/expiry recovery and clean-account setup. No fresh Mac account or second Mac is available. |
+| Source | Alpha.55 full local gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web and native/shared checks including 235 browser regressions. Alpha.56 full local gate passed with 1,864 desktop tests and the same E2E/native counts. | Alpha.56 exact-source CI and signed acceptance. |
+| Signed package | Universal alpha.53 passed signing, notarization, stapling, Gatekeeper and packaged runtime checks. Internal arm64 alpha.55 passed strict Developer ID signing and packaged-runtime checks; it is not notarized. | Final universal candidate and live acceptance. |
+| Useful work | Alpha.55 saved verified five-dinner plan, consolidated groceries, shopping checklist and $60 outing plan; all result previews loaded. | Repeat useful tasks on the final artifact in fresh conversations. |
+| Background/concurrency | Alpha.55 browser navigation/clicks interleaved with native TextEdit editing/saving. Separate note preserved; ten switches median 1,062 ms / worst 1,502 ms including CUA. File-task Stop visible within 828 ms; browser task continued and checklist resumed. | Signed alpha.56 isolation, native in-flight Stop, contention, repeats and clipboard preservation. |
+| Setup/recovery | Alpha.55 explicit Chrome connection completed in 3.729 seconds and resumed the saved request; outing reused the connection. One outing clarification corrected an external tab ID in the operator's prompt. | Final-candidate restart/expiry recovery and clean-account setup. No fresh Mac account or second Mac is available. |
 | Physical use | Existing grants work on the QA Mac. | Keep-awake, lock/sleep and voice. This Mac refuses Sia and independent caffeinate display-awake assertions. |
 | Cloud | October 30: 18 alarms OK, five Lambdas Active/Successful; anonymous protected requests return 401. Synthetic authenticated rating reached the report. | Recheck changed configuration before invitations. |
 | Ownership | Source rights confirmed; Lawrence Jang owns support/incidents. | Private recipient list and final release decision before invitations. |

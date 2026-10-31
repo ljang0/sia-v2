@@ -154,6 +154,30 @@ export function isCuaCallResult(value: unknown): value is CuaCallResult {
   );
 }
 
+interface DriverLane {
+  driver: DriverLike | undefined;
+  generation: number;
+  tail: Promise<void>;
+  inventorySession: string;
+  context: CuaAuthorizationContext | undefined;
+  progress: { started: number; completed: number } | undefined;
+  clock: { pause(): void; resume(): void } | undefined;
+  signal: AbortSignal | undefined;
+}
+
+function driverLane(): DriverLane {
+  return {
+    driver: undefined,
+    generation: 0,
+    tail: Promise.resolve(),
+    inventorySession: `sia-inventory-${randomUUID()}`,
+    context: undefined,
+    progress: undefined,
+    clock: undefined,
+    signal: undefined,
+  };
+}
+
 export class CuaService {
   readonly #readForegroundPid: (() => Promise<number | undefined>) | undefined;
   readonly #authorization: AuthorizationBroker;
@@ -163,11 +187,10 @@ export class CuaService {
   readonly #platform: NodeJS.Platform;
   readonly #readPermissions: () => Promise<CorePermissionStatus>;
   readonly #freshPermissions: CuaServiceOptions['freshPermissions'];
-  #driver: DriverLike | undefined;
-  #driverGeneration = 0;
-  #authorizationProgress: { started: number; completed: number } | undefined;
-  /** Inventory may expire independently; renewing it must not drop live browser grants. */
-  #inventorySession = `sia-inventory-${randomUUID()}`;
+  // Each native runtime has its own authorization host. Serialize within a lane,
+  // while a stalled browser transport cannot hold up an unrelated desktop action.
+  readonly #browser = driverLane();
+  readonly #desktop = driverLane();
   #permissionRequest: Promise<ComputerView> | undefined;
   #verification:
     | { result: 'confirmed' | 'unconfirmed' }
@@ -176,11 +199,7 @@ export class CuaService {
   #verifying: Promise<AccessVerification> | undefined;
   readonly #hostPid: number;
   readonly #verifyAccessEnabled: boolean;
-  #callTail: Promise<void> = Promise.resolve();
-  #authorizationContext: CuaAuthorizationContext | undefined;
   readonly #pausedBackgroundTurns = new Set<string>();
-  /** The running call's timeout, paused while an approval waits on the person. */
-  #callClock: { pause(): void; resume(): void } | undefined;
 
   constructor(authorization: AuthorizationBroker, options: CuaServiceOptions = {}) {
     this.#authorization = authorization;
@@ -468,9 +487,17 @@ export class CuaService {
           args.delivery_mode !== 'background'))
     )
       throw new Error('CUA refused: background_unavailable');
-    const previous = this.#callTail;
+    const lane =
+      tool === 'get_browser_state' ||
+      tool.startsWith('browser_') ||
+      (tool === 'end_session' &&
+        typeof args.session === 'string' &&
+        args.session.startsWith('sia-browser-'))
+        ? this.#browser
+        : this.#desktop;
+    const previous = lane.tail;
     const next = Promise.withResolvers<void>();
-    this.#callTail = next.promise;
+    lane.tail = next.promise;
     let ownsQueue = false;
     const operation = new AbortController();
     const timeoutError = new Error(
@@ -517,10 +544,11 @@ export class CuaService {
         throw new Error('CUA refused: background_input_paused');
       // Queue time belongs to the preceding call; only this call's execution uses its budget.
       startTimer();
-      this.#authorizationContext = context;
-      this.#authorizationProgress = { started: 0, completed: 0 };
-      this.#callClock = clock;
-      driver = await waitForAbort(this.#getDriver(), operation.signal);
+      lane.context = context;
+      lane.signal = operation.signal;
+      lane.progress = { started: 0, completed: 0 };
+      lane.clock = clock;
+      driver = await waitForAbort(this.#getDriver(lane), operation.signal);
       let foregroundBefore: number | undefined;
       let backgroundTargetPid: number | undefined;
       const result = await waitForAbort(
@@ -545,7 +573,7 @@ export class CuaService {
               context.kind === 'turn' && BROWSER_INPUT_TOOLS.has(tool)
                 ? (context.backgroundTargetPid ?? args.pid)
                 : args.pid;
-            const foreground = await this.#foregroundPid(driver!, operation.signal, true);
+            const foreground = await this.#foregroundPid(lane, driver!, operation.signal, true);
             operation.signal.throwIfAborted();
             if (
               foreground === undefined ||
@@ -559,7 +587,7 @@ export class CuaService {
             backgroundTargetPid = targetPid;
           }
           if (['list_apps', 'list_windows'].includes(tool) && args.session === undefined)
-            return this.#readInventory(driver!, tool, input, operation.signal);
+            return this.#readInventory(lane, driver!, tool, input, operation.signal);
           const serialized = JSON.stringify(input);
           const reply = await driver!.callTool(tool, serialized, { signal: operation.signal });
           // A loading page can time out while the driver attests its origin,
@@ -570,7 +598,7 @@ export class CuaService {
             tool === 'get_browser_state' &&
             reply.errorCode === 'authorization_host_failed' &&
             /CDP [A-Za-z.]+ timed out/.test(reply.structuredJson ?? reply.rawJson) &&
-            this.#authorizationProgress?.started === 0
+            lane.progress?.started === 0
           ) {
             operation.signal.throwIfAborted();
             console.warn('[sia:cua-browser] observation_transport_retry attempt=1');
@@ -617,12 +645,12 @@ export class CuaService {
                   ? 'mode_denied'
                   : 'unspecified';
           console.warn(
-            `[sia:cua-authorization] native_refusal tool=${tool} hint=${hint} callback_started=${this.#authorizationProgress.started} callback_completed=${this.#authorizationProgress.completed}`,
+            `[sia:cua-authorization] native_refusal tool=${tool} hint=${hint} callback_started=${lane.progress.started} callback_completed=${lane.progress.completed}`,
           );
           if (
             tool === 'get_browser_state' &&
             hint === 'browser_transport_timeout' &&
-            this.#authorizationProgress.started === 0
+            lane.progress.started === 0
           )
             throw new Error('CUA refused: browser_observation_timeout');
         }
@@ -669,7 +697,7 @@ export class CuaService {
       }
       if (nativeToolError) parsed = { native_tool_error: true };
       if (protectDesktop) {
-        const foreground = await this.#foregroundPid(driver, operation.signal);
+        const foreground = await this.#foregroundPid(lane, driver, operation.signal);
         operation.signal.throwIfAborted();
         // Page.navigate addresses an exact CDP tab and sends no desktop input.
         // A successful, matching receipt remains valid when the person switches
@@ -736,13 +764,14 @@ export class CuaService {
       signal?.removeEventListener('abort', abortFromCaller);
       if (ownsQueue) {
         if (operation.signal.aborted) {
-          const cancelledDriver = this.#driver;
-          if (cancelledDriver) this.#retireDriver(cancelledDriver);
-          else this.#driverGeneration++;
+          const cancelledDriver = lane.driver;
+          if (cancelledDriver) this.#retireDriver(lane, cancelledDriver);
+          else lane.generation++;
         }
-        this.#authorizationContext = undefined;
-        this.#authorizationProgress = undefined;
-        if (this.#callClock === clock) this.#callClock = undefined;
+        lane.context = undefined;
+        lane.signal = undefined;
+        lane.progress = undefined;
+        if (lane.clock === clock) lane.clock = undefined;
         next.resolve();
       } else {
         void previous.then(() => next.resolve());
@@ -751,15 +780,27 @@ export class CuaService {
   }
 
   async shutdown(): Promise<void> {
-    this.#driverGeneration++;
-    const driver = this.#driver;
-    this.#driver = undefined;
-    if (!driver) return;
-    await driver.shutdown();
-    driver.uniffiDestroy?.();
+    const results = await Promise.allSettled(
+      [this.#browser, this.#desktop].map(async (lane) => {
+        lane.generation++;
+        const driver = lane.driver;
+        lane.driver = undefined;
+        if (!driver) return;
+        try {
+          await driver.shutdown();
+        } finally {
+          driver.uniffiDestroy?.();
+        }
+      }),
+    );
+    const errors = results.flatMap((result) =>
+      result.status === 'rejected' ? [result.reason] : [],
+    );
+    if (errors.length) throw new AggregateError(errors, 'CUA driver shutdown failed.');
   }
 
   async #readInventory(
+    lane: DriverLane,
     driver: DriverLike,
     tool: string,
     args: Record<string, unknown>,
@@ -770,7 +811,7 @@ export class CuaService {
       try {
         const result = await driver.callTool(
           tool,
-          JSON.stringify({ ...args, session: this.#inventorySession }),
+          JSON.stringify({ ...args, session: lane.inventorySession }),
           { signal },
         );
         let ended = result.errorCode === 'session_ended';
@@ -796,12 +837,13 @@ export class CuaService {
           throw error;
         // Only host-owned, read-only inventory is renewed. Browser/window sessions
         // and input are never retried, and the shared runtime stays alive.
-        this.#inventorySession = `sia-inventory-${randomUUID()}`;
+        lane.inventorySession = `sia-inventory-${randomUUID()}`;
       }
     }
   }
 
   async #foregroundPid(
+    lane: DriverLane,
     driver: DriverLike,
     signal: AbortSignal,
     refreshUnavailable = false,
@@ -814,14 +856,17 @@ export class CuaService {
           : undefined;
       }
       let focus = readForegroundInventory(
-        await waitForAbort(this.#readInventory(driver, 'list_apps', {}, signal), signal),
+        await waitForAbort(this.#readInventory(lane, driver, 'list_apps', {}, signal), signal),
       );
       // A transient empty inventory before input is safe to observe once more.
       // Never retry input, reuse old focus, or erase uncertainty AFTER delivery.
       if (focus.status === 'empty' && refreshUnavailable) {
         signal.throwIfAborted();
         focus = readForegroundInventory(
-          await waitForAbort(this.#readInventory(driver, 'list_apps', {}, signal), signal),
+          await waitForAbort(
+            this.#readInventory(lane, driver, 'list_apps', {}, signal),
+            signal,
+          ),
         );
       }
       return focus.status === 'ready' ? focus.pid : undefined;
@@ -830,20 +875,23 @@ export class CuaService {
     }
   }
 
-  async #getDriver(): Promise<DriverLike> {
-    if (this.#driver) return this.#driver;
-    const generation = this.#driverGeneration;
-    const driver = await (this.#driverFactory?.((request) => this.#authorize(request)) ??
-      this.#createDriver());
-    if (generation !== this.#driverGeneration) {
+  async #getDriver(lane: DriverLane): Promise<DriverLike> {
+    if (lane.driver) return lane.driver;
+    const generation = lane.generation;
+    const authorize = (request: AuthorizationRequest) =>
+      this.#authorize(lane, generation, request);
+    const driver = await (this.#driverFactory?.(authorize) ?? this.#createDriver(authorize));
+    if (generation !== lane.generation) {
       this.#disposeDriver(driver);
       throw new Error('CUA driver initialization was cancelled.');
     }
-    this.#driver = driver;
+    lane.driver = driver;
     return driver;
   }
 
-  async #createDriver(): Promise<DriverLike> {
+  async #createDriver(
+    authorize: (request: AuthorizationRequest) => Promise<'allow' | 'deny' | 'cancel'>,
+  ): Promise<DriverLike> {
     const cua = await import('@trycua/cua-driver');
     const authorization = cua.RuntimeAuthorizationOptions.new({
       allowedModes: [cua.SessionPermissionMode.Standard, cua.SessionPermissionMode.Bounded],
@@ -858,7 +906,7 @@ export class CuaService {
     });
     const host = {
       authorize: async (request: AuthorizationRequest) => {
-        const decision = await this.#authorize(request);
+        const decision = await authorize(request);
         const action =
           decision === 'allow'
             ? cua.DriverAuthorizationAction.Allow
@@ -876,18 +924,32 @@ export class CuaService {
     );
   }
 
-  async #authorize(request: AuthorizationRequest): Promise<'allow' | 'deny' | 'cancel'> {
-    const clock = this.#callClock;
-    const progress = this.#authorizationProgress;
+  async #authorize(
+    lane: DriverLane,
+    generation: number,
+    request: AuthorizationRequest,
+  ): Promise<'allow' | 'deny' | 'cancel'> {
+    // A retired FFI runtime can finish late. It must never inherit the next
+    // call's context, especially a direct-user connection setup's authority.
+    if (generation !== lane.generation || !lane.context || lane.signal?.aborted)
+      return 'cancel';
+    const clock = lane.clock;
+    const progress = lane.progress;
     if (progress) progress.started++;
     clock?.pause();
     try {
-      const context = this.#authorizationContext;
-      return context?.kind === 'direct_user'
-        ? 'allow'
-        : context
-          ? await this.#authorization.authorize(request, context)
-          : 'cancel';
+      const context = lane.context;
+      const decision =
+        context?.kind === 'direct_user'
+          ? 'allow'
+          : context
+            ? await this.#authorization.authorize(request, context)
+            : 'cancel';
+      return generation === lane.generation &&
+        lane.progress === progress &&
+        !lane.signal?.aborted
+        ? decision
+        : 'cancel';
     } catch (error) {
       // Never let an application-side approval failure cross the native FFI callback.
       // The driver must fail closed with a normal cancellation that the UI can explain.
@@ -901,10 +963,10 @@ export class CuaService {
     }
   }
 
-  #retireDriver(driver: DriverLike): void {
-    if (this.#driver !== driver) return;
-    this.#driver = undefined;
-    this.#driverGeneration++;
+  #retireDriver(lane: DriverLane, driver: DriverLike): void {
+    if (lane.driver !== driver) return;
+    lane.driver = undefined;
+    lane.generation++;
     this.#disposeDriver(driver);
   }
 

@@ -4,12 +4,13 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
 public project documents and a real admitted model; fake-service demos are separate.
 
-**Current evidence:** internal signed alpha.49 completed repeated research, native briefs, file
-organization, practical visitor planning and full reviewer packets. Universal notarized alpha.53
-delivered a background accordion click, but outing and dinner/grocery planning both stalled during
-browser navigation/read recovery. A fresh alpha.54 household task also stalled. Alpha.55 fixes reproduced iframe snapshot defects
-and passed its full local gate; signed acceptance and the cause of navigation stalls remain open.
-The linked evidence records exact versions, timing, recovered errors and remaining gates.
+**Current evidence:** internal signed arm64 alpha.55 completed the dinner/grocery and outing
+plans below, with independently checked sources, quantities, budget and previews. A native
+TextEdit revision interleaved with browser work, and a stopped shopping-checklist task resumed
+without changing its source files. One explicit Chrome setup and one operator clarification of
+the approved tab title were required. Final-artifact repeats and the remaining concurrency and
+physical gates are open; alpha.56 passed its full local gate and awaits signed acceptance.
+The linked record retains earlier failures rather than treating them as passes.
 
 ## Start here
 
@@ -27,8 +28,8 @@ The linked evidence records exact versions, timing, recovered errors and remaini
 Chrome connection is part of default Mac setup, with a deliberate opt-out. Choosing a window
 authorizes its explicit connection setup, including the exact Chrome prompt. macOS grants remain
 person-owned. Existing profiles can use the conversation's
-**Connect Chrome & continue** control when the host reports missing browser access. These new
-paths require signed-candidate acceptance; unit tests do not establish live consent behavior.
+**Connect Chrome & continue** control when the host reports missing browser access. Alpha.55 verified explicit
+connection and request resumption; restart/expiry and final-candidate repeats remain required.
 
 ## Demo 1: prepare a reviewer packet
 
@@ -86,6 +87,8 @@ verified call graph, deployment audit, or model-comparison result.
 ## Demo 4: plan a useful visit from live sources
 
 Use a fresh conversation and an approved public Chrome tab. Keep personal tabs out of scope.
+Describe the chosen public window by its visible title; do not insert an external tool's numeric
+tab ID, which differs from Sia's opaque identifiers.
 Replace the date if it is no longer in the future; record the actual date used.
 
 > Prepare a practical afternoon plan for an Arena researcher visiting CMU in Pittsburgh on
@@ -136,7 +139,7 @@ actually interleave. Merely overlapping task lifetimes does not establish concur
 
 The owner requested a couple of ordinary personal-assistant tasks. Alongside the outing plan,
 run this household-planning request in a fresh conversation. These are acceptance scenarios;
-they are not recorded passes until the signed app produces independently verified outputs.
+alpha.55 produced independently verified outputs, and each new candidate still needs its own repeats.
 
 > Plan five weekday dinners for two adults using real published recipes. Assume no dietary
 > restrictions, basic kitchen equipment and at most 35 minutes of active cooking per dinner;

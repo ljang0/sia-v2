@@ -74,9 +74,9 @@ and feedback; it is not a remote desktop or an always-on task runner. The iPhone
 
 ## Try real work
 
-The [demo guide](./docs/demo.md) has copyable requests for a real reviewer packet, release-week
-plan, and codebase reading guide, with actual rehearsal outcomes and independent output checks.
-It also states which browser, background and concurrent-use checks remain unfinished.
+The [demo guide](./docs/demo.md) includes a five-dinner plan with consolidated groceries, a budgeted
+local outing, a reviewer packet and native document editing. It records which signed build produced
+checked outputs, the interventions needed, and the background/concurrent-use checks still open.
 
 ## Set up
 

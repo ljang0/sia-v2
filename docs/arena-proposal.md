@@ -1,6 +1,6 @@
 # Computer Use Arena distribution proposal
 
-Proposed partnership between Sia and Arena. Prepared for technical review, October 30, 2026.
+Proposed partnership between Sia and Arena. Prepared for technical review, October 31, 2026.
 
 Sia proposes a small invited pilot that lets people evaluate AI by completing real tasks on
 their Macs. Arena would help select models, define the evaluation and recruit the initial
@@ -53,19 +53,19 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Signed internal rehearsals completed useful sourced comparisons, native proposal editing, practical
-visitor planning and reviewer packets made from real project documents. Outputs were checked
-independently, and failures were retained. Universal notarized alpha.53 delivered a background
-accordion click while an unrelated note was edited, but outing and dinner/grocery planning both
-stalled in browser navigation/read recovery. A fresh household task on the latest signed internal
-build also stalled and produced no requested files. Browser reliability and full acceptance remain
-open. A signed installer is not proof of readiness.
+Internal signed alpha.55 completed a five-dinner plan and consolidated groceries from published
+recipes, a Pittsburgh afternoon itinerary from official sources, and a native TextEdit brief
+while browser actions continued. Saved files, quantities, budget arithmetic and previews were
+checked independently. A stopped checklist task resumed while the outing continued. These are
+useful rehearsals with recorded setup/interventions, not a reliability estimate or final release.
 
-Repeated final-artifact workflows, concurrent use, responsiveness, restart and physical acceptance
-remain gates. Clean-account testing is unavailable on the current Mac. Background new-tab creation
-and Finder file drag remain unsupported. See [release status](./release-status.md) and
-[artifact evidence](./public-release.md) for exact versions, timings and limitations. Lawrence Jang
-is the support/incident owner, and the relevant native source rights are confirmed.
+Alpha.56 adds separate browser/desktop runtimes and late-callback rejection; its full local gate
+passed, and signed acceptance remains pending. Repeated final-artifact workflows, stalled-operation isolation,
+native cancellation, restart and physical acceptance remain gates. Clean-account testing is
+unavailable on the current Mac. Background new-tab creation and Finder file drag remain unsupported.
+See [release status](./release-status.md) and [artifact evidence](./public-release.md) for exact
+versions, timings, failures and limitations. Lawrence Jang is the support/incident owner,
+and the relevant native source rights are confirmed.
 
 Try the [real-work demo guide](./demo.md), which preserves failures and corrective interventions.
 Start with the [README setup and task path](../README.md), then

@@ -106,6 +106,10 @@ describe('SafeMarkdown', () => {
           'Created [q3-summary.md](</Users/lawrencejang/Documents/Sia Demo/q3-summary.md>)',
           'Read [the guide](<https://example.com/a guide>) and [plain](/tmp/plain.md).',
           'Ignore [bad](<javascript:alert(1)>) too.',
+          '[Dinner plan]( /Users/lawrencejang/sia/Agents/helper/dinner-plan.md )',
+          '[Spaced guide]( \t<https://example.com/guide>\t )',
+          '![Spaced image]( https://example.com/image.png )',
+          '[Spaced unsafe]( javascript:alert(1) )',
         ].join('\n')}
       />,
     );
@@ -122,5 +126,13 @@ describe('SafeMarkdown', () => {
     );
     expect(screen.queryByRole('link', { name: 'bad' })).toBeNull();
     expect(screen.getByText('bad').tagName).toBe('SPAN');
+    expect(screen.getByText('Dinner plan').tagName).toBe('SPAN');
+    expect(screen.getByRole('link', { name: 'Spaced guide' }).getAttribute('href')).toBe(
+      'https://example.com/guide',
+    );
+    expect(screen.getByRole('link', { name: 'Spaced image' })).toBeTruthy();
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.queryByRole('link', { name: 'Spaced unsafe' })).toBeNull();
+    expect(screen.getByText('Spaced unsafe').tagName).toBe('SPAN');
   });
 });
