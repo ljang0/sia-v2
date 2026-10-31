@@ -1,14 +1,11 @@
 # Release status
 
-Updated October 31, 2026. **Distribution is not ready.** Internal signed arm64 alpha.56 completed
-real dinner/grocery planning, a sourced Pittsburgh outing and native TextEdit revision. Native
-work progressed during a slow browser read; Stop during Save/readback preserved completed work,
-and continuation verified it without repeating input. The next browser task retained its connection.
-Outputs and previews were independently checked. Initial browser timeouts recovered automatically;
-this does not establish zero-timeout reliability. Full local pilot checks, universal notarization
-and exact-source CI passed. The universal real-work repeat required operator recovery. The new
-vision-only default, its exact-artifact repeats and physical acceptance remain open.
-The last published Mac pilot is alpha.24; no new distribution is authorized.
+Updated October 31, 2026. **Distribution is not ready.** Universal alpha.57 is signed,
+notarized and installed from the final DMG with matching ASAR hashes. Vision-only household
+planning produced independently checked recipe and grocery files after operator recovery.
+Concurrent native TextEdit creation stopped at Save; parent-window recovery also failed its
+keyboard check. Exact-source CI passed. Exact-artifact uninterrupted workflows and physical acceptance remain
+open. The last published Mac pilot is alpha.24; no new distribution is authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
 is the initially admitted engine. The [Arena proposal](./arena-proposal.md) describes a bounded
@@ -54,7 +51,7 @@ focus/setter fallback, protected-focus and new-context checks, and no clipboard 
 shortcuts. Unknown delivery consumes its authority without replay. Chromium checks cover the exact
 focus guard and selection/replacement, Tab and Enter. Semantic snapshot traversal remains internally,
 so this change does not establish latency improvement. The source host now enables this option for the controller, action backend and runtime together.
-The installed signed alpha.56 still predates it. The runtime uses the same hosted-tool boundary for visual on-screen and
+The installed signed universal alpha.57 contains it. The runtime uses the same hosted-tool boundary for visual on-screen and
 background turns, without native shell tools or the legacy runtime screen-context injection. Connected visual turns
 also disable provider-native tools and require the verified Codex harness boundary. The installed
 managed Codex 0.160.0 passed a no-turn hosted-session isolation probe; this is configuration evidence,
@@ -75,8 +72,14 @@ The alpha.57 candidate source passed `pnpm test:pilot`: build, formatting, lint,
 types, native/shared checks, 1,933 desktop tests, 46 desktop end-to-end tests, 40 renderer tests
 and 72 Chromium/WebKit phone tests. These automated transport/authorization and UI checks are not
 evidence of visual task skill. Continue also retires obsolete Chrome setup markers from the
-previous execution while retaining its history. No new signed artifact contains these changes yet;
-exact-source CI and signed real-task acceptance remain required before handoff.
+previous execution while retaining its history. Universal alpha.57 passed signing, notarization,
+stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. Exact-source CI is
+passed. The first real visual tasks exposed browser input/re-observation failures and native
+Save-dialog targeting failures; meal planning recovered with an operator prompt. See the
+[artifact record](./public-release.md) for exact results, interventions and hashes. Source follow-ups
+add a bounded stale-capture read retry, content-free pointer/link guard diagnostics and remove
+obsolete native-script promises from settings. Their live effect is not yet verified. This follow-up passed the full local pilot gate with
+1,941 desktop tests and the same native, E2E, renderer and phone counts.
 
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
@@ -96,8 +99,8 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
 | Source | Alpha.55 full local gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web and native/shared checks including 235 browser regressions. Alpha.56 full local gate passed with 1,864 desktop tests and the same E2E/native counts; exact-source CI passed. | Exact-source CI for the vision-only default and final universal artifact repeats. |
-| Signed package | Universal alpha.56 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Signed vision-only candidate and live acceptance. |
-| Useful work | Alpha.56 saved checked five-dinner plan, consolidated groceries and $60 outing; previews loaded. Alpha.55 also completed these and a shopping checklist. | Repeat on the final universal artifact. |
+| Signed package | Universal vision-only alpha.57 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Fix and repeat failed real tasks on the final artifact. |
+| Useful work | Alpha.57 saved a source-checked three-dinner plan and consolidated groceries after recovery; previews loaded. Native TextEdit Save failed. | Unattended browser recovery, native Save/reopen and the sourced outing (which also stopped on refused clicks). |
 | Background/concurrency | Alpha.56 native editing progressed during slow browser observation. Stop during Save/readback showed cancellation within 1,149 ms including CUA; read-only recovery preserved saved work and browser access. Ten switches median 1,151 ms / worst 2,432 ms. | Final-artifact concurrency, contention/recovery repeats and clipboard preservation. |
 | Setup/recovery | Alpha.56 explicit Chrome setup took 2.059 seconds and resumed the saved request. Outing reused it after native cancellation; new-context links recovered within the existing tab. | Final restart/expiry and clean-account setup. No fresh account or second Mac is available. |
 | Physical use | Existing grants work on the QA Mac. | Keep-awake, lock/sleep and voice. This Mac refuses Sia and independent caffeinate display-awake assertions. |

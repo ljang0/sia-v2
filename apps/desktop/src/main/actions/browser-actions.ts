@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { browserVisualInput, browserVisualSnapshot } from './browser-vision.js';
 import { rm } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import {
   actionImages,
@@ -209,6 +210,28 @@ export class BrowserActions {
   }
 
   async #captureBrowser(
+    binding: BrowserBinding,
+    request: ValidatedActionInvocation,
+    continuation?: string,
+  ): Promise<ActionExecutionResult> {
+    try {
+      return await this.#captureBrowserOnce(binding, request, continuation);
+    } catch (error) {
+      // Scroll/reflow can invalidate the protection/image pair during capture.
+      // Retry only this read, once, with all identity/protection checks intact.
+      // Never replay navigation or input, or retry permissions/transport failures.
+      if (
+        !this.ctx.options.visionOnly ||
+        !(error instanceof Error) ||
+        error.message !== 'CUA refused: browser_ref_stale'
+      )
+        throw error;
+      await delay(100, undefined, { signal: request.context.signal });
+      return this.#captureBrowserOnce(binding, request, continuation);
+    }
+  }
+
+  async #captureBrowserOnce(
     binding: BrowserBinding,
     request: ValidatedActionInvocation,
     continuation?: string,

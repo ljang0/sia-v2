@@ -33,6 +33,14 @@ export function decodeDriverResult(
   progress: { started: number; completed: number },
 ): { value: unknown; nativeToolError: boolean } {
   if (result.errorCode) {
+    if (result.errorCode === 'browser_action_unavailable') {
+      const raw = result.structuredJson ?? result.rawJson;
+      // Preserve which read-only guard failed, never its page content or target.
+      if (raw.includes("the chosen point's browsing context could not be checked"))
+        throw new Error('CUA refused: browser_point_context_unavailable');
+      if (raw.includes("the link's browsing context could not be checked"))
+        throw new Error('CUA refused: browser_link_context_unavailable');
+    }
     if (
       tool === 'drag' &&
       result.errorCode === 'background_unavailable' &&

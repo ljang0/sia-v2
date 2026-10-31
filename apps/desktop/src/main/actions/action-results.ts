@@ -14,6 +14,8 @@ export function stale(reason: string): ActionExecutionResult {
 
 /** Only these explicit validation/authorization refusals prove that no input was posted. */
 export function inputWasRefused(error: unknown): boolean {
+  if (/^CUA refused: browser_(?:point|link)_context_unavailable$/.test(safeErrorMessage(error)))
+    return true;
   return /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|background_focus_unavailable|background_input_paused|foreground_app_in_use|window_not_key|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window|browser_ref_stale|browser_frame_changed|browser_tab_not_found|browser_binding_stale|browser_consent_required|browser_requires_setup|browser_action_unavailable|browser_new_context_refused)$/.test(
     safeErrorMessage(error),
   );
@@ -41,6 +43,14 @@ export function browserInputTrustFailure(error: unknown): ActionExecutionResult 
 export function classifyFailure(error: unknown): ActionExecutionResult {
   const message = safeErrorMessage(error);
   const normalized = message.toLowerCase();
+  if (/^cua refused: browser_(?:point|link)_context_unavailable$/.test(normalized))
+    return {
+      outcome: 'refused',
+      summary:
+        'No click was sent because the link or pointer target could not be checked for opening another window. Do not repeat this click. Inspect the page and use permitted visible keyboard navigation or a known public destination in the existing tab; report the gap if neither is available.',
+      reason: message,
+      data: { blocker_code: normalized.slice('cua refused: '.length), input_not_sent: true },
+    };
   if (/^(?:cua refused: )?browser_input_incomplete$/.test(normalized))
     return browserInputTrustFailure(error)!;
   if (/^(?:cua refused: )?browser_new_context_refused$/.test(normalized))

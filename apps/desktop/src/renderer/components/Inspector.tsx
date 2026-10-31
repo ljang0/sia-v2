@@ -444,11 +444,8 @@ function ComputerPanel({
       <div className={styles.inspectorFootnote}>
         <LockKey size={16} aria-hidden="true" />
         <span>
-          Sia’s own browser and computer actions can’t use password fields, sign-in screens, or
-          security settings.
-          {computer.accessMode === 'mac'
-            ? ' Commands your agent runs directly on this Mac aren’t covered by this limit.'
-            : ''}
+          Sia’s browser and computer actions can’t use password fields, sign-in screens, or
+          security settings. Complete those steps yourself, then continue the task.
         </span>
       </div>
     </div>

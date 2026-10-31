@@ -16,6 +16,9 @@ async function fixture() {
     permission: true,
     inputError: '',
     incompleteReceipt: false,
+    snapshotErrors: [] as string[],
+    afterInputSnapshotErrors: [] as string[],
+    captures: 0,
     inputCalls: [] as Array<{ name: string; args: Record<string, unknown> }>,
   };
   const png = Buffer.alloc(24);
@@ -63,10 +66,14 @@ async function fixture() {
           target_id: 'driver-target',
           tabs: [{ tab_id: 'driver-tab', url: state.url, active: true }],
         };
+      state.captures += 1;
+      const error = state.snapshotErrors.shift();
+      if (error) throw new Error(error);
       return observation();
     }
     if (['browser_click', 'browser_pointer', 'browser_type'].includes(name)) {
       state.inputCalls.push({ name, args });
+      state.snapshotErrors.push(...state.afterInputSnapshotErrors.splice(0));
       if (state.inputError) throw new Error(state.inputError);
       if (state.incompleteReceipt)
         return { status: 'refused', refusal: { code: 'browser_input_incomplete' } };
@@ -98,6 +105,51 @@ async function fixture() {
       ),
   };
 }
+
+it('recaptures a stale protection/image pair once without replaying delivered input', async () => {
+  const h = await fixture();
+  const first = await h.snapshot();
+  h.state.afterInputSnapshotErrors = ['CUA refused: browser_ref_stale'];
+  const before = h.state.captures;
+  const result = await h.act(dataRecord(first.data).snapshot_id, {
+    action: 'scroll',
+    x: 200,
+    y: 100,
+    direction: 'down',
+    amount: 500,
+  });
+  expect(result.images).toHaveLength(1);
+  expect(result.data).toMatchObject({ control_mode: 'vision', pixel_actions_available: true });
+  expect(h.state.inputCalls).toHaveLength(1);
+  expect(h.state.captures - before).toBe(3); // preflight, failed capture, one fresh read
+});
+
+it('bounds stale-image recovery and revokes the old capability after both reads fail', async () => {
+  const h = await fixture();
+  const first = await h.snapshot();
+  h.state.snapshotErrors = Array(3).fill('CUA refused: browser_ref_stale');
+  const before = h.state.captures;
+  expect((await h.snapshot()).outcome).toBe('stale');
+  expect(h.state.captures - before).toBe(2);
+  h.state.snapshotErrors = [];
+  expect(
+    (await h.act(dataRecord(first.data).snapshot_id, { action: 'click', x: 10, y: 10 }))
+      .outcome,
+  ).toBe('stale');
+  expect(h.state.inputCalls).toHaveLength(0);
+});
+
+it.each(['browser_consent_required', 'browser_observation_timeout', 'browser_binding_stale'])(
+  'does not retry a non-capture failure: %s',
+  async (code) => {
+    const h = await fixture();
+    h.state.snapshotErrors = [`CUA refused: ${code}`];
+    const before = h.state.captures;
+    expect((await h.snapshot()).outcome).not.toBe('verified');
+    expect(h.state.captures - before).toBe(1);
+    expect(h.state.inputCalls).toHaveLength(0);
+  },
+);
 
 it('exposes only the image and tab metadata, even when text-only observation was requested', async () => {
   const h = await fixture();

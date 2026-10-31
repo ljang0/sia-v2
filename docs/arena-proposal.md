@@ -67,8 +67,9 @@ preserved saved changes, and the next browser task retained its access. Initial 
 recovered automatically. These useful rehearsals include recorded interventions and limitations;
 they are not a reliability estimate or final-release proof.
 
-The full local gate, exact-source CI and universal alpha.56 notarization passed. Its universal
-real-work repeat needed operator recovery. Vision-only implementation and signed workflow repeats,
+Universal alpha.57 includes vision-only control and passed the full local gate and notarization.
+Meal planning recovered and saved checked outputs; native TextEdit Save remains blocked.
+Exact-source CI passed. Uninterrupted signed workflow repeats,
 clipboard preservation, restart/expiry and physical acceptance remain gates. Clean-account testing is
 unavailable on the current Mac. Background new tabs and Finder file drag remain unsupported.
 See [release status](./release-status.md) and [artifact evidence](./public-release.md) for exact

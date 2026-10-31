@@ -1,140 +1,100 @@
-# Public distribution candidate
+# Distribution acceptance record
 
-## Current decision — October 31, 2026
+Updated October 31, 2026. **Distribution is not ready.** Universal alpha.57 is signed,
+notarized and installed from its final DMG. It is the first candidate with vision-only control
+selected throughout Sia. Real meal planning produced independently checked files after operator
+recovery; native TextEdit creation stopped at Save. These are useful failure findings, not an
+unattended acceptance pass. Nothing new was published; the last published Mac pilot is alpha.24.
 
-**Distribution is not ready.** Internal signed arm64 alpha.56 completed real household planning,
-a sourced outing, native TextEdit editing, and Stop/recovery during native Save/readback while
-browser work remained independent. The full local pilot gate and exact-source CI passed. Universal
-alpha.56 is notarized, but its real-work repeat needed operator recovery. The owner now requires
-vision-only control throughout Sia; alpha.56 uses assisted control and cannot validate that default.
-Vision implementation, exact-artifact repeats and physical acceptance remain open. Nothing new was published; the last
-published Mac pilot is alpha.24. The owner selected **Mac first; iPhone follows**, confirmed the
-relevant Notch source rights and named Lawrence Jang as support/incident owner.
+## Exact universal alpha.57 artifact
 
-## Universal alpha.56 baseline
-
-Source `75c38b7fad786f69669a63fb572ca1a422eb6a08`; exact-source CI run `41214640627` passed.
-Signing, app/DMG notarization, stapling, Gatekeeper and packaged runtime checks passed. The QA
-copy was installed directly from the read-only mounted DMG and its signature and ASAR compared.
+Source: `47352213cfe9bf254a39d3a1094ad765902d4a1b`.
+Strict Developer ID signatures, app/DMG notarization, stapling, Gatekeeper and packaged runtime
+checks passed. The QA app was copied from the read-only mounted final DMG; the mounted and installed
+ASAR hashes match. Packaging was explicitly configured never to publish.
 
 | Artifact       | SHA-256                                                            |
 | -------------- | ------------------------------------------------------------------ |
-| Universal DMG  | `f3dc08cfe45ef29093606071fa6a0fd84381f815ff7479fe8f97af9926eee0d8` |
-| Universal ZIP  | `7ca0810c9351f006c6c27ee463529ad8427f3fc34c93981ae111da7d7cd6db30` |
-| Installed ASAR | `429bc08676aaf9e2cf1af86e091223ccbade8d92896c3fabc9ab5c22457e06bf` |
+| Universal DMG  | `d50a0f936c7e78a404eeb4f108cff413447d176569098a97df1e0a9c6d87860f` |
+| Universal ZIP  | `d0ac5e239365abc1fce298281feae6c9872f3017fe89997dbb057e17f822db67` |
+| Installed ASAR | `c90941a695d95da85a1058981b279a30f84205958566bc03443457a1331f5d3b` |
 
-Both public-browser tasks initially paused on observation timeouts. The operator recovered the
-existing public tab, resumed the outing and sent the household continuation. A café link opened
-a secondary public tab and the focus guard paused correctly; another continuation reconciled
-the page. The outing finished at 15:52:33 UTC. Household work switched to Good Food recipes and
-finished at 15:58:29. Saved plans and grocery arithmetic were read independently; independent
-recipe-source and result-preview checks remain incomplete. These are recovered runs, not
-unattended acceptance passes.
+The final receipt wrapper failed after successful package checks because the local Python lacks
+`hashlib.file_digest`. Hashing and receipt copying were repaired with streaming SHA-256; the
+package was not rebuilt. Both the original log and repaired receipt are retained privately.
 
-A native TextEdit task saved a checked 304-word review brief while browser actions interleaved.
-Ten UI switches measured median 1,268 ms / worst 1,390 ms including CUA observation. The browser
-focus interruption prevents an uninterrupted-concurrency claim. Clipboard preservation remains
-inconclusive: browser clipboard API values did not establish an OS pasteboard baseline. Its
-temporary canary was restored; a later native paste probe was cancelled without overwriting
-the original OS clipboard. No restoration is pending.
+The exact source passed `pnpm test:pilot`: 1,933 desktop tests, 248 native browser tests,
+46 Electron E2E, 40 renderer and 72 Chromium/WebKit phone tests, plus build, format, lint,
+quality, type and other native/shared checks. Skipped cases are recorded in the gate log.
+[Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41232634379) passed, including
+unsigned universal packaging.
+Automated transport and authorization checks do not establish real task skill.
 
-Receipts, deliverable hashes and traces remain privately in
-`alpha56-artifacts/universal-real-work/result.json`. This baseline uses DOM/accessibility
-assistance and does not count toward vision-only acceptance.
+## Real household work
 
-## Exact alpha.56 internal artifact
+A new agent used default GPT-6-Astra through the ChatGPT plan, background Mac control and a
+private workspace. The prompt requested three weeknight dinners for two adults, inspected
+published recipes, active/elapsed times, ingredient reuse, serving adjustments, a consolidated
+shopping list and verified saved outputs. Explicit file tools were allowed for the two files;
+those writes are not counted as visual editing.
 
-Source: `9a82f49c0b7e8e8e708fbe09cba2552628f063dd`.
-Installed `app.asar` SHA-256:
-`1320c11a2e1c557fdb0f1494841258976a1547c7e1edb38f441602f74ed322af`.
-Strict Developer ID signature, packaged runtime, installed signature and ASAR equality passed.
-This arm64 app is **not notarized**. The full local gate passed: 1,864 desktop, 46 Electron,
-36 renderer, 72 phone-web and native/shared checks, including 235 browser regressions and
-11 Chrome-consent tests. The subsequent universal source's CI also passed, as recorded above.
+The initial request at 19:18:27 UTC required **Connect Chrome & continue**. The operator selected
+the previously approved disposable public window. Research visually inspected two recipes but
+stopped after a stale image and refused pointer input on the third search result. At 19:24 UTC,
+the operator requested independent recovery through permitted keyboard navigation or a known
+public recipe URL. The model navigated and inspected the third recipe, then finished at
+19:26:53. No operator clicked the recipe for it. This is a recovered run with two interventions.
 
-Fresh assistants used default GPT-6-Astra through the ChatGPT plan and separate working folders.
-Browser scope remained the chosen public Chrome window and its existing tab. No buying, booking,
-sign-ins, messages or publication occurred. All three planning files were independently read,
-source/quantity checked, and opened successfully in Sia's result preview:
+| Deliverable      | Bytes | SHA-256                                                            |
+| ---------------- | ----- | ------------------------------------------------------------------ |
+| `dinner-plan.md` | 6,492 | `3a1895e4966711415a9297e763d39deac343741b08cb801ebbf410e880952812` |
+| `groceries.md`   | 5,084 | `b2b812e78ccfcfd668e774c23291bd89ac0aa5daef698dddacb2a7a1735e6e38` |
 
-| Deliverable            | Bytes | SHA-256                                                            |
-| ---------------------- | ----- | ------------------------------------------------------------------ |
-| Dinner plan            | 9,154 | `2ddbc6cf0f5cf3bfbff65a243e3d52ea99dbdadbf4b1f701e1437063d8f84af7` |
-| Consolidated groceries | 6,681 | `1b171e28195634fc9f6ba5de3f75eb2660b71c13ec36f9d5a88be02c0df96dde` |
-| Pittsburgh outing      | 7,542 | `4b1717f72df17d9746cb527b0e685ff8e04864e180942a952d04ef842db0e679` |
+Independent reads of the three published sources confirmed ingredient quantities, yields,
+methods and published timings. Grocery totals reconcile, including four onions, five garlic
+cloves, four tablespoons of oil, four eggs and four tomato cans. The cherry-tomato can size,
+rice/bread allowances and substitutions are explicitly labeled assumptions. The pasta makes
+four portions, including two reserved lunches. Both files opened in the installed app's preview.
+No meals were cooked, pantry stock/prices were not verified, and food-storage advice was not
+independently checked.
 
-The household plan checked five published recipes for November 2–6, two adults, ingredient reuse,
-serving adjustments, active/elapsed cooking time and a consolidated list. It explicitly budgets
-six freezer quesadillas and two future chicken/rice portions. Totals reconcile, including six
-garlic cloves, five eggs, eight ounces spinach, six cooked cups rice and sixteen ounces broccoli.
-Freezer capacity is required; cooking time and rice yield are estimates. No meals were cooked.
+## Native work and concurrency
 
-After relaunch, explicit Chrome setup took 2.059 seconds and resumed the saved request. Initial
-Page.navigate and Page.getFrameTree timeouts recovered automatically through fresh observation,
-without replaying uncertain navigation or operator continuation. The household task finished
-about 6m43s after connection. This is successful recovery, **not zero-timeout reliability**.
+A separate new agent received a GUI-only TextEdit task: create, save, reopen and visibly verify
+a 250–350-word Arena pilot brief. It used screenshots, coordinates and keys, created a new
+document, entered the brief and opened Save. The separate Save window was `ax_unresolved` and
+reported no safe background input. An operator recovery prompt asked it to inspect the parent
+document without repeating text or Save. Pointer input was available there, but keyboard input
+returned `window_not_key`. The draft remains intact and unsaved. This scenario failed.
 
-The outing checked official museum/dining hours, admission, actual café menu prices and PRT fares.
-Independent CUA inspection confirmed the $16 club sandwich with fries. Admission, meal, estimated
-tax and tip total $45.32; $5.50 transit reserve plus $9.18 contingency bring the allocation to $60.
-The walking plan returns around 5:30 p.m., with an indoor rain alternative. Specific bus departures,
-seating and November 7 ticket availability remain unverified and are labeled accordingly. The
-roughly five-minute run required no operator correction or renewed Chrome setup after native Stop.
-New-context links were refused before input and recovered via observed destinations in the same
-tab; a stale transit link and unsupported route selector were reported rather than invented away.
+Browser observations and native document actions interleaved on separate queues. This establishes
+independent progress, not completed concurrent tasks. Native Stop/recovery, exact-artifact UI
+latency and clipboard preservation remain unverified. The second personal task, a sourced $60
+Pittsburgh outing, reused the connection but stopped after two refused clicks; no output was
+created and no booking or purchase occurred.
 
-## Native work, concurrency and Stop
+Private receipts, traces, hashes and preview screenshots are in `alpha57-artifacts/real-work`.
+The application logs 29 household and 11 native image-bearing visual results, with explicit file
+tools counted separately. Counts alone do not prove successful visual control.
 
-TextEdit first saved a faithful 316-word proposal brief, then a 289-word revision with a proposed
-45-minute review agenda and two concrete decisions. The final file SHA-256 is
-`d98b3bb9422ede7b547ef13523d153ad91b79e519726c39cfa0746b6d02eebfe`.
-Saved bytes, word count, factual qualifications and absence of an unsaved marker were checked.
-The brief reflects the proposal supplied before this acceptance update.
+## Remaining gates and rollback
 
-Actual operations interleaved: native replacement completed at 15:08:49.033 UTC while a browser
-observation was pending until 15:08:50.288; native Save completed at 15:08:55.656, followed by a
-browser observation at 15:08:59.221. Native work continued while the browser recovered from its
-slow read, establishing more than overlapping task lifetimes.
+Fix and repeat background browser input/re-observation and native Save targeting on the exact
+final artifact. Source follow-ups add one bounded read retry for an invalidated capture pair,
+content-free pointer/link guard diagnostics and corrected visual-control settings copy. They
+are not part of the alpha.57 artifact above and do not yet establish a live fix. The follow-up
+source passed the full local pilot gate with 1,941 desktop tests and the same native/E2E, renderer
+and phone counts; 155 focused checks cover the changed boundaries.
 
-During revision, the native Save/readback action started at 15:11:21.158. Stop was clicked at
-15:11:21.547, acknowledged in 128 ms and visibly cancelled within 1,149 ms including CUA observation.
-The key had been delivered but its follow-up observation was unavailable. Continuation inspected
-the exact document using inventory and a snapshot only: it preserved the saved changes and sent
-no repeated input. The outing subsequently navigated successfully at 15:14:23.362 with the existing
-browser grant. Same-window browser work waited for the preceding household turn to release it.
+Retain the alpha.56 QA backup for rollback. Its assisted-mode successes and interventions are
+in the [previous acceptance record](https://github.com/ljang0/sia-v2/blob/47352213cfe9bf254a39d3a1094ad765902d4a1b/docs/public-release.md);
+they do not validate vision-only control. Do not overlap real QA with Electron/renderer gates
+or packaged runtime verification.
 
-Ten conversation/Activity switches during browser work measured median 1,151 ms / worst 2,432 ms
-including CUA observation; click acknowledgements were 88–147 ms. These are observed interactions,
-not isolated renderer benchmarks. An external CUA clipboard read timed out before any backup or
-write; no clipboard was changed, and clipboard preservation is **not** a pass on this candidate.
-Private traces, screenshots and `result.json` remain in `alpha56-artifacts/real-work` outside Git.
-
-## Changes and retained failures
-
-Browser and native work now use separate runtimes, queues, authorization contexts and timeout
-clocks. Cancellation retires only its runtime; retired callbacks and approvals arriving after
-cancellation fail closed. Physical-window leases and focus guards remain. Focused regressions
-failed before the fixes and passed afterward. Spaced Markdown destinations now render correctly,
-verified in the signed app against an earlier malformed dinner-plan link.
-
-Alpha.55 completed the same two everyday scenarios, native editing and file-task Stop/resume.
-Its full gate and [source CI](https://github.com/ljang0/sia-v2/actions/runs/41209741237) passed.
-Earlier alpha.53/.54 browser failures, exact artifacts and interventions are retained through the
-[previous record](https://github.com/ljang0/sia-v2/blob/9a82f49c0b7e8e8e708fbe09cba2552628f063dd/docs/public-release.md).
-Frame-scoping, bounded traversal and CDP cleanup defects were independently reproduced and fixed;
-they are not established as the sole cause of browser timeouts. Notarized alpha.53 installers and
-signed alpha.55 app backups are retained and checksummed.
-
-## Remaining acceptance and rollback
-
-Complete the vision-only migration, full source gate, signing/notarization and repeated useful tasks
-on that exact new artifact, including clipboard preservation, restart/expiry and responsiveness. Do not overlap
-live acceptance with automated Electron/renderer checks or packaged runtime verification.
-
-This Mac refuses Sia's display-sleep assertion with `kIOReturnNoMemory`; independent Apple
-`caffeinate` probes also failed. Physical RAM is not an established cause. Keep-awake, physical
-lock/sleep, voice and clean-account acceptance remain unverified. No fresh macOS account or second
-Mac is available. Background new-tab creation and Finder file drag remain unsupported.
+Keep-awake, physical lock/sleep, voice, restart/expiry, clipboard and clean-account acceptance
+remain open. This Mac refuses Sia's display-sleep assertion with `kIOReturnNoMemory`; independent
+Apple `caffeinate` probes also failed. The cause is not established. No fresh macOS account or
+second Mac is available. Background new tabs and Finder file drag remain unsupported.
 
 ## Cloud and follow-on iPhone evidence
 

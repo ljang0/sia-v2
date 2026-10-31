@@ -66,7 +66,8 @@ The source host enables vision-only control centrally for the controller, action
 Voice activation provides app identity only; `mac/activation-context.ts` also strips old queued
 context before it reaches the model. The native memory adapter retains saved notes without UI
 extraction or executable native-script instructions. See [release status](./release-status.md)
-for the signed-app acceptance gaps: the installed alpha.56 predates this default. Remaining assisted
+for the signed-app acceptance gaps: universal alpha.57 contains this default, but its real tasks
+required recovery and native Save remains blocked. Remaining assisted
 implementation branches are internal test seams and must be retired after the visual cutover passes.
 
 Keep each stateful domain's lifecycle in its owning module. Extract a collaborator when it has a
