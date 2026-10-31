@@ -4,12 +4,10 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
 public project documents and a real admitted model; fake-service demos are separate.
 
-**Current evidence:** internal signed alpha.49 completed two official-source comparisons and two
-native proposal briefs, plus two six-document filing runs with unchanged hashes. A waiting task
-cancelled visibly within 672 ms; ten UI switches during filing measured median 826 ms / worst
-1,301 ms including observation. Broader workflows, exact universal-artifact repeats, complete
-concurrency instrumentation and physical acceptance remain open. Alpha.48 is the latest notarized
-package, with failed browser research. Version-specific details are in the linked evidence.
+**Current evidence:** internal signed alpha.49 completed repeated research, native briefs, file
+organization, practical visitor planning and full reviewer packets. Universal notarized alpha.49
+exposed two real-work failures; alpha.50's targeted fixes still need full signed acceptance.
+The linked evidence records exact versions, timing, recovered errors and remaining gates.
 
 ## Start here
 

@@ -1,6 +1,40 @@
 import { expect, it } from 'vitest';
 import { windowHasProtectedControls } from './driver-records.js';
 
+const editorBody =
+  'Reviewer brief\nParticipants install the Mac app, sign in, choose a model, complete useful tasks and rate the results. Authentication remains with the person. This is a proposal, not an accepted release.';
+const editorDocument = { role: 'AXTextArea', label: editorBody, value: editorBody };
+const textEdit = { nativeAppBundleId: 'com.apple.TextEdit' };
+
+it('does not turn TextEdit document prose into an authentication control after an edit', () => {
+  expect(windowHasProtectedControls({ elements: [editorDocument] }, textEdit)).toBe(false);
+  for (const options of [{}, { nativeAppBundleId: 'com.apple.Notes' }])
+    expect(windowHasProtectedControls({ elements: [editorDocument] }, options)).toBe(true);
+});
+
+it.each([
+  { label: 'Sign in' },
+  { title: 'Authentication required' },
+  { role: 'AXTextField' },
+  { subrole: 'AXSecureTextField' },
+  { autocomplete: 'one-time-code' },
+  { label: 'Sign in', value: 'Sign in' },
+  { label: 'Account password', value: 'Account password' },
+])('keeps real or ambiguous editor authentication controls blocked: %j', (change) => {
+  expect(
+    windowHasProtectedControls({ elements: [{ ...editorDocument, ...change }] }, textEdit),
+  ).toBe(true);
+});
+
+it('still blocks a real authentication control beside ordinary TextEdit prose', () => {
+  expect(
+    windowHasProtectedControls(
+      { elements: [editorDocument, { role: 'AXButton', label: 'Sign in' }] },
+      textEdit,
+    ),
+  ).toBe(true);
+});
+
 it.each([
   ['AXLink', 'ZipFile.setpassword(pwd)', false],
   ['AXLink', 'setpassword()', false],

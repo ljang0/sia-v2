@@ -53,23 +53,17 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Internal signed alpha.46 completed a sourced visitor plan and a saved proposal brief with interleaved
-browser/TextEdit actions, without corrective task messages. A reviewer packet made from six actual
-project documents preserved every file hash. Three explicit Chrome connections and the complete
-local automated gate passed. Ten conversation switches during filing took median 815 ms / worst
-1,068 ms including observation overhead. These are useful rehearsals, not general desktop readiness.
+Signed internal rehearsals completed useful sourced comparisons, native proposal editing, practical
+visitor planning and reviewer packets made from real project documents. Outputs were checked
+independently, and failures were retained. Universal notarized alpha.49 then exposed a document
+protection false positive and an overly broad background-navigation pause; alpha.50 addresses
+those specific defects and still needs full acceptance. A signed installer is not proof of readiness.
 
-The final signed candidate still needs repeated workflows, cancellation/contention and restart
-recovery checks. Working renderer CPU remains elevated, and this Mac refuses keep-awake assertions
-even from Apple's own utility. Clean-account and physical acceptance remain unverified. Internal
-signed alpha.49 completed two sourced comparisons/native briefs and two hash-verified filing runs;
-a waiting task cancelled visibly within 672 ms. Ten switches during filing measured median 826 ms /
-worst 1,301 ms including observation. Later browser traces were filtered, limiting full concurrency
-instrumentation. Alpha.48 is the latest notarized package, with failed browser research. Neither is
-accepted for distribution. Background new-tab creation and Finder file drag remain unsupported.
-These results support technical review, not distribution acceptance or a validated model ranking.
-The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
-owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.
+Repeated final-artifact workflows, concurrent use, responsiveness, restart and physical acceptance
+remain gates. Clean-account testing is unavailable on the current Mac. Background new-tab creation
+and Finder file drag remain unsupported. See [release status](./release-status.md) and
+[artifact evidence](./public-release.md) for exact versions, timings and limitations. Lawrence Jang
+is the support/incident owner, and the relevant native source rights are confirmed.
 
 Try the [real-work demo guide](./demo.md), which preserves failures and corrective interventions.
 Start with the [README setup and task path](../README.md), then

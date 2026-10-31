@@ -649,7 +649,38 @@ export class CuaService {
       if (protectDesktop) {
         const foreground = await this.#foregroundPid(driver, operation.signal);
         operation.signal.throwIfAborted();
-        if (foreground === undefined || foreground !== foregroundBefore) {
+        // Page.navigate addresses an exact CDP tab and sends no desktop input.
+        // A successful, matching receipt remains valid when the person switches
+        // between other apps. BrowserActions still verifies the resulting page.
+        // Keep the conservative guard for native/trusted input, missing receipts,
+        // driver errors, unknown focus and the browser itself becoming active.
+        const acknowledgedNavigation =
+          tool === 'browser_navigate' &&
+          !nativeToolError &&
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          !Array.isArray(parsed) &&
+          'status' in parsed &&
+          parsed.status === 'ok' &&
+          'target_id' in parsed &&
+          parsed.target_id === args.target_id &&
+          'tab_id' in parsed &&
+          parsed.tab_id === args.tab_id &&
+          'url' in parsed &&
+          parsed.url === args.url &&
+          'refs_invalidated' in parsed &&
+          parsed.refs_invalidated === true &&
+          Object.keys(parsed).every((key) =>
+            ['status', 'target_id', 'tab_id', 'url', 'refs_invalidated'].includes(key),
+          );
+        const unrelatedAppSwitch =
+          acknowledgedNavigation &&
+          foreground !== undefined &&
+          foreground !== backgroundTargetPid;
+        if (
+          foreground === undefined ||
+          (foreground !== foregroundBefore && !unrelatedAppSwitch)
+        ) {
           if (context.kind === 'turn') {
             const key = JSON.stringify([context.threadId, context.turnId, context.executionId]);
             // Install this before releasing the native queue. Tool-signal cleanup

@@ -113,6 +113,9 @@ export class ComputerObservation {
     const hasProtectedControls = (value: unknown) =>
       windowHasProtectedControls(value, {
         browserBundleId: browserState?.status === 'ready' ? browserState.bundleID : undefined,
+        nativeAppBundleId: this.ctx.computer.apps
+          .get(binding.appId)
+          ?.identity?.replace(/^bundle:/, ''),
       });
     // A missing helper AX window is not a driver refusal. Let CUA resolve and
     // initialize the exact window once, then revalidate browser metadata before

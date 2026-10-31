@@ -282,6 +282,7 @@ export function windowHasProtectedControls(
   value: unknown,
   options: {
     browserBundleId?: string | undefined;
+    nativeAppBundleId?: string | undefined;
     allowPassiveAuthenticationNotice?: boolean;
   } = {},
 ): boolean {
@@ -292,6 +293,22 @@ export function windowHasProtectedControls(
       const label = [record.role, record.subrole, record.title, record.label]
         .filter((item) => typeof item === 'string')
         .join(' ');
+      // Cua falls back to AXValue when TextEdit's document area has no label.
+      // A paragraph explaining sign-in is document content, not a login control.
+      // Only omit that duplicated body from authentication-word matching;
+      // secure roles, credential labels, titles and separate controls still apply.
+      const documentBodyLabel =
+        options.nativeAppBundleId?.toLowerCase() === 'com.apple.textedit' &&
+        record.role === 'AXTextArea' &&
+        typeof record.value === 'string' &&
+        record.value.length >= 120 &&
+        record.value.includes('\n') &&
+        record.label === record.value;
+      const authenticationLabel = documentBodyLabel
+        ? [record.role, record.subrole, record.title]
+            .filter((item) => typeof item === 'string')
+            .join(' ')
+        : label;
       // Public API links such as ZipFile.setpassword() are not password fields.
       // Editable controls retain the conservative substring check; literal
       // password labels/prose and secure roles remain protected everywhere.
@@ -316,7 +333,7 @@ export function windowHasProtectedControls(
           !(
             options.allowPassiveAuthenticationNotice && isPassiveAuthenticationNotice(record)
           ) &&
-          /(?:\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat)/i.test(label))
+          /(?:\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat)/i.test(authenticationLabel))
       );
     });
 }

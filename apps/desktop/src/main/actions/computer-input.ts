@@ -295,7 +295,14 @@ export class ComputerInput {
       });
       const denied = resultRefusal(current);
       if (denied) return denied;
-      if (windowHasProtectedControls(current, { browserBundleId: verifiedBrowserBundleId }))
+      if (
+        windowHasProtectedControls(current, {
+          browserBundleId: verifiedBrowserBundleId,
+          nativeAppBundleId: this.ctx.computer.apps
+            .get(binding.appId)
+            ?.identity?.replace(/^bundle:/, ''),
+        })
+      )
         return refused('Pixel actions are blocked on windows containing protected controls.');
       if (backgroundDelivery) {
         const availability = windowBackgroundInput(current, binding);

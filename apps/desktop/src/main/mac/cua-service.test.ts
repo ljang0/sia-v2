@@ -296,6 +296,84 @@ it('refuses browser input without a host-owned process binding', async () => {
 });
 
 it.each([
+  'other-app',
+  'target',
+  'unknown',
+  'wrong-tab',
+  'missing-receipt',
+  'focus-side-effect',
+  'native-error',
+])('reconciles exact-tab navigation while desktop focus changes: %s', async (scenario) => {
+  const args = {
+    session: 'approved',
+    target_id: 'target',
+    tab_id: 'tab',
+    url: 'https://example.com/',
+  };
+  const receipt = {
+    status: 'ok',
+    target_id: args.target_id,
+    tab_id: args.tab_id,
+    url: args.url,
+    refs_invalidated: true,
+  };
+  const driver = successfulDriver(
+    scenario === 'native-error'
+      ? { isError: true, content: [{ type: 'text', text: 'failed' }] }
+      : scenario === 'missing-receipt'
+        ? { status: 'ok' }
+        : scenario === 'wrong-tab'
+          ? { ...receipt, tab_id: 'another-tab' }
+          : scenario === 'focus-side-effect'
+            ? { ...receipt, foregrounded_window: true }
+            : receipt,
+  );
+  const readForegroundPid = vi
+    .fn<() => Promise<number | undefined>>()
+    .mockResolvedValue(99)
+    .mockResolvedValueOnce(7)
+    .mockResolvedValueOnce(
+      scenario === 'target' ? 42 : scenario === 'unknown' ? undefined : 99,
+    );
+  const service = new CuaService(authorization(), {
+    driverFactory: () => driver,
+    readForegroundPid,
+  });
+  const context = {
+    kind: 'turn' as const,
+    threadId: 'thread',
+    turnId: 'turn',
+    backgroundOnly: true,
+    backgroundTargetPid: 42,
+  };
+  try {
+    const result = await service.call('browser_navigate', args, context);
+    if (scenario === 'other-app') {
+      expect(result).toEqual(receipt);
+      // The next distinct action remains usable; the first navigation is never replayed.
+      await service.call(
+        'browser_navigate',
+        { ...args, url: 'https://example.com/next' },
+        context,
+      );
+      expect(driver.callTool).toHaveBeenCalledTimes(2);
+    } else {
+      expect(result).toMatchObject(
+        scenario === 'unknown'
+          ? { background_focus_unverified: true }
+          : { background_focus_changed: true },
+      );
+      await expect(service.call('browser_navigate', args, context)).rejects.toThrow(
+        'background_input_paused',
+      );
+      expect(driver.callTool).toHaveBeenCalledTimes(1);
+    }
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it.each([
   'click',
   'double_click',
   'drag',
