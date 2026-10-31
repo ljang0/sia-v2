@@ -62,6 +62,13 @@ operating contract for on-screen and background work. The Codex `mac-hosted` ses
 provider-native tools for both policies; it is independent of the host's foreground lease. Backend
 validation remains authoritative even if a caller ignores the advertised schema.
 
+[`codex-tool-results.ts`](../packages/runtime/src/providers/codex-tool-results.ts) owns the
+provider response encoding and image-forwarding instructions. Codex Code Mode returns dynamic-tool
+text and image data URLs as newline-separated strings. The model must forward image lines to
+`image()`; printing the string alone does not make the screenshot visible. Image bytes stay out of
+the structured text item. This transport detail belongs in the provider adapter, not native input,
+browser control or the general visual operating contract.
+
 The source host enables vision-only control centrally for the controller, action backend and runtime.
 Voice activation provides app identity only; `mac/activation-context.ts` also strips old queued
 context before it reaches the model. The native memory adapter retains saved notes without UI

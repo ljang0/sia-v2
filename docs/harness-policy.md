@@ -83,6 +83,18 @@ compatibility, not inference entitlement or live computer-task quality.
 It creates isolated sessions but sends no model turn or app action. Use the opt-in desktop
 memory and background recovery smokes for actual turns with disposable local/in-memory fixtures.
 
+The separate image-handoff check **consumes one model turn** and sends a chosen PNG to the
+signed-in provider. Use only a non-sensitive screenshot with readable text, and supply at least
+two exact visible strings as a JSON array. Expected strings never enter the model's prompt or tool
+metadata. The test uses an ephemeral session with native execution disabled and no UI actions:
+
+```sh
+SIA_CODEX_IMAGE_SMOKE=1 SIA_CODEX_IMAGE_FIXTURE='/absolute/path/to/non-sensitive.png' SIA_CODEX_IMAGE_EXPECT='["first visible phrase","second visible phrase"]' pnpm --filter @sia/runtime exec vitest run src/codex-images.smoke.test.ts
+```
+
+Optionally set `SIA_CODEX_IMAGE_COMMAND` to the exact admitted binary and `SIA_SMOKE_MODEL` to an
+offered model. This checks actual image observation, not useful-work or signed-app acceptance.
+
 Codex compatibility is protocol-specific: a custom model must expose the OpenAI Responses API to
 run through Codex app server. OpenCode and Pi support Responses and Chat Completions and document
 ChatGPT Plus/Pro login, but each harness owns that OAuth session; Sia does not copy Codex tokens.

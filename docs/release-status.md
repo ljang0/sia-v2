@@ -67,6 +67,16 @@ unverified. Point resolution has its own bounded native module with six regressi
 from ownership, focus and dispatch. Failed transport experiments and temporary diagnostics were
 removed instead of becoming compatibility paths. See the [artifact record](./public-release.md).
 
+Alpha.66's read-only capture diagnostic confirmed an 800-point attached sheet overhanging its
+586-point parent; the screenshot API supplied no frame metadata. It also exposed a separate image
+handoff failure. Codex received the PNG content item, but its Code Mode wrapper returned text and
+image URLs as a string that the model did not render. Alpha.67 source adds provider-local forwarding
+instructions and a real-provider image test: the model correctly read four screenshot facts absent
+from the prompt and tool text. Signed internal alpha.67 also passed through a fresh Sia assistant:
+one new screenshot, four correct image-only facts and correct sheet-overhang recognition, with
+zero computer inputs. The full local pilot gate passed. This verifies image handoff, not completed
+native work; expanded-sheet coordinate mapping and Save/reopen remain open.
+
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
 The release requires real-source research and writing, file/document preparation, and planning
@@ -84,7 +94,7 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.65 full local pilot gate passed, including six sheet-point regressions. Alpha.60 exact-source CI also passed. | Latest candidate exact-source CI and successful exact-artifact real-task repeats. |
+| Source | Alpha.67 full local pilot gate passed, including six sheet-point regressions; the opt-in real-provider image test also passed. Alpha.60 exact-source CI passed. | Latest candidate exact-source CI and successful exact-artifact real-task repeats. |
 | Signed package | Universal vision-only alpha.60 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Repeat failed real workflows after recovery fixes. |
 | Useful work | Alpha.57 saved a source-checked three-dinner plan and consolidated groceries after recovery; previews loaded. Alpha.60 typed a real reviewer brief, but Save and the parent-document diagnostic failed. | Unattended browser recovery, native Save/reopen and the sourced outing (alpha.59 stopped on network-error recovery). |
 | Background/concurrency | Alpha.59 delivered browser clicks/scrolls while separate supervisor-typed notes remained intact; ten CUA navigation samples median 946.5 ms / worst 1,199 ms. Earlier assisted-mode Stop/recovery evidence is retained in history. | Two completed Sia tasks, contention, Stop/recovery, focus and clipboard preservation on the final artifact. |

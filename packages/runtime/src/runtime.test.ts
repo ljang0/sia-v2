@@ -1115,7 +1115,7 @@ describe('Codex app-server adapter', () => {
       ephemeral: true,
       approvalPolicy: 'never',
       sandbox: 'workspace-write',
-      developerInstructions: 'Be useful',
+      developerInstructions: expect.stringContaining('Be useful\n\nSIA TOOL OUTPUT'),
       config: {
         features: isolatedCodexFeatures,
         web_search: 'live',

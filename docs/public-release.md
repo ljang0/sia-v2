@@ -85,6 +85,41 @@ Alpha.65 source passed the full local `pnpm test:pilot` gate: build/static/share
 72 phone-browser tests. The six new sheet-point cases and the existing ownership/focus/menu
 checks also passed. Documented skips remain in the retained `pilot-gate.log`.
 
+The alpha.65 QA process remained open behind a quit-confirmation alert during that gate. The
+diagnostic turn had ended; the retained trace shows only a completed memory review afterward,
+not further computer input. No live acceptance is credited during the gate. The confirmation was
+closed and process exit verified before alpha.66 packaging and the later transport probes.
+
+Internal signed alpha.66 recorded a parent rectangle `[532,356,586,476]` and owned sheet rectangle
+`[425,384,800,448]`; ScreenCaptureKit's filter still described the parent and its sample-buffer
+frame metadata was absent. The valid saved PNG visibly shows the expanded sheet and black padding.
+The model instead reported no viewable image. This read-only diagnostic sent no UI input and earns
+no task acceptance. Its temporary native diagnostics were removed; private
+`alpha66-capture-geometry` retains the package, source diff, geometry and image evidence.
+
+Fresh ephemeral transport probes on Codex `0.153.0` reproduced the image failure while recording
+an `inputImage` in the completed dynamic-tool response. Inspection of the wrapper's return shape
+and upstream implementation identified newline-separated text and image URLs. Explicit `image()`
+forwarding allowed the model to read the Save As field, selected folder and first two filenames,
+none supplied in the prompt. Alpha.67 source puts that guidance beside provider response encoding
+in `codex-tool-results.ts`. The opt-in real-provider regression passed with all four facts; mock
+protocol tests alone had not detected the missing observation.
+
+Signed internal arm64 alpha.67 passed the same observation through a new Sia assistant, with
+Codex · GPT-6-Astra displayed. It listed apps and took one fresh screenshot, then correctly reported
+the four image-only facts and sheet overhang in an 11.178-second turn. The trace records no computer
+input. Full-task repeats are still required; expanded-sheet coordinate mapping remains unresolved.
+Installed ASAR: `a5faa6910cd798c2aff18832b1e00b0d072ce7e9b19e89f3a0bccbf59b6c61ad`.
+The source base is `ac98a9afc9d94558d77f66392713e8895dd2c94f`, with captured diff
+`452c0eeccc77895ddd6e148d328d459711bc5423a66cfd6a50062f6efdfd96c2`.
+Private `alpha67-image-handoff` retains package/install receipts, source, the fresh-agent prompt,
+trace, screenshots and result. This build is not notarized or approved for distribution.
+
+Alpha.67 passed the full local pilot gate: build/static/shared checks, 1,950 desktop tests,
+249 native browser tests, 46 Electron tests, 40 renderer tests and 72 phone-browser tests.
+Documented skips remain in `pilot-gate.log`. Live QA began after packaging and all gates completed;
+the QA process was then quit through CUA and its exit verified.
+
 ## Browser evidence retained from alpha.59
 
 The [alpha.59 record](https://github.com/ljang0/sia-v2/blob/b22d9c279eea120118d73083aa27281964dc727f/docs/public-release.md)

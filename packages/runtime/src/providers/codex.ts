@@ -13,7 +13,6 @@ import type {
   ThreadEventEnvelope,
   UsageLimit,
 } from '@sia/protocol';
-import { toolResultImages, withoutToolResultImages } from '@sia/protocol';
 import { randomUUID } from 'node:crypto';
 import { AsyncQueue } from '../async-queue.js';
 import { discoverCli, type CommandRunner, type SupportedVersionRange } from '../discovery.js';
@@ -23,6 +22,7 @@ import { ProcessSupervisor, waitForProcessSpawn } from '../supervisor.js';
 import { CODEX_SUPPORTED_VERSIONS } from './codex-versions.js';
 import { watchMacTurn } from './codex-watchdog.js';
 import { codexHistoryItems, codexUserInput } from './codex-input.js';
+import { codexToolInstructions, codexToolResponse } from './codex-tool-results.js';
 import {
   codexAppServerArgs,
   codexIsolationConfig,
@@ -287,7 +287,9 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         {
           cwd: options.workspace,
           model: options.model,
-          developerInstructions: options.instructions,
+          developerInstructions: options.tools.length
+            ? codexToolInstructions(options.instructions)
+            : options.instructions,
           ...(macAssistant ? { baseInstructions: options.baseInstructions } : {}),
           // Native Mac mode is the explicitly selected Notch-style host execution path.
           // Hosted Mac control keeps native tools disabled in either foreground policy.
@@ -1113,22 +1115,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           active.lastActivity = Date.now();
         }
       }
-      return {
-        success: result.success,
-        contentItems: [
-          {
-            type: 'inputText',
-            text:
-              typeof result.content === 'string'
-                ? result.content
-                : JSON.stringify(withoutToolResultImages(result.content)),
-          },
-          ...toolResultImages(result.content).map((image) => ({
-            type: 'inputImage' as const,
-            imageUrl: `data:${image.mimeType};base64,${image.dataBase64}`,
-          })),
-        ],
-      };
+      return codexToolResponse(result);
     }
     if (method.includes('requestApproval')) {
       const active = this.#findActive(params);
