@@ -259,7 +259,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   identifiers, and creates read back their native object. An unconfirmed create is never reported as
   success. macOS Automation permission remains app-specific; scripts cannot bypass it.
   Onboarding and Computer settings share `SetupMacAccess`, a sequential, user-started permission
-  guide with typed, fixed-target requests for System Events, Safari, Chrome, Calendar,
+  guide. Use my Mac onboarding requires Accessibility, Screen Recording, Full Disk Access for
+  Messages history, and Automation for installed supported apps before completion; this requirement
+  does not become optional when the first task only uses public documents. The guide uses typed, fixed-target requests for System Events, Safari, Chrome, Calendar,
   Reminders, Finder, and Messages. The native helper's permission-only mode uses
   `AEDeterminePermissionToAutomateTarget`; background checks never prompt or launch apps.
   Explicit requests open only the selected app and may show its macOS consent prompt.
