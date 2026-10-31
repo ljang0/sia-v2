@@ -61,13 +61,13 @@ local automated gate passed. Ten conversation switches during filing took median
 
 The final signed candidate still needs repeated workflows, cancellation/contention and restart
 recovery checks. Working renderer CPU remains elevated, and this Mac refuses keep-awake assertions
-even from Apple's own utility. Clean-account and physical acceptance remain unverified. Notarized
-alpha.48 returned to Sia after Chrome setup and saved a verified native brief with foreground draft
-and clipboard preservation, but browser research stalled twice. A waiting task stopped execution
-quickly but its visible cancellation notice took 30 seconds; alpha.49 addresses that delay.
-Neither version is an accepted distribution build. Background new-tab creation
-and Finder file drag remain unsupported. These results support technical review, not distribution
-acceptance or a validated model ranking.
+even from Apple's own utility. Clean-account and physical acceptance remain unverified. Internal
+signed alpha.49 completed two sourced comparisons/native briefs and two hash-verified filing runs;
+a waiting task cancelled visibly within 672 ms. Ten switches during filing measured median 826 ms /
+worst 1,301 ms including observation. Later browser traces were filtered, limiting full concurrency
+instrumentation. Alpha.48 is the latest notarized package, with failed browser research. Neither is
+accepted for distribution. Background new-tab creation and Finder file drag remain unsupported.
+These results support technical review, not distribution acceptance or a validated model ranking.
 The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
 owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.
 

@@ -4,12 +4,12 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
 public project documents and a real admitted model; fake-service demos are separate.
 
-**Current evidence:** notarized alpha.48 returned to Sia after Chrome setup and automatically
-resumed research. Native proposal editing saved a verified 343-word brief; the foreground draft
-and clipboard were preserved. Browser navigation then stalled twice and the research did not
-complete. Cancellation stopped execution in 202 ms but the visible notice took 30.112 seconds;
-alpha.49 addresses that delay. Earlier alpha.46 completed interleaved browser/native work and
-verified filing. These are version-specific observations, not final release acceptance.
+**Current evidence:** internal signed alpha.49 completed two official-source comparisons and two
+native proposal briefs, plus two six-document filing runs with unchanged hashes. A waiting task
+cancelled visibly within 672 ms; ten UI switches during filing measured median 826 ms / worst
+1,301 ms including observation. Broader workflows, exact universal-artifact repeats, complete
+concurrency instrumentation and physical acceptance remain open. Alpha.48 is the latest notarized
+package, with failed browser research. Version-specific details are in the linked evidence.
 
 ## Start here
 

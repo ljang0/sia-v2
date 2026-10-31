@@ -3,9 +3,42 @@
 ## Current decision — October 31, 2026
 
 The owner selected **Mac first; iPhone follows** and confirmed ownership of the relevant Notch
-source rights. Alpha.48 is signed and notarized, but its live browser research failed; internal alpha.46 completed useful concurrent
-browser/native work and verified filing. Final-candidate repeatability and physical acceptance remain incomplete. **External pilot release is not complete.**
-No new artifacts were published or invitations sent; the last published Mac pilot remains alpha.24.
+source rights. Internal signed alpha.49 completed two useful research/native task pairs and two
+verified filing runs. The latest universal notarized package is alpha.48, whose browser research
+failed. Final-artifact and physical acceptance remain incomplete. **External pilot release is not complete.**
+No artifacts were published or invitations sent; the last published Mac pilot remains alpha.24.
+
+## Current internal alpha.49 evidence
+
+Developer ID signed arm64 QA from `857671735fefe2669fa40a5a3a2b5d49afd84ef2`; **not notarized**.
+Installed `app.asar`: `ba63bdab4a39e4319a2993674c5270e9d22a0ceec4ade3da280c6a11eeb5c66f`.
+Strict signatures and package/runtime checks passed. The complete local pilot gate passed:
+1,832 desktop units, 46 Electron, 33 renderer and 72 phone-web checks, plus native/shared-package
+checks. Exact-source CI is [run 41192133254](https://github.com/ljang0/sia-v2/actions/runs/41192133254).
+
+- **Research/native repeats:** two fresh official-source control comparisons (688/664 words) and
+  native proposal briefs (338/342 words) were saved and independently checked. Research took
+  181/172 seconds; the first followed explicit Chrome recovery, the second reused its connection.
+  Setup settled in 1.835 seconds and returned to Sia automatically. No corrective task messages
+  were needed. The first native run refused a final scroll with same-app window ambiguity after
+  saving; the second verified its saved copy with no failed native action. The report preview works.
+- **Cancellation:** a second agent visibly waited for the occupied browser window without input.
+  Stop showed the cancellation result within a 672 ms CUA round trip; the owner subsequently
+  completed its report. Alpha.48's equivalent notice took 30.112 seconds.
+- **Filing:** two independent packets each moved six actual project documents into three requested
+  folders, preserved every hash and retained an empty Inbox. Runs took 27/31 seconds and 24/25 steps.
+- **Responsiveness:** ten switches during the second filing run measured median 826 ms / worst
+  1,301 ms including CUA observation; click acknowledgements were 30–88 ms. This is not isolated
+  paint latency, and one round trip exceeded the one-second target. An unsent foreground draft
+  survived the first research/native pair. Current-candidate foreground TextEdit/clipboard and
+  precise startup measurements remain open.
+
+Later technical-research trajectories were filtered, so these runs do not provide complete
+interleaved-GUI or post-cancellation browser-input instrumentation. The operator did not claim the
+public Chrome tab in CUA during alpha.49 research; both runs completed without the earlier browser
+stall. Competing browser control is a hypothesis, not an established cause. Personal planning,
+complete reviewer-packet preparation, final universal-artifact repeats and physical acceptance
+remain open. Private evidence is in `alpha49-artifacts/real-work/real-work-result.json`.
 
 ## Exact alpha.48 artifact and live result
 

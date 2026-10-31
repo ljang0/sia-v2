@@ -1,9 +1,10 @@
 # Release status
 
-Updated October 31, 2026. **Distribution is not ready.** Alpha.48 is signed and notarized, but live browser research failed.
-Internal signed alpha.46 completed concurrent public research and native proposal editing, plus
-verified filing. Final-candidate repeats, restart recovery and physical acceptance remain open.
-The last published Mac pilot is alpha.24; no new invitations or public download have been authorized.
+Updated October 31, 2026. **Distribution is not ready.** Internal signed alpha.49 completed two
+real research/native pairs, two verified filing runs and a responsive live Stop check. Alpha.48
+remains the latest notarized package. Final-artifact, broader workflow and physical acceptance
+remain open. The last published Mac pilot is alpha.24; no new invitations or public download
+have been authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
 is the initially admitted engine. The [Arena proposal](./arena-proposal.md) describes a bounded
@@ -28,11 +29,11 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.46 `6a2356b` passed the complete local pilot and CI gates, including unsigned universal packaging. | Alpha.49 exact-source CI and signed live acceptance; complete alpha.49 local gate passed. |
+| Source | Alpha.49 `8576717` passed the complete local pilot gate; alpha.48 exact-source CI passed. | Alpha.49 exact-source CI and signed live acceptance; complete alpha.49 local gate passed. |
 | Signed Mac package | Alpha.48 from `d07060a6a8edf469905f30b21698282dbe808dfd` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Build and accept the final candidate; signature success is not product readiness. |
 | Signed app continuity | Alpha.48 retained the QA profile, settings and history without a new Keychain prompt. | Physical and clean-account acceptance. |
-| Everyday usefulness | Alpha.46: sourced plan and native brief with interleaved GUI actions; six-file packet with unchanged hashes. | Repeat, cancellation isolation and same-window contention on the final candidate. |
-| Browser | Alpha.46 connected three times and completed sourced planning; diagnostic alpha.45 survived 343.590 seconds idle. | Restart recovery and expiry UX on final candidate. Background new-tab creation remains unsupported. |
+| Everyday usefulness | Alpha.49: two sourced comparisons/native briefs and two six-file packets with matching hashes. | Personal planning/full reviewer-packet repeats and fully instrumented final-artifact concurrency. |
+| Browser | Alpha.49: explicit connection returned to Sia, auto-resumed research, then a fresh conversation reused the connection. | Restart recovery and expiry UX on final candidate. Background new-tab creation remains unsupported. |
 | New recipient | Alpha.36 with an empty app profile showed only email sign-in, with no private app content. | Clean macOS-account signup, permissions, provider login cancel/retry, lock/sleep and voice acceptance. An empty profile is not a clean OS account; no fresh account or second Mac is currently available. |
 | Cloud feedback | Ratings/account deletion deployed; a synthetic authenticated rating reached the report. October 30: 18 alarms OK with actions enabled, five Lambdas Active/Successful, anonymous catalog/report/release requests return 401. | Recheck if configuration changes before invitations. |
 | iPhone follow-on | Build 31 is Ready to Test in internal Pilot QA; native tests, signed archive and Apple processing passed. | Deferred from this Mac-first handoff. Physical-device checks and external beta review remain. |
@@ -56,13 +57,15 @@ A waiting browser task sent no input and cancelled execution in 202 ms, but the 
 took 30.112 seconds. Alpha.49 removes that provider-reply delay from Stop and deduplicates native
 interruptions; it adds content-free browser transport/origin diagnostics. The complete alpha.49
 local gate passed (1,832 desktop units, 46 Electron, 33 renderer, 72 phone-web); exact-source CI
-and signed live checks remain pending. This is not a current-candidate concurrency or research pass.
+and final universal-artifact checks remain pending. Internal signed live evidence is below.
 
-Ten switches during filing measured median 815 ms / worst 1,068 ms including CUA observation.
-GPU load improved in short spot checks, but working renderer CPU remains elevated; task conditions
-were not matched. Earlier diagnostic alpha.45 completed a fresh browser task after 343.590 seconds
-idle without reconnect. Its second native run saved successfully but refused a final scroll.
-See [artifact evidence](./public-release.md) for exact versions, hashes and qualifications.
+Alpha.49 live Stop showed cancellation within a 672 ms CUA round trip while the browser owner
+continued and completed. Ten switches during real filing measured median 826 ms / worst 1,301 ms,
+including observation; click acknowledgements were 30–88 ms. Two research/native pairs completed
+without corrective task messages, but later browser traces were filtered, limiting action-by-action
+concurrency claims. One native final scroll refused after saving; the fresh repeat verified its save.
+The earlier browser stall did not recur when the operator avoided claiming the same Chrome tab;
+its cause remains unproven. See [artifact evidence](./public-release.md) for exact qualifications.
 
 Default Mac setup includes Chrome with a deliberate opt-out. Choosing a window authorizes its
 explicit connection setup, including Chrome's exact prompt. Task tools cannot approve permission
