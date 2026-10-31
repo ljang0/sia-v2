@@ -1,4 +1,4 @@
-# Cua Driver consent patch
+# Cua Driver patches
 
 Sia uses the upstream TypeScript API and Node runtime at **0.38.0**. Its macOS SDK is
 built from the exact source revision in `upstream.json`, with one
@@ -22,6 +22,21 @@ leaving the original four-second cutoff too close to ordinary scan latency. Opti
 `SIA_CUA_CONSENT_DIAGNOSTICS=1` logs only scan timings, counts and booleans for QA.
 The initial engineering probe connected in 1.7 seconds;
 repeatability and exact release acceptance remain separate gates.
+
+## Background links
+
+The same patch checks an exactly bound link before background click dispatch. A signed alpha.50
+visitor-planning task clicked a public `target="_blank"` dining link; Chrome opened a new tab and
+Sia's focus guard paused. Known links targeting another context are now refused before either
+trusted or synthetic input. Sia explains that the agent should read observed destinations and
+navigate the existing tab instead. The driver does not rewrite the page, silently substitute
+navigation, replay input, or grant another tab. Unknown preflight results refuse; JavaScript can
+still cause unanticipated effects, so the post-input focus guard remains necessary.
+
+The preflight reads only a boolean about the current node and its document's base target. It
+returns no URLs or page content. Exact frame/ref checks run first, and explicit foreground input
+retains its existing behavior. Native regression tests cover refusal before dispatch, unknown
+reads, ordinary background input, foreground choice and existing browser routing.
 
 ## Build and inspect
 
@@ -51,7 +66,7 @@ For native regression checks on the host architecture:
 pnpm --filter @sia/desktop native:cua --test
 ```
 
-The full pilot gate includes these checks. They test sheet recognition and refusal boundaries. They cannot replace a signed-app Chrome
+The full pilot gate includes these checks. They test sheet recognition, browser routing and refusal boundaries. They cannot replace a signed-app Chrome
 connection, background research, detach/reconnect and restart test. Intel builds are statically
 verified on the Apple Silicon release Mac; execution requires an Intel Mac.
 

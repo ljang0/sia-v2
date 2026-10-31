@@ -2,46 +2,47 @@
 
 ## Current decision — October 31, 2026
 
-**Distribution is not ready.** Alpha.49 is signed, universal and notarized, but its real-work
-acceptance exposed two failures: document prose triggered an authentication-control block, and
-switching to another app paused background browser navigation. Alpha.50 contains targeted fixes;
-its complete automated gate, signed build and live acceptance are pending. No artifacts were
-published or invitations sent. The last published Mac pilot remains alpha.24.
+**Distribution is not ready.** Universal notarized alpha.50 fixed the native-document failure,
+but a public link opened a new tab and interrupted background browser work. Alpha.51 adds a
+pre-click check for known links targeting another browsing context. Its focused native and desktop
+checks pass; the complete gate and signed live acceptance are pending. No artifacts were published
+or invitations sent. The last published Mac pilot remains alpha.24.
 
 The owner selected **Mac first; iPhone follows**, confirmed the relevant Notch source rights,
 and named Lawrence Jang as support/incident owner.
 
-## Exact alpha.49 universal artifact
+## Exact alpha.50 universal artifact
 
-Built from `68312a4f13e5479499ddaee6fc667891b25c9649`. Universal signing, app/DMG notarization,
-stapling, strict signatures, Gatekeeper and packaged runtime checks passed. Behavioral source
-`857671735fefe2669fa40a5a3a2b5d49afd84ef2` passed the full local pilot gate and
-[CI run 41192133254](https://github.com/ljang0/sia-v2/actions/runs/41192133254): 1,832 desktop
-units, 46 Electron, 33 renderer and 72 phone-web checks, plus native/shared-package checks.
-The intervening source changes were documentation only.
+Built from `3aeb38dff18f9b57ecb1ded4552354db58bf4353`. Universal signing, app/DMG notarization,
+stapling, strict signatures, Gatekeeper and packaged runtime checks passed. The complete local
+pilot gate passed: 1,849 desktop units, 46 Electron, 33 renderer and 72 phone-web checks, plus
+native/shared-package checks. [Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41196040578)
+was still running at this evidence update.
 
 | Artifact                           | SHA-256                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |
-| `Sia-0.1.0-alpha.49-universal.dmg` | `1b67c649a92e5fb1af2c5eae2c9388e978affadcc9b3551b4e608f3387869715` |
-| `Sia-0.1.0-alpha.49-universal.zip` | `8effb8a6a4e08674fad02cc73740098a4183a79507f8badb597c18a95fd8ab12` |
-| Installed QA `app.asar`            | `48b7808712faf8e396418cef76aaed34b903c2352fc9470178d2184ff9132169` |
+| `Sia-0.1.0-alpha.50-universal.dmg` | `d696ed0c84aa984971454a8d073b3783cae3d1889b9f30c5ca7023024c92ebfe` |
+| `Sia-0.1.0-alpha.50-universal.zip` | `188dd4b5aa129ddccb691319ccfd659fb1e31207c39758592055b9a879d6d28d` |
+| Installed QA `app.asar`            | `8b55b52db2183d2bd110fd78ee3e84926010064b3f4a5b09b872b5c74bee8984` |
+| Saved native brief                 | `9c4969ac80626e4284cfd20aaf12a19b1adc47195d4cd7fe80b8cb0ab1f9ee16` |
 
-The installed universal app retained the QA profile, settings and history without a new Keychain
-prompt. Launch to observed readiness was at most 12.468 seconds including CUA round trips; this
-is not an isolated startup benchmark. Restart Chrome recovery settled in 1.761 seconds, returned
-to Sia and resumed automatically, without a corrective task message or extra Continue click.
+The app retained its QA profile and history without a new Keychain prompt. Chrome recovery settled
+in 1.916 seconds, returned to Sia and resumed automatically. Native TextEdit editing produced a
+faithful 419-word technical-review brief in activity groups of 18 and 56 seconds, with no failed
+action. It saved through Command-S and inspected the result, including prose about sign-in. The
+saved bytes and visible document were independently checked; this verifies the alpha.49 false-positive fix.
 
-The native proposal task wrote a faithful 381-word brief, but Command-S was refused after the
-brief's sign-in prose was mistaken for an authentication control. The file independently existed
-on disk; Sia correctly reported that it could not verify its save. The concurrent visitor-planning
-task paused during navigation when the operator opened a separate TextEdit note. Chrome remained
-in the background. This is a failed concurrency acceptance, not a completed visitor plan.
+The browser task read official visitor information, then clicked “Fossil Fuels.” Its public anchor
+has `target="_blank"`; a new dining tab appeared just before the focus guard paused input. No
+operator app switch preceded that click. The new-tab behavior is the likely trigger, supported by
+the DOM attributes, tab timestamps and action trace. The plan did not complete. The extra public
+test tab was inspected and closed only after the pause; the failed task was not continued.
 
-Foreground typing was preserved exactly. A Unicode clipboard canary survived, and the original
-clipboard was restored. Ten conversation switches took median 802.5 ms / worst 882 ms including
-CUA observation (click acknowledgements 27–83 ms), while native editing was active and browser
-work was waiting for connection. These measurements do not establish two-active-task responsiveness.
-Private receipts and traces are recorded under `alpha49-artifacts/real-work/universal-*`.
+Six conversation switches while both tasks were active took median 1,088.5 ms / worst 1,294 ms,
+including CUA observation; click acknowledgements were 39–88 ms. Native editing was composing its
+final reply during these samples. An unsent operator draft survived. This run did not include a
+clipboard canary, and it does not pass background browser or full concurrent-work acceptance.
+Private receipts, action traces, saved output and a native screenshot are under `alpha50-artifacts`.
 
 ## Internal alpha.49 useful-work rehearsals
 
@@ -70,12 +71,16 @@ remains unproven. Private results are in `alpha49-artifacts/real-work`.
 
 ## Remaining acceptance and rollback
 
-Alpha.50 needs the full gate and exact-artifact repeats, including useful browser/native work
-while the person switches apps, contention/Stop, restart recovery and measured responsiveness.
-The TextEdit fix distinguishes a duplicated multiline document-body label from actual authentication
-controls. The navigation fix accepts only the pinned driver's successful receipt for the exact
-connected tab when another non-browser app becomes active. Unknown delivery and native input
-conflicts still pause; no action is replayed automatically.
+Alpha.51 needs its complete gate, signed build and useful-work repeats. The native patch refuses
+known new-context links before input; the agent can read observed destinations and navigate the
+existing tab. It neither rewrites the webpage nor silently changes a click into navigation.
+Unknown preflight results refuse. JavaScript can still cause unexpected effects, so the existing
+post-input focus guard remains necessary. See the [native patch rationale](../apps/desktop/native/cua/README.md).
+
+The successful native fix still needs a fresh repeat. Alpha.50's exact-tab navigation change also
+needs an observed navigation during operator app switching; its failed browser run reached a click
+instead. Do not infer that live pass from the unit tests. Contention/Stop, restart recovery and
+responsiveness remain final-candidate gates.
 
 This Mac refuses Sia's display-sleep assertion with `kIOReturnNoMemory`; independent Apple
 `caffeinate` probes also failed, although other processes had assertions. Physical RAM is not an
@@ -102,7 +107,7 @@ The owner selected iPhone as a follow-on release, so those checks do not gate th
 
 ## Publication
 
-The alpha.49 artifact folder is prepared locally with the installer, checksums, signed-package verification and private
+The alpha.50 artifact folder is prepared locally with the installer, checksums, signed-package verification and private
 real-work evidence. It is an acceptance candidate, not a published release. Keep private
 recipient lists and download links outside Git. After the remaining [release gates](./release-status.md)
 pass and the owner authorizes distribution, follow [release operations](./release.md) and verify the

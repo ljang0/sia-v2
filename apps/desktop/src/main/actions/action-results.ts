@@ -14,7 +14,7 @@ export function stale(reason: string): ActionExecutionResult {
 
 /** Only these explicit validation/authorization refusals prove that no input was posted. */
 export function inputWasRefused(error: unknown): boolean {
-  return /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|background_focus_unavailable|background_input_paused|foreground_app_in_use|window_not_key|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window|browser_ref_stale|browser_frame_changed|browser_tab_not_found|browser_binding_stale|browser_consent_required|browser_requires_setup|browser_action_unavailable)$/.test(
+  return /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|background_focus_unavailable|background_input_paused|foreground_app_in_use|window_not_key|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window|browser_ref_stale|browser_frame_changed|browser_tab_not_found|browser_binding_stale|browser_consent_required|browser_requires_setup|browser_action_unavailable|browser_new_context_refused)$/.test(
     safeErrorMessage(error),
   );
 }
@@ -34,6 +34,14 @@ export function browserInputTrustFailure(error: unknown): ActionExecutionResult 
 export function classifyFailure(error: unknown): ActionExecutionResult {
   const message = safeErrorMessage(error);
   const normalized = message.toLowerCase();
+  if (/^(?:cua refused: )?browser_new_context_refused$/.test(normalized))
+    return {
+      outcome: 'refused',
+      summary:
+        'No click was sent because this link opens another tab or window and could interrupt your work. Read the current page with read_links:true, then use computer_open_url with an observed permitted destination to navigate the existing tab. Do not retry this click or switch to foreground input.',
+      reason: message,
+      data: { blocker_code: 'browser_new_context_refused', input_not_sent: true },
+    };
   if (normalized === 'cua refused: authorization_host_failed')
     return {
       outcome: 'refused',

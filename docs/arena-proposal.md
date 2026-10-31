@@ -55,9 +55,9 @@ with Arena's existing rankings would be agreed together.
 
 Signed internal rehearsals completed useful sourced comparisons, native proposal editing, practical
 visitor planning and reviewer packets made from real project documents. Outputs were checked
-independently, and failures were retained. Universal notarized alpha.49 then exposed a document
-protection false positive and an overly broad background-navigation pause; alpha.50 addresses
-those specific defects and still needs full acceptance. A signed installer is not proof of readiness.
+independently, and failures were retained. Universal notarized alpha.50 saved and verified a 419-word native brief, but a new-tab link
+interrupted its background browser task. Alpha.51 adds a targeted pre-click check and still needs
+full acceptance. A signed installer is not proof of readiness.
 
 Repeated final-artifact workflows, concurrent use, responsiveness, restart and physical acceptance
 remain gates. Clean-account testing is unavailable on the current Mac. Background new-tab creation

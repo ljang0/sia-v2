@@ -31,3 +31,19 @@ describe('driver refusal envelopes', () => {
     expect(resultRefusal({ elements: [{ code: 'normal_page_content' }] })).toBeUndefined();
   });
 });
+
+it('recovers a refused new-context link through a separate observed-URL navigation', () => {
+  const error = new Error('CUA refused: browser_new_context_refused');
+  expect(inputWasRefused(error)).toBe(true);
+  expect(classifyFailure(error)).toMatchObject({
+    outcome: 'refused',
+    data: { blocker_code: 'browser_new_context_refused', input_not_sent: true },
+  });
+  expect(classifyFailure(error).summary).toContain('computer_open_url');
+  expect(
+    resultRefusal({ status: 'refused', refusal: { code: 'browser_new_context_refused' } }),
+  ).toMatchObject({
+    outcome: 'refused',
+    data: { input_not_sent: true },
+  });
+});

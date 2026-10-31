@@ -1,9 +1,10 @@
 # Release status
 
-Updated October 31, 2026. **Distribution is not ready.** Universal notarized alpha.49 exposed
-native-document and background-navigation failures in real work. Alpha.50 contains targeted fixes,
-with complete automated and signed live acceptance pending. The last published Mac pilot is
-alpha.24; no new invitations or public download have been authorized.
+Updated October 31, 2026. **Distribution is not ready.** Universal notarized alpha.50 passed the
+native-document task, but a new-tab link interrupted background browser research. Alpha.51 adds a
+pre-click check for that case; focused native/desktop tests pass, with the full gate and signed
+live acceptance pending. The last published Mac pilot is alpha.24; no new invitations or public
+download have been authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
 is the initially admitted engine. The [Arena proposal](./arena-proposal.md) describes a bounded
@@ -28,20 +29,19 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.49 passed its complete local pilot gate and exact behavioral-source CI. Alpha.50 focused regressions pass. | Alpha.50 complete gate and CI. |
-| Signed package | Universal alpha.49 passed signing, notarization, stapling, Gatekeeper and packaged runtime checks. | Exact alpha.50 build and live acceptance. |
-| Useful work | Internal alpha.49 completed repeated sourced research, native briefs, six-file organization, visitor planning and full reviewer packets. Failures and interventions are retained. | Final-artifact repeats and complete action instrumentation. |
-| Background/concurrency | Universal alpha.49 preserved foreground typing and clipboard, but paused navigation on an unrelated app switch and refused native save on sign-in prose. | Verify alpha.50 fixes, simultaneous work, contention/Stop and responsiveness. |
-| Setup/recovery | Universal alpha.49 retained profile/history; explicit Chrome recovery returned to Sia and resumed automatically. | Final-candidate restart/expiry recovery and clean-account setup. No fresh Mac account or second Mac is available. |
-| Physical use | Existing grants work on the QA Mac. | Keep-awake, lock/sleep and voice. This Mac refuses Sia and independent caffeinate assertions. |
+| Source | Alpha.50 passed the complete local pilot gate. Alpha.51 passed 71 native browser tests and 25 focused desktop tests. | Alpha.51 complete gate and CI. |
+| Signed package | Universal alpha.50 passed signing, notarization, stapling, Gatekeeper and packaged runtime checks. | Exact alpha.51 build and live acceptance. |
+| Useful work | Alpha.50 saved and verified a faithful 419-word native brief with no failed action. Internal alpha.49 completed repeated research, organization, visitor plans and reviewer packets. | Final-artifact repeats and complete action instrumentation. |
+| Background/concurrency | Alpha.50 preserved an unsent draft; native editing passed while browser work was active. A new-tab link then paused the browser task. | Verify alpha.51 recovery, navigation during app switching, contention/Stop and responsiveness. |
+| Setup/recovery | Alpha.50 retained profile/history; explicit Chrome recovery returned to Sia and resumed automatically. | Final-candidate restart/expiry recovery and clean-account setup. No fresh Mac account or second Mac is available. |
+| Physical use | Existing grants work on the QA Mac. | Keep-awake, lock/sleep and voice. This Mac refuses Sia and independent caffeinate display-awake assertions. |
 | Cloud | October 30: 18 alarms OK, five Lambdas Active/Successful; anonymous protected requests return 401. Synthetic authenticated rating reached the report. | Recheck changed configuration before invitations. |
 | Ownership | Source rights confirmed; Lawrence Jang owns support/incidents. | Private recipient list and final release decision before invitations. |
 | iPhone | Build 31 Ready to Test internally; tests, signed archive and Apple processing passed. | Deferred from this Mac-first handoff. |
 
-See [exact artifact evidence](./public-release.md) for hashes, timings, qualifications and retained
-failures. Alpha.50 narrows the TextEdit authentication false positive and permits an acknowledged
-exact-tab navigation to finish when the person switches between other apps. It preserves unknown
-delivery, target-foreground and native-input conflict handling. These fixes are not yet live passes.
+See [exact artifact evidence](./public-release.md) for hashes, timings and retained failures.
+Alpha.51 refuses known new-context link clicks before input, then explains existing-tab navigation
+from observed URLs. It does not disable the focus guard or grant control of another tab.
 
 Default Mac setup includes Chrome with a deliberate opt-out. Choosing a window authorizes its
 explicit connection setup, including Chrome's exact prompt. Task tools cannot approve permission

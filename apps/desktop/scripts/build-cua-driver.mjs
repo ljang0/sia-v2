@@ -10,7 +10,7 @@ const pin = JSON.parse(await readFile(join(desktop, 'native/cua/upstream.json'),
 const patch = await readFile(join(root, pin.patch));
 const requested =
   process.argv.find((arg) => arg.startsWith('--arch='))?.slice(7) ?? process.arch;
-const testConsent = process.argv.includes('--test');
+const testNative = process.argv.includes('--test');
 if (!['arm64', 'x64', 'universal'].includes(requested))
   throw new Error(`Unsupported architecture: ${requested}`);
 if (process.platform !== 'darwin')
@@ -87,7 +87,7 @@ for (const arch of arches) {
     console.log(`Sia Cua ${arch}: verified cached build.`);
   } else pending.push({ arch, destination, upstream, expected });
 }
-if (pending.length === 0 && !testConsent) process.exit(0);
+if (pending.length === 0 && !testNative) process.exit(0);
 
 // Fetch only the exact upstream source needed for the SDK. Never modify pnpm's shared store.
 await mkdir(cache, { recursive: true });
@@ -185,26 +185,31 @@ for (const { arch, destination, upstream, expected } of pending) {
   console.log(`Sia Cua ${arch}: built ${pin.commit} with Chrome consent patch.`);
 }
 
-if (testConsent) {
+if (testNative) {
   const hostTarget = process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin';
-  run(
-    'cargo',
-    [
-      `+${pin.rustToolchain}`,
-      'test',
-      '--locked',
-      '--release',
-      '--target',
-      hostTarget,
-      '-p',
-      'platform-macos',
-      'browser::consent_ui::tests',
-    ],
-    workspace,
-    {
-      MACOSX_DEPLOYMENT_TARGET: pin.minimumMacOS,
-      CARGO_INCREMENTAL: '0',
-      CARGO_TARGET_DIR: join(cache, 'target'),
-    },
-  );
+  for (const [packageName, testFilter] of [
+    ['platform-macos', 'browser::consent_ui::tests'],
+    ['cua-driver-core', 'browser::v2_tests'],
+  ]) {
+    run(
+      'cargo',
+      [
+        `+${pin.rustToolchain}`,
+        'test',
+        '--locked',
+        '--release',
+        '--target',
+        hostTarget,
+        '-p',
+        packageName,
+        testFilter,
+      ],
+      workspace,
+      {
+        MACOSX_DEPLOYMENT_TARGET: pin.minimumMacOS,
+        CARGO_INCREMENTAL: '0',
+        CARGO_TARGET_DIR: join(cache, 'target'),
+      },
+    );
+  }
 }

@@ -1,3 +1,226 @@
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
+index d709315..33f41ca 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
+@@ -46,6 +46,8 @@ pub enum BrowserRefusalCode {
+     /// The trusted Input-domain route is unavailable and the caller did
+     /// not explicitly request the `dom_event` route.
+     BrowserInputTrustUnavailable,
++    /// A background click would open a different browsing context. No input was sent.
++    BrowserNewContextRefused,
+     /// The discovered endpoint's ownership proof does not attribute it
+     /// to the target process.
+     BrowserEndpointOwnerMismatch,
+@@ -84,6 +86,7 @@ impl BrowserRefusalCode {
+             Self::BrowserTabNotFound => "browser_tab_not_found",
+             Self::BrowserRefStale => "browser_ref_stale",
+             Self::BrowserInputTrustUnavailable => "browser_input_trust_unavailable",
++            Self::BrowserNewContextRefused => "browser_new_context_refused",
+             Self::BrowserEndpointOwnerMismatch => "browser_endpoint_owner_mismatch",
+             Self::BrowserConsentRequired => "browser_consent_required",
+             Self::BrowserConsentRevoked => "browser_consent_revoked",
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
+index df04401..74386ad 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
+@@ -51,6 +51,74 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
+ 
+ // ── Shared helpers ───────────────────────────────────────────────────────────
+ 
++// A real signed-app task followed a target=_blank link and activated Chrome.
++// Read the live bound node before dispatch; do not rewrite the page or replace
++// a click with navigation. The caller can choose a separate, authorized navigation.
++const BACKGROUND_LINK_NEW_CONTEXT: &str = r#"function siaNewContext() {
++  const element = this.nodeType === 1 ? this : this.parentElement;
++  if (!element) return null;
++  const anchor = element.closest('a[href],area[href]');
++  if (!anchor) return false;
++  const target = (anchor.getAttribute('target') ||
++    anchor.ownerDocument.querySelector('base[target]')?.getAttribute('target') || '').toLowerCase();
++  return target !== '' && target !== '_self';
++}"#;
++
++async fn background_link_opens_context(
++    conn: &CdpConnection,
++    cdp: &str,
++    backend: i64,
++) -> Result<bool, BrowserRefusal> {
++    let unavailable = || {
++        BrowserRefusal::new(
++            BrowserRefusalCode::BrowserActionUnavailable,
++            "the link's browsing context could not be checked; no input was sent",
++        )
++    };
++    let resolved = conn
++        .call(
++            Some(cdp),
++            "DOM.resolveNode",
++            json!({ "backendNodeId": backend }),
++        )
++        .await
++        .map_err(|_| unavailable())?;
++    let object = resolved
++        .get("object")
++        .and_then(|v| v.get("objectId"))
++        .and_then(Value::as_str)
++        .ok_or_else(unavailable)?;
++    let result = conn
++        .call(
++            Some(cdp),
++            "Runtime.callFunctionOn",
++            json!({
++                "objectId": object,
++                "functionDeclaration": BACKGROUND_LINK_NEW_CONTEXT,
++                "returnByValue": true,
++                "silent": true,
++                "throwOnSideEffect": true,
++            }),
++        )
++        .await;
++    let _ = conn
++        .call(
++            Some(cdp),
++            "Runtime.releaseObject",
++            json!({ "objectId": object }),
++        )
++        .await;
++    let result = result.map_err(|_| unavailable())?;
++    if result.get("exceptionDetails").is_some() {
++        return Err(unavailable());
++    }
++    result
++        .get("result")
++        .and_then(|v| v.get("value"))
++        .and_then(Value::as_bool)
++        .ok_or_else(unavailable)
++}
++
+ const DOM_CLICK_READBACK: &str = r#"function() {
+   const bounded = value => typeof value === 'string' ? value.slice(0, 512) : null;
+   const attr = name => bounded(this.getAttribute(name));
+@@ -1338,6 +1406,19 @@ impl Tool for BrowserClickTool {
+         let conn = &validated.conn;
+         let cdp = cdp_session.as_str();
+ 
++        if !foreground {
++            if let Some(backend) = backend_node_id {
++                match background_link_opens_context(conn, cdp, backend).await {
++                    Ok(false) => {},
++                    Ok(true) => return BrowserRefusal::new(
++                        BrowserRefusalCode::BrowserNewContextRefused,
++                        "this link opens another browsing context; use an observed URL with browser_navigate to stay in the existing tab",
++                    ).to_tool_result(),
++                    Err(refusal) => return refusal.to_tool_result(),
++                }
++            }
++        }
++
+         // dom_event route: explicit opt-in only.
+         if route == "dom_event" {
+             let backend = backend_node_id.expect("checked above");
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
+index d5f50d2..8d38d62 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
+@@ -76,6 +76,7 @@ pub(super) struct FixtureState {
+     omit_primary_target: bool,
+     /// Make `Browser.getWindowForTarget` for T1 answer this CDP error.
+     primary_window_error: Option<(i64, String)>,
++    background_new_context: Value,
+     dom_click_changes_readback: bool,
+     dom_click_readback_available: bool,
+     dom_click_stall_after: Option<usize>,
+@@ -115,6 +116,7 @@ impl Default for FixtureState {
+             viewport_css_height: 600.0,
+             tab_visible: true,
+             select_outcome: Value::Null,
++            background_new_context: json!(false),
+             dom_click_changes_readback: true,
+             dom_click_readback_available: true,
+             dom_click_stall_after: None,
+@@ -711,6 +713,15 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+             "DOM.resolveNode" => MockReply::ok(json!({
+                 "object": { "objectId": format!("obj-{}", call.params["backendNodeId"]) }
+             })),
++            "Runtime.releaseObject" => MockReply::ok(json!({})),
++            "Runtime.callFunctionOn"
++                if call.params["functionDeclaration"]
++                    .as_str()
++                    .is_some_and(|f| f.contains("function siaNewContext")) =>
++            {
++                assert_eq!(call.params["throwOnSideEffect"], true);
++                MockReply::ok(json!({ "result": { "value": st.background_new_context.clone() } }))
++            }
+             "Runtime.callFunctionOn"
+                 if call.params["functionDeclaration"]
+                     .as_str()
+@@ -2755,6 +2766,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
+     );
+ }
+ 
++#[tokio::test]
++async fn background_new_context_refuses_before_input_and_preserves_foreground_choice() {
++    for route in ["trusted", "dom_event"] {
++        for new_context in [json!(true), Value::Null, json!(false)] {
++            let f = fixture().await;
++            let (target, tab) = bind(&f).await;
++            let snap = snapshot(&f, &target, &tab).await;
++            let node = ref_of(&snap, "iframe", "inner-btn");
++            f.state.lock().unwrap().background_new_context = new_context.clone();
++            let result = BrowserClickTool::new(f.engine.clone())
++                .invoke(json!({
++                    "target_id": target, "tab_id": tab, "ref": node, "session": SESSION,
++                    "input_route": route,
++                }))
++                .await;
++            if new_context != json!(false) {
++                let s = structured(&result);
++                let expected = if new_context == json!(true) {
++                    "browser_new_context_refused"
++                } else {
++                    "browser_action_unavailable"
++                };
++                assert_eq!(s["refusal"]["code"], expected, "{s}");
++                assert!(recorded_calls(&f, "Input.dispatchMouseEvent").is_empty());
++                assert!(!f.state.lock().unwrap().dom_click_focused);
++                assert!(recorded_calls(&f, "Emulation.setFocusEmulationEnabled").is_empty());
++                assert!(recorded_calls(&f, "Page.navigate").is_empty());
++            } else {
++                assert!(!result.is_error.unwrap_or(false), "{result:?}");
++            }
++        }
++    }
++    let f = fixture().await;
++    let (target, tab) = bind(&f).await;
++    let snap = snapshot(&f, &target, &tab).await;
++    let node = ref_of(&snap, "iframe", "inner-btn");
++    f.state.lock().unwrap().background_new_context = json!(true);
++    BrowserClickTool::new(f.engine.clone())
++        .invoke(json!({
++            "target_id": target, "tab_id": tab, "ref": node, "session": SESSION,
++            "delivery_mode": "foreground",
++        }))
++        .await;
++    assert_eq!(recorded_calls(&f, "Input.dispatchMouseEvent").len(), 2);
++}
++
+ #[tokio::test]
+ async fn click_routes_oopif_refs_through_the_contained_child_session() {
+     let f = fixture().await;
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs
+index 09007a5..f6adf9a 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs
+@@ -266,7 +266,8 @@ impl From<crate::browser::refusal::BrowserRefusalCode> for ToolRefusalCode {
+             BrowserRefusalCode::BrowserOriginOutsideScope => Self::BrowserOriginOutsideScope,
+             // Not a browser-specific code: the shared background refusal is
+             // classified through `ToolErrorClass::BackgroundUnavailable`.
+-            BrowserRefusalCode::BackgroundUnavailable => Self::Other,
++            BrowserRefusalCode::BackgroundUnavailable
++            | BrowserRefusalCode::BrowserNewContextRefused => Self::Other,
+         }
+     }
+ }
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
 index 681c636..a748f2c 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs

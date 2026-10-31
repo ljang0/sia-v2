@@ -29,6 +29,49 @@ vi.mock('node:timers/promises', async (original) => ({
   ),
 }));
 
+it('keeps a refused new-tab click unsent and permits a separate existing-tab navigation', async () => {
+  let url = 'https://museum.example.test/visit';
+  const cua = fakeCua(async (tool, args) => {
+    if (tool === 'get_browser_state')
+      return {
+        target_id: 'target-1',
+        tab_id: 'tab-1',
+        url,
+        elements: [{ ref: 'p1:dining', role: 'link', label: 'Dining' }],
+      };
+    if (tool === 'browser_click') throw new Error('CUA refused: browser_new_context_refused');
+    if (tool === 'browser_navigate') {
+      url = String(args.url);
+      return { status: 'ok' };
+    }
+    throw new Error(`Unexpected ${tool}`);
+  });
+  const backend = new DesktopActionBackend({ cua });
+  backend.acceptBrowserState({ target_id: 'target-1', tab_id: 'tab-1', url });
+  const captured = dataRecord(
+    (await backend.invoke(request('browser_snapshot', { tab_id: 'tab-1' }))).data,
+  );
+  const element = (captured.elements as Record<string, unknown>[])[0]!;
+  const clicked = await backend.invoke(
+    request('browser_action', {
+      tab_id: 'tab-1',
+      snapshot_id: captured.snapshot_id,
+      action: 'click',
+      element_ref: element.element_ref,
+    }),
+  );
+  expect(clicked).toMatchObject({ outcome: 'refused', data: { input_not_sent: true } });
+  expect(clicked.data).not.toHaveProperty('input_delivery_uncertain');
+  const navigated = await backend.invoke(
+    request('browser_navigate', { tab_id: 'tab-1', url: 'https://museum.example.test/dining' }),
+  );
+  expect(navigated.outcome, navigated.summary).toBe('accepted_unverified');
+  expect(navigated.verification?.snapshotId).toBeTruthy();
+  expect(url).toBe('https://museum.example.test/dining');
+  expect(cua.call.mock.calls.filter(([tool]) => tool === 'browser_click')).toHaveLength(1);
+  expect(cua.call.mock.calls.filter(([tool]) => tool === 'browser_navigate')).toHaveLength(1);
+});
+
 describe('DesktopActionBackend browser boundary', () => {
   it.each(['throw', 'structured'])(
     'revokes an ended browser session and asks for setup instead of repeating it (%s)',
