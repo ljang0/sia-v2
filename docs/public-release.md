@@ -5,9 +5,9 @@
 **Distribution is not ready.** Universal notarized alpha.53 passed the full local gate and package
 verification. Its background accordion click worked, but navigation/read stalls prevented both a
 practical outing plan and a five-day dinner/grocery plan from finishing. Neither requested output
-was saved. Alpha.54 addresses a separately proven parent CDP-session leak; the causal connection
-to navigation stalls is not established. Its full local gate passed; signed-build verification
-and live acceptance are pending.
+was saved. Alpha.54 addresses a separately proven parent CDP-session leak, but its signed internal
+arm64 build also failed a fresh household workflow. Its full local gate, strict signature and
+packaged-runtime checks passed; browser reliability remains a release blocker.
 Nothing was published; the last published Mac pilot remains alpha.24.
 
 The owner selected **Mac first; iPhone follows**, confirmed the relevant Notch source rights,
@@ -19,7 +19,7 @@ Built from `f119b8b123042bb9cc6216aa58c65169c9667fd6`. Universal app/DMG signing
 stapling, Gatekeeper and packaged runtime checks passed. The full local gate passed: 1,858 desktop
 units, 46 Electron, 36 renderer and 72 phone-web checks, plus native/shared checks including 228
 native browser regressions and 11 Chrome-consent tests.
-[Source CI](https://github.com/ljang0/sia-v2/actions/runs/41203052121) was still running at this update.
+[Source CI](https://github.com/ljang0/sia-v2/actions/runs/41203052121) passed.
 
 | Artifact                           | SHA-256                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |
@@ -42,7 +42,8 @@ The operator then cancelled through **Stop**. This assisted continuation is not 
 The household request asked for five real-recipe dinners, serving conversions, ingredient reuse,
 a consolidated grocery list and a prep schedule. Its initial instruction reserved the browser for
 the outing, but no separate public-web tool was available. After the outing stopped, the operator
-allowed the already-approved browser window. Navigation/read then stalled on recipe research too.
+allowed the already-approved browser window. Navigation/read then stalled on recipe research too;
+the recipe destination was not confirmed, and the tab remained on the museum ticket page.
 Neither workflow produced its requested files. Their overlapping lifetimes do not establish two
 successful concurrent GUI workflows.
 
@@ -68,6 +69,28 @@ registered dialog observer between operations. All 230 native browser tests pass
 protocol method, without URLs, parameters, page content or identities. These checks establish
 resource cleanup, not that the signed app's navigation stall is fixed.
 
+The internal arm64 alpha.54 QA app was built from
+`50eebf62dfa764857655b9693455bc6a00338fea`; installed `app.asar` SHA-256 is
+`78c37de148b8d22dc0d3033e7ee361959eacc59ef671756faa0821617fb7596e`.
+It passed strict Developer ID signature and packaged-runtime checks but was not notarized.
+Before launching it, independent CUA navigation to Budget Bytes took 2.213 seconds and reading
+completed in 6.578 seconds. This was an operator control check, not Sia acceptance.
+
+A fresh default-model household assistant then requested five dinners and a consolidated grocery
+list. Relaunch still required explicit connection of the approved disposable window; native
+consent completed in 2.119 seconds and the saved request resumed. Sia read the home page and
+clicked Creamy Tomato and Spinach Pasta, then reported uncertain input delivery. Method-only
+diagnostics recorded `Emulation.setFocusEmulationEnabled` and `Page.getFrameTree` timeouts.
+The bounded read retry exhausted, and the task paused after 1m 50s of resumed activity. Neither
+requested file existed in its fresh working folder. A separate TextEdit note was typed, saved
+and independently verified intact; there was no clipboard mutation in this run.
+
+After QA quit, independent CUA page reading also timed out. A screenshot then showed the recipe
+destination, and the following accessibility read succeeded in 3.780 seconds. This establishes
+that the link eventually navigated, not why the read recovered. Chrome was version 156.0.8078.74.
+The browser tool blocked its internal lifecycle diagnostics page; no alternate access was tried.
+Private receipts are in `alpha54-artifacts/real-work`. The notarized alpha.53 backup is preserved.
+
 The [previous record](https://github.com/ljang0/sia-v2/blob/f119b8b123042bb9cc6216aa58c65169c9667fd6/docs/public-release.md)
 retains exact alpha.52 hashes, its verified 431-word native brief and failed browser run, and links
 to earlier evidence. Internal alpha.49 completed useful research, organization, visitor plans and
@@ -76,8 +99,9 @@ reviewer packets on an earlier signed arm64 build. Do not transfer those passes 
 ## Remaining acceptance and rollback
 
 Alpha.54 passed its full local gate: 1,858 desktop, 46 Electron, 36 renderer and 72 phone-web
-checks, plus native/shared checks including 230 browser regressions. It needs its signed build,
-exact-source CI and useful-work repeats. Verify normal
+checks, plus native/shared checks including 230 browser regressions. Its internal signed build
+passed package checks; exact-source CI was still running at this update. It needs reliable useful
+work before final universal notarization and exact-artifact repeats. Verify normal
 navigation, known new-context refusal and observed-URL recovery; do not replay uncertain input.
 Final GUI concurrency, contention/Stop, restart and responsiveness gates remain open. Do not run
 live acceptance alongside automated Electron/renderer checks or package runtime verification.
