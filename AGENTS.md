@@ -5,7 +5,8 @@ safe, and easy for a new contributor to verify.
 
 ## First 15 minutes
 
-Requirements: macOS 14+, Node 24+, pnpm 11+, and Xcode command-line tools.
+Requirements: macOS 14+, Node 24+, pnpm 11+, Xcode command-line tools, and rustup.
+The first build compiles the pinned native driver; see `apps/desktop/native/cua/README.md`.
 
 ```sh
 pnpm install --frozen-lockfile

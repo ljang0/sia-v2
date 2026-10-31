@@ -1,0 +1,172 @@
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
+index 681c636..a748f2c 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
+@@ -216,6 +216,19 @@ pub(crate) fn walk_native_chrome_bounded(
+     )
+ }
+ 
++/// Observe Chrome-owned native consent surfaces once across the approved
++/// process. Excludes page content and does not mutate focus or controls.
++pub(crate) fn walk_native_chrome_for_consent(pid: i32, max_elements: usize) -> TreeWalkResult {
++    walk_tree_with_web_content(
++        pid,
++        None,
++        None,
++        DEFAULT_MAX_DEPTH,
++        WalkBudget::nodes_only(max_elements),
++        false,
++    )
++}
++
+ /// [`walk_tree_bounded`] under a caller's [`WalkBudget`]: the walk also stops
+ /// when the budget's `timeout_ms` runs out, returning the partial tree. Each
+ /// AX call is bounded by the per-element messaging timeout, so the walk
+@@ -313,6 +326,15 @@ fn walk_tree_with_web_content(
+ 
+         // Walk each top-level child at depth 0.
+         for child in walk_these {
++            // Browser setup/consent lives in window chrome, never in the app
++            // menu bar. Rewalking that same large menu for every Chrome window
++            // can exhaust the consent deadline before reaching its sheet.
++            // Ordinary observations still include the menu bar.
++            if !include_web_content
++                && copy_string_attr(child, "AXRole").as_deref() == Some("AXMenuBar")
++            {
++                continue;
++            }
+             walk_element(
+                 child,
+                 0,
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
+index 82dac61..38dac27 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
+@@ -1,7 +1,6 @@
+ //! Exact macOS handling for Chrome's browser-owned remote-debugging consent.
+ 
+ use std::time::{Duration, Instant};
+-use std::{collections::HashSet, iter};
+ 
+ use core_foundation::base::{CFRelease, CFTypeRef};
+ use cua_driver_core::browser::{
+@@ -9,7 +8,7 @@ use cua_driver_core::browser::{
+ };
+ 
+ use crate::ax::bindings::{kAXErrorSuccess, perform_action, AXUIElementRef};
+-use crate::ax::tree::{walk_native_chrome_bounded, AXNode, TreeWalkResult};
++use crate::ax::tree::{walk_native_chrome_for_consent, AXNode, TreeWalkResult};
+ 
+ const CONSENT_MAX_ELEMENTS: usize = 5_000;
+ 
+@@ -42,27 +41,15 @@ fn release_actionable_nodes(nodes: &[AXNode]) {
+     }
+ }
+ 
+-fn consent_surface_ids(
+-    windows: impl IntoIterator<Item = crate::windows::WindowInfo>,
+-    pid: i32,
+-    approved_window_id: u32,
+-) -> Vec<u32> {
+-    let mut windows = windows
+-        .into_iter()
+-        .filter(|window| {
+-            window.pid == pid
+-                && window.title != "Allow remote debugging?"
+-                && !window.title.trim().is_empty()
+-                && window.bounds.width > 0.0
+-                && window.bounds.height > 0.0
+-        })
+-        .collect::<Vec<_>>();
+-    windows.sort_by_key(|window| std::cmp::Reverse(window.z_index));
+-    let mut seen = HashSet::new();
+-    iter::once(approved_window_id)
+-        .chain(windows.into_iter().map(|window| window.window_id))
+-        .filter(|window_id| seen.insert(*window_id))
+-        .collect()
++fn require_consent_window_owner(owner: crate::windows::WindowOwner) -> Result<(), BrowserRefusal> {
++    if matches!(owner, crate::windows::WindowOwner::SamePid) {
++        Ok(())
++    } else {
++        Err(refusal(
++            BrowserRefusalCode::BrowserWrongTargetRefused,
++            "the approved browser window is no longer owned by the approved process",
++        ))
++    }
+ }
+ 
+ pub(super) const CHINESE_PROMPT: &str = "要允许远程调试吗？";
+@@ -207,14 +194,14 @@ impl Drop for ConsentTrees {
+ }
+ 
+ fn read_consent_trees(pid: i32, window_id: u32) -> Result<ConsentTrees, BrowserRefusal> {
++    require_consent_window_owner(crate::windows::resolve_window_owner(pid, window_id))?;
+     let mut trees = ConsentTrees(Vec::new());
+-    for candidate in consent_surface_ids(crate::windows::all_windows(), pid, window_id) {
+-        trees.push(walk_native_chrome_bounded(
+-            pid,
+-            candidate,
+-            CONSENT_MAX_ELEMENTS,
+-        ))?;
+-    }
++    // Chrome's native consent sheet may be an application child rather than
++    // an attached child of the selected window. Walk the approved process's
++    // native surfaces once: per-window walks repeat the same global sheet
++    // and menu, while unrelated off-Space lookups consume the consent budget.
++    // Web content stays excluded and all exact/ambiguous sheet checks remain.
++    trees.push(walk_native_chrome_for_consent(pid, CONSENT_MAX_ELEMENTS))?;
+     Ok(trees)
+ }
+ 
+@@ -506,37 +493,21 @@ mod tests {
+     }
+ 
+     #[test]
+-    fn consent_surfaces_keep_approved_window_then_frontmost_normal_windows() {
+-        let window = |window_id, title: &str, z_index| crate::windows::WindowInfo {
+-            window_id,
+-            pid: 42,
+-            app_name: "Google Chrome".to_owned(),
+-            title: title.to_owned(),
+-            bounds: crate::windows::WindowBounds {
+-                x: 0.0,
+-                y: 0.0,
+-                width: 1200.0,
+-                height: 800.0,
++    fn consent_scan_requires_the_approved_process_to_still_own_the_window() {
++        use crate::windows::WindowOwner;
++        assert!(require_consent_window_owner(WindowOwner::SamePid).is_ok());
++        for owner in [
++            WindowOwner::Unknown,
++            WindowOwner::ForeignPid {
++                owner_pid: 99,
++                owner_app_name: "Other app".into(),
+             },
+-            layer: 0,
+-            z_index,
+-            is_on_screen: true,
+-            current_space_id: None,
+-            on_current_space: Some(true),
+-            space_ids: None,
+-        };
+-        assert_eq!(
+-            consent_surface_ids(
+-                [
+-                    window(7, "Approved", 10),
+-                    window(8, "Frontmost", 30),
+-                    window(9, "Allow remote debugging?", 40),
+-                ],
+-                42,
+-                7,
+-            ),
+-            vec![7, 8]
+-        );
++        ] {
++            assert_eq!(
++                require_consent_window_owner(owner).unwrap_err().code,
++                BrowserRefusalCode::BrowserWrongTargetRefused
++            );
++        }
+     }
+ 
+     fn captured_chinese_sheet() -> Vec<AXNode> {

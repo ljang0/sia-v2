@@ -62,6 +62,10 @@ five checked document/planning outputs concurrently. These results support techn
 not general desktop readiness. Reliable filing, clipboard preservation, Chrome recovery,
 repeatability, parallel GUI control, clean macOS-account setup/provider retry, and physical
 voice/lock/sleep acceptance remain open. Background browser new-tab creation is unsupported.
+A subsequent native-driver engineering probe recovered Chrome and completed a useful visitor
+plan from official museum/transit sources while TextEdit stayed active; saved output, arithmetic,
+preview and clipboard were independently checked. That patch is being prepared for a reproducible
+candidate build and still needs repeat/restart and simultaneous GUI acceptance.
 Distribution remains blocked on these gates and the owner's release decision.
 The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
 owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.

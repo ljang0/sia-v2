@@ -1,0 +1,59 @@
+# Cua Driver consent patch
+
+Sia uses the upstream TypeScript API and Node runtime at **0.38.0**. Its macOS SDK is
+built from the exact source revision in `upstream.json`, with one
+[reviewable patch](../../../../patches/cua-driver-0.38.0-chrome-consent.patch).
+The two `packages/cua-driver-darwin-*` workspace packages replace only upstream's
+platform SDK packages. Development and packaged apps resolve those same packages.
+No binaries or upstream checkout are committed.
+
+## Why
+
+With multiple Chrome windows, the original consent handler repeated a native accessibility
+walk for each window. An observed scan took 7.7 seconds despite a four-second deadline;
+the first walk had already found the native consent sheet. The patch walks Chrome's
+native application surfaces once and omits the menu bar. Web content remains excluded.
+The approved window must still belong to the approved process; exact native-sheet identity,
+ambiguous-button rejection, truncation refusal and post-click disappearance checks remain.
+It does not grant macOS permissions, change Chrome's setting, expand browser scope, or
+remove the consent deadline. The initial engineering probe connected in 1.7 seconds;
+repeatability and exact release acceptance remain separate gates.
+
+## Build and inspect
+
+Install Rust through [rustup](https://rustup.rs) in addition to the normal Sia prerequisites.
+The first native build downloads the pinned compiler and source; later builds verify and reuse
+cached outputs. `pnpm build` and `pnpm dev` build the host architecture automatically.
+Universal packaging builds both architectures before signing.
+
+```sh
+pnpm --filter @sia/desktop native:cua
+pnpm --filter @sia/desktop native:cua --arch=universal
+```
+
+The source and Cargo cache live in ignored `apps/desktop/build/native/cua/`. Each generated
+platform package includes `build-provenance.json` recording source, patch, build recipe,
+compiler, architecture, deployment target, license corpus and pre-signing binary hashes.
+`RUST_LICENSES.txt` preserves original notices for the SDK dependency closure, including
+embedded C libraries. Missing crate license files use checked-in original upstream texts
+pinned by the crate’s source revision; unknown omissions fail the build. The build fails
+if the cached source has an unexpected revision or edits. It never edits pnpm's shared store.
+The original Node runtime comes from an exact npm alias pinned in `pnpm-lock.yaml`.
+The original SDK from that alias is not used by Sia.
+
+For native regression checks on the host architecture:
+
+```sh
+pnpm --filter @sia/desktop native:cua --test
+```
+
+The full pilot gate includes these checks. They test sheet recognition and refusal boundaries. They cannot replace a signed-app Chrome
+connection, background research, detach/reconnect and restart test. Intel builds are statically
+verified on the Apple Silicon release Mac; execution requires an Intel Mac.
+
+Remove the patch and workspace overrides when an upstream release carries the verified fix.
+The unverified Finder named-arrow experiment is deliberately excluded.
+
+The checked-in supplemental license manifest records the exact upstream source revision and URL
+for crates that omit their own license body. Original upstream notices and embedded-library
+notices remain intact. Regenerate and review this corpus when updating Cargo.lock or the source pin.

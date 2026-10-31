@@ -1,0 +1,5 @@
+*.dylib
+*.node
+node-runtime-NOTICE.md
+build-provenance.json
+RUST_LICENSES.txt

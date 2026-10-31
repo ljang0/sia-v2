@@ -7,6 +7,47 @@ source rights. Alpha.42 is signed and notarized. It repairs missing direct-captu
 real Finder filing and Chrome reconnection still fail. **External pilot release is not complete.**
 No new artifacts were published or invitations sent; the last published Mac pilot remains alpha.24.
 
+## Next candidate: source work and engineering probe
+
+Alpha.43 is being prepared; it is **not yet a signed or accepted release**. The local pilot
+gate passed: 1,821 desktop unit, 46 Electron, 31 renderer, 72 phone-browser and 72 gateway tests,
+plus 11 native consent regressions. Subsequent license-packaging additions passed two focused
+notice-coverage/refusal tests, both-architecture builds, formatting, lint and the quality guard. The isolated QA
+app currently uses the alpha.42 JavaScript bundle with an experimental arm64 native SDK,
+re-signed for internal testing. The retained alpha.42 DMG/ZIP are unchanged.
+
+Native diagnostics confirmed the Chrome failure: the first native AX walk found the consent
+sheet, but scanning 12 same-process surfaces took 7,656 ms against a four-second deadline.
+A single native application walk, excluding web content and the menu bar, found it in 1,670 ms;
+post-action verification took 215 ms and the app showed Attached. The source patch preserves
+approved-process ownership, exact consent identity, ambiguity/truncation refusal and the deadline.
+Its reproducible build and provenance are described in [native/cua](../apps/desktop/native/cua/README.md).
+The experimental Finder named-arrow change is excluded from this candidate because it has no
+live proof of benefit.
+
+A fresh practical planning request then read four official museum/transit pages, saved a
+CMU visitor itinerary, and opened a working preview. Independent source checks confirmed the
+published admission, Saturday hours and transit fares; the meal allowance and walking times
+were explicitly estimates. The $45 plan, $15 contingency and rain alternative met the stated
+constraints. Output SHA-256: `2c9778b7ebf056152fbb23aba74cab000d3e7b944dda26ac584f0999eb4b7ac9`.
+This was an assumed visitor scenario, not an actual booked trip or a synthetic website.
+
+The initial 29-second segment paused because Chrome was foreground. The operator opened the
+independent TextEdit document through Finder and pressed Continue once; no corrective prompt was
+sent. Sia then confirmed TextEdit active, navigated/read the approved existing browser tab, and
+completed in a displayed 4m04s / 23 steps / three problem steps. Independent text and the pasted
+clipboard canary survived. The whole recorded request lasted about 4m55s including the pause.
+Two stale-reference recovery calls and a task-tracking failure remain in the evidence. This is
+**one useful background browser pass on an engineering probe**, not repeatability, parallel GUI
+acceptance or an exact alpha.43 release pass.
+
+Pending host changes block background Copy/Cut shortcuts before driver input, retain Chrome's
+connection error next to its retry control, refresh window references in resumed-task guidance,
+and pause decorative GPU animation behind file previews. The clipboard shortcut guard does not
+claim to detect every menu-mediated clipboard operation; completion still needs a live canary check.
+The earlier native Finder probe failed with `window_not_key`; all six input hashes remained intact.
+Exact prompts, interventions, timings and screenshots are retained privately in `native43-probe`.
+
 ## Exact alpha.42 artifact and live result
 
 Built from `c50782a873455719ee12bc931248aa0ad4f5c1fd`. The full local pilot gate passed:
@@ -38,7 +79,7 @@ the later independent typing cannot establish simultaneous foreground work for t
 Chrome recovery selected only the approved public Browser Harness window. The operator completed
 its existing Chrome consent prompt, but native diagnostics reported `consent_not_settled`.
 The pinned driver uses a four-second consent deadline and scans same-process Chrome windows;
-ten windows were listed. Slow scanning is a hypothesis requiring further diagnosis. No settings
+ten windows were listed. The later engineering probe above confirmed repeated scanning exceeded the deadline. No settings
 were changed, unrelated window attached, or browser restarted. Parallel GUI work and distribution
 remain unaccepted. Exact prompts and private evidence are in the alpha.42 artifact folder.
 

@@ -5,7 +5,9 @@ so it does not need AWS access, a model API key, a CMU account, or a paid model 
 
 ## 1. Prepare the Mac
 
-Install macOS 14 or newer, Node 24+, pnpm 11+, Git, and Xcode command-line tools. Then clone the
+Install macOS 14 or newer, Node 24+, pnpm 11+, Git, Xcode command-line tools, and
+[rustup](https://rustup.rs). The first build compiles the pinned native driver; later builds
+reuse its verified cache. Then clone the
 repository and run:
 
 ```sh

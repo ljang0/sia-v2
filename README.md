@@ -77,7 +77,9 @@ It also states which browser, background and concurrent-use checks remain unfini
 
 ## Set up
 
-Requirements: macOS 14+, Node 24+, pnpm 11+, and Xcode command-line tools.
+Requirements: macOS 14+, Node 24+, pnpm 11+, Xcode command-line tools, and
+[rustup](https://rustup.rs) for the pinned native driver build. The first build compiles the
+driver; later builds reuse verified outputs. See [native provenance](apps/desktop/native/cua/README.md).
 
 ```sh
 pnpm install --frozen-lockfile

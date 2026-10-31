@@ -10,6 +10,12 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. The examples below use
 actual public project documents and a real admitted model; they are not fake-service demos.
 
+A later **engineering probe**, using the alpha.42 host with a locally patched native driver,
+recovered Chrome and completed the practical visitor-planning workflow below. It verified
+museum/transit facts, saved a feasible $45 itinerary with a rain alternative, and opened its
+preview while independent TextEdit work and the clipboard survived. It required one initial
+foreground-pause intervention, then 4m04s; this is not an exact signed-candidate or parallel-GUI pass.
+
 ## Start here
 
 1. Open the signed Mac app with the designated QA or invited account. Connect an actual admitted
@@ -109,6 +115,34 @@ verified call graph, deployment audit, or model-comparison result.
 **Recorded alpha.37 outcome:** the path-only attempt stopped after 38 seconds. Adding the five
 actual documents let the retry finish in 45 seconds. The saved guide was inspected and all linked
 repository paths existed. Record the attachment intervention; this was not an unassisted first run.
+
+## Demo 4: plan a useful visit from live sources
+
+Use a fresh conversation and an approved public Chrome tab. Keep personal tabs out of scope.
+Replace the date if it is no longer in the future; record the actual date used.
+
+> Prepare a practical afternoon plan for an Arena researcher visiting CMU in Pittsburgh on
+> Saturday, November 7, 2026. Assume a 1 pm start and return by 7 pm at Cohon University Center,
+> no car, and a $60 total budget including food and transport. Label these as assumptions,
+> not a booked trip. Include a worthwhile museum or cultural stop, a meal, realistic walking
+> or public-transit time, and a rainy-weather alternative. Check current official hours,
+> admission and transit information. Cite direct sources, flag anything unverified, and show
+> the budget arithmetic. Do not book, sign in, contact anyone, or use personal browsing data.
+> Save cmu-visitor-plan.md in this conversation's folder, verify it and link it. Work in the
+> background using only the connected public Chrome window and reuse its existing tab.
+
+Check feasibility, admission and meal timing, return margin, budget arithmetic, uncertainty
+labels, source support, saved contents and preview. Type independently in another app while
+browser input occurs; afterward paste a pre-existing clipboard canary and compare it.
+
+**Engineering-probe outcome:** four official sources, a checked $45 plan plus $15 contingency,
+meal-price and walking estimates clearly labeled, and a mostly indoor rain alternative. The
+preview opened. TextEdit was confirmed active and both its text and clipboard survived.
+Initial Chrome foreground caused a pause: the operator activated TextEdit through Finder and
+pressed Continue once. The resumed run took 4m04s / 23 steps / three problem steps, including
+stale-reference recovery and a task-tracking failure; no corrective task prompt was sent.
+Total recorded request time was about 4m55s. This used alpha.42 with an experimental native SDK;
+repeat on the exact signed candidate before treating it as release acceptance.
 
 ## Background work, concurrency and responsiveness
 

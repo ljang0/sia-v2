@@ -38,43 +38,33 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 | iPhone follow-on | Build 31 is Ready to Test in internal Pilot QA; native tests, signed archive and Apple processing passed. | Deferred from this Mac-first handoff. Physical-device checks and external beta review remain. |
 | Ownership | The owner confirmed ownership of the relevant Notch source rights. Provenance remains in THIRD_PARTY_NOTICES.md. Lawrence Jang is the support/incident owner. | Record the private recipient list and final release decision before invitations. |
 
-## Current fixes
+## Current fixes and useful-work evidence
 
-Alpha.39 isolates each background turn's computer/browser grants and reserves physical windows
-individually. Foreground takeover remains exclusive, same-window work queues with a visible waiting
-state, and conflicting multi-window acquisition refuses instead of deadlocking. Automated gates
-pass, but the signed real Finder/browser tasks did not complete; no concurrent GUI pass is claimed.
+Alpha.43 source adds the pinned native Chrome consent patch, persistent connection errors,
+a pre-input background Copy/Cut guard, fresh-reference guidance on task continuation, and
+paused background decoration while a document preview is open. Its source and signed-artifact
+gates are still pending. The clipboard guard is deliberately not represented as a comprehensive
+menu/clipboard sandbox.
 
-Alpha.40 corrects stale native window titles, explains authorization-host failures
-without suggesting website sign-in or blind replay, and adds content-free callback diagnostics.
-The SDK and both Mac libraries move together to stable Cua 0.38.0, which includes native prefetch
-and input fixes. Its first browser research run passed with a newly prepared ordinary Chrome window; that does not
-isolate the cause of the earlier authorization failure. Alpha.41 corrects Sia over-refusing exact-element typing and exact-window keyboard validation
-when generic process keyboard input is ambiguous. Its signed Finder run completed the real filing
-task, but exposed shared-clipboard interference. Native target checks and refusals remain authoritative.
-Alpha.42 corrects misleading Chrome reconnect guidance and adds content-free proof-failure
-diagnostics, including requested screenshots omitted by the driver. A clipboard-free filing
-attempt stopped because it had no usable pixel targets, despite Accessibility and Screen Recording
-reporting Allowed. The separate QA app location lacks macOS’s additional direct-capture approval.
-Alpha.42 also keeps See your screen actionable when the driver identifies this missing approval,
-and requests it only from explicit setup. Signed-app setup cleared the warning and provided real
-Finder screenshots. The filing rerun still failed before moving files; neither browser recovery
-nor a completed clipboard-preserving workflow is established.
+The engineering probe recovered Chrome in 1.7 seconds instead of a 7.7-second repeated scan,
+then completed a real-source CMU visitor plan with verified facts/arithmetic and a working
+preview. TextEdit was active, typing survived and the clipboard canary matched afterward.
+It needed one initial foreground-pause intervention, then ran for 4m04s; this is one useful
+background-browser pass, not repeatability or parallel GUI acceptance. The probe is a modified
+QA copy, not the notarized alpha.42 artifact or an alpha.43 release. See [exact evidence](./public-release.md).
 
-Alpha.38 includes Chrome in default Mac setup with an explicit opt-out, and adds a host-triggered
-**Connect Chrome & continue** control to Mac conversations. Existing approved sessions are reused
-only for the same process/window; revoked or expired access must be reconnected deliberately.
-macOS and Chrome still own their permission decisions. The alpha.40 existing-profile picker path passed; alpha.41 recovery failed despite selecting the same approved public window. Clean-account consent remains unverified.
+Existing changes reserve individual physical windows, queue same-window work, and acquire GUI
+ownership only when a task first uses it. Document-only concurrency passed on alpha.38; two
+simultaneous native/browser tasks still need to complete on the exact candidate. The latest
+Finder probe failed with `window_not_key` while two Finder windows existed.
 
-Real alpha.37 work exposed three additional problems: outside-workspace files needed Add files,
-only one generated file received a preview, and document-only tasks unnecessarily held the whole GUI
-lane. Alpha.38 explains attachments, adds controls for all validated output files, and acquires the
-GUI lane only on the first GUI call. Its real document retest produced five checked files with five
-working previews while both tasks overlapped. Alpha.39 changes that ownership model, but real parallel GUI acceptance remains open.
+Default Mac setup includes Chrome with a deliberate opt-out. **Connect Chrome & continue**
+preserves the saved request. Existing approval is reused only for the same process/window;
+macOS and Chrome still own permission decisions. Clean-account setup remains unverified.
 
-The [real-work demo guide](./demo.md) records prompts, failures, interventions, measured outcomes
-and limits. Fake-service regression checks and small Calculator/CSV smoke tasks remain useful but
-are not everyday-use acceptance. Alpha.40 has one browser research pass and alpha.41 has one Finder filing pass. Shared-clipboard interference, browser recovery and parallel GUI work remain unaccepted.
+The [real-work demo guide](./demo.md) records useful prompts and independent checks. Earlier
+per-version implementation details and superseded attempts remain in Git history and private
+evidence; the table above and current artifact record determine readiness.
 
 ## Release decision
 

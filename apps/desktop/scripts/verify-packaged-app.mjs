@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { verifyReleaseIdentity, releaseIdentity } from './release-identity.mjs';
+import { cuaBuildRecipe } from './cua-driver-licenses.mjs';
 
 const requestedArch = process.argv
   .find((argument) => argument.startsWith('--arch='))
@@ -55,6 +56,7 @@ const licenseCorpusPath = join(resourcesPath, 'THIRD_PARTY_LICENSES.txt');
 const electronLicensePath = join(resourcesPath, 'ELECTRON_LICENSE.txt');
 const chromiumLicensesPath = join(resourcesPath, 'CHROMIUM_LICENSES.html');
 const ubjsPatchPath = join(resourcesPath, 'patches', '@ubjs__node@0.31.0-3.patch');
+const cuaPatchPath = join(resourcesPath, 'patches', 'cua-driver-0.38.0-chrome-consent.patch');
 const unpackedModules = join(resourcesPath, 'app.asar.unpacked', 'node_modules');
 const packagedArchitectures =
   requestedArch === 'universal' ? ['arm64', 'x64'] : [requestedArch];
@@ -71,6 +73,7 @@ await Promise.all([
   requirePath(electronLicensePath),
   requirePath(chromiumLicensesPath),
   requirePath(ubjsPatchPath),
+  requirePath(cuaPatchPath),
   ...packagedArchitectures.flatMap((architecture) => [
     requirePath(
       join(
@@ -138,6 +141,41 @@ for (const binaryPath of [
 }
 
 for (const architecture of packagedArchitectures) {
+  const packageRoot = join(unpackedModules, '@trycua', `cua-driver-darwin-${architecture}`);
+  // Signing changes Mach-O bytes. Compare the signed build record to the verified
+  // source package record, which contains hashes from before signing.
+  const provenancePath = join(packageRoot, 'build-provenance.json');
+  const sourcePackageRoot = resolve(
+    desktopRoot,
+    '../..',
+    'packages',
+    `cua-driver-darwin-${architecture}`,
+  );
+  const [packagedRecord, sourceRecord] = await Promise.all([
+    readFile(provenancePath, 'utf8'),
+    readFile(join(sourcePackageRoot, 'build-provenance.json'), 'utf8'),
+  ]);
+  const provenance = JSON.parse(packagedRecord);
+  const pin = JSON.parse(await readFile(join(desktopRoot, 'native/cua/upstream.json'), 'utf8'));
+  const { recipeSha256: recipeHash } = await cuaBuildRecipe(desktopRoot);
+  if (
+    packagedRecord !== sourceRecord ||
+    provenance.sourceCommit !== pin.commit ||
+    provenance.patchSha256 !== sha256(await readFile(cuaPatchPath)) ||
+    provenance.recipeSha256 !== recipeHash ||
+    provenance.architecture !== architecture ||
+    provenance.rustToolchain !== pin.rustToolchain ||
+    provenance.minimumMacOS !== pin.minimumMacOS ||
+    provenance.sdkSha256 !==
+      sha256(await readFile(join(sourcePackageRoot, 'libcua_driver_sdk.dylib'))) ||
+    provenance.runtimeSha256 !==
+      sha256(await readFile(join(sourcePackageRoot, 'cua_driver_node_runtime.node'))) ||
+    provenance.licensesSha256 !== sha256(await readFile(join(packageRoot, 'RUST_LICENSES.txt')))
+  ) {
+    throw new Error(
+      `Packaged Cua ${architecture} provenance does not match the verified source build.`,
+    );
+  }
   const nativeArchitecture = toLipoArch(architecture);
   for (const fileName of ['libcua_driver_sdk.dylib', 'cua_driver_node_runtime.node']) {
     verifyMachOArchitectures(
@@ -286,6 +324,11 @@ async function verifyLicenseResources() {
       resolve(desktopRoot, '../..', 'patches', '@ubjs__node@0.31.0-3.patch'),
       ubjsPatchPath,
       'UniFFI packaging patch',
+    ],
+    [
+      resolve(desktopRoot, '../..', 'patches', 'cua-driver-0.38.0-chrome-consent.patch'),
+      cuaPatchPath,
+      'Cua Chrome consent patch',
     ],
   ]) {
     const [source, packaged] = await Promise.all([
