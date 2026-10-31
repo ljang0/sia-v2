@@ -138,7 +138,7 @@ describe('curated tool surface', () => {
 
   it('contains only stable snake_case tools and no raw escape hatches', () => {
     const names = ACTION_TOOL_DESCRIPTORS.map((tool) => tool.name);
-    expect(names).toHaveLength(78);
+    expect(names).toHaveLength(79);
     expect(names.every((name) => /^[a-z][a-z0-9_]*$/.test(name))).toBe(true);
     expect(names.join(' ')).not.toMatch(/visual|canvas|javascript|cdp|cookie|profile|shell/i);
     expect(names).toContain('computer_action');
@@ -160,6 +160,7 @@ describe('curated tool surface', () => {
       'computer_open_app',
       'computer_open_url',
       'computer_action',
+      'computer_move_file',
       'mail_create_draft',
       'mail_send',
       'drive_upload',
@@ -648,17 +649,26 @@ describe('curated tool surface', () => {
     expect(descriptor?.inputSchema.properties).not.toHaveProperty('app_name');
   });
 
-  it('requires an exact approval before connector mutations', async () => {
+  it.each([
+    { name: 'slack_post', args: { account_id: 'slack', channel_id: 'C123', text: 'Ship it' } },
+    {
+      name: 'computer_move_file',
+      args: {
+        source: 'Inbox/brief.md',
+        destination: 'Review/brief.md',
+        expected_sha256: 'a'.repeat(64),
+      },
+    },
+  ])('requires exact approval before $name', async ({ name, args }) => {
     const backend = verifiedBackend();
     const approvals = { requestApproval: vi.fn(async () => ({ approved: true })) };
     const gateway = new ActionGateway({ backend, approvals });
-    const args = { account_id: 'slack', channel_id: 'C123', text: 'Ship it' };
-    const result = await gateway.invoke({ name: 'slack_post', arguments: args, context });
+    const result = await gateway.invoke({ name, arguments: args, context });
     expect(result.outcome).toBe('verified');
     expect(approvals.requestApproval).toHaveBeenCalledWith(
       expect.objectContaining({
-        tool: expect.objectContaining({ name: 'slack_post' }),
-        targetDigest: actionTargetDigest('slack_post', args),
+        tool: expect.objectContaining({ name }),
+        targetDigest: actionTargetDigest(name, args),
       }),
       undefined,
     );
