@@ -240,11 +240,18 @@ export class ComputerInput {
       typeof args.y === 'number' &&
       ['click', 'drag', 'type'].includes(String(args.action));
     const backgroundDelivery = this.ctx.macBrowserAccess() && args.delivery !== 'foreground';
-    const inputRoute: BackgroundInputRoute = ['type', 'key'].includes(String(args.action))
-      ? 'pid_keyboard'
-      : pixel || args.action === 'scroll'
-        ? 'window_pointer'
-        : 'accessibility';
+    // An exact element lets type_text use the driver's semantic-only AX path.
+    // A refused process-keyboard route does not forbid that path; the driver
+    // still proves ancestry and refuses any unsafe keyboard fallback. Pixels
+    // do not carry element authority and retain the keyboard preflight below.
+    const inputRoute: BackgroundInputRoute =
+      args.action === 'type' && address && !pixel
+        ? 'accessibility'
+        : ['type', 'key'].includes(String(args.action))
+          ? 'pid_keyboard'
+          : pixel || args.action === 'scroll'
+            ? 'window_pointer'
+            : 'accessibility';
     if (backgroundDelivery) {
       const unavailable = backgroundRouteRefusal(
         capability.backgroundInput,

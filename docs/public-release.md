@@ -1,52 +1,59 @@
 # Public distribution candidate
 
-## Current decision — October 30, 2026
+## Current decision — October 31, 2026
 
 The owner selected **Mac first; iPhone follows** and confirmed ownership of the relevant Notch
-source rights. Alpha.39 is the signed acceptance candidate; its real GUI tests failed. **External pilot release is not complete.**
-No new artifacts were published or invitations sent; the last published Mac pilot remains alpha.24.
+source rights. Alpha.40 is the signed acceptance candidate. Browser research passed once, but
+Finder filing failed. **External pilot release is not complete.** No new artifacts were published
+or invitations sent; the last published Mac pilot remains alpha.24.
 
-## Exact alpha.39 artifact
+## Exact alpha.40 artifact
 
-Built from `741745bace345c2c28dac8a01d758315128022f2`. The full local `pnpm test:pilot`
-gate passed: 1,786 desktop unit, 46 Electron, 31 renderer, 72 Chromium/WebKit phone and
-72 action-gateway tests. Expected live opt-in tests were skipped. [Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41162128134) passed.
+Built from `39795b8c3553797e330bf2f7d8f1a08e03e49243`. The full local `pnpm test:pilot`
+gate passed: 1,791 desktop unit, 46 Electron, 31 renderer, 72 Chromium/WebKit phone and
+72 action-gateway tests. Expected live opt-in tests were skipped.
+[Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41165497718) passed.
 
 Universal signing, app/DMG notarization and stapling, strict signatures, Gatekeeper and packaged
-native/runtime verification passed. App notarization `39473ad8-b12e-4bd6-9a0b-0b95b154485c`
-and DMG notarization `63d5b9e8-c183-48dc-8462-8adbbbe18369` were Accepted.
+native/runtime verification passed. App notarization `eaa93fe3-be94-4d6b-adb3-ad277936cf4f`
+and DMG notarization `b7aa03b1-0a96-43de-89b2-a0954537dc30` were Accepted.
 
 | Artifact                           | SHA-256                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |
-| `Sia-0.1.0-alpha.39-universal.dmg` | `17272571ebaeee93c2c3cf13a822e8a2319232d9846009890dce783115f4f617` |
-| `Sia-0.1.0-alpha.39-universal.zip` | `2f7d9f7b9e1091d4198b36845ab1de90c8b8252435b7dda338d76f6034b80319` |
-| Installed `app.asar`               | `b12e93575b6345fefe6757da1ed913bc8c8c39a314d1389d1946926ac516ec40` |
+| `Sia-0.1.0-alpha.40-universal.dmg` | `70de18c7d7fcf0ac68fc0cb9247246a3430388d86c984d02430a16988d43c992` |
+| `Sia-0.1.0-alpha.40-universal.zip` | `8a7fe622320c51b826b432335866f9bf6a59a89bb8ca1503d56e3a102fa0072e` |
+| Installed `app.asar`               | `a2355124f1e330a1843b48c4f74fa515391f36abc2e8543f7b94f1d39a95cc59` |
 
 The existing QA profile reopened with settings/history intact and no new Keychain prompt.
-Mac access showed ready; the already-approved public Chrome window attached through the picker.
-This was a separate window in the existing profile, not an isolated browser profile or clean-account
-onboarding. The verified alpha.38 app remains the local rollback copy.
+The approved public Chrome window attached through the picker. This was a new ordinary window
+in the existing profile, not an isolated browser profile or clean-account onboarding.
+Alpha.39 and alpha.38 local rollback copies remain available.
 
-## Alpha.39 real GUI failures
+## Alpha.40 real GUI results
 
-Two requests started 11.84 seconds apart using GPT-6-Astra through Codex App Server, strict
-background mode and automatic action approval. Finder was asked to organize six actual public
-project deliverables into three folders through its GUI. After 72 seconds it stopped: background
-shortcuts did not navigate reliably. Independent checks confirmed all six original hashes remained
-in Inbox and no destination folders existed. AX Back changed the folder, but Sia's top-level title
-remained stale; that source bug is corrected for the next candidate.
+GPT-6-Astra through Codex App Server completed a fresh-conversation comparison of official
+Playwright, Cua and Browser Use documentation in about 120 seconds. It read all three sources
+through the designated browser window, saved a 751-word report, read it back, and showed a working
+preview. Independent inspection verified the report and its three official source links.
+No corrective prompt was needed. Output SHA-256:
+`827c99f65f600e24331040e09b02922f735158c168eb8022d7bc9da9a952625b`.
 
-The other task was to compare official Cua, Browser Use and Playwright documentation and save a
-short report. It read Cua's page. Two navigation attempts paused because Chrome remained active
-despite operator attempts to activate TextEdit. After the operator hid Chrome, navigation lost its
-acknowledgement and the next read returned `authorization_host_failed`. A full Sia restart and
-reconnection of the same approved window restored Attached, but another read failed the same way.
-The report file does not exist. No website sign-in failure was established.
+Sia's own inventory confirmed TextEdit was active during browser input; the operator typed and
+saved an intact canary there. The clipboard was not tested. Both the driver version and Chrome
+window setup changed from the failed alpha.39 attempt, so this does not establish which change
+resolved that failure or prove repeatability.
 
-The TextEdit canary retained its text, but foreground ownership was not proved and the clipboard
-was not tested. Neither useful GUI request completed, so overlapping starts do not establish
-concurrent computer-use acceptance. Exact prompts, input hashes, traces, screenshots and results
-remain in the private alpha.39 artifact folder. These failures block distribution.
+The overlapping Finder request failed. It first paused correctly while Finder was active, then
+resumed after the operator opened TextEdit. Navigation and new-folder creation worked, but an
+exact-field rename was refused as outside the target window. Pixel typing then hit Sia's generic
+process-keyboard ambiguity precheck. All six input hashes remained unchanged in Inbox; one empty
+`untitled folder` was created. No files were organized. Other Finder windows remained open.
+
+Finder's GUI work resumed after browser input had finished: overlapping requests do not prove
+parallel GUI execution. Exact prompts, hashes, traces, screenshots and interventions remain in the
+private alpha.40 artifact folder. Finder, repeatability and concurrent-GUI acceptance still block
+distribution. Alpha.41 source work delegates the ambiguous-keyboard case to the driver's exact-window
+validation and permits exact-element semantic typing; it is not yet a signed live fix.
 
 ## Prior alpha.38 document results
 

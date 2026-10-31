@@ -53,17 +53,14 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Alpha.38 is signed and notarized, with its full local pilot gate and artifact-source CI passing.
-Two real GPT-6-Astra tasks overlapped in separate folders: a three-document technical-review packet
-and a five-day release plan with a CSV tracker. All five saved outputs and previews were independently
-checked; neither task needed a corrective prompt. Cancelling a later planning task left the separate
-evidence-review task running. These results establish useful document work, not general desktop
-reliability. Real-source browser research, default Chrome setup/recovery, foreground-user coexistence
-during GUI input, clean macOS-account setup/provider retry, and physical voice/lock/sleep acceptance
-remain open. Alpha.39 introduces per-window task isolation, but its real Finder/browser workflows failed.
-Background browser new-tab creation is unsupported. Distribution remains blocked on these results.
-The installer and review packet are prepared locally; distribution still requires these gates
-and the owner's release decision.
+Alpha.40 is signed and notarized, with its exact-source local pilot gate and CI passing.
+It completed one real-source browser comparison in about two minutes while TextEdit remained
+active; the saved report, official links and preview were checked. Earlier alpha.38 runs produced
+five checked reviewer-packet/planning outputs concurrently. These are useful results, not general
+desktop reliability: alpha.40's Finder filing failed with multiple Finder windows open. Repeatability,
+parallel GUI control, clipboard preservation, clean macOS-account setup/provider retry, default
+Chrome recovery, and physical voice/lock/sleep acceptance remain open. Background browser new-tab
+creation is unsupported. Distribution remains blocked on these gates and the owner's release decision.
 The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
 owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.
 

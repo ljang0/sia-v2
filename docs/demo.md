@@ -183,4 +183,18 @@ actual handoff documents. Neither completed. Finder left all input hashes unchan
 folders. The browser read Cua's documentation, then navigation/authorization failed; restarting Sia
 and reconnecting the same approved window did not restore reads. No report was saved. TextEdit
 text survived, but foreground ownership and clipboard preservation were not verified. These are
-failed acceptance attempts, not successful demos. See [exact evidence](./public-release.md#alpha39-real-gui-failures).
+failed acceptance attempts, not successful demos. Historical exact evidence remains in Git history and the private alpha.39 artifact folder.
+
+## Alpha.40 real GUI results
+
+The same useful browser comparison passed in one fresh conversation: three official sources,
+a saved 751-word report, verified readback and a working preview, in about 120 seconds. The
+operator prepared a new ordinary Chrome window in the existing profile before the request; no
+corrective prompt followed. TextEdit was confirmed active during browser input and its typed
+canary survived. Both the driver and window setup changed, so the cause of recovery is unproved.
+
+Finder filing still failed after an operator-assisted resume. Navigation and folder creation
+worked, but exact-field rename and pixel typing did not. Six input files remained unchanged in
+Inbox and one empty untitled folder was left behind. The two requests overlapped, but their GUI
+input did not; do not present this as concurrent computer-use acceptance. Clipboard preservation
+and a second fresh-conversation run remain open. See [exact results](./public-release.md#alpha40-real-gui-results).
