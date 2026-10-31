@@ -4,12 +4,12 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
 public project documents and a real admitted model; fake-service demos are separate.
 
-**Current evidence:** signed universal alpha.58 passed package verification, but its fresh outing
-failed on browser clicks. The investigation reproduced a native command-policy defect; alpha.59
-source corrects it and still needs signed live acceptance. Alpha.57 produced checked dinner/grocery
-files after operator recovery; native TextEdit Save failed. Earlier alpha.56 successes used
-DOM/accessibility assistance and do not validate the vision-only default. Every selected demo
-needs two fresh signed runs, with failures and interventions retained in the linked record.
+**Current evidence:** signed universal alpha.59 passed package and installation verification.
+Its corrected browser clicks worked in the real outing, but restart setup and network-error
+recovery still failed; no itinerary was saved. Alpha.57 produced checked dinner/grocery files
+after operator recovery; native TextEdit Save failed. Earlier assisted-mode successes do not
+validate the vision-only default. Every selected demo needs two fresh signed runs, with failures
+and interventions retained in the linked record.
 
 ## Start here
 
@@ -30,8 +30,8 @@ needs two fresh signed runs, with failures and interventions retained in the lin
 Chrome connection is part of default Mac setup, with a deliberate opt-out. Choosing a window
 authorizes its explicit connection setup, including the exact Chrome prompt. macOS grants remain
 person-owned. Existing profiles can use the conversation's
-**Connect Chrome & continue** control when the host reports missing browser access. Alpha.58 verified explicit
-connection and request resumption after relaunch, but did not reuse access automatically.
+**Connect Chrome & continue** control when the host reports missing browser access. Alpha.59 required explicit
+reconnection after relaunch and exposed a prompt-dismissal failure during a diagnostic retry.
 Restart/expiry and final-candidate repeats remain required.
 
 ## Demo 1: prepare a reviewer packet

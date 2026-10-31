@@ -53,16 +53,14 @@ independently; count operator rescue and failed attempts rather than accepting c
 
 ## Current evidence and remaining work
 
-Signed universal alpha.57 passed notarization and exact-source CI. Its visual meal-planning task
-saved independently checked dinner/grocery files after operator recovery. A separate outing
-stopped on browser clicks; concurrent TextEdit creation reached Save but could not complete it.
-These are useful failure records, not unattended acceptance passes. Earlier assisted-mode results
-do not validate the visual default.
+Signed universal alpha.59 passed signing, notarization, installation verification and the full
+local pilot gate. Its repaired background browser clicks worked in a real outing; Chrome setup
+and recovery from a restaurant network error still prevented completion. A prior visual meal
+plan produced independently checked files after operator recovery. Native TextEdit Save remains
+unresolved. These are useful failure records, not unattended acceptance passes.
 
-Alpha.58 passed signed-package verification but reproduced refused browser clicks. Alpha.59
-source corrects the reproduced command-policy lookup and structured-refusal handling and passed
-the full local pilot gate; signed live
-verification remains open, alongside Stop/recovery, clipboard, restart/expiry and physical acceptance. A fresh Mac
-account is currently unavailable. Background new tabs and Finder file drag are unsupported.
+Exact-artifact workflow repeats, concurrency, Stop/recovery, clipboard, restart/expiry and physical
+acceptance remain open. A fresh Mac account is currently unavailable. Background new tabs and
+Finder file drag are unsupported. Earlier assisted-mode results do not validate the visual default.
 The [release status](./release-status.md) and [artifact record](./public-release.md) are authoritative.
 No partnership, public release, invitation or leaderboard claim is implied by this proposal.

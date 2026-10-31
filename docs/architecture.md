@@ -68,8 +68,8 @@ context before it reaches the model. The native memory adapter retains saved not
 extraction or executable native-script instructions. The skills library uses the same visual policy:
 foreground/background settings cannot enable native-script launch or model guidance. Existing native
 source remains owner-editable; new skills use the sandboxed gateway. See [release status](./release-status.md)
-for the signed-app acceptance gaps: universal alpha.57 contains this default, but its real tasks
-required recovery and native Save remains blocked. Remaining assisted
+for signed-app acceptance gaps: alpha.59 confirms the corrected browser click path, while
+network-error recovery, restart setup and native Save remain blocked. Remaining assisted
 implementation branches are internal test seams and must be retired after the visual cutover passes.
 
 Keep each stateful domain's lifecycle in its owning module. Extract a collaborator when it has a
