@@ -12,17 +12,6 @@ aside.navigation {
   flex-basis: var(--sidebar-width);
   border-right: 1px solid var(--shell-line);
 }
-.navigation .brand {
-  font-size: 40px;
-  pointer-events: none;
-}
-.brand :global(.sia-logo) {
-  width: 52px;
-  height: 36px;
-  padding: 0;
-  border-radius: 10px;
-  background: #101113;
-}
 .primaryActions {
   display: grid;
   gap: 8px;

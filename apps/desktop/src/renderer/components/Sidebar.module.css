@@ -76,22 +76,6 @@
   -webkit-app-region: no-drag;
 }
 
-.wordmark {
-  position: absolute;
-  left: 50%;
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  translate: -50% 0;
-  color: var(--shell-text);
-  font-family: var(--font-brand);
-  font-size: 20px;
-  font-weight: 700;
-  font-variation-settings: 'opsz' 96;
-  letter-spacing: -0.025em;
-  line-height: 1;
-}
-
 .agentEditButton {
   display: inline-flex;
   flex: none;
@@ -594,12 +578,6 @@ button.agentAvatar {
 
 .sidebarTitlebar {
   border-bottom: 1px solid color-mix(in srgb, var(--shell-line) 62%, transparent);
-}
-
-.wordmark {
-  color: var(--shell-text);
-  font-size: var(--display-md);
-  letter-spacing: -0.03em;
 }
 
 .sidebarScroll {

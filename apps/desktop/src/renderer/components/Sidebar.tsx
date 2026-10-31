@@ -19,7 +19,6 @@ import { listedThreads, sidebarAgentOrder } from '../shortcuts';
 import { AgentForm } from './AgentForm';
 import navigation from './navigation.module.css';
 import { TaskPreviewButton } from './TaskPreviewButton';
-import { SiaLogo } from './SiaLogo';
 import { MotionList } from './MotionList';
 import { NavigationGroup } from './NavigationGroup';
 import { threadDisplayTitle } from '../threadTitle';
@@ -305,9 +304,6 @@ export function Sidebar({
       data-companion-sidebar
     >
       <div className={styles.sidebarTitlebar}>
-        <div className={`${styles.wordmark} ${navigation.brand}`} role="img" aria-label="Sia">
-          <SiaLogo />
-        </div>
         <button
           className={`${buttons.iconButton} ${styles.shellIconButton}`}
           type="button"

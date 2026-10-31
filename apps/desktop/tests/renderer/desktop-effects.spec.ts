@@ -304,11 +304,6 @@ test('navigation stays stable, previews do not select, and the compact rail keep
 }, info) => {
   await page.goto('/#demo');
   const nav = page.getByRole('complementary', { name: 'Agent navigation' });
-  const logo = nav.getByRole('img', { name: 'Sia', exact: true }).locator('img');
-  await expect(logo).toBeVisible();
-  await expect
-    .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
-    .toBe(768);
   const task = nav.getByRole('button', { name: 'Weekly research update', exact: true });
   await task.hover();
   await expect(page.getByRole('tooltip')).toBeVisible();
