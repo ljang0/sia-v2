@@ -92,3 +92,53 @@ it('does not offer to replay old browser work after a new request, or connect an
   expect(browserTaskRequest(thread)).toBeUndefined();
   expect(browserTaskRequest({ ...thread, events: [] } as ThreadDetail)).toBeUndefined();
 });
+
+it('offers Mac recovery only for a host-observed failure, even if another window is attached', async () => {
+  const { thread, browser } = fixture();
+  const connect = vi.fn(async () => {});
+  const view = render(
+    <BrowserTaskRecovery
+      accessMode="mac"
+      thread={thread}
+      browser={browser}
+      connect={connect}
+    />,
+  );
+  expect(screen.queryByRole('region')).toBeNull();
+  thread.events.splice(2, 0, {
+    id: 'host-recovery',
+    type: 'activity',
+    kind: 'computer',
+    toolName: 'computer_snapshot',
+    title: 'Chrome setup needed',
+    status: 'error',
+    timestamp: '',
+    browserRecovery: 'window-7',
+  });
+  view.rerender(
+    <BrowserTaskRecovery
+      accessMode="mac"
+      thread={thread}
+      browser={{ ...browser, attached: true }}
+      connect={connect}
+    />,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Connect Chrome & continue' }));
+  await waitFor(() => expect(connect).toHaveBeenCalledWith(thread.id, 'user-1', undefined));
+  thread.events.push({
+    id: 'next-user',
+    type: 'message',
+    role: 'user',
+    content: 'Another task',
+    timestamp: '',
+  });
+  view.rerender(
+    <BrowserTaskRecovery
+      accessMode="mac"
+      thread={thread}
+      browser={browser}
+      connect={connect}
+    />,
+  );
+  expect(screen.queryByRole('region')).toBeNull();
+});

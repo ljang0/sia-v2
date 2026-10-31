@@ -783,6 +783,68 @@ describe('curated tool surface', () => {
 });
 
 describe('local lease coordinator', () => {
+  it('lets background file work proceed but queues GUI discovery until the prior GUI task ends', async () => {
+    const coordinator = new LocalLeaseCoordinator();
+    const owner = await coordinator.startTurn({ turnId: 'owner', threadId: 'owner-thread' });
+    const next = await coordinator.startTurn({ turnId: 'next', threadId: 'next-thread' });
+    const cancelled = await coordinator.startTurn({
+      turnId: 'cancelled',
+      threadId: 'cancelled-thread',
+    });
+    const backend = verifiedBackend();
+    const gateway = new ActionGateway({ backend });
+    const background = {
+      ...context,
+      turnId: 'next',
+      threadId: 'next-thread',
+      lease: next,
+      backgroundOnly: true,
+    };
+    const abort = new AbortController();
+    try {
+      await owner.acquire({ kind: 'global_focus', id: 'foreground' });
+      expect(
+        (
+          await gateway.invoke({
+            name: 'computer_list_files',
+            arguments: {},
+            context: background,
+          })
+        ).outcome,
+      ).toBe('verified');
+      expect(next.holds({ kind: 'global_focus', id: 'foreground' })).toBe(false);
+      const queued = gateway.invoke({
+        name: 'computer_list',
+        arguments: {},
+        context: background,
+      });
+      const stopped = gateway.invoke({
+        name: 'computer_list',
+        arguments: {},
+        context: {
+          ...background,
+          turnId: 'cancelled',
+          threadId: 'cancelled-thread',
+          lease: cancelled,
+          signal: abort.signal,
+        },
+      });
+      await vi.waitFor(() => expect(coordinator.snapshotQueue()).toHaveLength(2));
+      expect(backend.invoke).toHaveBeenCalledTimes(1);
+      abort.abort(new Error('Stopped waiting'));
+      expect((await stopped).outcome).toBe('refused');
+      expect(owner.holds({ kind: 'global_focus', id: 'foreground' })).toBe(true);
+      owner.release();
+      expect((await queued).outcome).toBe('verified');
+      expect(next.holds({ kind: 'global_focus', id: 'foreground' })).toBe(true);
+      expect(backend.invoke).toHaveBeenCalledTimes(2);
+    } finally {
+      owner.release();
+      next.release();
+      cancelled.release();
+    }
+  });
+
   it('does not reserve turn capacity for an already-cancelled request', async () => {
     const coordinator = new LocalLeaseCoordinator();
     await expect(

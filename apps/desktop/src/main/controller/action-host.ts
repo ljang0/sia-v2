@@ -1,4 +1,5 @@
 import type { ActionInvocationObserver, ActionResultObserver } from '@sia/action-gateway';
+import { randomUUID } from 'node:crypto';
 import {
   connectorAppForTool,
   GOOGLE_WORKSPACE_ACTION,
@@ -19,6 +20,8 @@ type ActionHostContext = Pick<
   | 'schedules'
   | 'state'
   | 'mac'
+  | 'appendTimeline'
+  | 'commit'
 >;
 
 /**
@@ -79,6 +82,7 @@ export class ActionHost {
       }
       this.recordActionResult(notice);
       const resultData = notice.result.data;
+      this.recordBrowserRecovery(notice);
       if (
         notice.context.backgroundOnly &&
         ['computer_action', 'computer_open_app', 'computer_open_url'].includes(notice.name) &&
@@ -110,6 +114,56 @@ export class ActionHost {
       });
       this.ctx.researchCapture.stageResearchActionResult(notice);
     };
+  }
+
+  private recordBrowserRecovery(notice: Parameters<ActionResultObserver>[0]): void {
+    if (!notice.name.startsWith('computer_') || this.ctx.releaseAccessLocked()) return;
+    const { threadId, turnId } = notice.context;
+    const user = this.ctx.state.timeline.findLast(
+      (item) => item.threadId === threadId && item.kind === 'user' && item.status !== 'pending',
+    );
+    if (!user || user.turnId !== turnId) return;
+    const data = notice.result.data;
+    if (
+      !data ||
+      typeof data !== 'object' ||
+      !('window_id' in data) ||
+      typeof data.window_id !== 'string'
+    )
+      return;
+    const existing = this.ctx.state.timeline.find(
+      (item) =>
+        item.threadId === threadId &&
+        item.turnId === turnId &&
+        item.browserRecovery === data.window_id,
+    );
+    if ('browser_connection_required' in data && data.browser_connection_required === true) {
+      if (existing) return;
+      this.ctx.appendTimeline(threadId, {
+        id: randomUUID(),
+        turnId,
+        kind: 'activity',
+        toolName: notice.name,
+        title: 'Chrome setup needed',
+        detail:
+          'Connect the Chrome window for this task, then continue here. Your request is saved.',
+        status: 'failed',
+        timestamp: new Date().toISOString(),
+        browserRecovery: data.window_id,
+      });
+      this.ctx.commit();
+    } else if (
+      existing &&
+      'browser_route' in data &&
+      data.browser_route === 'cua_browser' &&
+      ['verified', 'accepted_unverified'].includes(notice.result.outcome)
+    ) {
+      delete existing.browserRecovery;
+      existing.status = 'complete';
+      existing.title = 'Chrome connection restored';
+      existing.detail = 'The same task window is available again.';
+      this.ctx.commit();
+    }
   }
 
   toolAvailable(name: string): boolean {

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { realpath } from 'node:fs/promises';
 import { LocalLeaseCoordinator, type TurnLease } from '@sia/action-gateway';
 import type { ThreadView } from '../../shared/bridge.js';
 import { DESKTOP_EXECUTION_GUIDANCE } from '../assistant/assistant-library.js';
@@ -83,6 +84,7 @@ export class TurnRunner {
     let nativeFollowUp = false;
     let recordedNative = false;
     let attachedResult = false;
+    const attachedPaths = new Set<string>();
     let taskResult: MacTaskResult | undefined;
     const recordNative = async (outcome: 'complete' | 'failed') => {
       if (recordedNative || !recordVault || !macTask) return;
@@ -485,6 +487,7 @@ export class TurnRunner {
                   item.kind === 'assistant',
               );
               if (message) message.attachments = [attachment];
+              attachedPaths.add(await realpath(taskResult.output_file));
             } catch (cause) {
               taskResult.success = false;
               taskResult.response += ` The result file could not be opened here. ${cause instanceof Error ? cause.message : 'Ask Sia to save the result again.'}`;
@@ -492,7 +495,6 @@ export class TurnRunner {
           }
           if (
             !stoppedStatus &&
-            !taskResult?.output_file &&
             ((event.type === 'message' &&
               event.payload.role === 'assistant' &&
               event.payload.phase !== 'commentary' &&
@@ -505,14 +507,18 @@ export class TurnRunner {
                 item.turnId === turn.id &&
                 item.kind === 'assistant',
             );
-            if (message && !message.attachments?.length) {
+            if (message) {
               // Connected-app Codex replies stream deltas without a final message event.
               // At successful completion, inspect the assembled last reply as well.
               const text = message.text ?? '';
-              const results = [];
+              const results = [...(message.attachments ?? [])];
               for (const path of resultPathsFromMarkdown(text)) {
+                if (results.length >= 10) break;
                 try {
+                  const canonical = await realpath(path);
+                  if (attachedPaths.has(canonical)) continue;
                   results.push(await this.ctx.attachments.grantResult(thread.id, path));
+                  attachedPaths.add(canonical);
                 } catch {
                   // A Markdown link cannot grant access beyond this thread's result roots.
                 }

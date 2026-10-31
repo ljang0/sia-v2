@@ -1,4 +1,4 @@
-# Sia 0.1.0-alpha.34
+# Sia 0.1.0-alpha.38
 
 Pilot candidate — acceptance and distribution pending.
 
@@ -12,7 +12,8 @@ anything else or paste an API key.
   Choose On my screen in Settings → Computer if you'd rather watch it work. Sia keeps your display
   awake during a Mac task and pauses if your Mac locks or sleeps; unlock it and press Continue task.
 - **Simpler setup.** One setup flow covers AI access and the Mac permissions Sia needs. Google
-  Workspace, Slack, GitHub, Notion, and Chrome connections stay optional. Use my Mac walks through
+  Workspace, Slack, GitHub, and Notion connections stay optional. Chrome setup is included, with an
+  explicit option to continue without it. Use my Mac walks through
   Accessibility, Screen Recording, app Automation, and Full Disk Access; macOS approves each grant.
   Connected-app setup skips Mac permissions, and ordinary chat remains available before screen access.
 - **Visible setup progress.** Codex setup shows downloaded megabytes and handles slow connections;
@@ -51,7 +52,24 @@ anything else or paste an API key.
 - **Setup and pairing fixes.** Included AI can finish setup without ChatGPT sign-in; another phone
   can pair while one is connected; self-addressed replies no longer start an echo task.
 
-## Changes since alpha.33
+## Changes since alpha.37
+
+- **Chrome setup before the first task.** Default Mac setup offers a window connection and checks
+  that a website is available. Chrome's own permission prompts still require your approval.
+- **Continue after browser access expires.** A conversation offers Connect Chrome & continue when
+  the host reports missing browser access. It preserves the request and asks for the task window.
+- **All saved documents are accessible.** A multi-file response gives each verified result its
+  own Preview and Open controls, including file links returned alongside the primary result.
+- **Independent document tasks.** Background file and planning work no longer reserves the whole
+  computer before it starts. GUI action loops still wait for exclusive control, and tasks sharing
+  a folder still queue to protect each other’s files.
+- **Clearer file guidance.** When a source document is outside the task folder, Sia points to
+  Add files instead of asking you to copy it into an internal workspace.
+
+These changes are undergoing signed-app acceptance. Real-work and concurrent-use checks are
+tracked in [release status](./release-status.md).
+
+## Earlier Chrome setup changes
 
 - **Clearer Chrome connection.** Connect Chrome explains that setup may briefly show Chrome.
   You review any Chrome permission prompt yourself. Automatic background connection never starts

@@ -486,9 +486,15 @@ export class RuntimeCoordinator {
     const connectingAt = Date.now();
     const state = await this.#sessionFor(input.thread, signal);
     input.onTiming?.('provider', Date.now() - connectingAt);
-    // Like Notch's GUI token, one task owns the screen for its whole action loop.
+    // Native/foreground recovery can act outside the gateway, so reserve the screen up front.
+    // Strict background tools acquire it at their first GUI call; document-only work stays parallel.
     // The controller releases the turn lease on success, cancellation and failure.
-    if (mac && input.lease) {
+    if (
+      mac &&
+      (!input.thread.macBackgroundControl ||
+        input.thread.macBackgroundFallback === 'foreground') &&
+      input.lease
+    ) {
       input.onPhase?.('waiting_for_computer');
       const waitingAt = Date.now();
       await input.lease.acquire({ kind: 'global_focus', id: 'foreground' }, signal);
@@ -563,6 +569,8 @@ export class RuntimeCoordinator {
     if (
       input.thread.computerAccessMode === 'mac' &&
       input.thread.nativeTools !== 'disabled' &&
+      (!input.thread.macBackgroundControl ||
+        input.thread.macBackgroundFallback === 'foreground') &&
       input.lease
     )
       await input.lease.acquire({ kind: 'global_focus', id: 'foreground' }, signal);

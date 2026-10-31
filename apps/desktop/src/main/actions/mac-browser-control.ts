@@ -206,7 +206,10 @@ export class MacBrowserControl {
       // The ended session is discarded, never revived, and no input is replayed.
       this.#expire(window, session);
       if (generation !== this.#generation)
-        return stale('Reconnect the chosen Chrome window in Settings → Connections.');
+        return this.#connectionFailure(
+          window,
+          stale('Reconnect the chosen Chrome window to continue.'),
+        );
       session = this.#client(window).session;
       args = { pid: window.pid, window_id: window.windowId, session };
       await inspect();
@@ -220,15 +223,28 @@ export class MacBrowserControl {
       )
     ) {
       this.#preparationAttempted.add(window.id);
-      const prepared = await this.#client(window).context.callCua(request, 'browser_prepare', {
-        ...args,
-        strategy: { kind: 'existing_profile' },
-        delivery_mode: 'background',
-      });
-      const outcome = actionResult(prepared, 'Prepared background browser access.');
-      if (terminalWithoutVerification(outcome)) return outcome;
-      raw = await this.#client(window).context.callCua(request, 'get_browser_state', args);
-      failure = resultRefusal(raw);
+      let outcome: ActionExecutionResult;
+      try {
+        const prepared = await this.#client(window).context.callCua(
+          request,
+          'browser_prepare',
+          {
+            ...args,
+            strategy: { kind: 'existing_profile' },
+            delivery_mode: 'background',
+          },
+        );
+        outcome = actionResult(prepared, 'Prepared background browser access.');
+      } catch (error) {
+        outcome = classifyFailure(error);
+      }
+      if (terminalWithoutVerification(outcome))
+        return /\b(?:browser_consent_required|browser_requires_setup|session_ended|background_unavailable)\b/.test(
+          `${outcome.reason ?? ''} ${outcome.summary}`,
+        )
+          ? this.#connectionFailure(window, outcome)
+          : outcome;
+      await inspect();
     }
     if (generation !== this.#generation) return stale('The browser connection changed.');
     if (failure)
@@ -240,6 +256,11 @@ export class MacBrowserControl {
           app_id: window.appId,
           window_id: window.id,
           blocker_code: 'background_browser_unavailable',
+          ...(/\b(?:browser_consent_required|browser_requires_setup|session_ended)\b/.test(
+            `${failure.reason ?? ''} ${failure.summary}`,
+          )
+            ? { browser_connection_required: true }
+            : {}),
           next_step: this.#preparationAttempted.has(window.id)
             ? 'Background setup was already attempted for this window. Do not repeat setup. If Chrome shows its own permission prompt, the person must review it; Sia must not approve it. This is browser access, not website sign-out. Never fall back to native off-Space input or foreground control.'
             : 'Use computer_open_url with prepare_only:true, this exact app_id and window_id, and the ordinary website needed for the task. That acting tool can restore browser access and list existing tabs without navigating. Never fall back to native off-Space browser input or foreground control.',
@@ -295,6 +316,24 @@ export class MacBrowserControl {
         ...(!tab.navigationOnly ? { origin: new URL(tab.url).origin } : {}),
       });
     return current;
+  }
+
+  #connectionFailure(
+    window: ComputerWindowBinding,
+    result: ActionExecutionResult,
+  ): ActionExecutionResult {
+    return {
+      ...result,
+      summary:
+        'Chrome needs a connection check. Use Connect Chrome & continue below this conversation; your request is saved.',
+      data: {
+        ...asRecord(result.data),
+        app_id: window.appId,
+        window_id: window.id,
+        blocker_code: 'background_browser_unavailable',
+        browser_connection_required: true,
+      },
+    };
   }
 
   #choose(tabs: Tab[], request: ValidatedActionInvocation): Tab | undefined {

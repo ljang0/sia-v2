@@ -9,6 +9,7 @@ import { DesktopActionBackend } from './desktop-action-backend.js';
 function harness() {
   const state = {
     prepared: false,
+    preparationError: '',
     extraTabs: [] as Record<string, unknown>[],
     linkHref: '',
     linkStateUrl: '',
@@ -33,6 +34,7 @@ function harness() {
     if (tool === 'list_windows')
       return { windows: [{ window_id: state.windowId, pid: 42, title: 'Chrome' }] };
     if (tool === 'browser_prepare') {
+      if (state.preparationError) throw new Error(state.preparationError);
       if (state.unavailable)
         return {
           status: 'refused',
@@ -339,7 +341,10 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
     const result = await h.backend.invoke(
       h.request('computer_snapshot', { ...target, tabs_only: true }),
     );
-    expect(result.data).toMatchObject({ blocker_code: 'background_browser_unavailable' });
+    expect(result.data).toMatchObject({
+      blocker_code: 'background_browser_unavailable',
+      browser_connection_required: true,
+    });
     expect(h.call.mock.calls.some(([tool]) => tool === 'browser_prepare')).toBe(false);
   });
 
@@ -781,6 +786,34 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
       ),
     ).toBe(false);
   });
+
+  it.each([
+    ['browser_requires_setup', true],
+    ['background_unavailable', true],
+    ['protected_window', false],
+    ['permission_denied', false],
+  ])(
+    'keeps preparation refusal %s actionable without misclassifying protection',
+    async (code, recovery) => {
+      const h = harness();
+      h.state.preparationError = `CUA refused: ${code}`;
+      const target = await h.target();
+      const result = await h.backend.invoke(
+        h.request('computer_open_url', {
+          ...target,
+          url: 'https://public.example/',
+          prepare_only: true,
+        }),
+      );
+      expect(
+        Boolean(
+          (result.data as Record<string, unknown> | undefined)?.browser_connection_required,
+        ),
+      ).toBe(recovery);
+      expect(result.reason).toContain(code);
+      expect(h.openUrl).not.toHaveBeenCalled();
+    },
+  );
 
   it('does not prepare or navigate an authentication destination', async () => {
     const h = harness();

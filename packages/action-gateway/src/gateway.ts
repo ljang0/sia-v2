@@ -214,6 +214,20 @@ export class DefaultActionAuthorizationPolicy implements ActionAuthorizationPoli
 
 function resourceFor(request: ValidatedActionInvocation): LeaseResource | undefined {
   const args = request.arguments;
+  if (
+    request.context.backgroundOnly &&
+    [
+      'computer_list',
+      'computer_snapshot',
+      'computer_action',
+      'computer_open_app',
+      'computer_open_url',
+    ].includes(request.name)
+  ) {
+    // Computer grants are turn-scoped. Keep the full GUI action loop exclusive once it begins,
+    // while allowing independent background file/model work before any GUI access.
+    return { kind: 'global_focus', id: 'foreground' };
+  }
   if (request.name.startsWith('browser_') && typeof args.tab_id === 'string') {
     return { kind: 'browser_tab', id: args.tab_id };
   }

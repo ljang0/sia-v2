@@ -165,6 +165,8 @@ export interface TimelineItemView {
   approvalId?: string;
   toolName?: string;
   toolCallId?: string;
+  /** Host-observed browser setup failure; opaque task-local window reference. */
+  browserRecovery?: string | undefined;
   /** Stable dispatch id used to recover a claimed schedule without creating a duplicate turn. */
   scheduleRunId?: string;
   activity?: ActivityPresentationView;

@@ -408,6 +408,7 @@ function mapTimelineItem(item: TimelineItemView): ThreadEvent {
     type: 'activity',
     kind: inferActivityKind(item.toolName),
     ...(item.toolName ? { toolName: item.toolName } : {}),
+    ...(item.browserRecovery ? { browserRecovery: item.browserRecovery } : {}),
     title: item.title ?? item.text ?? 'Working',
     detail: item.detail,
     status,

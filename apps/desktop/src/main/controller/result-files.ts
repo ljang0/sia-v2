@@ -1,6 +1,7 @@
 import { lstat, realpath } from 'node:fs/promises';
 import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { isSensitiveLocalPath } from '@sia/action-gateway';
+import { fileURLToPath } from 'node:url';
 
 export interface ResultFileIdentity {
   root: string;
@@ -94,9 +95,11 @@ export function resultPathsFromMarkdown(text: string): string[] {
   const links = /!?\[[^\]\n]*\]\((?:<([^<>\n]+)>|([^\s()]+))\)/g;
   for (const match of text.matchAll(links)) {
     const destination = match[1] ?? match[2] ?? '';
-    if (!destination.startsWith('/')) continue;
+    if (!destination.startsWith('/') && !destination.startsWith('file:')) continue;
     try {
-      const path = decodeURIComponent(destination);
+      const path = destination.startsWith('file:')
+        ? fileURLToPath(destination)
+        : decodeURIComponent(destination);
       if (isAbsolute(path) && !/[\x00-\x1f]/.test(path)) paths.add(path);
     } catch {
       // Malformed percent escapes are not local file grants.

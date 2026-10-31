@@ -8,6 +8,21 @@ The owner selected **Mac first; iPhone follows**. Research sharing stays off and
 is the initially admitted engine. The [Arena proposal](./arena-proposal.md) describes a bounded
 technical review and invited pilot, without claiming a partnership or validated model ranking.
 
+## Expanded release goal
+
+Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
+pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
+The release requires real-source research and writing, file/document preparation, and planning
+workflows with independently verified deliverables on the signed candidate. Test both background
+work while the person uses another app and two simultaneous Sia tasks. Measure responsiveness,
+task duration, cancellation and recovery; fix failures before claiming out-of-the-box usefulness.
+
+Default Mac setup must guide the person through the access needed for these workflows, including
+background Chrome access, and verify it before advertising readiness. macOS/Chrome consent still
+belongs to the person. Existing grants should be reused without repeated setup; denied, revoked
+or expired access needs an actionable recovery control rather than a raw driver error. Detailed
+scenarios and evidence requirements are in [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use).
+
 ## Evidence and remaining gates
 
 | Area | Verified evidence | Still required |
@@ -15,6 +30,7 @@ technical review and invited pilot, without claiming a partnership or validated 
 | Source | Alpha.37 full local pilot gate passed: 1,768 desktop unit, 46 Electron, 31 renderer and 72 phone-browser checks. The [artifact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41132056136), [merged-main CI](https://github.com/ljang0/sia-v2/actions/runs/41134874934) and 66 local documentation links passed. | Re-run the runtime gates if application code changes. |
 | Signed Mac package | Alpha.37 from `a5cac3f188a23196bcb538319d01064b6b47e900` passed universal signing, app/DMG notarization and stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Any runtime change requires a new signed candidate. |
 | Signed app tasks | Alpha.37 retained the QA profile and background settings without a new Keychain prompt, created and previewed the exact CSV (total 15), operated native Calculator (`29 × 17 = 493`), and cancelled a disposable task. After a full quit/relaunch, cancellation and the exact CSV preview persisted. | Physical and clean-account acceptance below. |
+| Everyday usefulness | Basic signed-app smoke tests passed; they do not demonstrate everyday usefulness. | Real-source workflows, background work alongside user input, simultaneous tasks, measured responsiveness, and default browser setup/recovery acceptance. |
 | Browser | Alpha.37 read the IANA title/heading through the default background Mac route, then followed the public link to IANA-managed Reserved Domains. Chrome independently confirmed the resulting page. Detach caused `browser_consent_required`; explicitly reconnecting the same window restored background reading. | Live unexpected expiry remains unverified. Background new-tab creation is unsupported by driver 0.37.0. |
 | New recipient | Alpha.36 with an empty app profile showed only email sign-in, with no private app content. | Clean macOS-account signup, permissions, provider login cancel/retry, lock/sleep and voice acceptance. An empty profile is not a clean OS account; no fresh account or second Mac is currently available. |
 | Cloud feedback | Ratings/account deletion deployed; a synthetic authenticated rating reached the report. October 30: 18 alarms OK with actions enabled, five Lambdas Active/Successful, anonymous catalog/report/release requests return 401. | Recheck if configuration changes before invitations. |
@@ -22,6 +38,26 @@ technical review and invited pilot, without claiming a partnership or validated 
 | Ownership | The owner confirmed ownership of the relevant Notch source rights. Provenance remains in THIRD_PARTY_NOTICES.md. Lawrence Jang is the support/incident owner. | Record the private recipient list and final release decision before invitations. |
 
 ## Current fixes
+
+Alpha.38 is in development. Real-provider review-packet and codebase-guide attempts on alpha.37
+stopped after 18 and 38 seconds because the source files were outside the task workspace. Adding
+the five source documents through Add files let the review-packet retry finish in 39 seconds and
+produce three documents. Only one received a Preview control, and the installation guide incorrectly
+used the fake-service development route as its first-hour walkthrough. This is assisted partial
+coverage, not a first-run or quality pass; no substantive concurrent task overlap was established.
+
+The later assisted codebase-guide retry completed in 45 seconds; all linked source paths exist.
+A review-packet revision corrected its setup path and citations, but still proposed an unspecified
+fictional-data exercise. Two requests in the same folder visibly queued safely. Independent
+background tasks then exposed the whole-task GUI lease even for document-only work. Alpha.38
+defers that lease until the first GUI tool call; parallel physical-window control remains unsupported.
+
+The next candidate includes Chrome in default Mac setup, adds host-triggered connection recovery
+inside Mac conversations, gives all verified output files result controls, and explains Add files
+for source documents. Full gates and new signed-app acceptance are required. Native Chrome inspection
+through the operator CUA tool timed out during real-source browser preparation; browser research
+and foreground-user concurrency remain unverified.
+
 
 Alpha.35 clears a dead Chrome attachment instead of leaving Settings at Attached. A late failure
 from an old session cannot revoke a new connection, and recovery does not automatically replay

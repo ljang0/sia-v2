@@ -645,8 +645,11 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
 
   Provider preparation finishes before acquiring GUI ownership; foreground screen context is
   captured after the lease is held, immediately before sending the turn.
-  A whole-task `global_focus` lease prevents concurrent Sia tasks from driving the GUI. Fn audio
-  capture can proceed while a task runs; new Mac tasks queue for the screen. Notch's progress-aware
+  Native and foreground-recovery tasks reserve a whole-task `global_focus` lease up front. Strict
+  background tasks acquire it only at their first computer inventory, observation, opening, or input
+  call, through ActionGateway. Independent file/document/model work can therefore run concurrently;
+  once GUI work begins, it stays exclusive through task completion. Physical-window parallel GUI
+  control is not yet supported. Fn audio capture can proceed while a task runs. Notch's progress-aware
   watchdog checks after 180 seconds without provider activity; one hour remains the task limit,
   excluding approval/input waits. Pending native commands and host tools protect quiet work; their
   own bounds and the one-hour task limit remain. An otherwise silent turn gets a bounded metadata-only

@@ -80,6 +80,7 @@ export type TaskRatingState = TurnRatingView & { turnId: string };
 
 export interface ActivityEvent {
   toolName?: string;
+  browserRecovery?: string | undefined;
   id: string;
   type: 'activity';
   kind: 'command' | 'browser' | 'computer' | 'connector' | 'plan' | 'other';
