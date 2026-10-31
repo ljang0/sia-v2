@@ -8,6 +8,13 @@ cohort. Sia would provide the signed desktop app, computer-use integration and t
 The first decision is whether to run a joint technical review and bounded pilot; this is not
 an announcement of an Arena partnership or a request for unrestricted distribution.
 
+The owner has selected vision-only computer use as Sia's default: the model observes screenshots
+and chooses pointer/keyboard actions. That migration is in progress. Current alpha.56 evidence
+uses DOM/accessibility assistance and must not be presented as visual-agent evaluation results.
+Release acceptance will repeat useful personal-assistant and concurrent tasks on the exact signed
+vision-only build before an invited pilot. Explicit file/connector tools must be recorded separately
+from visual interactions so reviewers can understand what each run actually tested.
+
 ## The experience
 
 Install Sia, sign in, choose an admitted model and ask it to complete a task. Sia works with
@@ -60,8 +67,9 @@ preserved saved changes, and the next browser task retained its access. Initial 
 recovered automatically. These useful rehearsals include recorded interventions and limitations;
 they are not a reliability estimate or final-release proof.
 
-The full local gate passed. Universal notarization, repeated final-artifact workflows, clipboard
-preservation, restart/expiry and physical acceptance remain gates. Clean-account testing is
+The full local gate, exact-source CI and universal alpha.56 notarization passed. Its universal
+real-work repeat needed operator recovery. Vision-only implementation and signed workflow repeats,
+clipboard preservation, restart/expiry and physical acceptance remain gates. Clean-account testing is
 unavailable on the current Mac. Background new tabs and Finder file drag remain unsupported.
 See [release status](./release-status.md) and [artifact evidence](./public-release.md) for exact
 versions, timings, failures and limitations. Lawrence Jang is the support/incident owner,

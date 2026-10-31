@@ -41,6 +41,13 @@ export class ComputerInput {
 
   async act(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
     const args = request.arguments;
+    if (
+      this.ctx.options.visionOnly &&
+      (args.element_ref !== undefined || ['set', 'menu'].includes(String(args.action)))
+    )
+      return refused(
+        'Vision control uses screenshot coordinates and keyboard input; semantic targets are unavailable.',
+      );
     const appId = requiredString(args.app_id, 'app_id');
     const windowId = requiredString(args.window_id, 'window_id');
     const binding = this.ctx.computer.resolveWindow(appId, windowId);
@@ -59,6 +66,11 @@ export class ComputerInput {
     ) {
       return stale('The window snapshot is missing, superseded, or belongs to another window.');
     }
+    if (
+      this.ctx.options.visionOnly &&
+      (!capability.pixels || Date.now() - capability.capturedAt > 30_000)
+    )
+      return stale('Capture a fresh screenshot before visual pointer or keyboard input.');
     let verifiedBrowserBundleId: string | undefined;
     let nativePDF = false;
     if (this.inventory.isNativeBrowser(binding)) {

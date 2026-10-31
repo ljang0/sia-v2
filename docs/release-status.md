@@ -5,8 +5,9 @@ real dinner/grocery planning, a sourced Pittsburgh outing and native TextEdit re
 work progressed during a slow browser read; Stop during Save/readback preserved completed work,
 and continuation verified it without repeating input. The next browser task retained its connection.
 Outputs and previews were independently checked. Initial browser timeouts recovered automatically;
-this does not establish zero-timeout reliability. Full local pilot checks passed. Universal
-notarization, exact-artifact repeats, exact-source CI and physical acceptance remain open.
+this does not establish zero-timeout reliability. Full local pilot checks, universal notarization
+and exact-source CI passed. The universal real-work repeat required operator recovery. The new
+vision-only default, its exact-artifact repeats and physical acceptance remain open.
 The last published Mac pilot is alpha.24; no new distribution is authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
@@ -14,6 +15,32 @@ is the initially admitted engine. The [Arena proposal](./arena-proposal.md) desc
 technical review and invited pilot, without claiming a partnership or validated model ranking.
 
 ## Expanded release goal
+
+Owner decision, October 31: **vision-only computer use is the default throughout Sia**, not an
+Arena-only option. This is a new implementation and acceptance requirement; alpha.56 still uses
+assisted DOM/accessibility control and does not satisfy it. The model must receive screenshots,
+choose image coordinates and use pointer/keyboard input. No implicit DOM/AX text, element refs,
+OCR or semantic setters may substitute for visual control. Host-side permission, protected-surface,
+window identity, stale-image, cancellation and background-focus checks stay enforced.
+
+Implementation must cover native apps, the connected background browser and on-screen turns.
+Task tools, skill wrappers and recovery paths must not expose a second assisted UI route. Ordinary
+explicit file/connector tools remain separately described capabilities; they must not be counted
+as visual task completion. Re-run the real personal-assistant scenarios, concurrent native/browser
+work, Stop/recovery and responsiveness on the exact signed vision-only candidate. Retain alpha.56
+results only as assisted-mode baseline evidence.
+
+Implementation progress: native-window visual observation and pointer/keyboard authority checks
+are staged behind a host-only `visionOnly` option. They require an image, omit semantic content
+and targets, skip text/OCR helpers, reject semantic input and revoke stale/failed image authority.
+Unmigrated browser routes refuse instead of falling back. This option is **not enabled in the
+shipping host yet**: background browser input, foreground runtime/tool isolation, model schemas
+and prompts, all-route regression checks and signed real-task acceptance must land before cutover.
+The native boundary tests are transport/authorization checks, not evidence of visual task skill.
+The staged foundation passed `pnpm check`, including 1,877 desktop tests, and 82 focused
+observation/input/recovery checks. Continue now retires obsolete Chrome setup markers from the
+previous execution while retaining its history. No new signed artifact contains these changes yet;
+the full pilot gate and live vision acceptance remain required before handoff.
 
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
@@ -32,8 +59,8 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.55 full local gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web and native/shared checks including 235 browser regressions. Alpha.56 full local gate passed with 1,864 desktop tests and the same E2E/native counts. | Alpha.56 exact-source CI and final universal artifact repeats. |
-| Signed package | Universal alpha.53 passed signing, notarization, stapling, Gatekeeper and packaged runtime checks. Internal arm64 alpha.56 passed strict Developer ID signing and packaged-runtime checks; it is not notarized. | Final universal candidate and live acceptance. |
+| Source | Alpha.55 full local gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web and native/shared checks including 235 browser regressions. Alpha.56 full local gate passed with 1,864 desktop tests and the same E2E/native counts; exact-source CI passed. | Vision-only source gate and final universal artifact repeats. |
+| Signed package | Universal alpha.56 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Signed vision-only candidate and live acceptance. |
 | Useful work | Alpha.56 saved checked five-dinner plan, consolidated groceries and $60 outing; previews loaded. Alpha.55 also completed these and a shopping checklist. | Repeat on the final universal artifact. |
 | Background/concurrency | Alpha.56 native editing progressed during slow browser observation. Stop during Save/readback showed cancellation within 1,149 ms including CUA; read-only recovery preserved saved work and browser access. Ten switches median 1,151 ms / worst 2,432 ms. | Final-artifact concurrency, contention/recovery repeats and clipboard preservation. |
 | Setup/recovery | Alpha.56 explicit Chrome setup took 2.059 seconds and resumed the saved request. Outing reused it after native cancellation; new-context links recovered within the existing tab. | Final restart/expiry and clean-account setup. No fresh account or second Mac is available. |

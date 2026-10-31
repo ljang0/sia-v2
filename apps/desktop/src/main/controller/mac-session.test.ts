@@ -508,6 +508,64 @@ describe('Use my Mac power and lock handling', () => {
     }
   });
 
+  it('retires connection recovery from the old execution when continuing the same user turn', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, threadId, keepAwake } = await macThread({ runtime });
+    try {
+      await controller.invoke('threads.send', { threadId, text: 'Plan my afternoon' });
+      await vi.waitFor(() => expect(requests).toHaveLength(1));
+      const turnId = controller
+        .snapshot()
+        .timeline.find((item) => item.kind === 'user')!.turnId!;
+      await controller.actionResultObserver()({
+        name: 'computer_snapshot',
+        context: {
+          sessionId: 'session',
+          threadId,
+          turnId,
+          provider: 'codex',
+          workspace: '/tmp/sia-workspace',
+          backgroundOnly: true,
+        },
+        result: {
+          outcome: 'refused',
+          summary: 'Connect the selected window',
+          data: { window_id: 'expired-public-window-id', browser_connection_required: true },
+        },
+      });
+      const old = controller.snapshot().timeline.find((item) => item.browserRecovery)!;
+      expect(old).toBeDefined();
+      await controller.actionResultObserver()({
+        name: 'computer_action',
+        context: {
+          sessionId: 'session',
+          threadId,
+          turnId,
+          provider: 'codex',
+          workspace: '/tmp/sia-workspace',
+          backgroundOnly: true,
+        },
+        result: {
+          outcome: 'needs_foreground',
+          summary: 'Paused',
+          data: { background_interrupted: true, blocker_code: 'background_focus_changed' },
+        },
+      });
+      await vi.waitFor(() => expect(keepAwake.release).toHaveBeenCalledWith(threadId));
+      await controller.invoke('threads.retry', { threadId });
+      await vi.waitFor(() => expect(requests).toHaveLength(2));
+      const history = controller.snapshot().timeline.find((item) => item.id === old.id)!;
+      expect(history).toBeDefined();
+      expect(history.browserRecovery).toBeUndefined();
+      expect(history.title).toBe(old.title);
+      expect(
+        controller.snapshot().timeline.filter((item) => item.kind === 'user'),
+      ).toHaveLength(1);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('lets host-enforced read-only recovery finish but pauses any further input request', async () => {
     const { runtime, requests } = holdingRuntime();
     const { controller, threadId, status } = await macThread({ runtime });

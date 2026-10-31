@@ -9,13 +9,18 @@ plans below with independently checked sources, quantities, budget and previews.
 work progressed during slow browser observation; Stop during Save/readback and read-only recovery
 preserved completed work and browser access. Initial browser timeouts recovered automatically.
 One explicit Chrome setup was required after relaunch; the outing needed no operator correction.
-Full local checks passed. Final universal repeats, clipboard preservation, restart/expiry and
-physical acceptance remain open. The linked record retains earlier failures and interventions.
+Full local checks and universal notarization passed; the universal repeat needed operator browser
+recovery. These are assisted DOM/accessibility runs. The owner now requires vision-only control
+throughout Sia, so every scenario needs a new signed visual-control repeat, including clipboard,
+restart/expiry and physical acceptance. The linked record retains failures and interventions.
 
 ## Start here
 
 1. Open the signed Mac app with the designated QA or invited account. Connect an actual admitted
    model through the normal AI setup. Record the app version, installer hash and selected model.
+   For visual acceptance, verify the model receives screenshots without DOM/AX text, semantic
+   element targets or OCR helpers. Inspect the actual tool trace, including recovery and skill calls.
+   Report explicit file/connector work separately; it cannot establish a visual interaction pass.
 2. Keep research sharing off. Choose **Use my Mac → Work in background**. Record the action
    confirmation setting; do not change it mid-run or mix results from different settings.
 3. Create an assistant with its default folder. Use **Add files** beside the composer to attach

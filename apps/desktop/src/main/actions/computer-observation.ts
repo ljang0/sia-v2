@@ -99,8 +99,13 @@ export class ComputerObservation {
     // Refresh is an authority boundary even if the new observation is refused,
     // incomplete or bound to a different URL. Only a successful read can replace it.
     this.ctx.computer.invalidateSnapshot(binding.id);
+    const visionOnly = this.ctx.options.visionOnly === true;
     const browser = this.inventory.isNativeBrowser(binding);
     const tabsOnly = request.arguments.tabs_only === true;
+    if (visionOnly && (tabsOnly || request.arguments.continue_from !== undefined))
+      return refused(
+        'Vision control requires a fresh screenshot, not semantic page or tab selection.',
+      );
     if (
       tabsOnly &&
       (!this.ctx.macBrowserAccess() ||
@@ -160,21 +165,23 @@ export class ComputerObservation {
       return result;
     };
     let includeImage =
-      browserState?.status !== 'navigation' &&
-      (request.arguments.read_text === true ||
-        request.arguments.include_image === true ||
-        (request.arguments.include_image !== false &&
-          (!this.ctx.macBackgroundControl() || browser)) ||
-        ['type', 'set'].includes(String(request.arguments.action)) ||
-        typeof request.arguments.x === 'number');
+      visionOnly ||
+      (browserState?.status !== 'navigation' &&
+        (request.arguments.read_text === true ||
+          request.arguments.include_image === true ||
+          (request.arguments.include_image !== false &&
+            (!this.ctx.macBackgroundControl() || browser)) ||
+          ['type', 'set'].includes(String(request.arguments.action)) ||
+          typeof request.arguments.x === 'number'));
     let raw: unknown;
     try {
       raw = await capture(includeImage);
-      if (/\bpx_capture_unavailable\b/.test(resultRefusal(raw)?.summary ?? ''))
+      if (!visionOnly && /\bpx_capture_unavailable\b/.test(resultRefusal(raw)?.summary ?? ''))
         raw = await capture(false);
     } catch (error) {
       if (!(error instanceof Error) || !/\bpx_capture_unavailable\b/.test(error.message))
         throw error;
+      if (visionOnly) return this.#missingVisualObservation(binding);
       // A missing image does not make an otherwise usable AX window inaccessible.
       // This retry only observes; no input is replayed and pixel actions stay unavailable.
       raw = await capture(false);
@@ -197,6 +204,8 @@ export class ComputerObservation {
           pixel_actions_available: false,
         },
       };
+    if (visionOnly && browserState?.status === 'navigation')
+      return refused('This browser surface has no permitted visual observation.');
     if (browserState?.status === 'navigation')
       return captureBrowserNavigation(
         this.ctx,
@@ -236,7 +245,12 @@ export class ComputerObservation {
         'The observed browser page does not match expected_url. No page content was returned. Wait for navigation or inspect the intended window; do not assign this page to the requested course or account item.',
       );
 
-    if (browserState && hasProtectedControls(raw) && hasPassiveAccessNotice(raw, browserState))
+    if (
+      !visionOnly &&
+      browserState &&
+      hasProtectedControls(raw) &&
+      hasPassiveAccessNotice(raw, browserState)
+    )
       return captureAccessNotice(this.ctx, this.inventory, binding, request, raw, browserState);
 
     // AX can temporarily return no controls even while a window is usable.
@@ -264,7 +278,7 @@ export class ComputerObservation {
     }
 
     const context =
-      this.ctx.macBrowserAccess() && !hasProtectedControls(raw)
+      !visionOnly && this.ctx.macBrowserAccess() && !hasProtectedControls(raw)
         ? await this.ctx.options.readWindowContext?.(binding.pid, binding.windowId)
         : undefined;
     const readableContext =
@@ -285,6 +299,7 @@ export class ComputerObservation {
       };
     const image = actionImages(raw)?.images?.[0];
     const imageText =
+      !visionOnly &&
       this.ctx.macBrowserAccess() &&
       (request.arguments.read_text === true || readableContext?.partial === true) &&
       image &&
@@ -330,6 +345,57 @@ export class ComputerObservation {
       !includeImage || privateLinks || hasProtectedControls(raw)
         ? undefined
         : screenshotDimensions(raw);
+    if (visionOnly) {
+      if (!pixels || !image) return this.#missingVisualObservation(binding);
+      const backgroundInput = windowBackgroundInput(raw, binding);
+      const pointerAvailable =
+        !backgroundInput ||
+        backgroundInput.routes.some(
+          (route) => route.route === 'window_pointer' && route.status === 'available',
+        );
+      this.ctx.computer.rememberSnapshot({
+        id: snapshotId,
+        capturedAt: Date.now(),
+        appId: binding.appId,
+        publicWindowId: binding.id,
+        pid: binding.pid,
+        windowId: binding.windowId,
+        protectedControls: false,
+        pixels,
+        elements: new Map(),
+        ...(browserUrl ? { browserUrl } : {}),
+        ...(backgroundInput ? { backgroundInput } : {}),
+      });
+      return {
+        outcome: 'verified',
+        summary: 'Captured the permitted window for visual control.',
+        images: [image],
+        data: {
+          control_mode: 'vision',
+          snapshot_id: snapshotId,
+          app_id: binding.appId,
+          window_id: binding.id,
+          screenshot_size: pixels,
+          pixel_actions_available: pointerAvailable,
+          ...(backgroundInput
+            ? {
+                background_input: {
+                  exact_window: backgroundInput.exact_window,
+                  routes: backgroundInput.routes.filter(
+                    (route) => route.route !== 'accessibility',
+                  ),
+                },
+              }
+            : {}),
+          coverage_note:
+            'Only the visible screenshot is evidence. Inspect it and scroll to see more.',
+        },
+        verification: {
+          snapshotId,
+          evidence: 'Fresh image bound to the exact permitted window.',
+        },
+      };
+    }
     const elementMap = new Map<string, NativeElementAddress>();
     const elements = findElementRecords(raw, 'window')
       .map((record, position) => {
@@ -524,6 +590,21 @@ export class ComputerObservation {
       verification: {
         snapshotId,
         evidence: 'The snapshot is bound to a short-lived host-verified window grant.',
+      },
+    };
+  }
+
+  #missingVisualObservation(binding: ComputerWindowBinding): ActionExecutionResult {
+    return {
+      ...refused(
+        'A safe current screenshot is unavailable. No visual input capability was created.',
+      ),
+      data: {
+        control_mode: 'vision',
+        app_id: binding.appId,
+        window_id: binding.id,
+        blocker_code: 'visual_observation_unavailable',
+        pixel_actions_available: false,
       },
     };
   }

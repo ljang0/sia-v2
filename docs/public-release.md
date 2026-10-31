@@ -4,10 +4,43 @@
 
 **Distribution is not ready.** Internal signed arm64 alpha.56 completed real household planning,
 a sourced outing, native TextEdit editing, and Stop/recovery during native Save/readback while
-browser work remained independent. The full local pilot gate passed. Universal notarization,
-exact-artifact repeats and physical acceptance remain open. Nothing new was published; the last
+browser work remained independent. The full local pilot gate and exact-source CI passed. Universal
+alpha.56 is notarized, but its real-work repeat needed operator recovery. The owner now requires
+vision-only control throughout Sia; alpha.56 uses assisted control and cannot validate that default.
+Vision implementation, exact-artifact repeats and physical acceptance remain open. Nothing new was published; the last
 published Mac pilot is alpha.24. The owner selected **Mac first; iPhone follows**, confirmed the
 relevant Notch source rights and named Lawrence Jang as support/incident owner.
+
+## Universal alpha.56 baseline
+
+Source `75c38b7fad786f69669a63fb572ca1a422eb6a08`; exact-source CI run `41214640627` passed.
+Signing, app/DMG notarization, stapling, Gatekeeper and packaged runtime checks passed. The QA
+copy was installed directly from the read-only mounted DMG and its signature and ASAR compared.
+
+| Artifact       | SHA-256                                                            |
+| -------------- | ------------------------------------------------------------------ |
+| Universal DMG  | `f3dc08cfe45ef29093606071fa6a0fd84381f815ff7479fe8f97af9926eee0d8` |
+| Universal ZIP  | `7ca0810c9351f006c6c27ee463529ad8427f3fc34c93981ae111da7d7cd6db30` |
+| Installed ASAR | `429bc08676aaf9e2cf1af86e091223ccbade8d92896c3fabc9ab5c22457e06bf` |
+
+Both public-browser tasks initially paused on observation timeouts. The operator recovered the
+existing public tab, resumed the outing and sent the household continuation. A café link opened
+a secondary public tab and the focus guard paused correctly; another continuation reconciled
+the page. The outing finished at 15:52:33 UTC. Household work switched to Good Food recipes and
+finished at 15:58:29. Saved plans and grocery arithmetic were read independently; independent
+recipe-source and result-preview checks remain incomplete. These are recovered runs, not
+unattended acceptance passes.
+
+A native TextEdit task saved a checked 304-word review brief while browser actions interleaved.
+Ten UI switches measured median 1,268 ms / worst 1,390 ms including CUA observation. The browser
+focus interruption prevents an uninterrupted-concurrency claim. Clipboard preservation remains
+inconclusive: browser clipboard API values did not establish an OS pasteboard baseline. Its
+temporary canary was restored; a later native paste probe was cancelled without overwriting
+the original OS clipboard. No restoration is pending.
+
+Receipts, deliverable hashes and traces remain privately in
+`alpha56-artifacts/universal-real-work/result.json`. This baseline uses DOM/accessibility
+assistance and does not count toward vision-only acceptance.
 
 ## Exact alpha.56 internal artifact
 
@@ -17,7 +50,7 @@ Installed `app.asar` SHA-256:
 Strict Developer ID signature, packaged runtime, installed signature and ASAR equality passed.
 This arm64 app is **not notarized**. The full local gate passed: 1,864 desktop, 46 Electron,
 36 renderer, 72 phone-web and native/shared checks, including 235 browser regressions and
-11 Chrome-consent tests. Exact-source CI was still running at this update.
+11 Chrome-consent tests. The subsequent universal source's CI also passed, as recorded above.
 
 Fresh assistants used default GPT-6-Astra through the ChatGPT plan and separate working folders.
 Browser scope remained the chosen public Chrome window and its existing tab. No buying, booking,
@@ -94,8 +127,8 @@ signed alpha.55 app backups are retained and checksummed.
 
 ## Remaining acceptance and rollback
 
-Finish exact-source CI, universal signing/notarization and repeated useful tasks on that exact
-artifact, including clipboard preservation, restart/expiry and responsiveness. Do not overlap
+Complete the vision-only migration, full source gate, signing/notarization and repeated useful tasks
+on that exact new artifact, including clipboard preservation, restart/expiry and responsiveness. Do not overlap
 live acceptance with automated Electron/renderer checks or packaged runtime verification.
 
 This Mac refuses Sia's display-sleep assertion with `kIOReturnNoMemory`; independent Apple

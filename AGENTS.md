@@ -21,6 +21,13 @@ lint, quality, type, unit, deterministic desktop E2E, renderer, and Chromium/Web
 
 ## Product contract
 
+- Owner decision, October 31: computer use must be vision-only by default throughout Sia,
+  including everyday use and Arena evaluation. The model observes screenshots and chooses
+  pointer/keyboard actions; do not expose DOM/AX trees, element references, extracted page text,
+  OCR helpers or semantic setters as an implicit fallback. Host-side access checks and exact-window
+  safety validation remain required. Existing assisted-mode acceptance does not validate this
+  new default. Record implementation and acceptance progress in `docs/release-status.md`.
+
 - Design for everyday consumers without technical backgrounds. Use plain language, sensible
   defaults, and short setup flows. Keep advanced configuration and developer concepts out of the
   main path; introduce optional features when people need them.

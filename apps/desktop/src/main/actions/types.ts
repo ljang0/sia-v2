@@ -51,6 +51,8 @@ export interface ScheduleActionHost {
 }
 
 export interface DesktopActionBackendOptions {
+  /** Vision route under construction; production cutover also requires browser/foreground parity. */
+  readonly visionOnly?: boolean;
   readonly workspaceFileMove?: WorkspaceFileMove;
   readonly assistantAction?: (
     request: ValidatedActionInvocation,

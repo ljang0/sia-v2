@@ -356,6 +356,13 @@ export class Turns {
       fakeDelayMs: 160,
       ...(failedAttachments?.length ? { attachments: failedAttachments } : {}),
     };
+    // Continue keeps the user turn but creates a new execution and new public window ids.
+    // Old setup buttons cannot be reconciled against those ids. Preserve the history,
+    // retire its actionable marker, and let a fresh refusal request setup if still needed.
+    for (const item of this.ctx.state.timeline) {
+      if (item.threadId === thread.id && item.turnId === failed.turnId)
+        delete item.browserRecovery;
+    }
     this.ctx.appendTimeline(thread.id, {
       id: randomUUID(),
       turnId: failed.turnId,
