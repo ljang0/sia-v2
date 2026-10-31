@@ -1,10 +1,10 @@
 # Release status
 
-Updated October 31, 2026. **Distribution is not ready.** Universal notarized alpha.51 passed the
-full local gate and two native edits, but browser transport stalled before its practical plan
-completed. Alpha.52 adds bounded read-only timeout recovery and distinguishes it from permission
-denial. Its full local pilot gate passed; signed build, CI and live acceptance are pending. The last published Mac pilot is
-alpha.24; no new invitations or public download have been authorized.
+Updated October 31, 2026. **Distribution is not ready.** Universal notarized alpha.52 passed the
+full local gate and saved a verified native brief, but browser research failed. Alpha.53 fixes a
+click-preflight defect reproduced in real Chromium; navigation stalls remain unresolved. The alpha.53 full local gate passed;
+signed-package verification and live acceptance are pending. The last published Mac pilot is alpha.24;
+no new invitations or public download have been authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
 is the initially admitted engine. The [Arena proposal](./arena-proposal.md) describes a bounded
@@ -29,11 +29,11 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.51 passed the complete local pilot gate, including 71 native browser regressions. | Alpha.52 exact-source CI; full local pilot gate passed (1,858 desktop units). |
-| Signed package | Universal alpha.51 passed signing, notarization, stapling, Gatekeeper and packaged runtime checks. | Exact alpha.52 build and live acceptance. |
-| Useful work | Alpha.51 saved faithful 426- and 375-word native briefs without a failed action. Internal alpha.49 completed repeated research, organization, visitor plans and reviewer packets. | Final-artifact repeats and complete action instrumentation. |
-| Background/concurrency | Alpha.51 native editing passed and clipboard survived, but browser navigation/read timed out. Six UI switches: median 894.5 ms including CUA. | Verify alpha.52 recovery, navigation during app switching, contention/Stop and responsiveness. |
-| Setup/recovery | Alpha.51 retained profile/history; explicit Chrome recovery returned to Sia and resumed automatically. | Final-candidate restart/expiry recovery and clean-account setup. No fresh Mac account or second Mac is available. |
+| Source | Alpha.53 full local gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web, plus native/shared checks including 228 browser regressions. | Exact-source CI. |
+| Signed package | Universal alpha.52 passed signing, notarization, stapling, Gatekeeper and packaged runtime checks. | Exact alpha.53 build and live acceptance. |
+| Useful work | Alpha.52 saved a faithful 431-word brief, with one recovered task-checkpoint error. Internal alpha.49 completed repeated research, organization, visitor plans and reviewer packets. | Final-artifact repeats and complete action instrumentation. |
+| Background/concurrency | Alpha.52 native editing completed and clipboard/draft survived; browser work failed. Ten switches: median 1,066.5 ms including CUA. | Verify alpha.53 recovery, navigation during app switching, contention/Stop and responsiveness. |
+| Setup/recovery | Alpha.52 retained profile/history; explicit Chrome recovery returned to Sia and resumed automatically. | Final-candidate restart/expiry recovery and clean-account setup. No fresh Mac account or second Mac is available. |
 | Physical use | Existing grants work on the QA Mac. | Keep-awake, lock/sleep and voice. This Mac refuses Sia and independent caffeinate display-awake assertions. |
 | Cloud | October 30: 18 alarms OK, five Lambdas Active/Successful; anonymous protected requests return 401. Synthetic authenticated rating reached the report. | Recheck changed configuration before invitations. |
 | Ownership | Source rights confirmed; Lawrence Jang owns support/incidents. | Private recipient list and final release decision before invitations. |

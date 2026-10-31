@@ -1,3 +1,27 @@
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
+index c401f20..09f2ac8 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
+@@ -64,6 +64,7 @@ const EXISTING_PROFILE_METHODS: &[&str] = &[
+     "Page.navigate",
+     "Runtime.callFunctionOn",
+     "Runtime.evaluate",
++    "Runtime.releaseObject",
+     "Target.activateTarget",
+     "Target.attachToTarget",
+     "Target.detachFromTarget",
+@@ -1199,7 +1200,10 @@ mod tests {
+         conn.call(None, "Target.getTargets", json!({}))
+             .await
+             .expect("reviewed method remains available");
+-        assert_eq!(&*seen.lock().unwrap(), &["Target.getTargets"]);
++        conn.call(None, "Runtime.releaseObject", json!({ "objectId": "preflight-node" }))
++            .await
++            .expect("preflight must release its temporary remote object");
++        assert_eq!(&*seen.lock().unwrap(), &["Target.getTargets", "Runtime.releaseObject"]);
+     }
+ 
+     #[tokio::test]
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
 index d709315..33f41ca 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
@@ -20,10 +44,10 @@ index d709315..33f41ca 100644
              Self::BrowserConsentRequired => "browser_consent_required",
              Self::BrowserConsentRevoked => "browser_consent_revoked",
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
-index df04401..74386ad 100644
+index df04401..5db475b 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
-@@ -51,6 +51,74 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
+@@ -51,6 +51,83 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
  
  // ── Shared helpers ───────────────────────────────────────────────────────────
  
@@ -33,7 +57,16 @@ index df04401..74386ad 100644
 +const BACKGROUND_LINK_NEW_CONTEXT: &str = r#"function siaNewContext() {
 +  const element = this.nodeType === 1 ? this : this.parentElement;
 +  if (!element) return null;
-+  const anchor = element.closest('a[href],area[href]');
++  // Chromium rejects Element.closest in throwOnSideEffect evaluation.
++  // These DOM reads are admitted; retain the restriction and bound the walk.
++  let anchor = element;
++  let remaining = 512;
++  while (anchor) {
++    if (--remaining === 0) return null;
++    const name = anchor.localName;
++    if ((name === 'a' || name === 'area') && anchor.getAttribute('href') !== null) break;
++    anchor = anchor.parentElement;
++  }
 +  if (!anchor) return false;
 +  const target = (anchor.getAttribute('target') ||
 +    anchor.ownerDocument.querySelector('base[target]')?.getAttribute('target') || '').toLowerCase();
@@ -98,7 +131,7 @@ index df04401..74386ad 100644
  const DOM_CLICK_READBACK: &str = r#"function() {
    const bounded = value => typeof value === 'string' ? value.slice(0, 512) : null;
    const attr = name => bounded(this.getAttribute(name));
-@@ -1338,6 +1406,19 @@ impl Tool for BrowserClickTool {
+@@ -1338,6 +1415,19 @@ impl Tool for BrowserClickTool {
          let conn = &validated.conn;
          let cdp = cdp_session.as_str();
  

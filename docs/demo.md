@@ -5,9 +5,9 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 public project documents and a real admitted model; fake-service demos are separate.
 
 **Current evidence:** internal signed alpha.49 completed repeated research, native briefs, file
-organization, practical visitor planning and full reviewer packets. Universal notarized alpha.51
-passed two native edits but failed browser work during a navigation/read transport stall.
-Alpha.52 adds bounded read-only recovery and still needs full signed acceptance.
+organization, practical visitor planning and full reviewer packets. Universal notarized alpha.52
+saved a verified native brief but failed concurrent browser work. Alpha.53 fixes a click defect
+reproduced in real Chromium; full signed acceptance and navigation recovery remain open.
 The linked evidence records exact versions, timing, recovered errors and remaining gates.
 
 ## Start here
@@ -130,6 +130,24 @@ active, and identify the exact document. Strict background mode cannot launch ar
 Independently check the saved bytes, word count, factual claims and absence of unsaved changes.
 Run alongside browser research in a separate conversation; check that successful GUI actions
 actually interleave. Merely overlapping task lifetimes does not establish concurrent control.
+
+## Everyday assistant acceptance
+
+The owner requested a couple of ordinary personal-assistant tasks. Alongside the outing plan,
+run this household-planning request in a fresh conversation. These are acceptance scenarios;
+they are not recorded passes until the signed app produces independently verified outputs.
+
+> Plan five weekday dinners for two adults using real published recipes. Assume no dietary
+> restrictions, basic kitchen equipment and at most 35 minutes of active cooking per dinner;
+> label those assumptions. Reuse ingredients to limit waste. Save dinner-plan.md and grocery-list.md
+> in this conversation's folder. Include recipe links, portions, total versus active time, a short
+> prep schedule, and one consolidated grocery list with quantities. Separate pantry assumptions
+> from items to buy. Do not invent current prices, order groceries or send anything. Read back
+> both files and check the ingredient totals against the recipes and chosen serving sizes.
+
+Inspect the original recipes and saved files independently, including serving conversions and
+ingredient totals. Run alongside another useful task, then verify cancellation and recovery.
+Use these explicit test assumptions rather than implying knowledge of the owner's household.
 
 ## Background work, concurrency and responsiveness
 

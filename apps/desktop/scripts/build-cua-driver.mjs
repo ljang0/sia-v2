@@ -189,7 +189,7 @@ if (testNative) {
   const hostTarget = process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin';
   for (const [packageName, testFilter] of [
     ['platform-macos', 'browser::consent_ui::tests'],
-    ['cua-driver-core', 'browser::v2_tests'],
+    ['cua-driver-core', 'browser::'],
   ]) {
     run(
       'cargo',

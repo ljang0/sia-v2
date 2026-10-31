@@ -2,116 +2,80 @@
 
 ## Current decision — October 31, 2026
 
-**Distribution is not ready.** Universal notarized alpha.51 passed packaging and the full local
-pilot gate. Its two native document edits passed, but browser navigation and the next observation
-timed out; the practical plan was not produced. Alpha.52 adds one bounded retry for a read-only
-origin-attestation timeout before any host authorization callback, with a distinct loading error
-if it persists. It never retries input or an authorization decision. Alpha.52 passed the full local pilot gate: 1,858 desktop units, 46 Electron, 33 renderer,
-72 phone-web and native/shared checks. Its signed build, CI and live acceptance remain pending. Nothing was published; the last published Mac pilot is alpha.24.
+**Distribution is not ready.** Universal notarized alpha.52 passed the full local gate and package
+verification, but its browser task refused a click and then stalled during navigation/observation.
+Its native document task saved a verified result. Alpha.53 fixes the proven click-preflight defect:
+Chromium rejects `Element.closest` under `throwOnSideEffect`; a bounded parent walk preserves that
+restriction and works in real Chromium regression tests. Navigation stalls remain unresolved.
+Alpha.53 passed its full local gate: 1,858 desktop units, 46 Electron, 36 renderer and 72 phone-web checks, plus native/shared checks. It needs its signed build and live acceptance. Nothing was published; the last
+published Mac pilot remains alpha.24.
 
 The owner selected **Mac first; iPhone follows**, confirmed the relevant Notch source rights,
 and named Lawrence Jang as support/incident owner.
 
-## Exact alpha.51 universal artifact
+## Exact alpha.52 universal artifact
 
-Built from `34904a29785ab010a764c5a7568676317d359efe`. Universal app/DMG signing, notarization,
-stapling, Gatekeeper and packaged runtime checks passed. The full local gate passed: 1,851 desktop
-units, 46 Electron, 33 renderer, 72 phone-web, 71 native browser regressions and the other
-native/shared checks. [CI](https://github.com/ljang0/sia-v2/actions/runs/41198459584) was still running at this update.
-
-| Artifact                           | SHA-256                                                            |
-| ---------------------------------- | ------------------------------------------------------------------ |
-| `Sia-0.1.0-alpha.51-universal.dmg` | `6560aa1fa4bdc0f89cac24db1408415a340bc83bca5a80ff78bb758ce29d62f2` |
-| `Sia-0.1.0-alpha.51-universal.zip` | `aa4c4e1c4dbb4f65d10f047ded4245f61db5d683b4d8a48814b5ad8013731770` |
-| Installed QA `app.asar`            | `70e8abdcd043a30b24f10f8f4c6a3b79327d7a85f345daabfb9c0a10ddc8a523` |
-| Final native brief                 | `36c5af8300d63fecb356e5ae82a29cf55e0f3baef2df26cfd8a35d488aebaf28` |
-
-Fresh agents used the default ChatGPT plan. TextEdit produced a faithful 426-word brief, then a
-375-word revision with the first decision up front. Both saved and verified through native
-background controls, with no failed action; UI activity totals were 64 and 92 seconds. Saved bytes
-were independently checked. The second edit ran while browser research was active.
-
-The browser agent first needed the approved page identified by title because its inventory lacked
-the operator's window number. Explicit Chrome recovery then resumed the request automatically.
-Navigation to the museum timed out and the following read returned `authorization_host_failed`.
-Content-free diagnostics show a CDP timeout before the host callback, not a permission denial.
-Independent CUA also timed out reading that same public tab, then later read its settled Events
-page. No navigation was replayed, and no visitor plan was produced. The underlying transient
-stall is not proven fixed. The new-context-link guard was not reached in this run.
-
-Six switches during simultaneous tasks measured median 894.5 ms, worst 962 ms including CUA
-observation; click acknowledgements were 79–106 ms. These are not isolated rendering latencies.
-The clipboard canary survived and the original clipboard was restored privately. This is a
-native-edit pass and a browser/concurrency acceptance failure, not a successful paired workflow.
-Private evidence is under `alpha51-artifacts/real-work`.
-
-## Exact alpha.50 universal artifact
-
-Built from `3aeb38dff18f9b57ecb1ded4552354db58bf4353`. Universal signing, app/DMG notarization,
-stapling, strict signatures, Gatekeeper and packaged runtime checks passed. The complete local
-pilot gate passed: 1,849 desktop units, 46 Electron, 33 renderer and 72 phone-web checks, plus
-native/shared-package checks. [Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41196040578)
-passed.
+Built from `a9a49a41976f4b2c0d4d4bef420ead2c73592555`. The later `886f993` commit changes only the
+handoff document. Universal app/DMG signing, notarization, stapling, Gatekeeper and packaged runtime
+checks passed. The complete local gate passed: 1,858 desktop units, 46 Electron, 33 renderer,
+72 phone-web, 71 native browser regressions and other native/shared checks.
+[Source CI](https://github.com/ljang0/sia-v2/actions/runs/41200510552) was still running at this update.
 
 | Artifact                           | SHA-256                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |
-| `Sia-0.1.0-alpha.50-universal.dmg` | `d696ed0c84aa984971454a8d073b3783cae3d1889b9f30c5ca7023024c92ebfe` |
-| `Sia-0.1.0-alpha.50-universal.zip` | `188dd4b5aa129ddccb691319ccfd659fb1e31207c39758592055b9a879d6d28d` |
-| Installed QA `app.asar`            | `8b55b52db2183d2bd110fd78ee3e84926010064b3f4a5b09b872b5c74bee8984` |
-| Saved native brief                 | `9c4969ac80626e4284cfd20aaf12a19b1adc47195d4cd7fe80b8cb0ab1f9ee16` |
+| `Sia-0.1.0-alpha.52-universal.dmg` | `e647c06133a3359c7797a8b9ef34a93314a32415fb6787f41d419de341f1121d` |
+| `Sia-0.1.0-alpha.52-universal.zip` | `3ecd199758cd722e1b41c565bc292b7ec837434898406e74419985354f9737dc` |
+| Installed QA `app.asar`            | `47a7a7ba556c7bc1a7384d7ea2768daaf83d0929143c90e7e5f1743890e4a640` |
+| Saved native brief                 | `fb43f5ce088e7ad819c4ff01da76b13a10af5e87f86ae1626ea01b35c2ffaaf7` |
 
-The app retained its QA profile and history without a new Keychain prompt. Chrome recovery settled
-in 1.916 seconds, returned to Sia and resumed automatically. Native TextEdit editing produced a
-faithful 419-word technical-review brief in activity groups of 18 and 56 seconds, with no failed
-action. It saved through Command-S and inspected the result, including prose about sign-in. The
-saved bytes and visible document were independently checked; this verifies the alpha.49 false-positive fix.
+Two fresh assistants used the default ChatGPT plan and separate private folders. The browser
+started on the official museum homepage. Explicit Chrome setup took 1.794 seconds and resumed the
+request automatically. It read public information, refused a click with `browser_action_unavailable`,
+then attempted an observed-URL navigation. Navigation timed out; one bounded read retry also timed
+out. The new loading error correctly distinguished this from permission denial. No plan was
+produced. The original public tab still showed the homepage afterward; no navigation was replayed.
 
-The browser task read official visitor information, then clicked “Fossil Fuels.” Its public anchor
-has `target="_blank"`; a new dining tab appeared just before the focus guard paused input. No
-operator app switch preceded that click. The new-tab behavior is the likely trigger, supported by
-the DOM attributes, tab timestamps and action trace. The plan did not complete. The extra public
-test tab was inspected and closed only after the pause; the failed task was not continued.
+The concurrent TextEdit task saved a faithful 431-word review brief in activity groups totaling
+118 seconds. Saved bytes and the visible document were independently checked. Native actions
+succeeded; one task-checkpoint step failed and recovered. The queued native read was delayed while
+the browser read timed out. This is not an error-free task or a successful paired workflow.
 
-Six conversation switches while both tasks were active took median 1,088.5 ms / worst 1,294 ms,
-including CUA observation; click acknowledgements were 39–88 ms. Native editing was composing its
-final reply during these samples. An unsent operator draft survived. This run did not include a
-clipboard canary, and it does not pass background browser or full concurrent-work acceptance.
-Private receipts, action traces, saved output and a native screenshot are under `alpha50-artifacts`.
+Ten conversation switches measured median 1,066.5 ms / worst 1,323 ms including CUA observation;
+click acknowledgements were 26–106 ms. These are not isolated rendering latencies. An unsent draft
+survived. The clipboard canary survived and the original clipboard was restored privately.
+Private receipts, outputs and traces are under `alpha52-artifacts/real-work`.
 
-## Internal alpha.49 useful-work rehearsals
+A subsequent isolated Chromium test reproduced the click defect with the exact shipped preflight:
+ordinary links, nested links and buttons all raised `Possible side-effect in debug-evaluate`.
+Replacing `closest` with a bounded parent walk passed the same tests, including inherited base
+targets and rejection of a side-effectful getter. Temporary remote-object cleanup is now admitted
+by the existing-profile method policy. All 228 native browser tests passed (one opt-in live test
+skipped), plus 11 native consent tests. These alpha.53 checks do not establish live Mac readiness
+or resolve the separate navigation stall.
 
-These used the earlier Developer ID signed **arm64, non-notarized** QA build from `8576717`,
-with installed asar `ba63bdab4a39e4319a2993674c5270e9d22a0ceec4ade3da280c6a11eeb5c66f`.
-Do not transfer these passes to the universal artifact.
+## Earlier evidence
 
-- Two sourced control comparisons (688/664 words, 181/172 seconds) and native proposal briefs
-  (338/342 words) were saved and independently checked. One native run refused its final scroll
-  after saving; the repeat verified its save. No corrective task messages were needed.
-- Two six-document filing runs preserved every hash and emptied the input folder in 27/31 seconds.
-- Two practical CMU visitor plans used official museum, dining and transit sources. The 1,513/1,286-word
-  reports completed in 252/104 seconds, with one recovered problem step each. The repeat used a
-  fresh conversation but could read the first report; it was not an independent fresh-workspace trial.
-- Two full reviewer packets each produced a brief, first-hour checklist and open-decision list with
-  valid portable links. The first incorrectly described Full Disk Access as optional. README and
-  architecture were clarified; the fresh repeat correctly described required setup. Both runs
-  recovered tool errors. The second took 160 seconds across two activity groups, including five
-  problem steps. They were not error-free runs.
-- A waiting task cancelled visibly within a 672 ms CUA round trip while the browser owner completed.
-  Ten switches during filing measured median 826 ms / worst 1,301 ms including observation.
+The [pinned previous record](https://github.com/ljang0/sia-v2/blob/886f993/docs/public-release.md)
+retains exact alpha.50/51 hashes, verified native edits, failed browser runs and their timings.
+An operator-assisted alpha.51 continuation read the page successfully, but its next click coincided
+with an automated Electron test launching another app. That continuation is contaminated evidence,
+not proof of spontaneous focus stealing. Never overlap live GUI acceptance with automated UI tests
+or package runtime verification.
 
-Later technical-research trajectories were filtered, limiting complete interleaved-GUI and
-post-cancellation instrumentation. The older browser transport stall did not recur; its cause
-remains unproven. Private results are in `alpha49-artifacts/real-work`.
+The same history preserves internal alpha.49 sourced comparisons, document filing, visitor plans,
+reviewer packets, cancellation and recovered errors. Those used an earlier signed arm64 build;
+do not transfer their passes to the final universal candidate. Historical fictional-data demos
+are smoke/decision checks, not proof of live personal-account coverage.
 
 ## Remaining acceptance and rollback
 
-Alpha.52 needs its signed build, exact-source CI and useful-work repeats. The native patch refuses
+Alpha.53 needs its signed build, exact-source CI and useful-work repeats. The native patch refuses
 known new-context links before input; the agent can read observed destinations and navigate the
 existing tab. It neither rewrites the webpage nor silently changes a click into navigation.
 Unknown preflight results refuse. JavaScript can still cause unexpected effects, so the existing
 post-input focus guard remains necessary. See the [native patch rationale](../apps/desktop/native/cua/README.md).
 
-The native fix passed two fresh-agent alpha.51 edits. Alpha.50's exact-tab navigation change also
+Native editing passed on alpha.51 and produced a verified alpha.52 result with one recovered checkpoint error. Alpha.50's exact-tab navigation change also
 needs an observed navigation during operator app switching; its failed browser run reached a click
 instead. Do not infer that live pass from the unit tests. Contention/Stop, restart recovery and
 responsiveness remain final-candidate gates.
@@ -141,7 +105,7 @@ The owner selected iPhone as a follow-on release, so those checks do not gate th
 
 ## Publication
 
-The alpha.51 artifact folder is prepared locally with the installer, checksums, signed-package verification and private
+The alpha.52 artifact folder is prepared locally with the installer, checksums, signed-package verification and private
 real-work evidence. It is an acceptance candidate, not a published release. Keep private
 recipient lists and download links outside Git. After the remaining [release gates](./release-status.md)
 pass and the owner authorizes distribution, follow [release operations](./release.md) and verify the

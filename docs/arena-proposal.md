@@ -55,9 +55,9 @@ with Arena's existing rankings would be agreed together.
 
 Signed internal rehearsals completed useful sourced comparisons, native proposal editing, practical
 visitor planning and reviewer packets made from real project documents. Outputs were checked
-independently, and failures were retained. Universal notarized alpha.51 saved and verified two
-native briefs, but its background browser task stalled during navigation and observation.
-Alpha.52 adds bounded read-only timeout recovery and still needs full acceptance. A signed
+independently, and failures were retained. Universal notarized alpha.52 saved a verified native
+brief, but its concurrent browser task refused a click and stalled. Alpha.53 fixes a click defect
+reproduced in real Chromium; navigation recovery and full acceptance remain open. A signed
 installer is not proof of readiness.
 
 Repeated final-artifact workflows, concurrent use, responsiveness, restart and physical acceptance

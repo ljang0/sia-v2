@@ -36,7 +36,11 @@ still cause unanticipated effects, so the post-input focus guard remains necessa
 The preflight reads only a boolean about the current node and its document's base target. It
 returns no URLs or page content. Exact frame/ref checks run first, and explicit foreground input
 retains its existing behavior. Native regression tests cover refusal before dispatch, unknown
-reads, ordinary background input, foreground choice and existing browser routing.
+reads, ordinary background input, foreground choice and existing browser routing. A real Chromium
+regression also executes the exact patched function with `throwOnSideEffect`: `Element.closest`
+was rejected by that evaluator even for ordinary links, so the preflight uses a bounded parent
+walk instead. The side-effect restriction remains enabled. Temporary remote objects are released
+through the reviewed CDP method policy. These engine checks are not signed-app acceptance.
 
 ## Build and inspect
 
