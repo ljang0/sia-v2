@@ -654,6 +654,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   are refused rather than allowing circular waits. Foreground takeover waits for background GUI
   owners and takes priority over newly arriving ones. The native driver still orders individual
   calls and enforces focus guards. Independent file/model work needs no desktop permit.
+  Resource waits appear in the conversation with their reason and Stop guidance; the notice
+  completes when access is acquired or the waiting task is cancelled.
   These alpha.39 changes require signed-app acceptance; alpha.38 only verified document concurrency.
   Fn audio capture can proceed while a task runs. Notch's progress-aware
   watchdog checks after 180 seconds without provider activity; one hour remains the task limit,

@@ -110,6 +110,12 @@ it('retains separate turn grants and rejects another turn’s opaque references'
       ).toBeTruthy();
     }
     a.release();
+    const resumed = await h.start('a');
+    try {
+      expect((await h.snapshot(resumed, first[0]!)).outcome).toBe('stale');
+    } finally {
+      resumed.release();
+    }
     expect((await h.snapshot(b, second[1]!)).outcome).toBe('verified');
   } finally {
     a.release();

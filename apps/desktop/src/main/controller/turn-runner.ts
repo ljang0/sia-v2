@@ -129,6 +129,7 @@ export class TurnRunner {
         threadId: turn.threadId,
         signal,
       });
+      this.showResourceWaits(lease, turn, signal);
       await lease.acquire({ kind: 'workspace_writer', id: leasedThread.workspace }, signal);
       if (this.ctx.deps.fakeServices) {
         await abortableDelay(turn.fakeDelayMs ?? this.ctx.deps.fakeTurnDelayMs, signal);
@@ -758,6 +759,43 @@ export class TurnRunner {
         (need === 'approval'
           ? 'Open Sia to allow or deny the next step.'
           : 'Open Sia to answer.'),
+    });
+  }
+
+  private showResourceWaits(lease: TurnLease, turn: QueuedTurn, signal: AbortSignal): void {
+    let waitingId: string | undefined;
+    lease.onWaitChange((resources) => {
+      const gui = resources.filter((resource) => resource.kind !== 'workspace_writer');
+      const item = this.ctx.state.timeline.find((entry) => entry.id === waitingId);
+      if (gui.length && !signal.aborted) {
+        const window = gui.some((resource) =>
+          ['app_window', 'browser_tab'].includes(resource.kind),
+        );
+        const title = window ? 'Waiting for the window' : 'Waiting for screen access';
+        const detail = window
+          ? 'Another Sia task is using this window. This task will continue when it is free. You can stop it at any time.'
+          : 'Another task is using your screen. This task will continue when screen access is free. You can stop it at any time.';
+        if (item) Object.assign(item, { title, detail, status: 'running' });
+        else {
+          waitingId = randomUUID();
+          this.ctx.appendTimeline(turn.threadId, {
+            id: waitingId,
+            turnId: turn.id,
+            kind: 'activity',
+            toolName: 'runtime.resource_wait',
+            title,
+            detail,
+            status: 'running',
+            timestamp: new Date().toISOString(),
+          });
+        }
+      } else if (item) {
+        item.title = signal.aborted ? 'Stopped waiting' : 'Finished waiting';
+        item.status = 'complete';
+        delete item.detail;
+        waitingId = undefined;
+      } else return;
+      this.ctx.commit();
     });
   }
 

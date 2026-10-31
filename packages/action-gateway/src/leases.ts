@@ -66,6 +66,8 @@ export class TurnLease {
   readonly #coordinator: LocalLeaseCoordinator;
   #released = false;
   readonly #cleanup = new Set<() => void>();
+  readonly #waiting = new Map<symbol, LeaseResource>();
+  readonly #waitObservers = new Set<(resources: readonly LeaseResource[]) => void>();
 
   constructor(coordinator: LocalLeaseCoordinator, turnId: string, threadId: string) {
     this.#coordinator = coordinator;
@@ -75,7 +77,22 @@ export class TurnLease {
 
   acquire(resource: LeaseResource, signal?: AbortSignal): Promise<ResourceLease> {
     if (this.#released) return Promise.reject(new Error('Turn lease is released'));
-    return this.#coordinator.acquireResource(this.turnId, resource, signal);
+    const pending = this.#coordinator.acquireResource(this.turnId, resource, signal);
+    const queued = this.#coordinator
+      .snapshotQueue()
+      .some(
+        (entry) =>
+          entry.turnId === this.turnId &&
+          entry.resource &&
+          resourceKey(entry.resource) === resourceKey(resource),
+      );
+    if (!queued) return pending;
+    const wait = Symbol();
+    this.#waiting.set(wait, resource);
+    this.#notifyWaits();
+    return pending.finally(() => {
+      if (this.#waiting.delete(wait)) this.#notifyWaits();
+    });
   }
 
   holds(resource: LeaseResource): boolean {
@@ -91,10 +108,23 @@ export class TurnLease {
     else this.#cleanup.add(cleanup);
   }
 
+  onWaitChange(observer: (resources: readonly LeaseResource[]) => void): void {
+    if (this.#released) return;
+    this.#waitObservers.add(observer);
+    if (this.#waiting.size) observer([...this.#waiting.values()]);
+  }
+
+  #notifyWaits(): void {
+    for (const observer of this.#waitObservers) observer([...this.#waiting.values()]);
+  }
+
   release(): void {
     if (this.#released) return;
     this.#released = true;
     this.#coordinator.releaseTurn(this.turnId);
+    this.#waiting.clear();
+    this.#notifyWaits();
+    this.#waitObservers.clear();
     for (const cleanup of this.#cleanup) cleanup();
     this.#cleanup.clear();
   }

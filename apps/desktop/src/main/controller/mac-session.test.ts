@@ -163,6 +163,96 @@ describe('Use my Mac power and lock handling', () => {
     }
   });
 
+  it.each(['finish', 'cancel'] as const)(
+    'explains a shared-window wait and clears it on %s',
+    async (outcome) => {
+      const firstEntered = Promise.withResolvers<void>();
+      const finishFirst = Promise.withResolvers<void>();
+      let runs = 0;
+      const runtime = {
+        async *runTurn(input: RuntimeTurnInput, signal: AbortSignal) {
+          const first = ++runs === 1;
+          input.onPhase?.('working');
+          await input.lease!.acquire({ kind: 'app_window', id: '42:91' }, signal);
+          if (first) {
+            firstEntered.resolve();
+            await finishFirst.promise;
+          }
+          yield {
+            id: randomUUID(),
+            threadId: input.thread.id,
+            turnId: input.turnId,
+            provider: 'codex' as const,
+            sequence: 1,
+            timestamp: new Date().toISOString(),
+            type: 'completion' as const,
+            payload: { status: 'completed' as const },
+          };
+        },
+        cancel: vi.fn(async () => undefined),
+        dispose: vi.fn(async () => undefined),
+      };
+      const workspaceRoot = await mkdtemp(join(tmpdir(), 'sia-window-wait-'));
+      const { controller, threadId } = await macThread({
+        runtime,
+        defaultWorkspaceRoot: workspaceRoot,
+      });
+      try {
+        const other = await controller.invoke('agents.save', {
+          name: 'Other',
+          instructions: '',
+          provider: 'codex',
+          model: 'gpt-5.6-sol',
+        });
+        const second = await controller.invoke('threads.create', { agentId: other.agentId });
+        await controller.invoke('threads.send', {
+          threadId,
+          text: 'Work in the review window',
+        });
+        await firstEntered.promise;
+        await controller.invoke('threads.send', {
+          threadId: second.threadId,
+          text: 'Use the same review window',
+        });
+        const wait = () =>
+          controller
+            .snapshot()
+            .timeline.find(
+              (item) =>
+                item.threadId === second.threadId && item.toolName === 'runtime.resource_wait',
+            );
+        await vi.waitFor(() =>
+          expect(wait()).toMatchObject({ title: 'Waiting for the window', status: 'running' }),
+        );
+        expect(wait()?.detail).toContain('You can stop it at any time');
+        if (outcome === 'cancel') {
+          await controller.invoke('threads.cancel', { threadId: second.threadId });
+          await vi.waitFor(() =>
+            expect(wait()).toMatchObject({ title: 'Stopped waiting', status: 'complete' }),
+          );
+          expect(
+            controller.snapshot().threads.find((thread) => thread.id === threadId)?.status,
+          ).toBe('running');
+        } else {
+          finishFirst.resolve();
+          await vi.waitFor(() =>
+            expect(wait()).toMatchObject({ title: 'Finished waiting', status: 'complete' }),
+          );
+          await vi.waitFor(() =>
+            expect(
+              controller.snapshot().threads.find((thread) => thread.id === second.threadId)
+                ?.status,
+            ).toBe('idle'),
+          );
+        }
+      } finally {
+        finishFirst.resolve();
+        await controller.shutdown();
+        await rm(workspaceRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
   it('keeps the Mac awake for a Mac task and releases it when the task stops or fails', async () => {
     const { runtime } = holdingRuntime();
     const { controller, keepAwake, threadId, status } = await macThread({ runtime });

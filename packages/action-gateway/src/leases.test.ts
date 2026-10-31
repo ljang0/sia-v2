@@ -71,3 +71,22 @@ it('disposes turn-owned capabilities exactly once, including already-ended turns
   turn.onRelease(late);
   expect(late).toHaveBeenCalledOnce();
 });
+
+it('reports real resource waits and clears them when a queued task is cancelled', async () => {
+  const coordinator = new LocalLeaseCoordinator();
+  const a = await coordinator.startTurn({ turnId: 'a', threadId: 'a' });
+  const b = await coordinator.startTurn({ turnId: 'b', threadId: 'b' });
+  const resource = { kind: 'app_window' as const, id: '42:1' };
+  await a.acquire(resource);
+  const waits = vi.fn();
+  b.onWaitChange(waits);
+  const pending = b.acquire(resource);
+  const rejected = expect(pending).rejects.toThrow('Turn ended');
+  expect(waits).toHaveBeenLastCalledWith([resource]);
+  b.release();
+  await rejected;
+  expect(waits).toHaveBeenLastCalledWith([]);
+  expect(waits).toHaveBeenCalledTimes(2);
+  expect(a.holds(resource)).toBe(true);
+  a.release();
+});

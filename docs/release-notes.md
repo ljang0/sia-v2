@@ -12,6 +12,7 @@ Alpha.39 isolates each task's computer access and lets independent background wi
 without waiting for another task's entire GUI loop. Work on the same window stays ordered; stopping
 one task releases its own access. On my screen remains exclusive. This change is awaiting full
 signed-app acceptance; see [release status](./release-status.md) for verified scope.
+When another task owns the window or screen, the conversation explains the wait and keeps Stop available.
 
 ## What's new since alpha.24
 
