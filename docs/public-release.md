@@ -21,7 +21,7 @@ The exact source passed `pnpm test:pilot`: 1,950 desktop tests, 249 native brows
 46 Electron E2E, 40 renderer and 72 Chromium/WebKit phone tests, plus build, format, lint,
 quality, types and other native/shared checks. The gate now includes 12 exact-target ownership
 and 13 key-focus regressions. Skips are retained in the log. [Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41242349687)
-was still running at the last check.
+also passed.
 Automated checks do not establish real task skill.
 
 ## Native document and Save recovery
@@ -47,12 +47,43 @@ workspace, close it, reopen it and visually verify its filename and complete con
 The preserved brief has 444 words and accurately keeps distribution on hold. The requested
 workspace file remains absent; Save/close/reopen acceptance failed. The source ownership change
 passed a regression that failed under the old comparison, but live sheet focus remains unresolved.
-The new-window guidance also fails to explain the parent-document route. Do not remove focus or
-ownership checks to make this case pass.
+Source guidance now explains fresh parent-document observation when a separate panel has no route.
+This does not establish working input. Do not remove focus or ownership checks to make this case pass.
 
 Private `alpha60-artifacts` holds exact package/install receipts, gate logs, the source prompt,
 original trace reference, `native-result.json`, screenshots and `operator-preserved-native-brief.txt`.
 The observer read existing alpha.59 notes unchanged; this does not establish a concurrent-task pass.
+
+Internal signed arm64 diagnostics narrowed the failure without establishing acceptance. Alpha.61
+confirmed that sheet-to-document focus ownership matched: filename entry worked, but Cmd-Shift-G
+reached the app-menu guard, which rejected the raw sheet ID. Alpha.62 bypassed that menu route for
+proven sheets; alpha.63 also tried the existing alternate PID keyboard transport. Both returned
+accepted, unverified input with unchanged screenshots. Those transport experiments were removed;
+their source diffs, signatures and failure receipts remain in private evidence. No requested file
+was saved. Supervisor CUA coordinate input also failed on the panel's out-of-process element,
+while accessibility activation expanded the disclosure control; the supervisor collapsed it again.
+That comparison is diagnostic evidence only. It is not a model-visible accessibility fallback or
+a successful Sia task.
+
+Alpha.64's read-only point diagnostic found no application hit-test element but exactly one
+pressable sheet descendant at the requested coordinate, with matching document ownership.
+The separate native point-resolution module in internal signed arm64 alpha.65 corrected that
+case: Sia's coordinate click expanded the panel. Its next click did not collapse it. The expanded
+image scales the document within the same output dimensions; capture-coordinate mapping is the
+next investigation, not a confirmed fix. Host action/readback took 1,367 ms and 2,033 ms respectively;
+these are two diagnostic samples, not an end-to-end performance result.
+
+Alpha.65 installed ASAR: `5f9af9ba3bb602fd472f198b33257e13e7d00fbd80ff5413f555ad8088996338`.
+Its base is `f3f9f71e986671eb3f48caa0ef834b35bbd77603`; the captured source diff hashes to
+`aa1f93c86da8fce4adbd984d616b6c3c00df65c5c16d2bb4a131d60b491a15bc`.
+Private `alpha64-sheet-point` and `alpha65-sheet-point-fix` retain package/install receipts,
+the diagnostic source, prompts, traces, screenshots and results. These packages are internal QA,
+not notarized distribution artifacts. The brief remains unsaved in the requested workspace.
+
+Alpha.65 source passed the full local `pnpm test:pilot` gate: build/static/shared checks,
+1,950 desktop tests, 249 native browser tests, 46 Electron tests, 40 renderer tests and
+72 phone-browser tests. The six new sheet-point cases and the existing ownership/focus/menu
+checks also passed. Documented skips remain in the retained `pilot-gate.log`.
 
 ## Browser evidence retained from alpha.59
 

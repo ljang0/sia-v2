@@ -2244,6 +2244,55 @@ index 09007a5..fb06ee7 100644
              Some(_) => ToolOperation::Other,
          },
          "browser_prepare" => {
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
+index ca39f14..eff464c 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
+@@ -640,20 +640,32 @@ pub fn focused_element_window_id_of_pid(pid: i32) -> Option<u32> {
+ ///
+ /// `element` must be valid, and the caller must release every returned element.
+ pub unsafe fn copy_children(element: AXUIElementRef) -> Vec<AXUIElementRef> {
++    copy_children_checked(element).unwrap_or_default()
++}
++
++/// Distinguish a leaf from an unreadable subtree for complete bounded scans.
++/// Returned elements are retained and must each be released by the caller.
++///
++/// # Safety
++/// `element` must be valid for this call.
++pub(crate) unsafe fn copy_children_checked(element: AXUIElementRef) -> Option<Vec<AXUIElementRef>> {
+     let attr = CFStr::new("AXChildren");
+     let mut value: CFTypeRef = std::ptr::null();
+     let err = AXUIElementCopyAttributeValue(element, attr.as_concrete_TypeRef(), &mut value);
++    if matches!(err, kAXErrorAttributeUnsupported | kAXErrorNoValue) {
++        return Some(vec![]);
++    }
+     if err != kAXErrorSuccess || value.is_null() {
+-        return vec![];
++        return None;
+     }
+     let cf_array_type_id = CFArray::<CFTypeRef>::type_id();
+     if core_foundation::base::CFGetTypeID(value) != cf_array_type_id {
+         CFRelease(value);
+-        return vec![];
++        return None;
+     }
+     let arr = CFArray::<CFTypeRef>::wrap_under_create_rule(value as _);
+     let ax_type_id = AXUIElementGetTypeID();
+-    (0..arr.len())
++    Some((0..arr.len())
+         .filter_map(|i| {
+             let item = *arr.get(i)?;
+             if core_foundation::base::CFGetTypeID(item) == ax_type_id {
+@@ -664,7 +676,7 @@ pub unsafe fn copy_children(element: AXUIElementRef) -> Vec<AXUIElementRef> {
+                 None
+             }
+         })
+-        .collect()
++        .collect())
+ }
+ 
+ /// Copy an AX element-valued attribute. The returned element is retained and
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
 index 7ccdae7..fe5ff44 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
@@ -2266,6 +2315,225 @@ index 7ccdae7..fe5ff44 100644
                  CFRelease(window as CFTypeRef);
                  window_id
              });
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/mod.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/mod.rs
+index 6ad8c6e..6fea2c3 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/ax/mod.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/mod.rs
+@@ -21,6 +21,7 @@ pub mod enablement;
+ pub mod exact_target;
+ pub mod launch;
+ pub mod reveal_scroll;
++pub(crate) mod sheet_point;
+ pub mod snapshot;
+ pub mod tree;
+ pub mod window_scope;
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/sheet_point.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/sheet_point.rs
+new file mode 100644
+index 0000000..6a9a12e
+--- /dev/null
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/sheet_point.rs
+@@ -0,0 +1,201 @@
++//! Coordinate delivery for an attached native sheet missed by the app hit-test.
++//!
++//! Open/Save panels can live in a remote view service. AX point lookup on the
++//! application then returns nothing, although its focused sheet exposes the
++//! control. Resolve only the caller's point, in that freshly owned sheet; never
++//! search by label, expose a semantic target, or select another process/window.
++
++use core_foundation::base::{CFEqual, CFRelease, CFRetain, CFTypeRef};
++
++use super::bindings::{
++    copy_action_names, copy_bool_attr, copy_children_checked, copy_element_attr, copy_string_attr,
++    element_screen_rect, AXUIElementCreateApplication, AXUIElementRef,
++};
++use super::exact_target::{element_window_id, owning_window_id};
++use super::snapshot::RetainedElement;
++
++const MAX_NODES: usize = 256;
++const MAX_DEPTH: usize = 16;
++
++fn contains(rect: [f64; 4], x: f64, y: f64) -> bool {
++    let [left, top, width, height] = rect;
++    rect.iter().all(|n| n.is_finite())
++        && x.is_finite()
++        && y.is_finite()
++        && width > 0.0
++        && height > 0.0
++        && x >= left
++        && y >= top
++        && x < left + width
++        && y < top + height
++}
++
++/// Return one candidate only after the complete bounded scan. Ambiguity or
++/// truncation must not turn the first match into an authorized target.
++fn unique_bounded<T>(root: T, mut inspect: impl FnMut(&T) -> Option<(bool, Vec<T>)>) -> Option<T> {
++    let mut stack = vec![(root, 0)];
++    let mut selected = None;
++    let mut visited = 0;
++    while let Some((element, depth)) = stack.pop() {
++        visited += 1;
++        let (candidate, children) = inspect(&element)?;
++        if (depth == MAX_DEPTH && !children.is_empty())
++            || visited + stack.len() + children.len() > MAX_NODES
++        {
++            return None;
++        }
++        if candidate {
++            if selected.is_some() {
++                return None;
++            }
++            selected = Some(element);
++        }
++        stack.extend(children.into_iter().map(|child| (child, depth + 1)));
++    }
++    selected
++}
++
++unsafe fn adopt(element: AXUIElementRef) -> RetainedElement {
++    let retained = RetainedElement::retain(element as usize);
++    CFRelease(element as CFTypeRef);
++    retained
++}
++
++unsafe fn focused_sheet(pid: i32, window_id: u32) -> Option<RetainedElement> {
++    let app = AXUIElementCreateApplication(pid);
++    if app.is_null() {
++        return None;
++    }
++    let focused = copy_element_attr(app, "AXFocusedWindow");
++    CFRelease(app as CFTypeRef);
++    let sheet = adopt(focused?);
++    let ptr = sheet.as_ptr() as AXUIElementRef;
++    (copy_string_attr(ptr, "AXRole").as_deref() == Some("AXSheet")
++        && owning_window_id(ptr) == Some(window_id))
++    .then_some(sheet)
++}
++
++unsafe fn pressable_at(element: AXUIElementRef, window_id: u32, x: f64, y: f64) -> bool {
++    element_screen_rect(element).is_some_and(|rect| contains(rect, x, y))
++        && element_window_id(element) == Some(window_id)
++        && copy_bool_attr(element, "AXEnabled") == Some(true)
++        && copy_bool_attr(element, "AXHidden") != Some(true)
++        && copy_bool_attr(element, "AXVisible") != Some(false)
++        && copy_action_names(element)
++            .iter()
++            .any(|action| action == "AXPress")
++}
++
++/// Called only after the exact-window background gate, for an unmodified
++/// single left click whose application-level point lookup returned no element.
++/// The model still chooses screenshot coordinates; AX is only the delivery backend.
++///
++/// # Safety
++/// Caller must release the returned +1 element and keep the exact-window lease
++/// through dispatch. No cached tree or element reference may be supplied here.
++pub unsafe fn pressable_element_at_point(
++    pid: i32,
++    window_id: u32,
++    x: f64,
++    y: f64,
++) -> Option<AXUIElementRef> {
++    let sheet = focused_sheet(pid, window_id)?;
++    let candidate = unique_bounded(sheet.clone(), |element| {
++        let ptr = element.as_ptr() as AXUIElementRef;
++        Some((
++            pressable_at(ptr, window_id, x, y),
++            copy_children_checked(ptr)?
++                .into_iter()
++                .map(|child| adopt(child))
++                .collect(),
++        ))
++    })?;
++    // The panel may close or change while AX RPCs run. Recheck both the sheet
++    // identity and candidate immediately before handing it to click dispatch.
++    let current = focused_sheet(pid, window_id)?;
++    let ptr = candidate.as_ptr() as AXUIElementRef;
++    if CFEqual(current.as_ptr() as CFTypeRef, sheet.as_ptr() as CFTypeRef) == 0
++        || !pressable_at(ptr, window_id, x, y)
++    {
++        return None;
++    }
++    CFRetain(ptr as CFTypeRef);
++    Some(ptr)
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn only_the_requested_point_is_selected() {
++        let rects = [
++            [0.0, 0.0, 100.0, 100.0],
++            [10.0, 10.0, 20.0, 20.0],
++            [40.0, 10.0, 20.0, 20.0],
++        ];
++        assert_eq!(
++            unique_bounded(0, |i| Some((
++                *i > 0 && contains(rects[*i], 15.0, 15.0),
++                if *i == 0 { vec![1, 2] } else { vec![] }
++            ))),
++            Some(1)
++        );
++        assert_eq!(
++            unique_bounded(0, |i| Some((
++                *i > 0 && contains(rects[*i], 90.0, 90.0),
++                if *i == 0 { vec![1, 2] } else { vec![] }
++            ))),
++            None
++        );
++    }
++
++    #[test]
++    fn overlapping_actionable_controls_are_ambiguous() {
++        assert_eq!(
++            unique_bounded(0, |i| Some((
++                *i > 0,
++                if *i == 0 { vec![1, 2] } else { vec![] }
++            ))),
++            None
++        );
++    }
++
++    #[test]
++    fn truncation_never_returns_an_early_candidate() {
++        assert_eq!(
++            unique_bounded(0, |i| Some((
++                *i == 0,
++                if *i == 0 {
++                    (1..=MAX_NODES).collect()
++                } else {
++                    vec![]
++                }
++            ))),
++            None
++        );
++        assert_eq!(unique_bounded(0, |i| Some((*i == 0, vec![i + 1]))), None);
++    }
++
++    #[test]
++    fn unreadable_subtree_cannot_prove_uniqueness() {
++        assert_eq!(
++            unique_bounded(0, |i| if *i == 0 { Some((true, vec![1])) } else { None }),
++            None
++        );
++    }
++
++    #[test]
++    fn cycles_are_bounded() {
++        assert_eq!(unique_bounded(0, |_| Some((false, vec![0]))), None);
++    }
++
++    #[test]
++    fn invalid_and_edge_coordinates_do_not_hit() {
++        assert!(!contains([0.0, 0.0, 10.0, 10.0], 10.0, 5.0));
++        assert!(!contains([0.0, 0.0, 10.0, 10.0], -1.0, 5.0));
++        assert!(!contains([0.0, 0.0, 10.0, 10.0], f64::NAN, 5.0));
++        assert!(!contains([0.0, 0.0, f64::INFINITY, 10.0], 5.0, 5.0));
++        assert!(!contains([0.0, 0.0, -10.0, 10.0], 5.0, 5.0));
++    }
++}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
 index 681c636..a748f2c 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
@@ -2622,3 +2890,22 @@ index 136e0c9..c0c1e77 100644
      #[test]
      fn already_key_sends_nothing() {
          let r = prime_exact_window_key(
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
+index 8503db3..91f3aa5 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
+@@ -1165,7 +1165,13 @@ impl Tool for ClickTool {
+             }) {
+                 let focus_only = action == "focus";
+                 let ax_result = tokio::task::spawn_blocking(move || unsafe {
+-                    let Some(element) = element_at_screen_position(pid, screen_x, screen_y) else {
++                    let element = element_at_screen_position(pid, screen_x, screen_y)
++                        .or_else(|| if focus_only { None } else {
++                            crate::ax::sheet_point::pressable_element_at_point(
++                                pid, hit_test_wid, screen_x, screen_y,
++                            )
++                        });
++                    let Some(element) = element else {
+                         return Ok::<bool, anyhow::Error>(false);
+                     };
+                     // The pid-scoped hit-test can resolve an element from a

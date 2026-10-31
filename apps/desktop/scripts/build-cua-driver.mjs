@@ -184,7 +184,11 @@ if (testNative) {
   for (const [packageName, testFilter] of [
     ['platform-macos', 'browser::consent_ui::tests'],
     ['platform-macos', 'ax::exact_target::tests'],
+    ['platform-macos', 'ax::sheet_point::tests'],
     ['platform-macos', 'input::skylight::key_prime_tests'],
+    ['platform-macos', 'tools::hotkey::tests'],
+    ['platform-macos', 'tools::press_key::tests'],
+    ['platform-macos', 'tools::invoke_menu::tests'],
     ['cua-driver-core', 'browser::'],
   ]) {
     run(

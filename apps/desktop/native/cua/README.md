@@ -89,13 +89,32 @@ set membership over the same reviewed commands. A source-extracted reproduction 
 the change; regression checks cover every declared method and coordinate input on a restricted
 existing-profile socket. The earlier unrestricted fixtures could not detect this failure.
 
-Native background keyboard focus now uses the same proven sheet-to-document ownership as
+## Native attached sheets
+
+Native background keyboard focus uses the same proven sheet-to-document ownership as
 observation. The raw focused-window ID remains separate for focus records and restoration.
 A parent-document route requires matching window and focused-element ancestry; missing,
 conflicting or sibling ancestry remains refused. Foreground focus readers retain raw IDs.
 The sheet regression fails with the prior comparison and passes with the correction; the pilot
 gate now also runs exact-target ownership and key-focus regressions. Signed TextEdit Save/reopen
 acceptance remains required; this source correction alone does not establish a live fix.
+
+Signed alpha.64 diagnostics reproduced a separate point-lookup defect: the application hit-test
+returned no element, while the focused sheet contained exactly one pressable control at that
+point, with proven document ancestry. `ax/sheet_point.rs` owns the candidate correction; the click
+dispatcher only calls it after a missing application hit-test for a single unmodified left click.
+It scans the freshly owned sheet, requires a unique enabled control containing the point, refuses
+ambiguous or incomplete scans, and rechecks the sheet and control before returning a retained
+element. No labels or semantic targets reach the model. The model still chooses image coordinates.
+The six regression cases cover point bounds, ambiguity, unreadable subtrees, depth/node limits and
+cycles. Signed internal alpha.65 expanded the panel through this route. Collapse remained
+ineffective: the expanded screenshot scales the document inside unchanged output dimensions,
+so capture-to-input mapping needs investigation. Save/reopen acceptance remains open.
+
+The ownership resolver (`ax/exact_target.rs`), keyboard focus (`input/skylight.rs`), point resolution
+(`ax/sheet_point.rs`) and dispatch (`tools/click.rs`) remain separate responsibilities. Failed
+alpha.62/63 menu-bypass and keyboard-transport experiments and alpha.61/64 diagnostic logging are
+excluded from the source patch; private receipts preserve what was actually tested.
 
 These transport regressions do not prove visual task completion or background reliability in the
 signed app. See `docs/release-status.md` for the uncompleted default cutover and live acceptance.
@@ -145,7 +164,8 @@ For native regression checks on the host architecture:
 pnpm --filter @sia/desktop native:cua --test
 ```
 
-The full pilot gate includes these checks. They test consent-sheet recognition, exact-target ownership, keyboard focus, browser routing and refusal boundaries. They cannot replace a signed-app Chrome
+The full pilot gate includes these checks. They test consent-sheet recognition, exact-target ownership,
+sheet point resolution, keyboard focus/menu isolation, browser routing and refusal boundaries. They cannot replace a signed-app Chrome
 connection, background research, detach/reconnect and restart test. Intel builds are statically
 verified on the Apple Silicon release Mac; execution requires an Intel Mac.
 

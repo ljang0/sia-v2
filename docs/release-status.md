@@ -61,6 +61,12 @@ and a recorded parent-document diagnostic returned needs_foreground. The source 
 not establish a live fix. Its 444-word brief was preserved by operator CUA, not saved in the
 requested workspace by Sia; all interventions are in the artifact record.
 
+Internal signed alpha.65 corrects a separately reproduced sheet point-lookup miss and visibly
+expands the Save panel. Collapse still fails after the image geometry changes; Save/reopen remains
+unverified. Point resolution has its own bounded native module with six regression cases, separate
+from ownership, focus and dispatch. Failed transport experiments and temporary diagnostics were
+removed instead of becoming compatibility paths. See the [artifact record](./public-release.md).
+
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
 The release requires real-source research and writing, file/document preparation, and planning
@@ -78,7 +84,7 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.60 full local pilot gate passed, including the native Save-sheet ownership regressions. The alpha.57 artifact source passed exact-source CI, including universal package verification. | Latest candidate exact-source CI and successful exact-artifact real-task repeats. |
+| Source | Alpha.65 full local pilot gate passed, including six sheet-point regressions. Alpha.60 exact-source CI also passed. | Latest candidate exact-source CI and successful exact-artifact real-task repeats. |
 | Signed package | Universal vision-only alpha.60 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Repeat failed real workflows after recovery fixes. |
 | Useful work | Alpha.57 saved a source-checked three-dinner plan and consolidated groceries after recovery; previews loaded. Alpha.60 typed a real reviewer brief, but Save and the parent-document diagnostic failed. | Unattended browser recovery, native Save/reopen and the sourced outing (alpha.59 stopped on network-error recovery). |
 | Background/concurrency | Alpha.59 delivered browser clicks/scrolls while separate supervisor-typed notes remained intact; ten CUA navigation samples median 946.5 ms / worst 1,199 ms. Earlier assisted-mode Stop/recovery evidence is retained in history. | Two completed Sia tasks, contention, Stop/recovery, focus and clipboard preservation on the final artifact. |

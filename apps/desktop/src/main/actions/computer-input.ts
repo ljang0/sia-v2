@@ -543,7 +543,7 @@ export class ComputerInput {
           return {
             outcome: 'stale',
             summary:
-              'A dialog or sheet is now in front of this window, so input went nowhere. Inspect a new_window and act there; do not repeat the action on this window.',
+              'A dialog or sheet opened and no input was delivered. Inspect a new_window. If that panel has no input route, inspect previous_window_id again: an attached sheet may be controlled through its document. Use only a fresh snapshot with an available route. Do not repeat the action that opened the dialog.',
             data: { new_windows: opened, previous_window_id: binding.id },
           };
       }
@@ -579,7 +579,7 @@ export class ComputerInput {
     if (openedWindows.length && !attachedSheet)
       return {
         outcome: 'accepted_unverified',
-        summary: `${native.summary} New windows appeared. Inspect a new_window before continuing; the previous snapshot belongs to the original window. Do not repeat the action that opened it.`,
+        summary: `${native.summary} New windows appeared. Inspect a new_window before continuing. If that panel has no input route, inspect previous_window_id again: an attached sheet may be controlled through its document. Use only a fresh snapshot with an available route. Do not repeat the action that opened it.`,
         data: {
           observation_pending: true,
           new_windows: openedWindows,
