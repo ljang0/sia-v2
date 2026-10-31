@@ -51,11 +51,13 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Alpha.37 is signed and notarized. Its full local automated gate, QA-profile upgrade and default
-background browser read passed. It reuses the exact Chrome window approved by the person.
-Remaining signed-app checks include background navigation, detach/reconnect and unexpected expiry,
-file/native-input rehearsal, cancellation/restart, clean macOS-account setup, and voice/lock/sleep.
-Live input acceptance is incomplete. Background new-tab creation is unsupported. Earlier artifact results and the exact current gaps are recorded in the release status.
+Alpha.37 is signed and notarized. Its automated gate, QA-profile upgrade, background browser
+reading/navigation, explicit detach/reconnect, CSV creation/preview, native Calculator and
+cancellation/restart checks passed. It reuses the exact Chrome window approved by the person.
+Remaining checks are unexpected browser-session expiry, clean macOS-account setup/provider retry,
+and physical voice/lock/sleep acceptance. Background new-tab creation is unsupported.
+The installer and review packet are prepared locally; distribution still requires these gates
+and the owner's release decision.
 The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
 owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.
 
