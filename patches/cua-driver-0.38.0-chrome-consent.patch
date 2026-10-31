@@ -1,5 +1,5 @@
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
-index c401f20..1ff10a5 100644
+index c401f20..ef3382e 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
 @@ -64,6 +64,7 @@ const EXISTING_PROFILE_METHODS: &[&str] = &[
@@ -23,19 +23,24 @@ index c401f20..1ff10a5 100644
      pub fn has_dialog_session(&self, target_id: &str) -> bool {
          self.demux
              .session_targets
-@@ -392,6 +399,11 @@ impl CdpConnection {
+@@ -392,6 +399,16 @@ impl CdpConnection {
          match tokio::time::timeout(CALL_TIMEOUT, rx).await {
              Err(_) => {
                  self.demux.pending.lock().unwrap().remove(&id);
-+                // Explicit QA diagnostics: method only, never target/session
-+                // identities, URLs, parameters, page content or credentials.
++                // Explicit QA diagnostics: method and a fixed focus stage only,
++                // never identities, URLs, raw parameters or page content.
 +                if std::env::var_os("SIA_CUA_CONSENT_DIAGNOSTICS").is_some() {
-+                    eprintln!("[sia:cdp] timed_out method={method}");
++                    let stage = match (method, params.get("enabled").and_then(Value::as_bool)) {
++                        ("Emulation.setFocusEmulationEnabled", Some(true)) => "focus_enable",
++                        ("Emulation.setFocusEmulationEnabled", Some(false)) => "focus_restore",
++                        _ => "command",
++                    };
++                    eprintln!("[sia:cdp] timed_out method={method} stage={stage}");
 +                }
                  anyhow::bail!("CDP {method} timed out after {CALL_TIMEOUT:?}")
              }
              Ok(Err(_)) => anyhow::bail!("CDP socket closed during {method}"),
-@@ -1199,7 +1211,10 @@ mod tests {
+@@ -1199,7 +1216,10 @@ mod tests {
          conn.call(None, "Target.getTargets", json!({}))
              .await
              .expect("reviewed method remains available");
@@ -48,7 +53,7 @@ index c401f20..1ff10a5 100644
  
      #[tokio::test]
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
-index 1d0940c..04377a4 100644
+index 1d0940c..42ce48a 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
 @@ -247,6 +247,43 @@ fn endpoint_access_class(
@@ -144,6 +149,73 @@ index 1d0940c..04377a4 100644
              validated
                  .conn
                  .call(Some(cdp_session), "Page.getLayoutMetrics", json!({}))
+@@ -2603,7 +2641,7 @@ impl BrowserEngine {
+                 continuation.offset,
+                 DEFAULT_SEMANTIC_NODE_BUDGET,
+                 continuation.query.as_deref(),
+-                continuation.scope_backend_node_id,
++                continuation.scope_entry.as_ref(),
+             );
+             let start_index = snapshot
+                 .refs
+@@ -2643,7 +2681,7 @@ impl BrowserEngine {
+                             SemanticContinuation {
+                                 offset,
+                                 query: continuation.query.clone(),
+-                                scope_backend_node_id: continuation.scope_backend_node_id,
++                                scope_entry: continuation.scope_entry.clone(),
+                                 oopif_supported: continuation.oopif_supported,
+                                 oopif_frames: continuation.oopif_frames,
+                             },
+@@ -2654,12 +2692,10 @@ impl BrowserEngine {
+             return Ok(outcome);
+         }
+ 
+-        let scope_backend_node_id = match scope_ref {
+-            Some(external) => Some(
+-                self.store
+-                    .resolve_ref(session, target_id, tab_id, external)?
+-                    .backend_node_id,
+-            ),
++        // Backend node ids are renderer-local. Keep the frame/document owner
++        // with the requested subtree, including its continuation pages.
++        let scope_entry = match scope_ref {
++            Some(external) => Some(self.store.resolve_ref(session, target_id, tab_id, external)?),
+             None => None,
+         };
+         let record = self.store.get_target(session, target_id)?;
+@@ -2791,11 +2827,21 @@ impl BrowserEngine {
+             semantic.complete = false;
+         }
+ 
++        if scope_entry.as_ref().is_some_and(|entry| {
++            !semantic.nodes.iter().any(|node| {
++                node.backend_node_id == Some(entry.backend_node_id) && node.frame == entry.frame
++            })
++        }) {
++            return Err(refuse(
++                BrowserRefusalCode::BrowserRefStale,
++                "the requested subtree is no longer present in its original frame/document; re-run get_browser_state for a fresh ref",
++            ));
++        }
+         let page = semantic.page(
+             0,
+             DEFAULT_SEMANTIC_NODE_BUDGET,
+             query,
+-            scope_backend_node_id,
++            scope_entry.as_ref(),
+         );
+         let next_offset = page.next_offset;
+         let snapshot_id = self.store.mint_snapshot_id();
+@@ -2829,7 +2875,7 @@ impl BrowserEngine {
+                             SemanticContinuation {
+                                 offset,
+                                 query: query.map(str::to_owned),
+-                                scope_backend_node_id,
++                                scope_entry,
+                                 oopif_supported: matches!(oopif, OopifStatus::Attached(_)),
+                                 oopif_frames: oopif.frames(),
+                             },
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
 index d709315..33f41ca 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
@@ -165,6 +237,278 @@ index d709315..33f41ca 100644
              Self::BrowserEndpointOwnerMismatch => "browser_endpoint_owner_mismatch",
              Self::BrowserConsentRequired => "browser_consent_required",
              Self::BrowserConsentRevoked => "browser_consent_revoked",
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/semantic.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/semantic.rs
+index 0005f29..9113477 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/semantic.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/semantic.rs
+@@ -202,9 +202,9 @@ impl SemanticDocument {
+         offset: usize,
+         budget: usize,
+         query: Option<&str>,
+-        scope_backend_node_id: Option<i64>,
++        scope_entry: Option<&RefEntry>,
+     ) -> SemanticPage {
+-        let mut candidates = scoped_indices(&self.nodes, query, scope_backend_node_id);
++        let mut candidates = scoped_indices(&self.nodes, query, scope_entry);
+         candidates.retain(|idx| {
+             !matches!(
+                 self.nodes[*idx].visibility,
+@@ -574,6 +574,24 @@ pub(crate) fn compose_accessibility_tree(
+     supplement_dom_actions(&mut nodes, dom, layout, viewport, &frame);
+     apply_page_occlusion(&mut nodes, dom, layout);
+     remove_redundant_static_text(&mut nodes);
++    // AX ids are renderer-local. Namespace every edge before frame documents
++    // are merged, including dangling edges through omitted/ignored AX nodes.
++    // Otherwise a missing parent can resolve to a node in another renderer.
++    let namespace = serde_json::json!([
++        frame.kind.as_str(),
++        frame.oopif_target_id,
++        frame
++            .identity
++            .as_ref()
++            .map(|identity| (&identity.frame_id, &identity.loader_id)),
++    ])
++    .to_string();
++    let scoped_id = |id: &str| format!("{namespace}:{id}");
++    for node in &mut nodes {
++        node.ax_id = scoped_id(&node.ax_id);
++        node.parent_ax_id = node.parent_ax_id.as_deref().map(scoped_id);
++        node.child_ax_ids = node.child_ax_ids.iter().map(|id| scoped_id(id)).collect();
++    }
+     SemanticDocument {
+         nodes,
+         css_hidden_dom_count: dom.css_hidden_count,
+@@ -1019,7 +1037,7 @@ fn rank(node: &SemanticNode) -> u8 {
+ fn scoped_indices(
+     nodes: &[SemanticNode],
+     query: Option<&str>,
+-    scope_backend_node_id: Option<i64>,
++    scope_entry: Option<&RefEntry>,
+ ) -> Vec<usize> {
+     let by_ax_id: HashMap<&str, usize> = nodes
+         .iter()
+@@ -1027,11 +1045,11 @@ fn scoped_indices(
+         .map(|(idx, node)| (node.ax_id.as_str(), idx))
+         .collect();
+     let mut allowed = HashSet::new();
+-    if let Some(scope_backend) = scope_backend_node_id {
+-        if let Some(scope) = nodes
+-            .iter()
+-            .find(|node| node.backend_node_id == Some(scope_backend))
+-        {
++    if let Some(scope_entry) = scope_entry {
++        if let Some(scope) = nodes.iter().find(|node| {
++            node.backend_node_id == Some(scope_entry.backend_node_id)
++                && node.frame == scope_entry.frame
++        }) {
+             let mut stack = vec![scope.ax_id.as_str()];
+             while let Some(ax_id) = stack.pop() {
+                 if !allowed.insert(ax_id.to_owned()) {
+@@ -1044,8 +1062,7 @@ fn scoped_indices(
+         }
+     }
+     let query = query.map(|value| value.trim().to_ascii_lowercase());
+-    let in_scope =
+-        |node: &SemanticNode| scope_backend_node_id.is_none() || allowed.contains(&node.ax_id);
++    let in_scope = |node: &SemanticNode| scope_entry.is_none() || allowed.contains(&node.ax_id);
+     let exact_match_exists = query.as_ref().is_some_and(|query| {
+         !query.is_empty()
+             && nodes
+@@ -1143,11 +1160,15 @@ fn render_outline(nodes: &[SemanticNode], selected: &HashSet<usize>) -> String {
+             continue;
+         }
+         let mut depth = 0;
++        let mut visited = HashSet::from([idx]);
+         let mut parent = node.parent_ax_id.as_deref();
+         while let Some(parent_id) = parent {
+             let Some(parent_idx) = by_ax_id.get(parent_id).copied() else {
+                 break;
+             };
++            if !visited.insert(parent_idx) {
++                break;
++            }
+             if selected.contains(&parent_idx)
+                 && !matches!(nodes[parent_idx].role.as_str(), "rootwebarea" | "webarea")
+             {
+@@ -1208,6 +1229,156 @@ mod tests {
+         FrameRef::main_unproven()
+     }
+ 
++    #[test]
++    fn merged_frame_ids_do_not_create_cross_frame_ancestors() {
++        use crate::browser::store::{FrameIdentity, FrameKind};
++        let compose = |ax: Value, frame| {
++            compose_accessibility_tree(
++                &ax,
++                &DomIndex::default(),
++                &LayoutIndex::default(),
++                &Viewport::default(),
++                frame,
++            )
++        };
++        // The ignored parents are normal AX omissions. Their ids happen to
++        // name kept nodes in the other renderer, making a cycle if merged raw.
++        let mut main = compose(
++            json!({"nodes": [
++                {"nodeId":"2", "ignored":true},
++                {"nodeId":"1", "parentId":"2", "backendDOMNodeId":1,
++                 "role":{"value":"button"}, "name":{"value":"Main action"}}
++            ]}),
++            frame(),
++        );
++        let child = compose(
++            json!({"nodes": [
++                {"nodeId":"1", "ignored":true},
++                {"nodeId":"2", "parentId":"1", "backendDOMNodeId":2,
++                 "role":{"value":"button"}, "name":{"value":"Frame action"}}
++            ]}),
++            FrameRef {
++                kind: FrameKind::Oopif,
++                oopif_target_id: Some("child-target".into()),
++                identity: Some(FrameIdentity {
++                    frame_id: "child-frame".into(),
++                    loader_id: "child-load".into(),
++                }),
++            },
++        );
++        main.extend(child);
++        // Assert before rendering so the unfixed regression fails, not hangs.
++        for node in &main.nodes {
++            assert!(
++                !main
++                    .nodes
++                    .iter()
++                    .any(|other| node.parent_ax_id.as_ref() == Some(&other.ax_id)),
++                "an omitted ancestor must never resolve in another frame"
++            );
++        }
++        let page = main.page(0, 300, None, None);
++        assert_eq!(
++            page.outline,
++            "- button \"Main action\"\n- button \"Frame action\""
++        );
++        assert_eq!(page.selected.len(), 2);
++        assert_eq!(
++            page.selected[1]
++                .to_ref_entry()
++                .unwrap()
++                .frame
++                .oopif_target_id
++                .as_deref(),
++            Some("child-target")
++        );
++    }
++
++    #[test]
++    fn malformed_ax_parent_cycles_have_bounded_outline_rendering() {
++        let (send, receive) = std::sync::mpsc::channel();
++        std::thread::spawn(move || {
++            let document = compose_accessibility_tree(
++                &json!({"nodes":[
++                    {"nodeId":"1", "parentId":"2", "role":{"value":"button"}, "name":{"value":"First"}},
++                    {"nodeId":"2", "parentId":"1", "role":{"value":"button"}, "name":{"value":"Second"}},
++                    {"nodeId":"3", "parentId":"3", "role":{"value":"button"}, "name":{"value":"Self"}}
++                ]}),
++                &DomIndex::default(),
++                &LayoutIndex::default(),
++                &Viewport::default(),
++                frame(),
++            );
++            let _ = send.send(document.page(0, 300, None, None));
++        });
++        let page = receive
++            .recv_timeout(std::time::Duration::from_millis(500))
++            .expect("malformed parent cycles must not pin a native worker indefinitely");
++        assert_eq!(page.outline.lines().count(), 3);
++        assert!(page.outline.lines().all(|line| line.len() < 40));
++    }
++
++    #[test]
++    fn frame_scoped_pagination_preserves_hierarchy_with_colliding_ids() {
++        use crate::browser::store::{FrameIdentity, FrameKind};
++        let compose = |label: &str, frame| {
++            let mut nodes = vec![json!({"nodeId":"root", "backendDOMNodeId":100,
++                "role":{"value":"heading"}, "name":{"value":format!("{label} section")},
++                "childIds":["1","2","3"]})];
++            for id in 1..=3 {
++                nodes.push(
++                    json!({"nodeId":id.to_string(), "parentId":"root", "backendDOMNodeId":id,
++                    "role":{"value":"button"}, "name":{"value":format!("{label} {id}")}}),
++                );
++            }
++            compose_accessibility_tree(
++                &json!({"nodes":nodes}),
++                &DomIndex::default(),
++                &LayoutIndex::default(),
++                &Viewport::default(),
++                frame,
++            )
++        };
++        let mut document = compose("Main", frame());
++        let embedded = compose(
++            "Embedded",
++            FrameRef {
++                kind: FrameKind::Oopif,
++                oopif_target_id: Some("child".into()),
++                identity: Some(FrameIdentity {
++                    frame_id: "child-frame".into(),
++                    loader_id: "child-load".into(),
++                }),
++            },
++        );
++        let scope = embedded.nodes[0].to_ref_entry().unwrap();
++        document.extend(embedded);
++        let first = document.page(0, 2, None, Some(&scope));
++        let second = document.page(
++            first.next_offset.expect("second scoped page"),
++            2,
++            None,
++            Some(&scope),
++        );
++        assert_eq!(second.next_offset, None);
++        for page in [&first, &second] {
++            assert!(!page.outline.contains("Main"));
++            assert!(page.outline.starts_with("- heading \"Embedded section\""));
++            assert!(page.outline.contains("\n  - button \"Embedded"));
++        }
++        let mut names = first
++            .selected
++            .iter()
++            .chain(&second.selected)
++            .map(|node| node.name.clone().unwrap())
++            .collect::<Vec<_>>();
++        names.sort();
++        assert_eq!(
++            names,
++            ["Embedded 1", "Embedded 2", "Embedded 3", "Embedded section"]
++        );
++    }
++
+     #[test]
+     fn not_rendered_count_propagates_through_extend_and_page() {
+         let mut document = SemanticDocument {
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/store.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/store.rs
+index 68f2099..96f1e08 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/store.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/store.rs
+@@ -118,7 +118,7 @@ pub struct FrameIdentity {
+ /// - `kind != Main` ⇒ `identity` is `Some` (unprovable frames are
+ ///   omitted from snapshots, never guessed).
+ /// - `kind == Oopif` ⇔ `oopif_target_id` is `Some`.
+-#[derive(Debug, Clone)]
++#[derive(Debug, Clone, PartialEq, Eq)]
+ pub struct FrameRef {
+     pub kind: FrameKind,
+     /// CDP target id of the OOPIF child target (contained beneath the
+@@ -184,7 +184,7 @@ pub struct SnapshotRecord {
+ pub struct SemanticContinuation {
+     pub offset: usize,
+     pub query: Option<String>,
+-    pub scope_backend_node_id: Option<i64>,
++    pub scope_entry: Option<RefEntry>,
+     pub oopif_supported: bool,
+     pub oopif_frames: usize,
+ }
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 index df04401..5db475b 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
@@ -274,10 +618,18 @@ index df04401..5db475b 100644
          if route == "dom_event" {
              let backend = backend_node_id.expect("checked above");
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-index d5f50d2..4842e1d 100644
+index d5f50d2..75c2a35 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-@@ -76,6 +76,7 @@ pub(super) struct FixtureState {
+@@ -59,6 +59,7 @@ pub(super) struct FixtureState {
+     fail_key_down_after: Option<usize>,
+     completed_key_pairs: usize,
+     semantic_large_page: bool,
++    oopif_input_backend_id: i64,
+     semantic_html_style: String,
+     semantic_full_dom_fails: bool,
+     semantic_full_dom_times_out: bool,
+@@ -76,6 +77,7 @@ pub(super) struct FixtureState {
      omit_primary_target: bool,
      /// Make `Browser.getWindowForTarget` for T1 answer this CDP error.
      primary_window_error: Option<(i64, String)>,
@@ -285,7 +637,15 @@ index d5f50d2..4842e1d 100644
      dom_click_changes_readback: bool,
      dom_click_readback_available: bool,
      dom_click_stall_after: Option<usize>,
-@@ -115,6 +116,7 @@ impl Default for FixtureState {
+@@ -106,6 +108,7 @@ impl Default for FixtureState {
+             fail_key_down_after: None,
+             completed_key_pairs: 0,
+             semantic_large_page: false,
++            oopif_input_backend_id: 100,
+             semantic_html_style: String::new(),
+             semantic_full_dom_fails: false,
+             semantic_full_dom_times_out: false,
+@@ -115,6 +118,7 @@ impl Default for FixtureState {
              viewport_css_height: 600.0,
              tab_visible: true,
              select_outcome: Value::Null,
@@ -293,7 +653,39 @@ index d5f50d2..4842e1d 100644
              dom_click_changes_readback: true,
              dom_click_readback_available: true,
              dom_click_stall_after: None,
-@@ -705,12 +707,23 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -548,7 +552,12 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+                     "node": large_semantic_document(&st.semantic_html_style)["root"]["children"][0].clone()
+                 }))
+             }
+-            "DOM.getDocument" if is_oopif => MockReply::ok(oopif_document()),
++            "DOM.getDocument" if is_oopif => {
++                let mut document = oopif_document();
++                document["root"]["children"][0]["children"][0]["backendNodeId"] =
++                    json!(st.oopif_input_backend_id);
++                MockReply::ok(document)
++            },
+             "Accessibility.getFullAXTree" if is_tab => {
+                 let frame_id = call.params["frameId"].as_str().unwrap_or("F_MAIN");
+                 if st.semantic_large_page {
+@@ -561,7 +570,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+                 {"nodeId": "oopif-root", "ignored": false,
+                  "role": {"value": "RootWebArea"}, "childIds": ["oopif-input"]},
+                 {"nodeId": "oopif-input", "parentId": "oopif-root", "ignored": false,
+-                 "backendDOMNodeId": 100, "role": {"value": "textbox"},
++                 "backendDOMNodeId": st.oopif_input_backend_id, "role": {"value": "textbox"},
+                  "name": {"value": "Embedded input"},
+                  "properties": [{"name": "editable", "value": {"value": "plaintext"}}],
+                  "childIds": []}
+@@ -586,7 +595,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+                 }
+             }
+             "DOMSnapshot.captureSnapshot" if is_oopif => MockReply::ok(semantic_layout_snapshot(
+-                &[90, 100],
++                &[90, st.oopif_input_backend_id],
+                 &[[0.0, 0.0, 300.0, 100.0], [10.0, 10.0, 120.0, 30.0]],
+             )),
+             "Page.getLayoutMetrics" => MockReply::ok(json!({
+@@ -705,12 +714,23 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                  }
              }
              "DOM.focus"
@@ -317,7 +709,7 @@ index d5f50d2..4842e1d 100644
              "Runtime.callFunctionOn"
                  if call.params["functionDeclaration"]
                      .as_str()
-@@ -1880,6 +1893,65 @@ fn recorded_calls(f: &Fixture, method: &str) -> Vec<(Option<String>, Value)> {
+@@ -1880,6 +1900,65 @@ fn recorded_calls(f: &Fixture, method: &str) -> Vec<(Option<String>, Value)> {
          .collect()
  }
  
@@ -383,7 +775,65 @@ index d5f50d2..4842e1d 100644
  // ── Snapshot composition ─────────────────────────────────────────────────────
  
  #[tokio::test]
-@@ -2755,6 +2827,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
+@@ -2326,6 +2405,57 @@ async fn semantic_query_and_content_scope_are_read_only_and_precise() {
+     assert!(recorded_calls(&f, "Target.activateTarget").is_empty());
+ }
+ 
++#[tokio::test]
++async fn semantic_scope_keeps_the_selected_frame_when_backend_ids_collide() {
++    let f = fixture_with(|st| {
++        st.semantic_large_page = true;
++        // The main-frame heading and this embedded input have different owners
++        // even when Chromium assigns them the same renderer-local backend id.
++        st.oopif_input_backend_id = 2000;
++    })
++    .await;
++    let (target, tab) = bind(&f).await;
++    let fresh = semantic_snapshot(&f, &target, &tab).await;
++    let embedded_ref = fresh["refs"]
++        .as_array()
++        .unwrap()
++        .iter()
++        .find(|entry| entry["name"] == "Embedded input")
++        .and_then(|entry| entry["ref"].as_str())
++        .expect("embedded input ref")
++        .to_owned();
++    let scoped = semantic_snapshot_with(&f, &target, &tab, json!({"scope_ref":embedded_ref})).await;
++    assert_eq!(scoped["snapshot"]["scope"], "subtree", "{scoped}");
++    assert_eq!(scoped["refs"][0]["name"], "Embedded input", "{scoped}");
++    assert_eq!(scoped["refs"].as_array().unwrap().len(), 1, "{scoped}");
++    assert!(
++        !scoped["outline"]
++            .as_str()
++            .unwrap()
++            .contains("Visible message"),
++        "{scoped}"
++    );
++}
++
++#[tokio::test]
++async fn semantic_scope_refuses_a_reused_backend_id_after_frame_navigation() {
++    let f = fixture_with(|st| st.semantic_large_page = true).await;
++    let (target, tab) = bind(&f).await;
++    let fresh = semantic_snapshot(&f, &target, &tab).await;
++    let embedded_ref = fresh["refs"]
++        .as_array()
++        .unwrap()
++        .iter()
++        .find(|entry| entry["name"] == "Embedded input")
++        .and_then(|entry| entry["ref"].as_str())
++        .expect("embedded input ref")
++        .to_owned();
++    f.state.lock().unwrap().oopif_loader = "L_OOPIF_NEW_DOCUMENT".into();
++    let stale = semantic_snapshot_with(&f, &target, &tab, json!({"scope_ref":embedded_ref})).await;
++    assert_eq!(stale["status"], "refused", "{stale}");
++    assert_eq!(stale["refusal"]["code"], "browser_ref_stale", "{stale}");
++}
++
+ #[tokio::test]
+ async fn navigation_targets_an_inactive_tab_without_activating_it() {
+     let f = fixture().await;
+@@ -2755,6 +2885,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
      );
  }
  

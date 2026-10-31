@@ -57,9 +57,9 @@ Signed internal rehearsals completed useful sourced comparisons, native proposal
 visitor planning and reviewer packets made from real project documents. Outputs were checked
 independently, and failures were retained. Universal notarized alpha.53 delivered a background
 accordion click while an unrelated note was edited, but outing and dinner/grocery planning both
-stalled in browser navigation/read recovery. Alpha.54 fixes a proven CDP-session leak; navigation
-recovery and full acceptance remain open. A signed
-installer is not proof of readiness.
+stalled in browser navigation/read recovery. A fresh household task on the latest signed internal
+build also stalled and produced no requested files. Browser reliability and full acceptance remain
+open. A signed installer is not proof of readiness.
 
 Repeated final-artifact workflows, concurrent use, responsiveness, restart and physical acceptance
 remain gates. Clean-account testing is unavailable on the current Mac. Background new-tab creation

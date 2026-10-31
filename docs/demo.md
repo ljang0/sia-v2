@@ -7,8 +7,8 @@ public project documents and a real admitted model; fake-service demos are separ
 **Current evidence:** internal signed alpha.49 completed repeated research, native briefs, file
 organization, practical visitor planning and full reviewer packets. Universal notarized alpha.53
 delivered a background accordion click, but outing and dinner/grocery planning both stalled during
-browser navigation/read recovery. Alpha.54 fixes a proven CDP-session leak; full signed acceptance
-and the cause of the navigation stalls remain open.
+browser navigation/read recovery. A fresh alpha.54 household task also stalled. Alpha.55 fixes reproduced iframe snapshot defects
+and passed its full local gate; signed acceptance and the cause of navigation stalls remain open.
 The linked evidence records exact versions, timing, recovered errors and remaining gates.
 
 ## Start here

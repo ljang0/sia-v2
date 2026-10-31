@@ -48,7 +48,19 @@ is intentionally retained until its bounded browser connection closes. This also
 shared browser socket or detaching another operation. A regression reproduced retained parent
 sessions before the fix and verifies cleanup while an independent validation remains live.
 The relation to observed navigation stalls is not established. Opt-in
-`SIA_CUA_CONSENT_DIAGNOSTICS` timeout logs contain only the CDP method, never parameters or page data.
+`SIA_CUA_CONSENT_DIAGNOSTICS` timeout logs contain only the CDP method and a fixed stage
+(`focus_enable`, `focus_restore` or `command`), never raw parameters or page data.
+
+## Embedded-frame snapshots
+
+The pinned driver also contains the renderer-local AX identity collision reported in
+[upstream issue #5381](https://github.com/trycua/cua/issues/5381). Merging an embedded frame could
+make an omitted parent resolve in another frame and create an unbounded outline walk. The patch
+namespaces AX nodes and edges by frame/document identity and bounds parent traversal, including
+malformed same-frame cycles. Subtree selection retains the exact frame with its backend node id
+through pagination; a regression reproduced an embedded input being replaced by an unrelated
+main-page heading with the same numeric id. These fixes address proven snapshot defects. They
+do not establish the cause of the live navigation/focus-emulation timeout.
 
 ## Build and inspect
 

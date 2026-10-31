@@ -85,11 +85,28 @@ The bounded read retry exhausted, and the task paused after 1m 50s of resumed ac
 requested file existed in its fresh working folder. A separate TextEdit note was typed, saved
 and independently verified intact; there was no clipboard mutation in this run.
 
-After QA quit, independent CUA page reading also timed out. A screenshot then showed the recipe
+After the Quit command, independent CUA page reading also timed out. A screenshot then showed the recipe
 destination, and the following accessibility read succeeded in 3.780 seconds. This establishes
-that the link eventually navigated, not why the read recovered. Chrome was version 156.0.8078.74.
+that the link eventually navigated, not why the read recovered. A later process check found Quit
+was awaiting a native confirmation dialog, so these observations were **not** with QA closed.
+The operator subsequently confirmed Quit and verified process exit before isolated diagnostics.
+Chrome was version 156.0.8078.74.
 The browser tool blocked its internal lifecycle diagnostics page; no alternate access was tried.
 Private receipts are in `alpha54-artifacts/real-work`. The notarized alpha.53 backup is preserved.
+
+Alpha.55 addresses another independently reproduced defect in the pinned driver: renderer-local
+AX ids could collide across embedded frames, creating an unbounded parent walk. Nodes and edges
+now retain frame/document identity, and malformed cycles terminate. A separate regression caught
+a scoped embedded input returning an unrelated main-page heading with the same backend id;
+subtree selection now preserves the frame through pagination and refuses a changed document.
+The full alpha.55 local pilot gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web
+checks and native/shared checks, including 235 browser regressions (opt-in live test skipped).
+The three original
+collision/cycle regressions failed before their fixes. The next build also adds a fixed focus-stage
+label to opt-in timeout diagnostics to distinguish enabling from restoring emulated focus.
+These defects are proven, but their relationship to the live Chrome timeout is not established.
+An isolated headless Chrome 156 localhost test completed six click/navigation/read sequences
+without timeouts, with and without Page events enabled; it did not reproduce the live failure.
 
 The [previous record](https://github.com/ljang0/sia-v2/blob/f119b8b123042bb9cc6216aa58c65169c9667fd6/docs/public-release.md)
 retains exact alpha.52 hashes, its verified 431-word native brief and failed browser run, and links

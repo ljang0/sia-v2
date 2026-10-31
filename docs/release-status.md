@@ -5,6 +5,9 @@ full local gate and package checks. A background accordion click worked, but bot
 meal-planning research stalled during navigation/read recovery. Alpha.54 fixes a proven CDP-session
 leak, but a fresh household task on its signed arm64 QA build still stalled after a recipe click.
 The full local gate, strict signature and packaged-runtime checks passed; live acceptance failed.
+Alpha.55 now fixes separately reproduced iframe snapshot collisions and unbounded parent traversal;
+Its full local pilot gate passed, including 235 native browser regressions. Signed acceptance
+remains pending.
 The last published Mac pilot is alpha.24; no new distribution is authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
@@ -30,7 +33,7 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.54 full local gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web and native/shared checks including 230 browser regressions. | Exact-source CI. |
+| Source | Alpha.54 full local gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web and native/shared checks including 230 browser regressions. Alpha.55 full local gate also passed with 235 native browser regressions. | Alpha.55 exact-source CI and signed acceptance. |
 | Signed package | Universal alpha.53 passed signing, notarization, stapling, Gatekeeper and packaged runtime checks. Internal arm64 alpha.54 passed strict Developer ID signing and packaged-runtime checks; it is not notarized. | Final universal candidate and live acceptance. |
 | Useful work | Earlier signed builds saved verified research and native briefs. Alpha.53 outing/dinner tasks and a fresh alpha.54 dinner task failed during browser work; no requested planning files were produced. | Complete and independently verify both everyday tasks, then repeat on the final artifact. |
 | Background/concurrency | Alpha.53 delivered an accordion click while a separate TextEdit note was edited. Note/clipboard preserved; ten switches median 968.5 ms, Stop visible within 819 ms including CUA. | Reliable navigation, paired GUI work, contention/cancellation, responsiveness and repeats. |
