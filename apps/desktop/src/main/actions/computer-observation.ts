@@ -303,9 +303,19 @@ export class ComputerObservation {
           data: { observation_pending: true },
         };
     }
+    // Inventory titles can outlive navigation within a native window (for example,
+    // Finder changing folders). Prefer the current, uniquely identified AX window.
+    const capturedWindows = findElementRecords(raw, 'window').filter(
+      (record) => firstString(record, ['role', 'type']) === 'AXWindow',
+    );
+    const capturedTitle =
+      capturedWindows.length === 1
+        ? firstString(capturedWindows[0]!, ['title', 'label', 'name'])
+        : undefined;
     const rawTitle =
       readableContext?.title ||
       (browserState?.status === 'ready' ? browserState.title : undefined) ||
+      capturedTitle ||
       binding.title;
     const title = redactOptionalText(rawTitle);
     const privateLinks =

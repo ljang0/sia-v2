@@ -157,6 +157,7 @@ export class CuaService {
   readonly #freshPermissions: CuaServiceOptions['freshPermissions'];
   #driver: DriverLike | undefined;
   #driverGeneration = 0;
+  #authorizationProgress: { started: number; completed: number } | undefined;
   /** Inventory may expire independently; renewing it must not drop live browser grants. */
   #inventorySession = `sia-inventory-${randomUUID()}`;
   #permissionRequest: Promise<ComputerView> | undefined;
@@ -455,6 +456,7 @@ export class CuaService {
       // Queue time belongs to the preceding call; only this call's execution uses its budget.
       startTimer();
       this.#authorizationContext = context;
+      this.#authorizationProgress = { started: 0, completed: 0 };
       this.#callClock = clock;
       driver = await waitForAbort(this.#getDriver(), operation.signal);
       let foregroundBefore: number | undefined;
@@ -492,7 +494,22 @@ export class CuaService {
         }),
         operation.signal,
       );
-      if (result.errorCode) throw new Error(`CUA refused: ${result.errorCode}`);
+      if (result.errorCode) {
+        if (result.errorCode === 'authorization_host_failed') {
+          // Keep callback/transport diagnostics without recording resource identities,
+          // URLs, request digests or the driver's potentially content-bearing message.
+          const raw = result.structuredJson ?? result.rawJson;
+          const hint = raw.includes('request timed out')
+            ? 'request_timeout'
+            : /denied in (?:standard|bounded) mode/.test(raw)
+              ? 'mode_denied'
+              : 'unspecified';
+          console.warn(
+            `[sia:cua-authorization] native_refusal tool=${tool} hint=${hint} callback_started=${this.#authorizationProgress.started} callback_completed=${this.#authorizationProgress.completed}`,
+          );
+        }
+        throw new Error(`CUA refused: ${result.errorCode}`);
+      }
       const json = result.structuredJson ?? result.rawJson;
       let parsed: unknown;
       try {
@@ -553,6 +570,7 @@ export class CuaService {
           else this.#driverGeneration++;
         }
         this.#authorizationContext = undefined;
+        this.#authorizationProgress = undefined;
         if (this.#callClock === clock) this.#callClock = undefined;
         next.resolve();
       } else {
@@ -687,6 +705,8 @@ export class CuaService {
 
   async #authorize(request: AuthorizationRequest): Promise<'allow' | 'deny' | 'cancel'> {
     const clock = this.#callClock;
+    const progress = this.#authorizationProgress;
+    if (progress) progress.started++;
     clock?.pause();
     try {
       const context = this.#authorizationContext;
@@ -703,6 +723,7 @@ export class CuaService {
       );
       return 'cancel';
     } finally {
+      if (progress) progress.completed++;
       clock?.resume();
     }
   }

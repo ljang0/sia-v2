@@ -122,8 +122,8 @@ scenarios in [manual acceptance](./manual-acceptance.md#real-work-and-concurrent
   Preserve failures and manual interventions; repeat each main workflow in two fresh conversations.
 
 Alpha.37 serialized independent document tasks behind a whole-task GUI lease. Alpha.38 defers that
-lease until the first GUI tool call. GUI action loops still serialize; parallel control of different
-physical windows is not yet supported. Background browser new-tab creation is also unsupported.
+lease until the first GUI tool call. Alpha.39 introduces per-window ownership, but its signed real GUI tasks failed; parallel control of
+different physical windows is not accepted. Background browser new-tab creation is also unsupported.
 Do not promise these capabilities or silently enable foreground fallback to make a test pass.
 
 On alpha.38, ten conversation switches during a real evidence-review task measured median 762.5 ms
@@ -175,3 +175,12 @@ a new evidence directory. Close the lab with the launcher’s `stop --config` co
 controlled lab, not ordinary-app acceptance; follow [manual acceptance](./manual-acceptance.md)
 for that separate gate. Never convert a blocked native run into a simulated pass. Keep prompts, transcripts, screenshots, timings and file hashes outside Git; retain failed
 attempts when a later retry succeeds. Only exact-candidate acceptance supports a release decision.
+
+## Alpha.39 real GUI attempts
+
+The signed candidate attempted a real-source browser comparison alongside Finder filing of six
+actual handoff documents. Neither completed. Finder left all input hashes unchanged and created no
+folders. The browser read Cua's documentation, then navigation/authorization failed; restarting Sia
+and reconnecting the same approved window did not restore reads. No report was saved. TextEdit
+text survived, but foreground ownership and clipboard preservation were not verified. These are
+failed acceptance attempts, not successful demos. See [exact evidence](./public-release.md#alpha39-real-gui-failures).

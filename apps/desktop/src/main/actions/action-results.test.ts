@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { resultRefusal } from './action-results.js';
+import { classifyFailure, inputWasRefused, resultRefusal } from './action-results.js';
+
+it('explains a host authorization failure without treating uncertain input as safe to replay', () => {
+  const error = new Error('CUA refused: authorization_host_failed');
+  expect(classifyFailure(error)).toMatchObject({
+    outcome: 'refused',
+    data: { blocker_code: 'authorization_host_failed' },
+  });
+  expect(classifyFailure(error).summary).toContain('do not repeat setup or replay');
+  expect(inputWasRefused(error)).toBe(false);
+});
 
 describe('driver refusal envelopes', () => {
   it.each(['browser_consent_required', 'browser_requires_setup', 'future_policy_gate'])(

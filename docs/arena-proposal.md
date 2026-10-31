@@ -60,7 +60,8 @@ checked; neither task needed a corrective prompt. Cancelling a later planning ta
 evidence-review task running. These results establish useful document work, not general desktop
 reliability. Real-source browser research, default Chrome setup/recovery, foreground-user coexistence
 during GUI input, clean macOS-account setup/provider retry, and physical voice/lock/sleep acceptance
-remain open. GUI loops still serialize, and background browser new-tab creation is unsupported.
+remain open. Alpha.39 introduces per-window task isolation, but its real Finder/browser workflows failed.
+Background browser new-tab creation is unsupported. Distribution remains blocked on these results.
 The installer and review packet are prepared locally; distribution still requires these gates
 and the owner's release decision.
 The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident

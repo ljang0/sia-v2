@@ -34,6 +34,14 @@ export function browserInputTrustFailure(error: unknown): ActionExecutionResult 
 export function classifyFailure(error: unknown): ActionExecutionResult {
   const message = safeErrorMessage(error);
   const normalized = message.toLowerCase();
+  if (normalized === 'cua refused: authorization_host_failed')
+    return {
+      outcome: 'refused',
+      summary:
+        'Computer access could not be authorized. This is an access-check failure, not evidence that a website needs sign-in. Stop this task and report the failure; do not repeat setup or replay an action with an uncertain result.',
+      reason: message,
+      data: { blocker_code: 'authorization_host_failed' },
+    };
   if (normalized === 'cua refused: background_input_paused')
     return {
       outcome: 'needs_foreground',

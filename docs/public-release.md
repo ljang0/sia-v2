@@ -3,36 +3,52 @@
 ## Current decision — October 30, 2026
 
 The owner selected **Mac first; iPhone follows** and confirmed ownership of the relevant Notch
-source rights. Alpha.38 is the signed acceptance candidate. **External pilot release is not complete.**
+source rights. Alpha.39 is the signed acceptance candidate; its real GUI tests failed. **External pilot release is not complete.**
 No new artifacts were published or invitations sent; the last published Mac pilot remains alpha.24.
 
-## Exact alpha.38 artifact
+## Exact alpha.39 artifact
 
-The universal app, DMG and ZIP were built from `e0abb66ffa68f5560aa826b7e49c747ec51d39fa`.
-The full local `pnpm test:pilot` gate passed: 1,779 desktop unit tests, 46 Electron E2E,
-31 renderer and 72 Chromium/WebKit phone checks; 66 action-gateway tests also passed.
-The [artifact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41157278849) passed.
-An earlier local E2E run failed because its setup helper did not handle the new Chrome step;
-that helper was corrected and the complete gate rerun successfully. Fixture setup explicitly opts
-out of Chrome and does not establish live Chrome consent acceptance.
+Built from `741745bace345c2c28dac8a01d758315128022f2`. The full local `pnpm test:pilot`
+gate passed: 1,786 desktop unit, 46 Electron, 31 renderer, 72 Chromium/WebKit phone and
+72 action-gateway tests. Expected live opt-in tests were skipped. [Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41162128134) passed.
 
-`pnpm package:mac` passed universal signing, app/DMG notarization and stapling, strict signatures,
-Gatekeeper and packaged native/runtime verification. App notarization
-`bdec9fa4-31d1-4717-b268-68e54763d354` and DMG notarization
-`de32b047-2764-46c6-ad58-3d39f4144064` were Accepted.
+Universal signing, app/DMG notarization and stapling, strict signatures, Gatekeeper and packaged
+native/runtime verification passed. App notarization `39473ad8-b12e-4bd6-9a0b-0b95b154485c`
+and DMG notarization `63d5b9e8-c183-48dc-8462-8adbbbe18369` were Accepted.
 
 | Artifact                           | SHA-256                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |
-| `Sia-0.1.0-alpha.38-universal.dmg` | `639bc6f01c8bbb3be0a12a4b9fd0b83d4cc94a6cb95c443d51ec16d271253c05` |
-| `Sia-0.1.0-alpha.38-universal.zip` | `f37c6b117a9aea43c5e02ff46938ce769d292490d2bac633a00b49568f8388c3` |
-| Installed `app.asar`               | `cb4ef1c978d7ea79337b7c4e93c8df38662ab301c2487407dcc3f80c0b6e8dc8` |
+| `Sia-0.1.0-alpha.39-universal.dmg` | `17272571ebaeee93c2c3cf13a822e8a2319232d9846009890dce783115f4f617` |
+| `Sia-0.1.0-alpha.39-universal.zip` | `2f7d9f7b9e1091d4198b36845ab1de90c8b8252435b7dda338d76f6034b80319` |
+| Installed `app.asar`               | `b12e93575b6345fefe6757da1ed913bc8c8c39a314d1389d1946926ac516ec40` |
 
-Later documentation-only acceptance edits are not part of that artifact's source commit.
-The signed QA app replaced alpha.37 after preserving a verified rollback copy. It reopened the
-existing QA profile with history/settings intact and no new Keychain prompt. That is upgrade
-coverage, not clean-account setup acceptance.
+The existing QA profile reopened with settings/history intact and no new Keychain prompt.
+Mac access showed ready; the already-approved public Chrome window attached through the picker.
+This was a separate window in the existing profile, not an isolated browser profile or clean-account
+onboarding. The verified alpha.38 app remains the local rollback copy.
 
-## Real work on the signed app
+## Alpha.39 real GUI failures
+
+Two requests started 11.84 seconds apart using GPT-6-Astra through Codex App Server, strict
+background mode and automatic action approval. Finder was asked to organize six actual public
+project deliverables into three folders through its GUI. After 72 seconds it stopped: background
+shortcuts did not navigate reliably. Independent checks confirmed all six original hashes remained
+in Inbox and no destination folders existed. AX Back changed the folder, but Sia's top-level title
+remained stale; that source bug is corrected for the next candidate.
+
+The other task was to compare official Cua, Browser Use and Playwright documentation and save a
+short report. It read Cua's page. Two navigation attempts paused because Chrome remained active
+despite operator attempts to activate TextEdit. After the operator hid Chrome, navigation lost its
+acknowledgement and the next read returned `authorization_host_failed`. A full Sia restart and
+reconnection of the same approved window restored Attached, but another read failed the same way.
+The report file does not exist. No website sign-in failure was established.
+
+The TextEdit canary retained its text, but foreground ownership was not proved and the clipboard
+was not tested. Neither useful GUI request completed, so overlapping starts do not establish
+concurrent computer-use acceptance. Exact prompts, input hashes, traces, screenshots and results
+remain in the private alpha.39 artifact folder. These failures block distribution.
+
+## Prior alpha.38 document results
 
 Both tasks used GPT-6-Astra through Codex App Server and the operator's actual ChatGPT plan,
 Use my Mac / Work in background / Pause and tell me, with automatic action approval. Sources were
@@ -64,7 +80,7 @@ not close repeatability, real-source browser research, practical public-source o
 default Chrome setup/recovery, unexpected expiry, parallel GUI control, clean macOS-account signup
 and provider retry, or physical voice/lock/sleep acceptance. Native Chrome inspection through the
 operator CUA tool timed out, and Sia's picker did not identify the isolated research window; no
-unrelated window was selected. GUI loops serialize and background new-tab creation is unsupported.
+unrelated window was selected. Alpha.39 changes GUI ownership, but its live acceptance failed; background new-tab creation remains unsupported.
 
 ## Prior candidate evidence and rollback
 

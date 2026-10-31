@@ -350,7 +350,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   the turn fails before any model call with a plain next step (allow access, or choose On my screen)
   and the Continue task banner. The background route uses
   `@trycua/cua-driver` through `CuaService` in the Electron main process, without a VM or driver daemon.
-  The SDK and both bundled Mac native libraries are pinned together at 0.37.0. Sia explicitly
+  The SDK and both bundled Mac native libraries are pinned together at 0.38.0. Sia explicitly
   requests structured `elements` and verbose background-route metadata; the driver's compact
   markdown default cannot support Sia's protected-field checks or input grants. Actions use only
   observed snapshot-bound element tokens, without the retired index/snapshot input arguments.

@@ -1,6 +1,6 @@
 {
   "name": "@sia/desktop",
-  "version": "0.1.0-alpha.39",
+  "version": "0.1.0-alpha.40",
   "private": true,
   "description": "A local-first personal computer assistant for macOS.",
   "author": "Lawrence Jang",
@@ -37,13 +37,13 @@
     "test:renderer": "playwright test --config playwright.renderer.config.ts"
   },
   "dependencies": {
-    "@trycua/cua-driver": "0.37.0",
+    "@trycua/cua-driver": "0.38.0",
     "ws": "^8.21.3",
     "zod": "^4.4.3"
   },
   "optionalDependencies": {
-    "@trycua/cua-driver-darwin-arm64": "0.37.0",
-    "@trycua/cua-driver-darwin-x64": "0.37.0",
+    "@trycua/cua-driver-darwin-arm64": "0.38.0",
+    "@trycua/cua-driver-darwin-x64": "0.38.0",
     "@ubjs/node-darwin-arm64": "0.31.0-3",
     "@ubjs/node-darwin-x64": "0.31.0-3"
   },

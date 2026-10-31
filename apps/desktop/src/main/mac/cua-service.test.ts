@@ -40,6 +40,30 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
+it('records content-free authorization diagnostics without retrying the native operation', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const driver = {
+    ...successfulDriver({}),
+    callTool: vi.fn(async () => ({
+      errorCode: 'authorization_host_failed',
+      rawJson: JSON.stringify({ message: 'request timed out', resource: 'private-resource' }),
+    })),
+  };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(service.call('get_browser_state', {}, directContext)).rejects.toThrow(
+      'CUA refused: authorization_host_failed',
+    );
+    expect(driver.callTool).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      '[sia:cua-authorization] native_refusal tool=get_browser_state hint=request_timeout callback_started=0 callback_completed=0',
+    );
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
+});
+
 it.each(['invoke_menu', 'launch_app'])(
   'refuses unbounded %s before creating a driver in a background-only turn',
   async (tool) => {
