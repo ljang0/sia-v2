@@ -41,8 +41,10 @@ with Arena's existing rankings would be agreed together.
 
 ## A small first engagement
 
-1. Review the repository and rehearse three tasks: create and preview a CSV, operate Calculator,
-   and read an existing public browser tab. Check failure and cancellation as well as success.
+1. Review the repository and rehearse real work: a sourced technical comparison, a reviewer packet
+   prepared from actual project documents, and a practical plan using current public information.
+   Verify the saved outputs while the person keeps working in another app. Check simultaneous
+   tasks, responsiveness, failure recovery and cancellation as well as success.
 2. Agree on a small invited cohort, supported tasks/models, a sponsor spending cap, support owner,
    data handling and success criteria. Sia operates the client; Arena's role and infrastructure
    responsibilities remain proposals until agreed.
@@ -51,16 +53,20 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Alpha.37 is signed and notarized. Its automated gate, QA-profile upgrade, background browser
-reading/navigation, explicit detach/reconnect, CSV creation/preview, native Calculator and
-cancellation/restart checks passed. It reuses the exact Chrome window approved by the person.
-Remaining checks are unexpected browser-session expiry, clean macOS-account setup/provider retry,
-and physical voice/lock/sleep acceptance. Background new-tab creation is unsupported.
+Alpha.38 is signed and notarized, with its full local pilot gate and artifact-source CI passing.
+Two real GPT-6-Astra tasks overlapped in separate folders: a three-document technical-review packet
+and a five-day release plan with a CSV tracker. All five saved outputs and previews were independently
+checked; neither task needed a corrective prompt. Cancelling a later planning task left the separate
+evidence-review task running. These results establish useful document work, not general desktop
+reliability. Real-source browser research, default Chrome setup/recovery, foreground-user coexistence
+during GUI input, clean macOS-account setup/provider retry, and physical voice/lock/sleep acceptance
+remain open. GUI loops still serialize, and background browser new-tab creation is unsupported.
 The installer and review packet are prepared locally; distribution still requires these gates
 and the owner's release decision.
 The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
 owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.
 
+Try the [real-work demo guide](./demo.md), which preserves failures and corrective interventions.
 Start with the [README setup and task path](../README.md), then
 [architecture](./architecture.md), [ratings](./arena-ratings.md) and
 [sponsor integration](./arena-model-harness.md). The initial handoff is the repository, a verified

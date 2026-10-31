@@ -12,7 +12,11 @@ export function browserTaskRequest(thread: ThreadDetail): string | undefined {
   if (index < 0) return undefined;
   const browserAttempt = thread.events
     .slice(index + 1)
-    .some((event) => event.type === 'activity' && event.toolName?.startsWith('browser_'));
+    .some(
+      (event) =>
+        event.type === 'activity' &&
+        (event.browserRecovery || event.toolName?.startsWith('browser_')),
+    );
   return browserAttempt ? thread.events[index]!.id : undefined;
 }
 
@@ -32,7 +36,16 @@ export function BrowserTaskRecovery({
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const busy = ['running', 'queued', 'waiting'].includes(thread.status);
-  if (accessMode === 'mac' || !userMessageId || (browser.attached && !started)) return null;
+  const requestIndex = thread.events.findIndex((event) => event.id === userMessageId);
+  const macRecovery = thread.events
+    .slice(requestIndex + 1)
+    .some((event) => event.type === 'activity' && event.browserRecovery);
+  if (
+    !userMessageId ||
+    (accessMode === 'mac' && !macRecovery) ||
+    (browser.attached && !started && !macRecovery)
+  )
+    return null;
   const run = async (windowId?: number) => {
     setStarted(true);
     setPending(true);
@@ -63,7 +76,7 @@ export function BrowserTaskRecovery({
       >
         {pending || browser.status === 'attaching'
           ? 'Connecting to Chrome…'
-          : browser.attached
+          : browser.attached && !macRecovery
             ? 'Continue request'
             : 'Connect Chrome & continue'}
       </button>

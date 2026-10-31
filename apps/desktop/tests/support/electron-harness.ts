@@ -124,6 +124,16 @@ export async function launchIsolatedSia(
         ).toHaveCount(0);
         await this.page.getByRole('button', { name: 'Start using Sia' }).click();
       }
+      if (!connected) {
+        const skipChrome = this.page.getByRole('button', {
+          name: 'Continue without Chrome',
+          exact: true,
+        });
+        const composer = this.page.getByRole('textbox', { name: 'Message', exact: true });
+        await expect(skipChrome.or(composer)).toBeVisible();
+        // These tests exercise the explicit opt-out. Browser grant semantics have separate coverage.
+        if (await skipChrome.isVisible()) await skipChrome.click();
+      }
       await expect(
         this.page.getByRole('textbox', { name: 'Message', exact: true }),
       ).toBeVisible();

@@ -867,3 +867,98 @@ it('lets the finished note step aside with a short exit before it is removed', (
   expect(done).toHaveBeenCalled();
   vi.useRealTimers();
 });
+
+it('keeps default Mac setup open until Chrome has a verified site and uses the selected window', async () => {
+  const { snapshot, api, props } = setup('verify');
+  const attachBrowser = vi.fn(async (_windowId?: number) => {});
+  Object.assign(api, { attachBrowser });
+  snapshot.computer.accessMode = 'mac';
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.screenRecording = 'allowed';
+  snapshot.computer.chromeConnection = 'off';
+  snapshot.voice = readyVoice();
+  snapshot.browser = {
+    ...snapshot.browser,
+    attached: false,
+    status: 'detached',
+    tabs: [],
+    availableWindows: [],
+  };
+  const view = render(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  await screen.findByRole('button', { name: 'Set up Chrome' });
+  expect((screen.getByRole('button', { name: 'Try Fn' }) as HTMLButtonElement).disabled).toBe(
+    true,
+  );
+  expect(attachBrowser).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole('button', { name: 'Set up Chrome' }));
+  await waitFor(() => expect(attachBrowser).toHaveBeenCalledWith());
+  snapshot.browser.availableWindows = [
+    { id: 42, label: 'Chrome window 2', detail: 'Research' },
+  ];
+  view.rerender(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  fireEvent.click(screen.getByRole('button', { name: 'Use Chrome window 2: Research' }));
+  await waitFor(() => expect(attachBrowser).toHaveBeenCalledWith(42));
+  snapshot.browser.attached = true;
+  snapshot.browser.status = 'attached';
+  view.rerender(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  // An empty or ungranted tab is not a successful background-read setup.
+  expect((screen.getByRole('button', { name: 'Try Fn' }) as HTMLButtonElement).disabled).toBe(
+    true,
+  );
+  snapshot.browser.tabs = [
+    { id: 'qa', origin: 'example.com', title: 'Research', active: true, granted: true },
+  ];
+  view.rerender(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  await waitFor(() =>
+    expect((screen.getByRole('button', { name: 'Try Fn' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    ),
+  );
+});
+
+it('allows explicitly declining Chrome without granting access or preventing native Mac use', async () => {
+  const { snapshot, api, props } = setup('verify');
+  const attachBrowser = vi.fn(async () => {});
+  Object.assign(api, { attachBrowser });
+  snapshot.computer.accessMode = 'mac';
+  snapshot.computer.accessibility = 'allowed';
+  snapshot.computer.screenRecording = 'allowed';
+  snapshot.computer.chromeConnection = 'off';
+  snapshot.voice = readyVoice();
+  snapshot.browser = {
+    ...snapshot.browser,
+    attached: false,
+    status: 'detached',
+    tabs: [],
+    availableWindows: [],
+  };
+  render(
+    <Onboarding {...props}>
+      <div />
+    </Onboarding>,
+  );
+  fireEvent.click(await screen.findByRole('button', { name: 'Continue without Chrome' }));
+  await waitFor(() =>
+    expect((screen.getByRole('button', { name: 'Try Fn' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    ),
+  );
+  expect(attachBrowser).not.toHaveBeenCalled();
+  expect(snapshot.browser.attached).toBe(false);
+});

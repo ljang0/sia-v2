@@ -18,6 +18,7 @@ import { STARTER_INSTRUCTIONS } from '../welcome';
 import type { RendererApi, RendererSnapshot } from '../types';
 import { SetupConnections } from './OnboardingConnections';
 import { SetupMacAccess } from './SetupMacAccess';
+import { SetupBrowserAccess } from './SetupBrowserAccess';
 import { FnPractice } from './FnPractice';
 import { SiaLogo } from './SiaLogo';
 import { ProvidersSettings } from './settings/ProvidersSettings';
@@ -138,6 +139,7 @@ export function Onboarding({
   const [accessReady, setAccessReady] = useState(false);
   const [permissionPassComplete, setPermissionPassComplete] = useState(false);
   const [connectionsOpen, setConnectionsOpen] = useState(false);
+  const [skipBrowser, setSkipBrowser] = useState(false);
   const autoFinished = useRef(false);
   const [error, setError] = useState<string>();
   const [celebrate, setCelebrate] = useState(false);
@@ -165,6 +167,12 @@ export function Onboarding({
     choices.find((item) => item.ready);
   const restarting = Boolean(snapshot.preferences.onboarding?.restartPending);
   const connectedSetup = setupRoute === 'connected';
+  const browserReady =
+    connectedSetup ||
+    skipBrowser ||
+    snapshot.computer.chromeConnection === 'unavailable' ||
+    snapshot.computer.automation?.chrome === 'unavailable' ||
+    (snapshot.browser.attached && snapshot.browser.tabs.some((tab) => tab.granted));
   const aiReady = agent
     ? snapshot.providers.some(
         (provider) => provider.id === agent.provider && provider.status === 'ready',
@@ -174,7 +182,12 @@ export function Onboarding({
     ({ setup }) => setup && setup.phase !== 'error',
   );
   const connecting = snapshot.apps.some((app) => app.status === 'connecting');
-  const busy = pending || permissionBusy || restarting || codexSetupBusy;
+  const busy =
+    pending ||
+    permissionBusy ||
+    restarting ||
+    codexSetupBusy ||
+    snapshot.browser.status === 'attaching';
   // An approval opens the section; keep it open afterwards so its result and errors stay visible.
   const showConnections = step === 'apps' || connecting;
   useEffect(() => {
@@ -215,6 +228,7 @@ export function Onboarding({
     void run(async () => {
       autoFinished.current = false;
       setPermissionPassComplete(false);
+      setSkipBrowser(false);
       await api.setComputerAccessMode(setupRoute === 'mac-bypass' ? 'mac' : 'connected');
       await api.setComputerTrust(confirmActions ? 'ask' : 'auto');
       if (!agent && choice?.ready)
@@ -259,6 +273,7 @@ export function Onboarding({
       !aiReady ||
       !permissionPassComplete ||
       !accessReady ||
+      !browserReady ||
       busy ||
       connecting ||
       connectionsOpen ||
@@ -279,6 +294,7 @@ export function Onboarding({
     aiReady,
     permissionPassComplete,
     accessReady,
+    browserReady,
     busy,
     connecting,
     connectionsOpen,
@@ -296,7 +312,13 @@ export function Onboarding({
     );
   // Stay on Mac access while a Grant all pass is still walking its rows.
   const done =
-    !starting && !practicing && !restarting && aiReady && accessReady && !permissionBusy;
+    !starting &&
+    !practicing &&
+    !restarting &&
+    aiReady &&
+    accessReady &&
+    browserReady &&
+    !permissionBusy;
   return (
     <main className={styles.setup} aria-label="Welcome to Sia">
       <section className={styles.stage}>
@@ -634,11 +656,25 @@ export function Onboarding({
                   }}
                 />
               )}
+              {!connectedSetup && accessReady && !browserReady && !restarting ? (
+                <SetupBrowserAccess
+                  browser={snapshot.browser}
+                  api={api}
+                  busy={busy}
+                  run={run}
+                  onSkip={() => setSkipBrowser(true)}
+                />
+              ) : null}
               <div className={styles.actions}>
                 <button
                   className={buttons.primaryButton}
                   // Use my Mac needs every permission; the guide above asks for each in turn.
-                  disabled={busy || connecting || !aiReady || (!connectedSetup && !accessReady)}
+                  disabled={
+                    busy ||
+                    connecting ||
+                    !aiReady ||
+                    (!connectedSetup && (!accessReady || !browserReady))
+                  }
                   onClick={!connectedSetup && voiceReady ? practice : finish}
                 >
                   {!connectedSetup && voiceReady ? 'Try Fn' : 'Start using Sia'}

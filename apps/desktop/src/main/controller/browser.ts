@@ -116,8 +116,9 @@ export class BrowserSession {
         throw new Error(
           'Wait for the current response to finish before connecting and continuing.',
         );
+      return lastUser;
     };
-    validate();
+    const userMessage = validate();
     if (this.continuations.size)
       throw new Error('Chrome connection is already in progress for this request.');
     this.continuations.add(input.threadId);
@@ -126,6 +127,12 @@ export class BrowserSession {
         this.ctx.state.browser.status !== 'attached' ||
         !this.sessionId ||
         !this.ctx.state.browser.grantedOrigins.length ||
+        this.ctx.state.timeline.some(
+          (item) =>
+            item.threadId === input.threadId &&
+            item.turnId === userMessage.turnId &&
+            item.browserRecovery,
+        ) ||
         input.windowId !== undefined
       ) {
         await this.attachBrowser(
@@ -142,7 +149,10 @@ export class BrowserSession {
       const draft = thread.draft;
       this.ctx.turns.sendTurn({
         threadId: input.threadId,
-        text: 'Chrome is connected now. Continue my previous request using the browser tools. Check what has already completed before taking further actions.',
+        text:
+          this.ctx.computerAccess.accessMode() === 'mac'
+            ? 'Chrome is connected now. Continue my previous request using the current Mac computer route and the chosen window. Check what has already completed before taking further actions; do not replay completed input.'
+            : 'Chrome is connected now. Continue my previous request using the browser tools. Check what has already completed before taking further actions.',
       });
       if (draft !== undefined) {
         thread.draft = draft;

@@ -715,6 +715,53 @@ describe('connect Chrome and continue', () => {
       await controller.shutdown();
     }
   });
+  it('requires an explicit task-window choice when another Chrome window is already attached', async () => {
+    const { controller, nativeCall, threadId, userMessageId } = await recoveryHarness();
+    try {
+      await controller.invoke('computer.setAccessMode', { mode: 'mac' });
+      await controller.invoke('browser.attach', { windowId: 8 });
+      const user = controller.snapshot().timeline.find((item) => item.id === userMessageId)!;
+      await controller.actionResultObserver()({
+        name: 'computer_snapshot',
+        context: {
+          sessionId: 'test',
+          threadId,
+          turnId: user.turnId!,
+          provider: 'codex',
+          workspace: '/tmp/sia-workspace',
+          backgroundOnly: true,
+        },
+        result: {
+          outcome: 'refused',
+          summary: 'Connection required',
+          data: { window_id: 'task-window', browser_connection_required: true },
+        },
+      });
+      nativeCall.mockClear();
+      const choice = await controller.invoke('browser.connectAndContinue', {
+        threadId,
+        userMessageId,
+      });
+      expect(choice.browser.status).toBe('detached');
+      expect(choice.browser.availableWindows).toHaveLength(2);
+      expect(choice.timeline.filter((item) => item.kind === 'user')).toHaveLength(1);
+      expect(nativeCall.mock.calls.some(([tool]) => tool === 'browser_prepare')).toBe(false);
+      const continued = await controller.invoke('browser.connectAndContinue', {
+        threadId,
+        userMessageId,
+        windowId: 7,
+      });
+      expect(continued.timeline.findLast((item) => item.kind === 'user')?.text).toContain(
+        'current Mac computer route',
+      );
+      expect(nativeCall.mock.calls.filter(([tool]) => tool === 'browser_prepare')).toHaveLength(
+        1,
+      );
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('keeps the original task on connection failure without starting a model turn', async () => {
     const { controller, threadId, userMessageId } = await recoveryHarness({ fail: true });
     try {

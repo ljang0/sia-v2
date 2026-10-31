@@ -11,9 +11,8 @@ send from an existing personal draft. If focus moves unexpectedly, stop and re-e
 target before any more input.
 
 Record the result in the private pilot log with the exact Sia version and artifact hash under
-test. The source candidate is `0.1.0-alpha.37`; alpha.37 is the latest verified signed package.
-Record the new candidate’s signed artifact and hashes in
-[`public-release.md`](./public-release.md). The last published pilot artifact remains
+test. Use the current signed candidate and hashes in [`public-release.md`](./public-release.md),
+and update that record when a new candidate is built. The last published pilot artifact remains
 `0.1.0-alpha.24`, recorded in [`release-evidence.md`](./release-evidence.md).
 
 ## Current handoff scope
@@ -24,6 +23,45 @@ lock/sleep and voice checks. Record the exact artifact and any unsupported featu
 The physical iPhone, TestFlight, phone relay and texting sections below remain follow-on acceptance;
 they are not claimed as passed or required for the first Mac-only handoff. Public connectors and
 additional model engines retain their own admission gates.
+
+## Real work and concurrent use
+
+These are release requirements, not optional demos. Run through the signed app with a live
+provider and real public sources or explicitly designated user material. Do not replace them with
+seeded replies, tiny invented data, or direct operator work that bypasses Sia. Keep private source
+material and recordings outside Git. Calculator and small CSV checks remain useful smoke tests.
+
+| Workflow                 | Useful deliverable                                                                                                                                                                                                                     | Independent verification                                                                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Arena technical research | Compare Cua, Browser Use and Playwright from their current official documentation; produce a concise decision brief covering native vs browser control, background behavior, setup, limitations and what Arena would need to evaluate. | Open cited sources, check every consequential comparison, verify file contents and links, and distinguish documented capability from observed behavior. |
+| Document preparation     | Use the actual Sia proposal and release notes to prepare a reviewer brief, installation checklist and unresolved-questions list, without overstating readiness.                                                                        | Compare outputs with source files, verify exact version/hash and remaining gates, open every saved deliverable in its normal app.                       |
+| Personal planning        | Research a real upcoming outing or work trip from current official schedules and venue information; produce a usable itinerary, alternatives, budget assumptions and source links. Do not book or message anyone.                      | Independently verify dates, opening/transport times, feasibility and arithmetic. Record any clarification needed rather than inventing preferences.     |
+
+For each run record the original natural-language request, artifact version/hash, provider/model,
+start/end time, tool calls, failures/retries, operator interventions and independently inspected
+outputs. A reviewer should be able to repeat it from the documented setup without terminal fixes.
+Run each selected demo twice from a fresh conversation; a successful edited retry is not a first-run pass.
+
+Exercise concurrency while a real workflow runs: type and edit an unrelated disposable document
+in TextEdit, then verify every character and the foreground app. Sia must not steal focus, change
+the person's clipboard, type into their document or silently fall back to foreground control.
+Run two independent Sia tasks concurrently against separate designated files/windows; verify both
+results and isolation. Repeat with the same target window and verify safe serialization or an
+explicit pause, never interleaved input or a silent hang. Cancel one task while the other continues.
+
+Measure cold/warm startup, send-to-first-progress, thread-switch/composer responsiveness, stop-to-idle,
+total workflow duration and tool latency separately from model/network time. Initial acceptance
+targets are visible local feedback within one second and Stop disabling new action dispatch within
+two seconds; record instrumentation and sampling limits. Check at least ten UI interactions while
+work runs and report observed median/worst time. A task with no progress for 30 seconds needs a
+visible explanation and working cancel control. Do not call performance acceptable without measurements.
+
+On the default setup path, include background Chrome readiness when Chrome is installed. The
+person approves macOS/Chrome prompts and selects the intended window during setup, with a clear
+way to decline browser access. Verify a fresh background read, repeat across tasks, and relaunch.
+After revocation/expiry, show a plain-language recovery action that resumes the original request
+after reconnection without replaying completed input. Never count access to a different window as
+recovery. A raw `browser_consent_required` response is not a usable first-run experience.
 
 ## Automated gate
 

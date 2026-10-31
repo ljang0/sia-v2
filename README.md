@@ -6,7 +6,8 @@ to do things on your Mac. The signed Mac candidate is in acceptance testing for 
 see [release status](./docs/release-status.md) before distributing it.
 
 **Reviewing Sia for Arena?** Start with the [Computer Use Arena proposal](./docs/arena-proposal.md),
-then run the fake-services setup below. It needs no cloud account or model key.
+then the [real-work demo guide](./docs/demo.md) for useful tasks, recorded outcomes and remaining
+checks. The developer fake-services setup below is only for inspecting the UI without an account.
 
 New tasks run through the Codex App Server harness, using an available included model or the
 person's existing ChatGPT plan. Settings → AI also offers an optional **Your own API key** route
@@ -24,8 +25,8 @@ for an OpenAI Responses-compatible endpoint. Setup does not require an API key.
 - **Sia-hosted tools block protected surfaces**, including password fields, sign-in screens,
   Keychain and password managers. Provider-native shell and file tools have their own boundary;
   see [architecture](./docs/architecture.md).
-- **Connections are optional.** Google Workspace, Slack, Notion, GitHub and signed-in Chrome can
-  be added later. Calendar, Tasks and Outlook connectors are disabled. **Use my Mac** requires its
+- **Default setup includes Chrome.** Choose its task window or explicitly continue without it;
+  Chrome still owns its permission prompt. Google Workspace, Slack, Notion and GitHub are optional. Calendar, Tasks and Outlook connectors are disabled. **Use my Mac** requires its
   macOS grants before finishing setup; **Connected apps only** does not require Mac permissions.
 - **Schedules** repeat until paused or deleted; one-time schedules run once. Sia must stay open and
   the Mac awake for local tasks and schedules.
@@ -67,6 +68,12 @@ and feedback; it is not a remote desktop or an always-on task runner. The iPhone
 | [`infra`](./infra)                                     | Deployable AWS and connector configuration                                  |
 | [`scripts`](./scripts)                                 | Repository checks behind `pnpm onboard:check` and `pnpm quality:guard`      |
 | [`docs`](./docs)                                       | Architecture, operations, pilot, and policy documentation                   |
+
+## Try real work
+
+The [demo guide](./docs/demo.md) has copyable requests for a real reviewer packet, release-week
+plan, and codebase reading guide, with actual rehearsal outcomes and independent output checks.
+It also states which browser, background and concurrent-use checks remain unfinished.
 
 ## Set up
 

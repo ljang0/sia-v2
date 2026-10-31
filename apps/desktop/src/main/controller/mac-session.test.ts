@@ -365,6 +365,59 @@ describe('Use my Mac power and lock handling', () => {
     await controller.shutdown();
   });
 
+  it('records actionable browser recovery for the current request and clears only the recovered window', async () => {
+    const { runtime, requests } = holdingRuntime();
+    const { controller, threadId } = await macThread({ runtime });
+    try {
+      await controller.invoke('threads.send', {
+        threadId,
+        text: 'Compare these public sources',
+      });
+      await vi.waitFor(() => expect(requests).toHaveLength(1));
+      const turnId = controller
+        .snapshot()
+        .timeline.find((item) => item.kind === 'user')!.turnId!;
+      const observe = controller.actionResultObserver();
+      const notice = {
+        name: 'computer_snapshot' as const,
+        context: {
+          sessionId: 'session',
+          threadId,
+          turnId,
+          provider: 'codex' as const,
+          workspace: '/tmp/sia-workspace',
+          backgroundOnly: true,
+        },
+        result: {
+          outcome: 'refused' as const,
+          summary: 'Browser consent needed',
+          data: { window_id: 'window-7', browser_connection_required: true },
+        },
+      };
+      await observe({ ...notice, context: { ...notice.context, turnId: 'old-turn' } });
+      expect(controller.snapshot().timeline.some((item) => item.browserRecovery)).toBe(false);
+      await observe(notice);
+      await observe(notice);
+      expect(
+        controller.snapshot().timeline.filter((item) => item.browserRecovery),
+      ).toHaveLength(1);
+      const recovered = {
+        outcome: 'verified' as const,
+        summary: 'Read browser',
+        data: { window_id: 'other-window', browser_route: 'cua_browser' },
+      };
+      await observe({ ...notice, result: recovered });
+      expect(controller.snapshot().timeline.some((item) => item.browserRecovery)).toBe(true);
+      await observe({
+        ...notice,
+        result: { ...recovered, data: { ...recovered.data, window_id: 'window-7' } },
+      });
+      expect(controller.snapshot().timeline.some((item) => item.browserRecovery)).toBe(false);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('lets host-enforced read-only recovery finish but pauses any further input request', async () => {
     const { runtime, requests } = holdingRuntime();
     const { controller, threadId, status } = await macThread({ runtime });
