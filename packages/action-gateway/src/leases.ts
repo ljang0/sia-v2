@@ -2,6 +2,8 @@ export type LeaseResource =
   | { readonly kind: 'workspace_writer'; readonly id: string }
   | { readonly kind: 'browser_tab'; readonly id: string }
   | { readonly kind: 'app_window'; readonly id: string }
+  /** One shared desktop permit per background turn; excludes foreground takeover. */
+  | { readonly kind: 'background_gui'; readonly id: string }
   | { readonly kind: 'global_focus'; readonly id: 'foreground' };
 
 export interface LeaseQueueEntry {
@@ -63,6 +65,7 @@ export class TurnLease {
   readonly threadId: string;
   readonly #coordinator: LocalLeaseCoordinator;
   #released = false;
+  readonly #cleanup = new Set<() => void>();
 
   constructor(coordinator: LocalLeaseCoordinator, turnId: string, threadId: string) {
     this.#coordinator = coordinator;
@@ -79,10 +82,21 @@ export class TurnLease {
     return this.#coordinator.turnHolds(this.turnId, resource);
   }
 
+  get released(): boolean {
+    return this.#released;
+  }
+
+  onRelease(cleanup: () => void): void {
+    if (this.#released) cleanup();
+    else this.#cleanup.add(cleanup);
+  }
+
   release(): void {
     if (this.#released) return;
     this.#released = true;
     this.#coordinator.releaseTurn(this.turnId);
+    for (const cleanup of this.#cleanup) cleanup();
+    this.#cleanup.clear();
   }
 }
 
@@ -151,8 +165,17 @@ export class LocalLeaseCoordinator {
     if (turn.resources.has(key)) {
       return Promise.resolve(new ResourceLease(turnId, resource, () => undefined));
     }
-    if (!this.#resourceOwners.has(key))
+    if (!this.#resourceOwners.has(key) && !this.#foregroundConflict(turnId, resource))
       return Promise.resolve(this.#grantResource(turn, resource));
+    if (
+      resource.kind === 'app_window' &&
+      [...turn.resources].some((held) => held.startsWith('app_window:'))
+    )
+      return Promise.reject(
+        new Error(
+          'Another task is using this window. Finish work in the current window before trying the other task’s window; no input was sent.',
+        ),
+      );
     return new Promise<ResourceLease>((resolve, reject) => {
       const queue = this.#pendingResources.get(key) ?? [];
       const pending = {} as PendingResource;
@@ -161,6 +184,7 @@ export class LocalLeaseCoordinator {
         if (index >= 0) queue.splice(index, 1);
         if (queue.length === 0) this.#pendingResources.delete(key);
         reject(signal?.reason ?? new Error('Resource lease request aborted'));
+        this.#drainResources();
       };
       Object.assign(pending, { turnId, resource, resolve, reject, signal, abort });
       if (signal?.aborted) return abort();
@@ -192,6 +216,7 @@ export class LocalLeaseCoordinator {
       if (queue.length === 0) this.#pendingResources.delete(key);
     }
     this.#drainTurns();
+    this.#drainResources();
   }
 
   snapshotQueue(): readonly LeaseQueueEntry[] {
@@ -240,20 +265,40 @@ export class LocalLeaseCoordinator {
     if (this.#resourceOwners.get(key) !== turnId) return;
     this.#resourceOwners.delete(key);
     this.#activeTurns.get(turnId)?.resources.delete(key);
-    const queue = this.#pendingResources.get(key);
-    if (!queue) return;
-    while (queue.length > 0) {
-      const pending = queue.shift()!;
-      pending.signal?.removeEventListener('abort', pending.abort);
-      const turn = this.#activeTurns.get(pending.turnId);
-      if (!turn) {
-        pending.reject(new Error('Turn ended before resource was acquired'));
-        continue;
+    this.#drainResources();
+  }
+
+  #foregroundConflict(turnId: string, resource: LeaseResource): boolean {
+    if (resource.kind === 'global_focus')
+      return [...this.#resourceOwners].some(
+        ([key, owner]) => key.startsWith('background_gui:') && owner !== turnId,
+      );
+    if (resource.kind !== 'background_gui') return false;
+    const foreground = this.#resourceOwners.get('global_focus:foreground');
+    if (foreground && foreground !== turnId) return true;
+    // A queued foreground task must not starve behind newly arriving background tasks.
+    return (this.#pendingResources.get('global_focus:foreground') ?? []).some(
+      (pending) => pending.turnId !== turnId,
+    );
+  }
+
+  #drainResources(): void {
+    for (const [key, queue] of this.#pendingResources) {
+      while (queue.length > 0 && !this.#resourceOwners.has(key)) {
+        const next = queue[0]!;
+        if (this.#foregroundConflict(next.turnId, next.resource)) break;
+        const pending = queue.shift()!;
+        pending.signal?.removeEventListener('abort', pending.abort);
+        const turn = this.#activeTurns.get(pending.turnId);
+        if (!turn) {
+          pending.reject(new Error('Turn ended before resource was acquired'));
+          continue;
+        }
+        pending.resolve(this.#grantResource(turn, pending.resource));
+        break;
       }
-      pending.resolve(this.#grantResource(turn, pending.resource));
-      break;
+      if (queue.length === 0) this.#pendingResources.delete(key);
     }
-    if (queue.length === 0) this.#pendingResources.delete(key);
   }
 
   #drainTurns(): void {

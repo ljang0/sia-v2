@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  LocalLeaseCoordinator,
+  type TurnLease,
   getActionToolDescriptor,
   parseActionArguments,
   type ValidatedActionInvocation,
@@ -110,6 +112,7 @@ function harness() {
     name: ValidatedActionInvocation['name'],
     args: Record<string, unknown>,
     turnId = 'turn',
+    lease?: TurnLease,
   ): ValidatedActionInvocation => ({
     name,
     descriptor: getActionToolDescriptor(name)!,
@@ -121,10 +124,11 @@ function harness() {
       provider: 'codex',
       workspace: '/tmp/sia-browser-fixture',
       backgroundOnly: true,
+      ...(lease ? { lease, threadId: lease.threadId } : {}),
     },
   });
-  async function target(turnId = 'turn') {
-    const result = await backend.invoke(request('computer_list', {}, turnId));
+  async function target(turnId = 'turn', lease?: TurnLease) {
+    const result = await backend.invoke(request('computer_list', {}, turnId, lease));
     const data = result.data as { windows: { app_id: string; window_id: string }[] };
     return { app_id: data.windows[0]!.app_id, window_id: data.windows[0]!.window_id };
   }
@@ -132,6 +136,49 @@ function harness() {
 }
 
 describe('Mac background Chromium uses the dedicated Cua browser route', () => {
+  it('propagates connection changes into isolated turn sessions and revokes their input refs', async () => {
+    const h = harness();
+    const leases = new LocalLeaseCoordinator();
+    const a = await leases.startTurn({ turnId: 'a', threadId: 'a' });
+    const b = await leases.startTurn({ turnId: 'b', threadId: 'b' });
+    try {
+      const first = await h.target('a', a);
+      const second = await h.target('b', b);
+      h.state.prepared = true;
+      h.state.requireSessionGrant = true;
+      h.state.url = 'https://public.example/guide';
+      h.state.grantedSessions.add('approved');
+      h.backend.acceptBrowserState({}, 'approved', { pid: 42, windowId: 91 });
+      expect(
+        (await h.backend.invoke(h.request('computer_snapshot', first, 'a', a))).outcome,
+      ).toBe('verified');
+      a.release();
+      const read = await h.backend.invoke(h.request('computer_snapshot', second, 'b', b));
+      expect(read.outcome).toBe('verified');
+      const refs = read.data as { snapshot_id: string; elements: { element_ref: string }[] };
+      h.backend.resetBrowserCapabilities();
+      h.call.mockClear();
+      const action = await h.backend.invoke(
+        h.request(
+          'computer_action',
+          {
+            ...second,
+            snapshot_id: refs.snapshot_id,
+            element_ref: refs.elements[0]!.element_ref,
+            action: 'click',
+          },
+          'b',
+          b,
+        ),
+      );
+      expect(action.outcome).toBe('stale');
+      expect(h.call.mock.calls.some(([tool]) => tool === 'browser_click')).toBe(false);
+    } finally {
+      a.release();
+      b.release();
+    }
+  });
+
   it('reuses an explicitly connected exact window across turns without repeating setup', async () => {
     const h = harness();
     h.state.prepared = true;

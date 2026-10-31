@@ -1,10 +1,17 @@
-# Sia 0.1.0-alpha.38
+# Sia 0.1.0-alpha.39
 
 Pilot candidate — acceptance and distribution pending.
 
 Sia is a private macOS 14+ alpha of a personal assistant that works in your apps for you. Sign in
 with your invited email, then connect your ChatGPT plan in Settings → AI. You don't need to install
 anything else or paste an API key.
+
+## Concurrent background work
+
+Alpha.39 isolates each task's computer access and lets independent background windows progress
+without waiting for another task's entire GUI loop. Work on the same window stays ordered; stopping
+one task releases its own access. On my screen remains exclusive. This change is awaiting full
+signed-app acceptance; see [release status](./release-status.md) for verified scope.
 
 ## What's new since alpha.24
 

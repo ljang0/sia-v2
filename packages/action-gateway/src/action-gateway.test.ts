@@ -783,6 +783,21 @@ describe('curated tool surface', () => {
 });
 
 describe('local lease coordinator', () => {
+  it('refuses late file actions after the owning turn has ended', async () => {
+    const coordinator = new LocalLeaseCoordinator();
+    const lease = await coordinator.startTurn({ turnId: 'ended', threadId: 'ended' });
+    const backend = verifiedBackend();
+    const gateway = new ActionGateway({ backend });
+    lease.release();
+    const result = await gateway.invoke({
+      name: 'computer_list_files',
+      arguments: {},
+      context: { ...context, turnId: 'ended', threadId: 'ended', lease, backgroundOnly: true },
+    });
+    expect(result.outcome).toBe('refused');
+    expect(backend.invoke).not.toHaveBeenCalled();
+  });
+
   it('lets background file work proceed but queues GUI discovery until the prior GUI task ends', async () => {
     const coordinator = new LocalLeaseCoordinator();
     const owner = await coordinator.startTurn({ turnId: 'owner', threadId: 'owner-thread' });
@@ -836,7 +851,7 @@ describe('local lease coordinator', () => {
       expect(owner.holds({ kind: 'global_focus', id: 'foreground' })).toBe(true);
       owner.release();
       expect((await queued).outcome).toBe('verified');
-      expect(next.holds({ kind: 'global_focus', id: 'foreground' })).toBe(true);
+      expect(next.holds({ kind: 'background_gui', id: 'next' })).toBe(true);
       expect(backend.invoke).toHaveBeenCalledTimes(2);
     } finally {
       owner.release();

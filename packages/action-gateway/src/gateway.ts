@@ -215,7 +215,6 @@ export class DefaultActionAuthorizationPolicy implements ActionAuthorizationPoli
 function resourceFor(request: ValidatedActionInvocation): LeaseResource | undefined {
   const args = request.arguments;
   if (
-    request.context.backgroundOnly &&
     [
       'computer_list',
       'computer_snapshot',
@@ -224,15 +223,14 @@ function resourceFor(request: ValidatedActionInvocation): LeaseResource | undefi
       'computer_open_url',
     ].includes(request.name)
   ) {
-    // Computer grants are turn-scoped. Keep the full GUI action loop exclusive once it begins,
-    // while allowing independent background file/model work before any GUI access.
-    return { kind: 'global_focus', id: 'foreground' };
+    // Background turns share the desktop, while foreground takeover stays exclusive.
+    // The desktop backend locks physical window identities after resolving its opaque refs.
+    return request.context.backgroundOnly
+      ? { kind: 'background_gui', id: request.context.turnId }
+      : { kind: 'global_focus', id: 'foreground' };
   }
   if (request.name.startsWith('browser_') && typeof args.tab_id === 'string') {
     return { kind: 'browser_tab', id: args.tab_id };
-  }
-  if (request.name === 'computer_action' && typeof args.window_id === 'string') {
-    return { kind: 'app_window', id: args.window_id };
   }
   return undefined;
 }
@@ -351,6 +349,8 @@ export class ActionGateway {
       }
     }
     try {
+      if (invocation.context.lease?.released)
+        return refused('This task has ended. No new action was dispatched.');
       if (invocation.context.signal?.aborted)
         return refused('Action cancelled before execution');
       const result = actionExecutionResultSchema.parse(

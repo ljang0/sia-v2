@@ -39,6 +39,12 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 ## Current fixes
 
+Alpha.39 is in development to isolate each background turn's computer/browser grants and reserve
+physical windows individually. Foreground takeover remains exclusive, same-window work queues,
+and conflicting multi-window acquisition refuses instead of deadlocking. Focused regression checks
+pass; full gates, a new signed artifact and live concurrent GUI acceptance are still required.
+The installed and verified candidate remains alpha.38.
+
 Alpha.38 includes Chrome in default Mac setup with an explicit opt-out, and adds a host-triggered
 **Connect Chrome & continue** control to Mac conversations. Existing approved sessions are reused
 only for the same process/window; revoked or expired access must be reconnected deliberately.
