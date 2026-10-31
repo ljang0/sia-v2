@@ -84,6 +84,17 @@ same-frame pixels/metadata with fresh, proven sheet ownership and bounds, and re
 The dependency's frame-status decoder returned null despite other metadata being available.
 Temporary probes were removed and signed alpha.67 restored; no input or task acceptance is credited.
 
+Signed internal alpha.70 replaces the size-only coordinate assumption with a shared capture
+geometry module and same-sample stream pixels/metadata. Host and native input compare the captured
+proof, reject padding and changed sheet geometry, and constrain overhanging sheet clicks to the
+owned-sheet press backend. The unproven shell window fallback is removed. The full local pilot gate
+passed: 1,952 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus shared/native and
+build/static checks. A fresh assistant visibly collapsed and re-expanded the real Save sheet using
+two background clicks, each about 1.4 seconds. The requested Save/reopen task then stopped at
+Cmd-Shift-G with `needs_foreground/window_not_key`; its output folder remains empty. This verifies
+the coordinate correction, not completed native work or distribution readiness. QA was quit before
+further source work. The failed alpha.62/.63 keyboard experiments remain excluded.
+
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
 The release requires real-source research and writing, file/document preparation, and planning

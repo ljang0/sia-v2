@@ -2329,10 +2329,10 @@ index 6ad8c6e..6fea2c3 100644
  pub mod window_scope;
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/sheet_point.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/sheet_point.rs
 new file mode 100644
-index 0000000..6a9a12e
+index 0000000..1ea412f
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/sheet_point.rs
-@@ -0,0 +1,201 @@
+@@ -0,0 +1,239 @@
 +//! Coordinate delivery for an attached native sheet missed by the app hit-test.
 +//!
 +//! Open/Save panels can live in a remote view service. AX point lookup on the
@@ -2408,6 +2408,44 @@ index 0000000..6a9a12e
 +    (copy_string_attr(ptr, "AXRole").as_deref() == Some("AXSheet")
 +        && owning_window_id(ptr) == Some(window_id))
 +    .then_some(sheet)
++}
++
++/// Geometry-only host proof. A remote sheet must have the requested canonical
++/// owner; a distinct WindowServer record, when available, must agree with AX.
++pub(crate) fn focused_sheet_geometry(
++    pid: i32,
++    window_id: u32,
++) -> anyhow::Result<Option<crate::capture::frame::Sheet>> {
++    use crate::capture::frame::{Rect, Sheet};
++    unsafe {
++        let Some(sheet) = focused_sheet(pid, window_id) else {
++            return Ok(None);
++        };
++        let ptr = sheet.as_ptr() as AXUIElementRef;
++        let raw_id = super::bindings::ax_get_window_id(ptr)
++            .ok_or_else(|| anyhow::anyhow!("attached sheet has no window identity"))?;
++        let [x, y, width, height] = element_screen_rect(ptr)
++            .ok_or_else(|| anyhow::anyhow!("attached sheet has no geometry"))?;
++        let bounds = Rect {
++            x,
++            y,
++            width,
++            height,
++        };
++        anyhow::ensure!(bounds.valid(), "invalid attached sheet bounds");
++        if raw_id != window_id {
++            let actual = crate::windows::window_bounds_by_id(raw_id)
++                .ok_or_else(|| anyhow::anyhow!("attached sheet disappeared"))?;
++            anyhow::ensure!(
++                bounds.near(Rect::from(&actual)),
++                "sheet AX and WindowServer bounds disagree"
++            );
++        }
++        Ok(Some(Sheet {
++            window_id: raw_id,
++            bounds,
++        }))
++    }
 +}
 +
 +unsafe fn pressable_at(element: AXUIElementRef, window_id: u32, x: f64, y: f64) -> bool {
@@ -2743,6 +2781,1045 @@ index 82dac61..74d90b1 100644
      }
  
      fn captured_chinese_sheet() -> Vec<AXNode> {
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/capture.rs b/libs/cua-driver/rust/crates/platform-macos/src/capture.rs
+index dff4d82..cca1fe2 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/capture.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/capture.rs
+@@ -3,7 +3,7 @@
+ //! ## Window capture (primary: ScreenCaptureKit)
+ //!
+ //! Single-frame window capture prefers native ScreenCaptureKit via
+-//! `SCScreenshotManager::capture_image` with a desktop-independent window
++//! a completed `SCStream` sample with a desktop-independent window
+ //! filter, then encodes PNG in memory. No subprocess, temp file, or base64
+ //! on the native success path.
+ //!
+@@ -17,8 +17,8 @@
+ //! - https://developer.apple.com/documentation/screencapturekit/sccontentfilter/init(desktopindependentwindow:)
+ //! - https://docs.rs/screencapturekit/6.0.1/screencapturekit/
+ //!
+-//! Compatibility fallback: `screencapture -l <windowID> -x -o <file>` when
+-//! the native path errors or returns empty bytes.
++//! Compatibility fallback: the parent WindowServer backing store, only when
++//! no attached sheet is present. Shell captures cannot prove content geometry.
+ //!
+ //! ## Windows on another Space (CUA-1351)
+ //!
+@@ -39,6 +39,10 @@
+ //! ([`screenshot_display_bytes_excluding_overlay`]); `screencapture` remains
+ //! its fallback and reports that it could not exclude the overlay.
+ 
++pub mod frame;
++mod stream;
++use frame::{CapturedWindow, Geometry, Rect, Surface};
++
+ use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+ use objc2::rc::autoreleasepool;
+ use std::collections::HashMap;
+@@ -208,76 +212,6 @@ impl Drop for SecureCapturePath {
+     }
+ }
+ 
+-/// Prefer `native`; on native error or empty bytes, call `fallback`.
+-///
+-/// On non-empty native success, returns those bytes without invoking
+-/// fallback. When both paths fail, the error message preserves both
+-/// contexts. Closures are not required to be `Send`/`Sync`.
+-fn capture_window_with_backends<N, F>(
+-    window_id: u32,
+-    native: N,
+-    fallback: F,
+-) -> anyhow::Result<Vec<u8>>
+-where
+-    N: FnOnce(u32) -> anyhow::Result<Vec<u8>>,
+-    F: FnOnce(u32) -> anyhow::Result<Vec<u8>>,
+-{
+-    match native(window_id) {
+-        Ok(bytes) if !bytes.is_empty() => Ok(bytes),
+-        Ok(_) => match fallback(window_id) {
+-            Ok(bytes) => Ok(bytes),
+-            Err(fallback_err) => Err(anyhow::anyhow!(
+-                "window {window_id} capture failed: native produced empty bytes; \
+-                 shell fallback: {fallback_err:#}"
+-            )),
+-        },
+-        Err(native_err) => match fallback(window_id) {
+-            Ok(bytes) => Ok(bytes),
+-            Err(fallback_err) => Err(anyhow::anyhow!(
+-                "window {window_id} capture failed: native: {native_err:#}; \
+-                 shell fallback: {fallback_err:#}"
+-            )),
+-        },
+-    }
+-}
+-
+-/// Shell compatibility path: `screencapture -l <id> -x -o <tmp.png>`.
+-fn screenshot_window_bytes_shell(window_id: u32) -> anyhow::Result<Vec<u8>> {
+-    let capture = SecureCapturePath::new("window.png")?;
+-    let tmp_path = capture.file.to_string_lossy().into_owned();
+-
+-    let output = Command::new("screencapture")
+-        .args([
+-            "-l",
+-            &window_id.to_string(),
+-            "-x", // no sound
+-            "-o", // no shadow
+-            &tmp_path,
+-        ])
+-        .output()?;
+-
+-    if !output.status.success() {
+-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_owned();
+-        if stderr.is_empty() {
+-            anyhow::bail!(
+-                "screencapture failed for window {window_id} with status {}",
+-                output.status
+-            );
+-        }
+-        anyhow::bail!(
+-            "screencapture failed for window {window_id} with status {}: {stderr}",
+-            output.status
+-        );
+-    }
+-
+-    let bytes = std::fs::read(&capture.file)?;
+-
+-    if bytes.is_empty() {
+-        anyhow::bail!("screencapture produced empty output for window {window_id}");
+-    }
+-    Ok(bytes)
+-}
+-
+ /// Hard ceiling on capture dimensions to avoid unbounded allocations.
+ const MAX_CAPTURE_DIM: u32 = 16384;
+ 
+@@ -546,19 +480,18 @@ fn window_capture_config(
+         .with_width(out_w)
+         .with_height(out_h)
+         .with_shows_cursor(false)
++        .with_pixel_format(screencapturekit::prelude::PixelFormat::BGRA)
+ }
+ 
+ /// Single-frame capture + RGBA/PNG encode from an existing plan.
+ ///
+ /// https://developer.apple.com/documentation/screencapturekit/scscreenshotmanager
+-fn capture_window_from_plan(window_id: u32, plan: &WindowCapturePlan) -> anyhow::Result<Vec<u8>> {
+-    use screencapturekit::screenshot_manager::SCScreenshotManager;
+-
+-    let image = SCScreenshotManager::capture_image(&plan.filter, &plan.config).map_err(|e| {
+-        anyhow::anyhow!("SCScreenshotManager::capture_image failed for window {window_id}: {e}")
+-    })?;
+-
+-    cgimage_to_png(&image, &format!("window {window_id}"))
++fn capture_window_from_plan(
++    window_id: u32,
++    plan: &WindowCapturePlan,
++) -> anyhow::Result<CapturedWindow> {
++    let surface = Surface::read(window_id)?;
++    stream::capture(plan, surface)
+ }
+ 
+ /// Encode a ScreenCaptureKit `CGImage` as PNG after checking its geometry.
+@@ -589,21 +522,21 @@ fn cgimage_to_png(
+     cua_driver_core::image_utils::encode_rgba_to_png(&rgba, w, h)
+ }
+ 
+-enum CaptureIdentityValidation {
+-    Matched(Vec<u8>),
++enum CaptureIdentityValidation<T> {
++    Matched(T),
+     Changed(WindowCaptureIdentity),
+ }
+ 
+ /// Do not release bytes until WindowServer confirms that the window still has
+ /// the identity the plan was built for. The injected form keeps the TOCTOU
+ /// contract deterministic and independently testable.
+-fn capture_then_validate_identity<C, I>(
++fn capture_then_validate_identity<T, C, I>(
+     expected_identity: WindowCaptureIdentity,
+     capture: C,
+     current_identity: I,
+-) -> anyhow::Result<CaptureIdentityValidation>
++) -> anyhow::Result<CaptureIdentityValidation<T>>
+ where
+-    C: FnOnce() -> anyhow::Result<Vec<u8>>,
++    C: FnOnce() -> anyhow::Result<T>,
+     I: FnOnce() -> anyhow::Result<WindowCaptureIdentity>,
+ {
+     let bytes = capture()?;
+@@ -618,7 +551,7 @@ where
+ fn capture_window_from_plan_validated(
+     window_id: u32,
+     plan: &WindowCapturePlan,
+-) -> anyhow::Result<CaptureIdentityValidation> {
++) -> anyhow::Result<CaptureIdentityValidation<CapturedWindow>> {
+     capture_then_validate_identity(
+         plan.identity,
+         || capture_window_from_plan(window_id, plan),
+@@ -633,12 +566,12 @@ fn evict_window_capture_plan(window_id: u32, plan: &std::sync::Arc<WindowCapture
+ 
+ /// A successful capture discovered that the window mutated. Rebuild once for
+ /// the observed identity; a second mutation fails closed so stale bytes can
+-/// never escape and the shell compatibility path can take over.
++/// never escape and the parent backing-store path can take over.
+ fn retry_after_identity_change(
+     window_id: u32,
+     stale_plan: &std::sync::Arc<WindowCapturePlan>,
+     actual_identity: WindowCaptureIdentity,
+-) -> anyhow::Result<Vec<u8>> {
++) -> anyhow::Result<CapturedWindow> {
+     evict_window_capture_plan(window_id, stale_plan);
+     let rebuilt = build_window_capture_plan(window_id, actual_identity)?;
+     {
+@@ -663,10 +596,10 @@ fn retry_after_identity_change(
+ 
+ /// Native ScreenCaptureKit single-frame window capture (in-process PNG).
+ ///
+-/// Uses a desktop-independent window filter and `SCScreenshotManager` —
++/// Uses a desktop-independent window filter and one completed `SCStream` sample —
+ /// see module docs for Apple + crate source URLs. No subprocess/temp/base64.
+ /// Warm hits reuse a bounded two-second filter/config plan cache.
+-fn screenshot_window_bytes_sck_inner(window_id: u32) -> anyhow::Result<Vec<u8>> {
++fn screenshot_window_bytes_sck_inner(window_id: u32) -> anyhow::Result<CapturedWindow> {
+     let identity = current_window_capture_identity(window_id)?;
+     let cached = {
+         let mut cache = lock_window_plan_cache();
+@@ -747,7 +680,7 @@ fn screenshot_window_bytes_sck_inner(window_id: u32) -> anyhow::Result<Vec<u8>>
+ /// Bound the dependency's synchronous callback wrappers without permitting an
+ /// unbounded number of detached workers. Ownership of the gate permit and all
+ /// ScreenCaptureKit/CF objects stays on the worker until it really returns.
+-fn screenshot_window_bytes_sck(window_id: u32) -> anyhow::Result<Vec<u8>> {
++fn screenshot_window_bytes_sck(window_id: u32) -> anyhow::Result<CapturedWindow> {
+     run_native_capture_worker(
+         native_capture_gate(),
+         WINDOW_CAPTURE_NATIVE_TIMEOUT,
+@@ -756,7 +689,7 @@ fn screenshot_window_bytes_sck(window_id: u32) -> anyhow::Result<Vec<u8>> {
+     .map_err(|error| {
+         anyhow::anyhow!(
+             "ScreenCaptureKit capture failed for window {window_id}: {error:#}; \
+-             using shell fallback"
++             using parent backing-store fallback"
+         )
+     })
+ }
+@@ -764,23 +697,19 @@ fn screenshot_window_bytes_sck(window_id: u32) -> anyhow::Result<Vec<u8>> {
+ /// Capture a window by its `window_id` (CGWindowID).
+ /// Returns raw PNG bytes or an error.
+ ///
+-/// Tries ScreenCaptureKit first; falls back to the `screencapture` CLI on
+-/// native error or empty output.
++/// Tries ScreenCaptureKit first; a parent-only backing-store capture may follow.
++/// Attached sheets always require paired stream geometry.
+ pub fn screenshot_window_bytes(window_id: u32) -> anyhow::Result<Vec<u8>> {
++    Ok(screenshot_window_frame(window_id)?.png)
++}
++
++/// Capture and geometry are one value; action callers must keep both.
++pub fn screenshot_window_frame(window_id: u32) -> anyhow::Result<CapturedWindow> {
+     refuse_without_direct_capture_consent()?;
+     let off_space = crate::windows::window_on_current_space_by_id(window_id) == Some(false);
+-    capture_window_with_space_route(
+-        window_id,
+-        off_space,
+-        |id| {
+-            capture_window_with_backends(
+-                id,
+-                screenshot_window_bytes_sck,
+-                screenshot_window_bytes_shell,
+-            )
+-        },
+-        screenshot_window_bytes_skylight,
+-    )
++    capture_window_with_space_route(window_id, off_space, screenshot_window_bytes_sck, |id| {
++        parent_backing_capture(id, screenshot_window_bytes_skylight)
++    })
+ }
+ 
+ /// Route a window capture by Space.
+@@ -789,19 +718,19 @@ pub fn screenshot_window_bytes(window_id: u32) -> anyhow::Result<Vec<u8>> {
+ /// SkyLight capture goes first and the public chain is the fallback. On the
+ /// current Space the public chain goes first and SkyLight is the last resort.
+ /// When everything fails the error keeps every backend's context.
+-fn capture_window_with_space_route<P, S>(
++fn capture_window_with_space_route<T: AsRef<[u8]>, P, S>(
+     window_id: u32,
+     off_space: bool,
+     public: P,
+     skylight: S,
+-) -> anyhow::Result<Vec<u8>>
++) -> anyhow::Result<T>
+ where
+-    P: FnOnce(u32) -> anyhow::Result<Vec<u8>>,
+-    S: FnOnce(u32) -> anyhow::Result<Vec<u8>>,
++    P: FnOnce(u32) -> anyhow::Result<T>,
++    S: FnOnce(u32) -> anyhow::Result<T>,
+ {
+     if off_space {
+         let skylight_err = match skylight(window_id) {
+-            Ok(bytes) if !bytes.is_empty() => return Ok(bytes),
++            Ok(bytes) if !bytes.as_ref().is_empty() => return Ok(bytes),
+             Ok(_) => anyhow::anyhow!("SkyLight capture produced empty bytes"),
+             Err(error) => error,
+         };
+@@ -815,7 +744,7 @@ where
+     match public(window_id) {
+         Ok(bytes) => Ok(bytes),
+         Err(public_err) => match skylight(window_id) {
+-            Ok(bytes) if !bytes.is_empty() => Ok(bytes),
++            Ok(bytes) if !bytes.as_ref().is_empty() => Ok(bytes),
+             Ok(_) => Err(anyhow::anyhow!(
+                 "{public_err:#}; SkyLight capture produced empty bytes"
+             )),
+@@ -826,6 +755,38 @@ where
+     }
+ }
+ 
++fn parent_backing_capture(
++    window_id: u32,
++    capture: impl FnOnce(u32) -> anyhow::Result<Vec<u8>>,
++) -> anyhow::Result<CapturedWindow> {
++    let surface = Surface::read(window_id)?;
++    anyhow::ensure!(
++        surface.sheet.is_none(),
++        "attached sheets require paired stream geometry"
++    );
++    let png = capture(window_id)?;
++    let (width, height) = png_dimensions(&png)?;
++    let bounds = crate::windows::WindowBounds::from(surface.parent);
++    let backing = crate::tools::px_frame::validate_capture_frame(window_id, &bounds, width, height)
++        .map_err(|e| anyhow::anyhow!("legacy parent capture frame: {e:?}"))?;
++    surface.ensure_current()?;
++    let geometry = Geometry::from_sample(
++        surface.clone(),
++        width,
++        height,
++        surface.parent,
++        Rect {
++            x: 0.0,
++            y: 0.0,
++            width: surface.parent.width,
++            height: surface.parent.height,
++        },
++        backing,
++        1.0,
++    )?;
++    Ok(CapturedWindow { png, geometry })
++}
++
+ /// Off-Space capture through `SLSHWCaptureWindowList` (see module docs).
+ fn screenshot_window_bytes_skylight(window_id: u32) -> anyhow::Result<Vec<u8>> {
+     let image = crate::input::skylight::hw_capture_window(window_id).ok_or_else(|| {
+@@ -1158,7 +1119,6 @@ pub fn png_dimensions(data: &[u8]) -> anyhow::Result<(u32, u32)> {
+ mod tests {
+     use super::*;
+     use std::cell::Cell;
+-    use std::rc::Rc;
+     use std::sync::Arc;
+ 
+     /// Regression for trycua/cua#5476: with the pointer outside the window,
+@@ -1174,7 +1134,7 @@ mod tests {
+     #[test]
+     fn off_space_window_uses_skylight_before_public_backends() {
+         let public_calls = Cell::new(0u32);
+-        let got = capture_window_with_space_route(
++        let got = capture_window_with_space_route::<Vec<u8>, _, _>(
+             7,
+             true,
+             |_| {
+@@ -1190,7 +1150,7 @@ mod tests {
+ 
+     #[test]
+     fn off_space_skylight_failure_falls_back_to_public_backends() {
+-        let got = capture_window_with_space_route(
++        let got = capture_window_with_space_route::<Vec<u8>, _, _>(
+             7,
+             true,
+             |_| Ok(b"public".to_vec()),
+@@ -1199,7 +1159,7 @@ mod tests {
+         .expect("public fallback should run");
+         assert_eq!(got, b"public");
+ 
+-        let got = capture_window_with_space_route(
++        let got = capture_window_with_space_route::<Vec<u8>, _, _>(
+             7,
+             true,
+             |_| Ok(b"public".to_vec()),
+@@ -1212,7 +1172,7 @@ mod tests {
+     #[test]
+     fn on_space_window_uses_public_backends_and_skylight_last() {
+         let sky_calls = Cell::new(0u32);
+-        let got = capture_window_with_space_route(
++        let got = capture_window_with_space_route::<Vec<u8>, _, _>(
+             7,
+             false,
+             |_| Ok(b"public".to_vec()),
+@@ -1229,7 +1189,7 @@ mod tests {
+             "SkyLight must not run when public capture works"
+         );
+ 
+-        let got = capture_window_with_space_route(
++        let got = capture_window_with_space_route::<Vec<u8>, _, _>(
+             7,
+             false,
+             |_| anyhow::bail!("sck and shell failed"),
+@@ -1241,7 +1201,7 @@ mod tests {
+ 
+     #[test]
+     fn space_route_errors_keep_every_backend_context() {
+-        let off = capture_window_with_space_route(
++        let off = capture_window_with_space_route::<Vec<u8>, _, _>(
+             7,
+             true,
+             |_| anyhow::bail!("public denied"),
+@@ -1256,7 +1216,7 @@ mod tests {
+             "{off}"
+         );
+ 
+-        let on = capture_window_with_space_route(
++        let on = capture_window_with_space_route::<Vec<u8>, _, _>(
+             7,
+             false,
+             |_| anyhow::bail!("public denied"),
+@@ -1320,71 +1280,6 @@ mod tests {
+         assert!(err.to_string().contains("fully transparent"), "{err}");
+     }
+ 
+-    #[test]
+-    fn native_window_capture_short_circuits_shell_fallback() {
+-        let png = cua_driver_core::image_utils::encode_rgba_to_png(&[0, 0, 0, 255], 1, 1)
+-            .expect("encode 1x1 PNG");
+-        assert!(!png.is_empty(), "PNG bytes must be non-empty");
+-
+-        let native_calls = Rc::new(Cell::new(0u32));
+-        let fallback_calls = Rc::new(Cell::new(0u32));
+-        let native_window_id = Rc::new(Cell::new(None::<u32>));
+-
+-        let native_calls_n = Rc::clone(&native_calls);
+-        let native_window_id_n = Rc::clone(&native_window_id);
+-        let png_n = png.clone();
+-        let fallback_calls_f = Rc::clone(&fallback_calls);
+-
+-        let got = capture_window_with_backends(
+-            42,
+-            move |window_id| {
+-                native_calls_n.set(native_calls_n.get() + 1);
+-                native_window_id_n.set(Some(window_id));
+-                Ok(png_n)
+-            },
+-            move |_window_id| {
+-                fallback_calls_f.set(fallback_calls_f.get() + 1);
+-                anyhow::bail!("shell fallback must not run when native succeeds");
+-            },
+-        )
+-        .expect("native capture should succeed");
+-
+-        assert_eq!(native_calls.get(), 1, "native backend called once");
+-        assert_eq!(
+-            native_window_id.get(),
+-            Some(42),
+-            "native backend receives window id 42"
+-        );
+-        assert_eq!(fallback_calls.get(), 0, "shell fallback must not run");
+-        assert_eq!(got, png, "helper returns native PNG bytes verbatim");
+-    }
+-
+-    #[test]
+-    fn empty_native_capture_uses_shell_fallback() {
+-        let got = capture_window_with_backends(
+-            42,
+-            |_| Ok(Vec::new()),
+-            |window_id| Ok(format!("fallback-{window_id}").into_bytes()),
+-        )
+-        .expect("empty native capture should fall back");
+-
+-        assert_eq!(got, b"fallback-42");
+-    }
+-
+-    #[test]
+-    fn capture_error_preserves_native_and_fallback_contexts() {
+-        let error = capture_window_with_backends(
+-            42,
+-            |_| anyhow::bail!("native denied"),
+-            |_| anyhow::bail!("fallback denied"),
+-        )
+-        .expect_err("both capture backends should fail")
+-        .to_string();
+-
+-        assert!(error.contains("native denied"), "{error}");
+-        assert!(error.contains("fallback denied"), "{error}");
+-    }
+-
+     #[test]
+     fn native_window_capture_cache_reuses_fresh_and_expires_stale_entries() {
+         use std::time::{Duration, Instant};
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/capture/frame.rs b/libs/cua-driver/rust/crates/platform-macos/src/capture/frame.rs
+new file mode 100644
+index 0000000..32b091a
+--- /dev/null
++++ b/libs/cua-driver/rust/crates/platform-macos/src/capture/frame.rs
+@@ -0,0 +1,344 @@
++//! Capture geometry travels with its pixels; it is never inferred from PNG size alone.
++use crate::windows::WindowBounds;
++use serde::{Deserialize, Serialize};
++
++#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
++pub struct Rect {
++    pub x: f64,
++    pub y: f64,
++    pub width: f64,
++    pub height: f64,
++}
++impl Rect {
++    pub fn valid(self) -> bool {
++        [self.x, self.y, self.width, self.height]
++            .iter()
++            .all(|v| v.is_finite())
++            && self.width > 0.0
++            && self.height > 0.0
++    }
++    pub fn contains(self, x: f64, y: f64) -> bool {
++        x.is_finite()
++            && y.is_finite()
++            && x >= self.x
++            && y >= self.y
++            && x < self.x + self.width
++            && y < self.y + self.height
++    }
++    fn union(self, other: Self) -> Self {
++        let x = self.x.min(other.x);
++        let y = self.y.min(other.y);
++        Self {
++            x,
++            y,
++            width: (self.x + self.width).max(other.x + other.width) - x,
++            height: (self.y + self.height).max(other.y + other.height) - y,
++        }
++    }
++    pub fn near(self, other: Self) -> bool {
++        [
++            self.x - other.x,
++            self.y - other.y,
++            self.width - other.width,
++            self.height - other.height,
++        ]
++        .iter()
++        .all(|v| v.abs() < 0.5)
++    }
++}
++impl From<&WindowBounds> for Rect {
++    fn from(b: &WindowBounds) -> Self {
++        Self {
++            x: b.x,
++            y: b.y,
++            width: b.width,
++            height: b.height,
++        }
++    }
++}
++impl From<Rect> for WindowBounds {
++    fn from(b: Rect) -> Self {
++        Self {
++            x: b.x,
++            y: b.y,
++            width: b.width,
++            height: b.height,
++        }
++    }
++}
++impl From<screencapturekit::cg::CGRect> for Rect {
++    fn from(b: screencapturekit::cg::CGRect) -> Self {
++        Self {
++            x: b.origin.x,
++            y: b.origin.y,
++            width: b.size.width,
++            height: b.size.height,
++        }
++    }
++}
++
++#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
++pub struct Sheet {
++    pub window_id: u32,
++    pub bounds: Rect,
++}
++#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
++pub struct Surface {
++    pub window_id: u32,
++    pub pid: i32,
++    pub parent: Rect,
++    pub sheet: Option<Sheet>,
++}
++impl Surface {
++    pub fn read(window_id: u32) -> anyhow::Result<Self> {
++        let info = crate::windows::window_info_by_id(window_id)
++            .ok_or_else(|| anyhow::anyhow!("capture window disappeared"))?;
++        let parent = Rect::from(&info.bounds);
++        anyhow::ensure!(parent.valid(), "invalid parent geometry");
++        let sheet = crate::ax::sheet_point::focused_sheet_geometry(info.pid, window_id)?;
++        Ok(Self {
++            window_id,
++            pid: info.pid,
++            parent,
++            sheet,
++        })
++    }
++    pub fn source(&self) -> Rect {
++        self.sheet
++            .as_ref()
++            .map_or(self.parent, |s| self.parent.union(s.bounds))
++    }
++    pub fn ensure_current(&self) -> anyhow::Result<()> {
++        anyhow::ensure!(
++            Self::read(self.window_id)? == *self,
++            "window or attached sheet changed during capture"
++        );
++        Ok(())
++    }
++}
++
++/// Native image coordinates. `content` is in image pixels, `source` in screen points.
++/// This is host-only validation data, not an additional model targeting surface.
++#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
++pub struct Geometry {
++    pub surface: Surface,
++    pub content: Rect,
++    pub pixels_per_point: f64,
++    pub width: u32,
++    pub height: u32,
++}
++impl Geometry {
++    pub fn from_sample(
++        surface: Surface,
++        width: u32,
++        height: u32,
++        screen: Rect,
++        content: Rect,
++        backing: f64,
++        content_scale: f64,
++    ) -> anyhow::Result<Self> {
++        anyhow::ensure!(
++            surface.parent.near(screen),
++            "sample belongs to a different window frame"
++        );
++        anyhow::ensure!(
++            content.valid()
++                && [1.0, 2.0].iter().any(|v| (backing - v).abs() < 0.001)
++                && content_scale.is_finite()
++                && content_scale > 0.0
++                && content_scale <= 1.001,
++            "invalid sample content geometry"
++        );
++        let scale = backing * content_scale;
++        let content = Rect {
++            x: content.x * backing,
++            y: content.y * backing,
++            width: content.width * backing,
++            height: content.height * backing,
++        };
++        let source = surface.source();
++        anyhow::ensure!(
++            (source.width * scale - content.width).abs() < 1.0
++                && (source.height * scale - content.height).abs() < 1.0,
++            "sample contains an unproven surface or changed sheet"
++        );
++        anyhow::ensure!(
++            width > 0
++                && height > 0
++                && content.x >= 0.0
++                && content.y >= 0.0
++                && content.x + content.width <= f64::from(width) + 0.01
++                && content.y + content.height <= f64::from(height) + 0.01,
++            "sample content lies outside its pixel buffer"
++        );
++        Ok(Self {
++            surface,
++            content,
++            pixels_per_point: scale,
++            width,
++            height,
++        })
++    }
++    pub fn to_screen(&self, x: f64, y: f64) -> Option<(f64, f64)> {
++        if !self.content.contains(x, y) {
++            return None;
++        }
++        let source = self.surface.source();
++        Some((
++            source.x + (x - self.content.x) / self.pixels_per_point,
++            source.y + (y - self.content.y) / self.pixels_per_point,
++        ))
++    }
++    pub fn to_pixels(&self, x: f64, y: f64) -> (f64, f64) {
++        let source = self.surface.source();
++        (
++            self.content.x + (x - source.x) * self.pixels_per_point,
++            self.content.y + (y - source.y) * self.pixels_per_point,
++        )
++    }
++    pub fn matches(&self, other: &Self) -> bool {
++        self.surface == other.surface
++            && self.width == other.width
++            && self.height == other.height
++            && self.content.near(other.content)
++            && (self.pixels_per_point - other.pixels_per_point).abs() < 0.000001
++    }
++}
++
++pub struct CapturedWindow {
++    pub png: Vec<u8>,
++    pub geometry: Geometry,
++}
++impl AsRef<[u8]> for CapturedWindow {
++    fn as_ref(&self) -> &[u8] {
++        &self.png
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    fn expanded() -> Geometry {
++        let parent = Rect {
++            x: 532.0,
++            y: 356.0,
++            width: 586.0,
++            height: 476.0,
++        };
++        let surface = Surface {
++            window_id: 7,
++            pid: 8,
++            parent,
++            sheet: Some(Sheet {
++                window_id: 9,
++                bounds: Rect {
++                    x: 425.0,
++                    y: 384.0,
++                    width: 800.0,
++                    height: 448.0,
++                },
++            }),
++        };
++        Geometry::from_sample(
++            surface,
++            1172,
++            952,
++            parent,
++            Rect {
++                x: 0.0,
++                y: 0.0,
++                width: 586.0,
++                height: 348.67,
++            },
++            2.0,
++            0.7325,
++        )
++        .unwrap()
++    }
++    #[test]
++    fn expanded_sheet_uses_union_origin_and_actual_scale() {
++        let g = expanded();
++        let (x, y) = g.to_screen(858.0, 100.0).unwrap();
++        assert!((x - 1010.665529).abs() < 0.00001);
++        assert!((y - 424.259386).abs() < 0.00001);
++        let (px, py) = g.to_pixels(x, y);
++        assert!((px - 858.0).abs() < 0.00001);
++        assert!((py - 100.0).abs() < 0.00001);
++    }
++    #[test]
++    fn padding_and_nonfinite_points_are_not_targets() {
++        let g = expanded();
++        for (x, y) in [(5.0, 800.0), (-1.0, 5.0), (1172.0, 20.0), (f64::NAN, 20.0)] {
++            assert!(g.to_screen(x, y).is_none());
++        }
++    }
++    #[test]
++    fn unowned_or_missing_sheet_cannot_explain_shrunken_content() {
++        let g = expanded();
++        let mut s = g.surface.clone();
++        s.sheet = None;
++        assert!(Geometry::from_sample(
++            s,
++            1172,
++            952,
++            g.surface.parent,
++            Rect {
++                x: 0.0,
++                y: 0.0,
++                width: 586.0,
++                height: 348.67
++            },
++            2.0,
++            0.7325
++        )
++        .is_err());
++    }
++    #[test]
++    fn collapse_move_and_sheet_replacement_invalidate_coordinates() {
++        let g = expanded();
++        for edit in 0..3 {
++            let mut next = g.clone();
++            match edit {
++                0 => next.surface.sheet.as_mut().unwrap().bounds.width = 586.0,
++                1 => next.surface.parent.x += 1.0,
++                _ => next.surface.sheet.as_mut().unwrap().window_id += 1,
++            };
++            assert!(!g.matches(&next));
++        }
++    }
++    #[test]
++    fn ordinary_and_offset_content_round_trip() {
++        for scale in [1.0, 2.0] {
++            let parent = Rect {
++                x: -500.0,
++                y: 20.0,
++                width: 500.0,
++                height: 400.0,
++            };
++            let g = Geometry::from_sample(
++                Surface {
++                    window_id: 1,
++                    pid: 2,
++                    parent,
++                    sheet: None,
++                },
++                (520.0 * scale) as u32,
++                (420.0 * scale) as u32,
++                parent,
++                Rect {
++                    x: 10.0,
++                    y: 10.0,
++                    width: 500.0,
++                    height: 400.0,
++                },
++                scale,
++                1.0,
++            )
++            .unwrap();
++            assert_eq!(
++                g.to_screen(20.0 * scale, 30.0 * scale),
++                Some((-490.0, 40.0))
++            );
++        }
++    }
++}
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/capture/stream.rs b/libs/cua-driver/rust/crates/platform-macos/src/capture/stream.rs
+new file mode 100644
+index 0000000..338296f
+--- /dev/null
++++ b/libs/cua-driver/rust/crates/platform-macos/src/capture/stream.rs
+@@ -0,0 +1,156 @@
++//! One completed sample supplies both pixels and ScreenCaptureKit geometry.
++//! A screenshot-manager image plus a separate stream sample is not a valid pair.
++use super::frame::{CapturedWindow, Geometry, Surface};
++use core_foundation::{
++    array::{CFArrayGetCount, CFArrayGetValueAtIndex, CFArrayRef},
++    base::{CFGetTypeID, CFRetain, CFTypeRef},
++    dictionary::{CFDictionaryGetTypeID, CFDictionaryGetValue, CFDictionaryRef},
++    number::{kCFNumberSInt64Type, CFNumberGetTypeID, CFNumberGetValue, CFNumberRef},
++    string::CFStringRef,
++};
++use screencapturekit::prelude::*;
++use std::{ffi::c_void, sync::mpsc, time::Duration};
++#[link(name = "CoreMedia", kind = "framework")]
++extern "C" {
++    fn CMSampleBufferGetSampleAttachmentsArray(buffer: *mut c_void, create: bool) -> CFArrayRef;
++}
++#[link(name = "ScreenCaptureKit", kind = "framework")]
++extern "C" {
++    static SCStreamFrameInfoStatus: CFStringRef;
++}
++
++/// The pinned Swift bridge casts NSNumber directly to SCFrameStatus and returns
++/// None on real frames. Read the documented numeric attachment with CF type checks.
++unsafe fn numeric_status(value: CFTypeRef) -> Option<i64> {
++    if value.is_null() || CFGetTypeID(value) != CFNumberGetTypeID() {
++        return None;
++    }
++    let mut status = 0i64;
++    CFNumberGetValue(
++        value as CFNumberRef,
++        kCFNumberSInt64Type,
++        &mut status as *mut _ as *mut c_void,
++    )
++    .then_some(status)
++}
++fn complete(sample: &CMSampleBuffer) -> bool {
++    if !sample.is_valid() || !sample.data_is_ready() {
++        return false;
++    }
++    unsafe {
++        let array = CMSampleBufferGetSampleAttachmentsArray(sample.as_ptr(), false);
++        if array.is_null() || CFArrayGetCount(array) != 1 {
++            return false;
++        }
++        let dict = CFArrayGetValueAtIndex(array, 0);
++        if dict.is_null() || CFGetTypeID(dict) != CFDictionaryGetTypeID() {
++            return false;
++        }
++        numeric_status(CFDictionaryGetValue(
++            dict as CFDictionaryRef,
++            SCStreamFrameInfoStatus as *const c_void,
++        )) == Some(0)
++    }
++}
++pub(super) fn capture(
++    plan: &super::WindowCapturePlan,
++    surface: Surface,
++) -> anyhow::Result<CapturedWindow> {
++    let (tx, rx) = mpsc::sync_channel(1);
++    let mut stream = SCStream::new(&plan.filter, &plan.config);
++    anyhow::ensure!(
++        stream
++            .add_output_handler(
++                move |sample: CMSampleBuffer, kind| {
++                    if kind == SCStreamOutputType::Screen && complete(&sample) {
++                        let _ = tx.try_send(sample);
++                    }
++                },
++                SCStreamOutputType::Screen
++            )
++            .is_some(),
++        "could not attach window capture output"
++    );
++    stream
++        .start_capture()
++        .map_err(|e| anyhow::anyhow!("start window capture: {e}"))?;
++    let received = rx.recv_timeout(Duration::from_millis(1000));
++    let stopped = stream.stop_capture();
++    let sample = received.map_err(|e| anyhow::anyhow!("no completed window frame: {e}"))?;
++    stopped.map_err(|e| anyhow::anyhow!("stop window capture: {e}"))?;
++    let info = sample
++        .frame_info()
++        .ok_or_else(|| anyhow::anyhow!("window frame has no geometry"))?;
++    let (png, width, height) = sample_png(&sample)?;
++    let geometry = Geometry::from_sample(
++        surface,
++        width,
++        height,
++        info.screen_rect
++            .ok_or_else(|| anyhow::anyhow!("missing sample screen rect"))?
++            .into(),
++        info.content_rect
++            .ok_or_else(|| anyhow::anyhow!("missing sample content rect"))?
++            .into(),
++        info.scale_factor
++            .ok_or_else(|| anyhow::anyhow!("missing sample backing scale"))?,
++        info.content_scale
++            .ok_or_else(|| anyhow::anyhow!("missing sample content scale"))?,
++    )?;
++    geometry.surface.ensure_current()?;
++    Ok(CapturedWindow { png, geometry })
++}
++fn sample_png(sample: &CMSampleBuffer) -> anyhow::Result<(Vec<u8>, u32, u32)> {
++    let ptr = sample.image_buffer_ptr();
++    anyhow::ensure!(!ptr.is_null(), "completed frame has no pixel buffer");
++    // image_buffer_ptr is borrowed from sample. The wrapper consumes a +1 ref.
++    let buffer =
++        unsafe { screencapturekit::cv::CVPixelBuffer::from_ptr(CFRetain(ptr) as *mut c_void) };
++    anyhow::ensure!(
++        buffer.pixel_format() == 0x42475241,
++        "window frame is not BGRA"
++    );
++    let width = super::checked_image_dim(buffer.width(), "sample width")?;
++    let height = super::checked_image_dim(buffer.height(), "sample height")?;
++    let lock = buffer
++        .lock_read_only()
++        .map_err(|e| anyhow::anyhow!("pixel buffer lock: {e}"))?;
++    let row_bytes = width as usize * 4;
++    anyhow::ensure!(
++        !lock.base_address().is_null() && lock.bytes_per_row() >= row_bytes,
++        "invalid BGRA layout"
++    );
++    let mut rgba = Vec::with_capacity(row_bytes * height as usize);
++    for y in 0..height as usize {
++        // Locked BGRA buffer owns height rows with at least width*4 bytes each.
++        let row = unsafe {
++            std::slice::from_raw_parts(lock.base_address().add(y * lock.bytes_per_row()), row_bytes)
++        };
++        for pixel in row.chunks_exact(4) {
++            rgba.extend_from_slice(&[pixel[2], pixel[1], pixel[0], pixel[3]]);
++        }
++    }
++    anyhow::ensure!(
++        super::unpremultiply_rgba(&mut rgba),
++        "window frame is transparent"
++    );
++    Ok((
++        cua_driver_core::image_utils::encode_rgba_to_png(&rgba, width, height)?,
++        width,
++        height,
++    ))
++}
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use core_foundation::{base::TCFType, number::CFNumber, string::CFString};
++    #[test]
++    fn status_requires_a_numeric_complete_attachment() {
++        unsafe {
++            assert_eq!(numeric_status(std::ptr::null()), None);
++            assert_eq!(numeric_status(CFString::new("0").as_CFTypeRef()), None);
++            assert_eq!(numeric_status(CFNumber::from(0i64).as_CFTypeRef()), Some(0));
++            assert_eq!(numeric_status(CFNumber::from(1i64).as_CFTypeRef()), Some(1));
++        }
++    }
++}
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
+index 1b34151..975f4e0 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
+@@ -2026,19 +2026,41 @@ mod tests {
+ 
+     #[test]
+     fn capture_bound_background_route_preserves_nonzero_origin_hit() {
++        use crate::capture::frame::{Geometry, Rect, Surface};
++        let parent = Rect {
++            x: 170.0,
++            y: 194.0,
++            width: 760.0,
++            height: 460.0,
++        };
+         let frame = crate::tools::px_frame::WindowPxFrame {
+-            bounds: crate::windows::WindowBounds {
+-                x: 170.0,
+-                y: 194.0,
+-                width: 760.0,
+-                height: 460.0,
+-            },
+-            scale: 2.0,
++            bounds: parent.into(),
++            geometry: Geometry::from_sample(
++                Surface {
++                    window_id: 1,
++                    pid: 2,
++                    parent,
++                    sheet: None,
++                },
++                1520,
++                920,
++                parent,
++                Rect {
++                    x: 0.0,
++                    y: 0.0,
++                    width: 760.0,
++                    height: 460.0,
++                },
++                2.0,
++                1.0,
++            )
++            .unwrap(),
+         };
+         let capture_local = (394.0, 310.0);
+-        let admitted_native = (capture_local.0 * frame.scale, capture_local.1 * frame.scale);
+-        let (screen_x, screen_y, local_x, local_y) =
+-            frame.to_screen(admitted_native.0, admitted_native.1);
++        let admitted_native = (capture_local.0 * 2.0, capture_local.1 * 2.0);
++        let (screen_x, screen_y, local_x, local_y) = frame
++            .to_screen(admitted_native.0, admitted_native.1)
++            .unwrap();
+         assert_eq!((screen_x, screen_y), (564.0, 504.0));
+         assert_eq!((local_x, local_y), capture_local);
+ 
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
 index 136e0c9..c0c1e77 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
@@ -2890,22 +3967,765 @@ index 136e0c9..c0c1e77 100644
      #[test]
      fn already_key_sends_nothing() {
          let r = prime_exact_window_key(
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/recording_hooks.rs b/libs/cua-driver/rust/crates/platform-macos/src/recording_hooks.rs
+index bb28e4b..1c67145 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/recording_hooks.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/recording_hooks.rs
+@@ -69,10 +69,7 @@ pub fn element_window_local_xy(
+             let frame =
+                 crate::tools::px_frame::resolve_window_px_frame(u32::try_from(window_id).ok()?)
+                     .ok()?;
+-            Some((
+-                (sx - frame.bounds.x) * frame.scale,
+-                (sy - frame.bounds.y) * frame.scale,
+-            ))
++            Some(frame.geometry.to_pixels(sx, sy))
+         });
+     Some((window_id, point))
+ }
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
-index 8503db3..91f3aa5 100644
+index 8503db3..2e2c314 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
-@@ -1165,7 +1165,13 @@ impl Tool for ClickTool {
+@@ -330,6 +330,7 @@ fn def() -> &'static ToolDef {
+             // cua_driver_core::tool_schema.)
+             "required": [],
+             "properties": {
++                "capture_geometry": { "type":"object", "description":"Host-owned geometry from the exact screenshot; stale geometry refuses input." },
+                 "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it." },
+                 "pid":           { "type": "integer", "description": "Target process ID. Optional with element_token (it carries the pid)." },
+                 "window_id":     { "type": "integer", "description": "Target window ID. Omit with element_token." },
+@@ -762,7 +763,7 @@ impl Tool for ClickTool {
+                 None
+             };
+             let mut selection_pixel = if let Some(screen_center) = selection_center {
+-                super::px_frame::resolve_or_refuse(wid)
++                super::px_frame::resolve_or_refuse(wid, args.get("capture_geometry"))
+                     .await
+                     .ok()
+                     .map(|frame| {
+@@ -1049,20 +1050,28 @@ impl Tool for ClickTool {
+             // win_local_x/y: window-local logical-pixel coords used when the
+             // Chromium recipe falls back to public PID posting. Its SkyLight
+             // route uses the translated screen coordinates instead.
++            let mut outside_parent = false;
++            let mut dispatch_surface = None;
+             let (screen_x, screen_y, win_local_x, win_local_y) = if let Some(wid) = window_id {
+-                match super::px_frame::resolve_or_refuse(wid).await {
++                match super::px_frame::resolve_or_refuse(wid, args.get("capture_geometry")).await {
+                     Ok(frame) => {
+-                        let (sx, sy, lx, ly) = frame.to_screen(cx, cy);
++                        let (sx, sy, lx, ly) = match frame.to_sheet_or_parent(cx, cy) { Some(point)=>point, None=>return ToolResult::error("Point lies outside captured window content; take a fresh screenshot.") };
+                         // A window-local point outside the live frame would
+                         // dispatch onto whatever occupies that screen point —
+                         // the same wrong-surface misclick class as #2237.
+                         // Refuse in background, where the caller cannot see
+                         // what is actually under the translated point.
+-                        if !delivery_mode.is_foreground()
+-                            && (lx < 0.0
+-                                || ly < 0.0
+-                                || lx > frame.bounds.width
+-                                || ly > frame.bounds.height)
++                        dispatch_surface = Some(frame.geometry.surface.clone());
++                        outside_parent = lx < 0.0
++                            || ly < 0.0
++                            || lx >= frame.bounds.width
++                            || ly >= frame.bounds.height;
++                        if outside_parent
++                            && (delivery_mode.is_foreground()
++                                || button_str != "left"
++                                || count != 1
++                                || !modifiers.is_empty()
++                                || action == "focus")
+                         {
+                             return ToolResult::error(format!(
+                                 "click: window-local point ({lx:.1}, {ly:.1}) pt lies outside \
+@@ -1164,8 +1173,28 @@ impl Tool for ClickTool {
+                     && modifiers.is_empty()
              }) {
                  let focus_only = action == "focus";
++                let surface = dispatch_surface.clone();
                  let ax_result = tokio::task::spawn_blocking(move || unsafe {
 -                    let Some(element) = element_at_screen_position(pid, screen_x, screen_y) else {
-+                    let element = element_at_screen_position(pid, screen_x, screen_y)
-+                        .or_else(|| if focus_only { None } else {
-+                            crate::ax::sheet_point::pressable_element_at_point(
-+                                pid, hit_test_wid, screen_x, screen_y,
-+                            )
-+                        });
++                    let sheet_point = || {
++                        crate::ax::sheet_point::pressable_element_at_point(
++                            pid,
++                            hit_test_wid,
++                            screen_x,
++                            screen_y,
++                        )
++                    };
++                    let element = if outside_parent {
++                        sheet_point()
++                    } else {
++                        element_at_screen_position(pid, screen_x, screen_y).or_else(|| {
++                            if focus_only {
++                                None
++                            } else {
++                                sheet_point()
++                            }
++                        })
++                    };
 +                    let Some(element) = element else {
                          return Ok::<bool, anyhow::Error>(false);
                      };
                      // The pid-scoped hit-test can resolve an element from a
+@@ -1192,6 +1221,12 @@ impl Tool for ClickTool {
+                         CFRelease(element as _);
+                         return Ok(false);
+                     }
++                    if let Some(surface) = surface {
++                        if let Err(error) = surface.ensure_current() {
++                            CFRelease(element as _);
++                            return Err(error);
++                        }
++                    }
+                     let delivered = if focus_only {
+                         crate::input::ax_actions::focus_element(element as usize).is_ok()
+                     } else {
+@@ -1236,13 +1271,32 @@ impl Tool for ClickTool {
+                                 "code": "background_unavailable"
+                             }));
+                     }
++                    Ok(Err(error)) => {
++                        return ToolResult::error(format!(
++                            "Capture geometry could not be revalidated: {error}"
++                        ))
++                    }
+                     _ => {}
+                 }
+             }
+ 
++            if outside_parent {
++                return ToolResult::error("The owned sheet could not deliver this point; refusing synthetic input outside the parent window.");
++            }
++
+             // Resolve the effective delivery posture before observation. A
+             // requested foreground click without a window id still degrades to
+             // background, matching the existing contract and result label.
++            if let Some(surface) = dispatch_surface {
++                match tokio::task::spawn_blocking(move || surface.ensure_current()).await {
++                    Ok(Ok(())) => {}
++                    _ => {
++                        return ToolResult::error(
++                            "Window or sheet changed before input; capture a fresh screenshot.",
++                        )
++                    }
++                }
++            }
+             let fg = delivery_mode.is_foreground() && window_id.is_some();
+             // Background delivery cannot satisfy a toolkit that reads the
+             // hardware pointer; refuse before any activation or dispatch.
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/drag.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/drag.rs
+index 8e8d8a2..ddaca2a 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/drag.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/drag.rs
+@@ -79,6 +79,7 @@ fn def() -> &'static ToolDef {
+             "type": "object",
+             "required": ["from_x", "from_y", "to_x", "to_y"],
+             "properties": {
++                "capture_geometry": { "type":"object", "description":"Host-owned geometry from the exact screenshot; stale geometry refuses input." },
+                 "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it. Omit it to use the authenticated transport's implicit lifecycle session." },
+                 "pid": { "type": "integer", "description": "Target process ID." },
+                 "window_id": {
+@@ -295,10 +296,20 @@ impl Tool for DragTool {
+         // of the drag resolve against ONE frame, so a window that closed
+         // mid-call refuses rather than dragging across the desktop behind it.
+         let (from_sx, from_sy, from_lx, from_ly, to_sx, to_sy, to_lx, to_ly) =
+-            match super::px_frame::resolve_or_refuse(wid).await {
++            match super::px_frame::resolve_or_refuse(wid, args.get("capture_geometry")).await {
+                 Ok(frame) => {
+-                    let (fsx, fsy, flx, fly) = frame.to_screen(from_x, from_y);
+-                    let (tsx, tsy, tlx, tly) = frame.to_screen(to_x, to_y);
++                    let (fsx, fsy, flx, fly) = match frame.to_screen(from_x, from_y) {
++                        Some(point) => point,
++                        None => return ToolResult::error(
++                            "Point lies outside captured window content; take a fresh screenshot.",
++                        ),
++                    };
++                    let (tsx, tsy, tlx, tly) = match frame.to_screen(to_x, to_y) {
++                        Some(point) => point,
++                        None => return ToolResult::error(
++                            "Point lies outside captured window content; take a fresh screenshot.",
++                        ),
++                    };
+                     (fsx, fsy, flx, fly, tsx, tsy, tlx, tly)
+                 }
+                 Err(refusal) => return refusal,
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
+index 133dff9..38a28c4 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
+@@ -101,23 +101,28 @@ fn prefetch_capture<T: Send + 'static>(
+ 
+ fn verified_capture(
+     window_id: u32,
+-    prefetched: Option<anyhow::Result<Vec<u8>>>,
++    prefetched: Option<anyhow::Result<crate::capture::frame::CapturedWindow>>,
+     bounds: &crate::windows::WindowBounds,
+-    capture: impl FnOnce() -> anyhow::Result<Vec<u8>>,
+-) -> Result<(Vec<u8>, u32, u32, f64), super::px_frame::PxFrameError> {
+-    use super::px_frame::{validate_capture_frame, PxFrameError};
+-    let validate = |raw: anyhow::Result<Vec<u8>>| {
+-        let (raw, w, h) = (|| -> anyhow::Result<_> {
+-            let raw = raw?;
+-            let (w, h) = crate::capture::png_dimensions(&raw)?;
+-            Ok((raw, w, h))
++    capture: impl FnOnce() -> anyhow::Result<crate::capture::frame::CapturedWindow>,
++) -> Result<(Vec<u8>, u32, u32, crate::capture::frame::Geometry), super::px_frame::PxFrameError> {
++    use super::px_frame::PxFrameError;
++    let validate = |raw: anyhow::Result<crate::capture::frame::CapturedWindow>| {
++        (|| -> anyhow::Result<_> {
++            let frame = raw?;
++            let (w, h) = crate::capture::png_dimensions(&frame.png)?;
++            anyhow::ensure!(
++                w == frame.geometry.width
++                    && h == frame.geometry.height
++                    && frame.geometry.surface.window_id == window_id
++                    && frame.geometry.surface.parent == crate::capture::frame::Rect::from(bounds),
++                "capture and current window geometry differ"
++            );
++            Ok((frame.png, w, h, frame.geometry))
+         })()
+         .map_err(|e| PxFrameError::CaptureUnavailable {
+             window_id,
+             reason: e.to_string(),
+-        })?;
+-        let scale = validate_capture_frame(window_id, bounds, w, h)?;
+-        Ok((raw, w, h, scale))
++        })
+     };
+     if let Some(raw) = prefetched {
+         match validate(raw) {
+@@ -319,7 +324,7 @@ impl Tool for GetWindowStateTool {
+         // ScreenCaptureKit and the accessibility walk use independent system
+         // services, and the read otherwise pays for them one after the other.
+         let prefetched_capture = prefetch_capture(should_capture, want_tree, move || {
+-            crate::capture::screenshot_window_bytes(window_id)
++            crate::capture::screenshot_window_frame(window_id)
+         });
+         let (tree_result, prepared_snapshot) = if want_tree {
+             let q = query.clone();
+@@ -412,19 +417,22 @@ impl Tool for GetWindowStateTool {
+                     u32,
+                     u32,
+                     crate::windows::WindowBounds,
+-                    f64,
++                    crate::capture::frame::Geometry,
+                 ),
+                 super::px_frame::PxFrameError,
+             > {
+                 let bounds = crate::windows::window_bounds_by_id(window_id)
+                     .filter(|b| b.width > 0.0 && b.height > 0.0)
+                     .ok_or(super::px_frame::PxFrameError::WindowNotFound { window_id })?;
+-                let (raw, orig_w, orig_h, scale) = verified_capture(
++                let (raw, orig_w, orig_h, geometry) = verified_capture(
+                     window_id,
+                     prefetched_raw,
+                     &bounds,
+-                    || crate::capture::screenshot_window_bytes(window_id),
++                    || crate::capture::screenshot_window_frame(window_id),
+                 )?;
++                geometry.surface.ensure_current().map_err(|e| {
++                    super::px_frame::PxFrameError::CaptureUnavailable {window_id,reason:e.to_string()}
++                })?;
+                 let png = crate::capture::resize_png_if_needed(&raw, max_dim).map_err(|e| {
+                     super::px_frame::PxFrameError::CaptureUnavailable {
+                         window_id,
+@@ -452,7 +460,7 @@ impl Tool for GetWindowStateTool {
+                         orig_w,
+                         orig_h,
+                         bounds,
+-                        scale,
++                        geometry,
+                     ))
+                 } else {
+                     Ok((
+@@ -463,16 +471,16 @@ impl Tool for GetWindowStateTool {
+                         orig_w,
+                         orig_h,
+                         bounds,
+-                        scale,
++                        geometry,
+                     ))
+                 }
+             }).await;
+             match res {
+-                Ok(Ok((png, file_path, w, h, orig_w, orig_h, bounds, scale))) => {
++                Ok(Ok((png, file_path, w, h, orig_w, orig_h, bounds, geometry))) => {
+                     if !observation_only {
+                         screenshot_resize_scale = Some(orig_w as f64 / w as f64);
+                     }
+-                    Some((png, file_path, w, h, orig_w, orig_h, bounds, scale))
++                    Some((png, file_path, w, h, orig_w, orig_h, bounds, geometry))
+                 }
+                 Ok(Err(e)) => {
+                     tracing::warn!(
+@@ -497,7 +505,7 @@ impl Tool for GetWindowStateTool {
+             .and_then(|(_, fp, _, _, _, _, _, _)| fp.clone());
+         let screenshot_frame = screenshot
+             .as_ref()
+-            .map(|(_, _, _, _, _, _, bounds, scale)| (bounds.clone(), *scale));
++            .map(|(_, _, _, _, _, _, bounds, geometry)| (bounds.clone(), geometry.clone()));
+ 
+         // Build response.
+         let mut content: Vec<Content> = Vec::new();
+@@ -560,12 +568,12 @@ impl Tool for GetWindowStateTool {
+         // A screenshot-only read adds an image but no new element rows, so it
+         // refreshes the current snapshot's frame and keeps its tokens valid.
+         let refreshed = match (&prepared_snapshot, screenshot_resize_scale) {
+-            (None, Some(scale)) if scope_matched && !observation_only => {
++            (None, Some(geometry)) if scope_matched && !observation_only => {
+                 self.state.snapshots.refresh_screenshot_for_session(
+                     pid,
+                     u64::from(window_id),
+                     session_id.as_deref(),
+-                    scale,
++                    geometry,
+                     window_size,
+                 )
+             }
+@@ -628,7 +636,7 @@ impl Tool for GetWindowStateTool {
+             &tree_md,
+         );
+         // Screenshot pixels of the delivered capture: window origin in screen
+-        // points, delivered pixels per point (backing scale x downsizing).
++        // points, delivered pixels per point (backing geometry x downsizing).
+         let elements_json = match (screenshot_frame.as_ref(), screenshot_dims) {
+             (Some((bounds, _)), Some((width, _))) if bounds.width > 0.0 => {
+                 cua_driver_core::element_frame::with_screenshot_frames(
+@@ -821,14 +829,15 @@ impl Tool for GetWindowStateTool {
+             // the structured side. Additive: keeps every existing field.
+             structured["screenshot_mime_type"] = serde_json::json!("image/png");
+         }
+-        if let Some((bounds, scale)) = screenshot_frame {
++        if let Some((bounds, geometry)) = screenshot_frame {
+             structured["window_bounds"] = serde_json::json!({
+                 "x": bounds.x,
+                 "y": bounds.y,
+                 "width": bounds.width,
+                 "height": bounds.height
+             });
+-            structured["screenshot_scale"] = serde_json::json!(scale);
++            structured["screenshot_scale"] = serde_json::json!(geometry.pixels_per_point);
++            structured["capture_geometry"] = serde_json::json!(geometry);
+             structured["screenshot_frame_valid"] = serde_json::json!(true);
+         }
+         if let Some(error) = screenshot_frame_error {
+@@ -1448,21 +1457,42 @@ mod tests {
+             width: 4.0,
+             height: 4.0,
+         };
++        use crate::capture::frame::{CapturedWindow, Geometry, Rect, Surface};
++        let parent = Rect::from(&bounds);
++        let geometry = Geometry::from_sample(
++            Surface {
++                window_id: 7,
++                pid: 8,
++                parent,
++                sheet: None,
++            },
++            4,
++            4,
++            parent,
++            parent,
++            1.0,
++            1.0,
++        )
++        .unwrap();
++        let frame = |png| CapturedWindow {
++            png,
++            geometry: geometry.clone(),
++        };
+         let valid = png(4, 4);
+         for (prefetched, expected_calls) in [
+-            (Some(Ok(valid.clone())), 0),
++            (Some(Ok(frame(valid.clone()))), 0),
+             (Some(Err(anyhow::anyhow!("prefetch failed"))), 1),
+-            (Some(Ok(png(3, 4))), 1),
+-            (Some(Ok(vec![0])), 1),
++            (Some(Ok(frame(png(3, 4)))), 1),
++            (Some(Ok(frame(vec![0]))), 1),
+             (None, 1),
+         ] {
+             let calls = Cell::new(0);
+             let frame = verified_capture(7, prefetched, &bounds, || {
+                 calls.set(calls.get() + 1);
+-                Ok(valid.clone())
++                Ok(frame(valid.clone()))
+             })
+             .unwrap();
+-            assert_eq!(frame, (valid.clone(), 4, 4, 1.0));
++            assert_eq!(frame, (valid.clone(), 4, 4, geometry.clone()));
+             assert_eq!(calls.get(), expected_calls);
+         }
+         for prefetched in [Some(Err(anyhow::anyhow!("old error"))), None] {
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
+index 2bf28e0..7af7ce1 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
+@@ -68,6 +68,7 @@ fn def() -> &'static ToolDef {
+             "type": "object",
+             "required": ["keys"],
+             "properties": {
++                "capture_geometry": { "type":"object", "description":"Host-owned geometry from the exact screenshot; stale geometry refuses input." },
+                 "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it. Omit it to use the authenticated transport's implicit lifecycle session." },
+                 "pid": { "type": "integer", "description": "Target process ID. Required with x, y; optional with element_token (the token carries the pid)." },
+                 "keys": {
+@@ -444,10 +445,7 @@ impl Tool for HotkeyTool {
+                         guard.as_ptr() as crate::ax::bindings::AXUIElementRef,
+                     )?;
+                     let frame = super::px_frame::resolve_window_px_frame(wid).ok()?;
+-                    Some((
+-                        (screen_x - frame.bounds.x) * frame.scale,
+-                        (screen_y - frame.bounds.y) * frame.scale,
+-                    ))
++                    Some(frame.geometry.to_pixels(screen_x, screen_y))
+                 })
+                 .await
+                 .unwrap_or(None)
+@@ -484,6 +482,7 @@ impl Tool for HotkeyTool {
+                     args.opt_str("_session_id"),
+                     from_zoom,
+                     _mutation_lease.as_ref(),
++                    args.get("capture_geometry"),
+                 )
+                 .await
+                 {
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs
+index 7b0efb0..4606db8 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs
+@@ -538,6 +538,7 @@ pub(crate) async fn focus_by_pixel(
+     session_id: Option<String>,
+     from_zoom: bool,
+     mutation_lease: Option<&BackgroundMutationLease>,
++    capture_geometry: Option<&serde_json::Value>,
+ ) -> Result<(), cua_driver_core::protocol::ToolResult> {
+     use cua_driver_core::tool::Tool;
+     let mut click_args = serde_json::json!({
+@@ -547,6 +548,10 @@ pub(crate) async fn focus_by_pixel(
+     });
+     if let Some(wid) = window_id {
+         click_args["window_id"] = serde_json::json!(wid);
++        if let Some(proof) = capture_geometry {
++            px_frame::resolve_or_refuse(wid, Some(proof)).await?;
++            click_args["capture_geometry"] = proof.clone();
++        }
+         if let Some(lease) = mutation_lease {
+             lease
+                 .gate_again(
+@@ -668,7 +673,9 @@ async fn focused_element_holds_point(
+         let Ok(frame) = px_frame::resolve_window_px_frame(wid) else {
+             return false;
+         };
+-        let (screen_x, screen_y, _, _) = frame.to_screen(x, y);
++        let Some((screen_x, screen_y, _, _)) = frame.to_screen(x, y) else {
++            return false;
++        };
+         unsafe {
+             let Some(focused) = crate::ax::bindings::focused_element_of_pid(pid) else {
+                 return false;
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/move_cursor.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/move_cursor.rs
+index 4e6831a..09df247 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/move_cursor.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/move_cursor.rs
+@@ -39,6 +39,7 @@ fn def() -> &'static ToolDef {
+             "type": "object",
+             "required": ["x", "y"],
+             "properties": {
++                "capture_geometry": { "type":"object", "description":"Host-owned geometry from the exact screenshot; stale geometry refuses input." },
+                 "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it. Omit it to use the authenticated transport's implicit lifecycle session." },
+                 "x": { "type": "number", "description": "Destination X. Window target: window screenshot pixels. No target: screen points for the agent cursor overlay. Desktop scope: native get_desktop_state screenshot pixels." },
+                 "y": { "type": "number", "description": "Destination Y, in the same space as x." },
+@@ -151,11 +152,19 @@ impl MoveCursorTool {
+             Ok(ratio) => ratio,
+             Err(refusal) => return refusal,
+         };
+-        let frame = match super::px_frame::resolve_or_refuse(wid).await {
+-            Ok(frame) => frame,
+-            Err(refusal) => return refusal,
++        let frame =
++            match super::px_frame::resolve_or_refuse(wid, args.get("capture_geometry")).await {
++                Ok(frame) => frame,
++                Err(refusal) => return refusal,
++            };
++        let (screen_x, screen_y, local_x, local_y) = match frame.to_screen(x * ratio, y * ratio) {
++            Some(point) => point,
++            None => {
++                return ToolResult::error(
++                    "Point lies outside captured window content; take a fresh screenshot.",
++                )
++            }
+         };
+-        let (screen_x, screen_y, local_x, local_y) = frame.to_screen(x * ratio, y * ratio);
+         if local_x < 0.0
+             || local_y < 0.0
+             || local_x > frame.bounds.width
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/press_key.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/press_key.rs
+index e4d007f..e9c698a 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/press_key.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/press_key.rs
+@@ -223,6 +223,7 @@ fn def() -> &'static ToolDef {
+             "type": "object",
+             "required": ["key"],
+             "properties": {
++                "capture_geometry": { "type":"object", "description":"Host-owned geometry from the exact screenshot; stale geometry refuses input." },
+                 "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it." },
+                 "pid": { "type": "integer", "description": "Target process ID." },
+                 "key": { "type": "string", "description": "Key name." },
+@@ -391,6 +392,7 @@ impl Tool for PressKeyTool {
+                     args.opt_str("_session_id"),
+                     from_zoom,
+                     _mutation_lease.as_ref(),
++                    args.get("capture_geometry"),
+                 )
+                 .await
+                 {
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
+index d24fee7..5640fc9 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
+@@ -14,13 +14,12 @@ use cua_driver_core::protocol::ToolResult;
+ 
+ use crate::windows::WindowBounds;
+ 
+-/// A window's screen origin plus the physical-pixels-per-logical-point scale
+-/// of its `screencapture` output.
++/// A validated capture transform and its parent window routing bounds.
+ #[derive(Debug, Clone)]
+ pub struct WindowPxFrame {
+     pub bounds: WindowBounds,
+-    /// Physical capture pixels per logical point (1.0 non-Retina, 2.0 Retina).
+-    pub scale: f64,
++    /// Content viewport and scale from the same completed frame as the pixels.
++    pub geometry: crate::capture::frame::Geometry,
+ }
+ 
+ impl WindowPxFrame {
+@@ -28,10 +27,28 @@ impl WindowPxFrame {
+     /// local_pt_y)`. Public PID event routes use the local-point pair for
+     /// `CGEventSetWindowLocation`; the SkyLight PID/window-routed click keeps
+     /// the screen-point pair because WindowServer derives local coordinates.
+-    pub fn to_screen(&self, cx: f64, cy: f64) -> (f64, f64, f64, f64) {
+-        let lx = cx / self.scale;
+-        let ly = cy / self.scale;
+-        (self.bounds.x + lx, self.bounds.y + ly, lx, ly)
++    pub fn to_screen(&self, cx: f64, cy: f64) -> Option<(f64, f64, f64, f64)> {
++        let point = self.to_sheet_or_parent(cx, cy)?;
++        self.geometry
++            .surface
++            .parent
++            .contains(point.0, point.1)
++            .then_some(point)
++    }
++    /// Only click's proven AXSheet delivery may use points beyond the parent.
++    pub fn to_sheet_or_parent(&self, cx: f64, cy: f64) -> Option<(f64, f64, f64, f64)> {
++        let (sx, sy) = self.geometry.to_screen(cx, cy)?;
++        if !self.geometry.surface.parent.contains(sx, sy)
++            && !self
++                .geometry
++                .surface
++                .sheet
++                .as_ref()
++                .is_some_and(|sheet| sheet.bounds.contains(sx, sy))
++        {
++            return None;
++        }
++        Some((sx, sy, sx - self.bounds.x, sy - self.bounds.y))
+     }
+ }
+ 
+@@ -106,24 +123,16 @@ pub fn validate_capture_frame(
+ /// Resolve `window_id`'s screen origin and capture scale. Blocking: enumerates
+ /// CGWindowList and takes one window capture to measure the scale.
+ pub fn resolve_window_px_frame(window_id: u32) -> Result<WindowPxFrame, PxFrameError> {
+-    let bounds = crate::windows::window_bounds_by_id(window_id)
+-        .filter(|b| b.width > 0.0 && b.height > 0.0)
+-        .ok_or(PxFrameError::WindowNotFound { window_id })?;
+-    // A window-local point is meaningful only when the current capture proves
+-    // the same frame and scale. Never guess 1× on capture failure.
+-    let png = crate::capture::screenshot_window_bytes(window_id).map_err(|e| {
++    let frame = crate::capture::screenshot_window_frame(window_id).map_err(|e| {
+         PxFrameError::CaptureUnavailable {
+             window_id,
+             reason: e.to_string(),
+         }
+     })?;
+-    let (pw, ph) =
+-        crate::capture::png_dimensions(&png).map_err(|e| PxFrameError::CaptureUnavailable {
+-            window_id,
+-            reason: e.to_string(),
+-        })?;
+-    let scale = validate_capture_frame(window_id, &bounds, pw, ph)?;
+-    Ok(WindowPxFrame { bounds, scale })
++    Ok(WindowPxFrame {
++        bounds: frame.geometry.surface.parent.into(),
++        geometry: frame.geometry,
++    })
+ }
+ 
+ /// The shared refusal for a pixel action whose window cannot be framed.
+@@ -206,9 +215,23 @@ pub fn error_structured(error: &PxFrameError) -> serde_json::Value {
+ 
+ /// Resolve the frame off the async path, mapping both the task error and the
+ /// refusal onto a `ToolResult` the caller can return directly.
+-pub async fn resolve_or_refuse(window_id: u32) -> Result<WindowPxFrame, ToolResult> {
++pub async fn resolve_or_refuse(
++    window_id: u32,
++    expected: Option<&serde_json::Value>,
++) -> Result<WindowPxFrame, ToolResult> {
+     match tokio::task::spawn_blocking(move || resolve_window_px_frame(window_id)).await {
+-        Ok(Ok(frame)) => Ok(frame),
++        Ok(Ok(frame)) => {
++            if let Some(expected) = expected {
++                let proof =
++                    serde_json::from_value::<crate::capture::frame::Geometry>(expected.clone());
++                if !proof.is_ok_and(|proof| proof.matches(&frame.geometry)) {
++                    return Err(ToolResult::error(
++                        "Capture geometry changed; take a fresh screenshot before acting.",
++                    ));
++                }
++            }
++            Ok(frame)
++        }
+         Ok(Err(e)) => Err(refusal(&e)),
+         Err(e) => Err(ToolResult::error(format!(
+             "window frame lookup for window_id {window_id} failed: {e}. Not dispatching."
+@@ -221,20 +244,41 @@ mod tests {
+     use super::*;
+ 
+     fn frame(scale: f64) -> WindowPxFrame {
++        use crate::capture::frame::{Geometry, Rect, Surface};
++        let parent = Rect {
++            x: 100.0,
++            y: 580.0,
++            width: 500.0,
++            height: 500.0,
++        };
+         WindowPxFrame {
+-            bounds: WindowBounds {
+-                x: 100.0,
+-                y: 580.0,
+-                width: 500.0,
+-                height: 500.0,
+-            },
+-            scale,
++            bounds: parent.into(),
++            geometry: Geometry::from_sample(
++                Surface {
++                    window_id: 1,
++                    pid: 2,
++                    parent,
++                    sheet: None,
++                },
++                (500.0 * scale) as u32,
++                (500.0 * scale) as u32,
++                parent,
++                Rect {
++                    x: 0.0,
++                    y: 0.0,
++                    width: 500.0,
++                    height: 500.0,
++                },
++                scale,
++                1.0,
++            )
++            .unwrap(),
+         }
+     }
+ 
+     #[test]
+     fn resolves_1x_window_local_to_screen() {
+-        let (sx, sy, lx, ly) = frame(1.0).to_screen(30.0, 40.0);
++        let (sx, sy, lx, ly) = frame(1.0).to_screen(30.0, 40.0).unwrap();
+         assert_eq!((sx, sy), (130.0, 620.0));
+         assert_eq!((lx, ly), (30.0, 40.0));
+     }
+@@ -242,7 +286,7 @@ mod tests {
+     #[test]
+     fn resolves_2x_retina_scale() {
+         // A point 60 capture px in is 30 pt in.
+-        let (sx, sy, lx, ly) = frame(2.0).to_screen(60.0, 80.0);
++        let (sx, sy, lx, ly) = frame(2.0).to_screen(60.0, 80.0).unwrap();
+         assert_eq!((sx, sy), (130.0, 620.0));
+         assert_eq!((lx, ly), (30.0, 40.0));
+     }
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/right_click.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/right_click.rs
+index a16dc71..754c9e9 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/right_click.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/right_click.rs
+@@ -43,6 +43,7 @@ fn def() -> &'static ToolDef {
+             "type": "object",
+             "required": [],
+             "properties": {
++                "capture_geometry": { "type":"object", "description":"Host-owned geometry from the exact screenshot; stale geometry refuses input." },
+                 "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it. Omit it to use the authenticated transport's implicit lifecycle session." },
+                 "pid": { "type": "integer", "description": "Target process ID. Optional with element_token (the token carries the pid)." },
+                 "element_token": cua_driver_core::tool_schema::element_token_schema(),
+@@ -168,9 +169,14 @@ impl Tool for RightClickTool {
+         // for CGEventSetWindowLocation (shared with click.rs via px_frame, which
+         // refuses a window with no live frame).
+         let (screen_x, screen_y, win_local_x, win_local_y) = if let Some(wid) = window_id {
+-            match super::px_frame::resolve_or_refuse(wid).await {
++            match super::px_frame::resolve_or_refuse(wid, args.get("capture_geometry")).await {
+                 Ok(frame) => {
+-                    let translated = frame.to_screen(cx, cy);
++                    let translated = match frame.to_screen(cx, cy) {
++                        Some(point) => point,
++                        None => return ToolResult::error(
++                            "Point lies outside captured window content; take a fresh screenshot.",
++                        ),
++                    };
+                     if !delivery_mode.is_foreground()
+                         && (translated.2 < 0.0
+                             || translated.3 < 0.0
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/scroll.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/scroll.rs
+index aa7a814..f4c462c 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/scroll.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/scroll.rs
+@@ -80,6 +80,7 @@ fn def() -> &'static ToolDef {
+             // schema — keeps the contract consistent across platforms.
+             "required": ["direction"],
+             "properties": {
++                "capture_geometry": { "type":"object", "description":"Host-owned geometry from the exact screenshot; stale geometry refuses input." },
+                 "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it." },
+                 "pid": { "type": "integer", "description": "Target process ID. Required unless scope is \"desktop\" or element_token is supplied." },
+                 "direction": {
+@@ -429,9 +430,14 @@ impl Tool for ScrollTool {
+                     "window_id is required when scrolling by window-local x,y pixels.".to_string(),
+                 );
+             };
+-            match super::px_frame::resolve_or_refuse(wid).await {
++            match super::px_frame::resolve_or_refuse(wid, args.get("capture_geometry")).await {
+                 Ok(frame) => {
+-                    let (sx, sy, lx, ly) = frame.to_screen(cx, cy);
++                    let (sx, sy, lx, ly) = match frame.to_screen(cx, cy) {
++                        Some(point) => point,
++                        None => return ToolResult::error(
++                            "Point lies outside captured window content; take a fresh screenshot.",
++                        ),
++                    };
+                     Some(WheelTarget {
+                         screen_x: sx,
+                         screen_y: sy,
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs
+index acbc73b..ad93ad0 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs
+@@ -64,6 +64,7 @@ fn def() -> &'static ToolDef {
+             "type": "object",
+             "required": ["text"],
+             "properties": {
++                "capture_geometry": { "type":"object", "description":"Host-owned geometry from the exact screenshot; stale geometry refuses input." },
+                 "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it." },
+                 "pid":  { "type": "integer", "description": "Target process ID." },
+                 "text": { "type": "string",  "description": "Text to insert." },
+@@ -259,6 +260,7 @@ impl Tool for TypeTextTool {
+                 args.opt_str("_session_id"),
+                 from_zoom,
+                 _mutation_lease.as_ref(),
++                args.get("capture_geometry"),
+             )
+             .await
+             {

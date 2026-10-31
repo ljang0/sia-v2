@@ -16,6 +16,18 @@ async function fixture(background = true) {
   png.write('IHDR', 12);
   png.writeUInt32BE(800, 16);
   png.writeUInt32BE(600, 20);
+  let geometry: Record<string, unknown> | undefined = {
+    surface: {
+      window_id: 91,
+      pid: 42,
+      parent: { x: 100, y: 100, width: 800, height: 600 },
+      sheet: null,
+    },
+    content: { x: 0, y: 0, width: 800, height: 600 },
+    pixels_per_point: 1,
+    width: 800,
+    height: 600,
+  };
   const inputs: Array<{ tool: string; args: Record<string, unknown> }> = [];
   const cua = fakeCua(async (tool, args) => {
     if (tool === 'list_apps')
@@ -26,6 +38,7 @@ async function fixture(background = true) {
       if (capture === 'throw') throw new Error('CUA refused: px_capture_unavailable');
       return {
         value: {
+          capture_geometry: geometry,
           elements: [
             {
               role: capture === 'protected' ? 'AXSecureTextField' : 'AXTextArea',
@@ -63,6 +76,9 @@ async function fixture(background = true) {
   return {
     cua,
     inputs,
+    geometry: (next: typeof geometry) => {
+      geometry = next;
+    },
     readWindowContext,
     readImageText,
     mode: (value: typeof capture) => {
@@ -105,6 +121,8 @@ it('requires pixels even when asked for semantic text and never exposes extracte
     'visible_text',
     'image_text',
     'pixel_bounds',
+    'capture_geometry',
+    'pixels_per_point',
   ])
     expect(serialized).not.toContain(hidden);
 });
@@ -183,6 +201,10 @@ it('delivers visual coordinates in the background and returns another image with
     },
   ]);
   expect(h.inputs[0]!.args.element_token).toBeUndefined();
+  expect(h.inputs[0]!.args.capture_geometry).toMatchObject({
+    surface: { pid: 42, window_id: 91 },
+    pixels_per_point: 1,
+  });
   expect(result.outcome).toBe('accepted_unverified');
   expect(result.images).toHaveLength(1);
   expect(result.data).toMatchObject({ control_mode: 'vision' });
@@ -208,3 +230,32 @@ it('admits the same visual tools on screen without enabling semantic observation
   expect(h.readWindowContext).not.toHaveBeenCalled();
   expect(h.readImageText).not.toHaveBeenCalled();
 });
+
+it.each(['changed', 'missing'] as const)(
+  'refuses %s geometry even when PNG dimensions are unchanged',
+  async (mode) => {
+    const h = await fixture();
+    const first = await h.snapshot();
+    h.geometry(
+      mode === 'missing'
+        ? undefined
+        : {
+            surface: {
+              window_id: 91,
+              pid: 42,
+              parent: { x: 100, y: 100, width: 800, height: 600 },
+              sheet: { window_id: 92, bounds: { x: 0, y: 100, width: 1000, height: 600 } },
+            },
+            content: { x: 0, y: 0, width: 800, height: 480 },
+            pixels_per_point: 0.8,
+            width: 800,
+            height: 600,
+          },
+    );
+    expect(
+      (await h.act(dataRecord(first.data).snapshot_id, { action: 'click', x: 25, y: 30 }))
+        .outcome,
+    ).toBe('stale');
+    expect(h.inputs).toEqual([]);
+  },
+);

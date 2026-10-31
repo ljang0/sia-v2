@@ -1,3 +1,4 @@
+import { captureGeometry, sameCaptureGeometry } from './capture-geometry.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import {
@@ -326,6 +327,16 @@ export class ComputerInput {
           if (unavailable) return unavailable;
         }
       }
+      const observedGeometry = capability.captureGeometry;
+      const currentGeometry = captureGeometry(current);
+      if (
+        (this.ctx.options.visionOnly && !observedGeometry) ||
+        (observedGeometry &&
+          (!currentGeometry || !sameCaptureGeometry(observedGeometry, currentGeometry)))
+      )
+        return stale(
+          'The captured content geometry changed or could not be verified. Take a fresh screenshot before acting.',
+        );
       const currentSize = screenshotDimensions(current);
       if (
         !currentSize ||
@@ -467,6 +478,9 @@ export class ComputerInput {
       default:
         return refused('Unsupported computer action.');
     }
+
+    if (pixel && capability.captureGeometry)
+      input.capture_geometry = capability.captureGeometry;
 
     const knownWindows = new Set(
       [...this.ctx.computer.windows.values()]

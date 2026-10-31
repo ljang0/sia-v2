@@ -661,12 +661,17 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   operation: focus and insertion happen together, avoiding focus restoration between separate
   calls. It requires a fresh, unchanged, unprotected window image; background delivery checks
   both the pointer and keyboard routes. The host never automatically replays an uncertain edit.
-  Visible controls also receive `pixel_bounds` with screenshot-relative center coordinates when
-  an image and native AX frame are available. The host converts Mac screen points (including
-  the driver's w/h frames) using the actual PNG dimensions and exact WindowServer bounds,
-  rather than assuming a Retina multiplier. Window bounds must match before and after capture;
-  moved/resized, clipped, hidden and invalid controls receive no pixel target. Raw screen frames
-  remain withheld. These coordinates aid targeting and do not expand the window's input authority.
+  Vision snapshots keep a host-only capture geometry proof alongside their opaque capability.
+  Native `capture/frame.rs` owns the transform; `capture/stream.rs` pairs a completed sample's
+  BGRA pixels with its content rectangle and scale. Fresh sheet ancestry and bounds establish
+  the source origin, including sheets wider than their parent. PNG dimensions alone cannot do this.
+  The host compares geometry before sending coordinates, and the native action checks it again.
+  Image padding is not actionable. Points outside the parent require the bounded owned-sheet
+  press backend; they never fall through to synthetic events. Shell window capture was removed
+  because it supplies no content transform. The backing-store fallback accepts parent-only
+  captures and refuses known attached sheets. Signed alpha.70 verified sheet collapse/expand; full Save/reopen remains blocked on keyboard context.
+  Internal assisted-mode fixtures still exercise `pixel_bounds`; the vision-default model does
+  not receive semantic bounds or native geometry proofs.
   With pause selected, it reports this limit instead. It cannot close unrelated windows or change access
   settings to bypass the driver. See the driver's [typing guidance](https://cua.ai/docs/cua-driver/reference/mcp-tools/keyboard).
   With foreground recovery enabled, `computer_open_app` accepts explicit `delivery:"foreground"`

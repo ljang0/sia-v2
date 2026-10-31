@@ -175,3 +175,20 @@ The unverified Finder named-arrow experiment is deliberately excluded.
 The checked-in supplemental license manifest records the exact upstream source revision and URL
 for crates that omit their own license body. Original upstream notices and embedded-library
 notices remain intact. Regenerate and review this corpus when updating Cargo.lock or the source pin.
+
+## Capture geometry
+
+`capture/frame.rs` owns the window/sheet geometry and pixel-to-screen transform.
+`capture/stream.rs` takes pixels and metadata from one completed ScreenCaptureKit sample;
+its small CFNumber status reader avoids the pinned dependency's failed NSNumber-to-enum cast.
+The captured content rectangle and scale must match the union of the parent and a freshly owned
+sheet. Before/after surface checks reject movement, resize, sheet replacement and missing ownership.
+Padding is excluded from input, and the host retains the geometry proof outside model-visible data.
+`tools/px_frame.rs` validates that proof again for input and centralizes coordinate conversion.
+Only an unmodified left click can use the existing bounded owned-sheet press backend beyond the
+parent; synthetic input, drag, scroll and cursor movement remain bounded to the parent.
+The shell window fallback was removed: image dimensions do not prove its content transform.
+The backing-store fallback remains for parent-only windows and refuses known attached sheets.
+Signed internal alpha.70 visibly collapsed and re-expanded the Save sheet with fresh-image
+background clicks. Save/reopen then stopped at the separate Cmd-Shift-G window-context guard.
+The full pilot gate passed; Save/reopen and concurrency acceptance remain open.

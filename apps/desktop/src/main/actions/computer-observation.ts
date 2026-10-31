@@ -1,3 +1,4 @@
+import { captureGeometry } from './capture-geometry.js';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
@@ -348,11 +349,13 @@ export class ComputerObservation {
     if (visionOnly) {
       if (!pixels || !image) return this.#missingVisualObservation(binding);
       const backgroundInput = windowBackgroundInput(raw, binding);
+      const geometry = captureGeometry(raw);
       const pointerAvailable =
-        !backgroundInput ||
-        backgroundInput.routes.some(
-          (route) => route.route === 'window_pointer' && route.status === 'available',
-        );
+        Boolean(geometry) &&
+        (!backgroundInput ||
+          backgroundInput.routes.some(
+            (route) => route.route === 'window_pointer' && route.status === 'available',
+          ));
       this.ctx.computer.rememberSnapshot({
         id: snapshotId,
         capturedAt: Date.now(),
@@ -362,6 +365,7 @@ export class ComputerObservation {
         windowId: binding.windowId,
         protectedControls: false,
         pixels,
+        ...(geometry ? { captureGeometry: geometry } : {}),
         elements: new Map(),
         ...(browserUrl ? { browserUrl } : {}),
         ...(backgroundInput ? { backgroundInput } : {}),

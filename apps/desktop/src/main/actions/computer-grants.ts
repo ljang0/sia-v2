@@ -1,3 +1,4 @@
+import type { CaptureGeometry } from './capture-geometry.js';
 import { randomUUID } from 'node:crypto';
 import type { ValidatedActionInvocation } from '@sia/action-gateway';
 import type { BackgroundInputStatus } from './background-input.js';
@@ -34,6 +35,7 @@ export interface WindowSnapshotCapability {
   readonly browserSurface?: 'safari-tab-overview' | 'safari-tabs';
   readonly capturedAt: number;
   readonly protectedControls: boolean;
+  readonly captureGeometry?: CaptureGeometry;
   readonly pixels?: { width: number; height: number };
   readonly id: string;
   readonly appId: string;

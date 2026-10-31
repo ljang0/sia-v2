@@ -138,6 +138,31 @@ Private `alpha68-stream-geometry` and `alpha69-stream-metadata` retain receipts,
 metadata and results. Neither is a distribution candidate or completed task. Probe code was removed,
 the QA process exited, and the signed alpha.67 app was restored without launching it.
 
+Signed internal arm64 alpha.70 pairs completed stream pixels with their own geometry and proves
+the source origin from fresh parent/sheet bounds. Its CFNumber status reader accepts completed
+frames that the pinned dependency's enum cast missed. The full local pilot gate passed: build,
+formatting, lint, quality, types and shared/native checks, plus 1,952 desktop, 46 Electron,
+40 renderer and 72 phone-browser tests. Existing documented skips remain in the saved log.
+
+A fresh **Capture geometry 70** assistant (Codex · GPT-6-Astra) ran the existing Arena brief's
+Save/reopen task after all automated work finished. Its first screenshot showed the expanded sheet;
+a click at `(857,181)` visibly collapsed it, and a fresh-image click at `(852,419)` visibly expanded
+it again. Both images remained 1,172×952, demonstrating why size-only validation was insufficient.
+The background clicks took 1,420 and 1,429 ms and used the owned accessibility point route.
+Cmd-Shift-G then refused in 204 ms with `needs_foreground/window_not_key`. The 33.049-second turn
+stopped; the new destination folder is empty. No save, close/reopen, concurrent-task or distribution
+acceptance is credited. The operator created the assistant and submitted the task but supplied
+no TextEdit input. QA was quit through CUA and process exit verified afterward.
+
+Installed ASAR: `6d9b04f6a397b814add59d1fc27dabc8c3ca026963cd371e4385c9f9880fc06d`.
+Source base: `3a9e0dec76da28d06c5e5fd81a672fdb22f84bcc`; captured diff:
+`bb1494620c4b7b1c557c4a0fdf7a9d25877846716124da66d10ed4685809b1c0`.
+Private `alpha70-capture-geometry` retains the source diff, signed package/install receipts,
+pilot log, prompt, trace, three task screenshots and result record. It is not notarized or approved
+for distribution. The separate menu-context blocker remains; alpha.62/.63 already tried sheet
+key-route bypass and alternate PID key transport without visible effects, so those changes remain
+excluded rather than being presented as a fix.
+
 ## Browser evidence retained from alpha.59
 
 The [alpha.59 record](https://github.com/ljang0/sia-v2/blob/b22d9c279eea120118d73083aa27281964dc727f/docs/public-release.md)
