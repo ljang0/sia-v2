@@ -1,4 +1,4 @@
-import { isCuaCallResult } from '../mac/cua-service.js';
+import { isCuaCallResult } from '../mac/cua-results.js';
 import { redactObservationLinks } from './observation-text.js';
 
 // Cua Driver payloads are untrusted, loosely shaped JSON. These readers walk them with fixed

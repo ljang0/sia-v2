@@ -16,6 +16,13 @@ technical review and invited pilot, without claiming a partnership or validated 
 
 ## Expanded release goal
 
+Owner requirement, October 31: the handoff code must be lean, modular and easy for an external
+reviewer to follow. Maintainability is part of release readiness: remove obsolete execution paths
+at cutover, keep state ownership and dependency direction explicit, and provide a short route from
+model request to authorized input and verified result. The [architecture walkthrough](./architecture.md#reviewing-the-computer-use-path)
+identifies the modules and boundaries. Large declarative catalogs alone are not a reason to add
+abstraction; mixed responsibilities, duplicate implementations and hidden fallback routes are.
+
 Owner decision, October 31: **vision-only computer use is the default throughout Sia**, not an
 Arena-only option. This is a new implementation and acceptance requirement; alpha.56 still uses
 assisted DOM/accessibility control and does not satisfy it. The model must receive screenshots,

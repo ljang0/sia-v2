@@ -927,24 +927,27 @@ it('does not trust focus metadata supplied with an MCP inventory error', async (
 it.each(['ready', 'unavailable'] as const)(
   'does not request permissions again when computer access is %s',
   async (status) => {
-    const service = new CuaService(authorization(), { platform: 'darwin' });
     const current = {
       status,
       accessibility: status === 'ready',
       screenRecording: status === 'ready',
     };
-    const permissions = vi.spyOn(service, 'permissions').mockResolvedValue(current);
-    expect(await service.requestPermissions()).toBe(current);
-    expect(permissions).toHaveBeenCalledTimes(1);
+    const readPermissions = vi.fn(async () => current);
+    const service = new CuaService(authorization(), {
+      platform: status === 'unavailable' ? 'linux' : 'darwin',
+      readPermissions,
+    });
+    expect(await service.requestPermissions()).toMatchObject(current);
+    expect(readPermissions).toHaveBeenCalledTimes(status === 'ready' ? 1 : 0);
+    expect(permissionUi.getSources).not.toHaveBeenCalled();
+    expect(permissionUi.accessibility).not.toHaveBeenCalled();
   },
 );
 
 it('registers the signed Electron app during an explicit missing-screen permission request', async () => {
-  const service = new CuaService(authorization(), { platform: 'darwin' });
-  vi.spyOn(service, 'permissions').mockResolvedValue({
-    status: 'needs_permission',
-    accessibility: true,
-    screenRecording: false,
+  const service = new CuaService(authorization(), {
+    platform: 'darwin',
+    readPermissions: async () => ({ accessibility: true, screenRecording: false }),
   });
   await service.requestPermissions();
   expect(permissionUi.getSources).toHaveBeenCalledExactlyOnceWith({
@@ -960,11 +963,9 @@ it('registers the signed Electron app during an explicit missing-screen permissi
 it.each([true, false])(
   'requests Accessibility alone before Screen Recording (screen allowed: %s)',
   async (screenRecording) => {
-    const service = new CuaService(authorization(), { platform: 'darwin' });
-    vi.spyOn(service, 'permissions').mockResolvedValue({
-      status: 'needs_permission',
-      accessibility: false,
-      screenRecording,
+    const service = new CuaService(authorization(), {
+      platform: 'darwin',
+      readPermissions: async () => ({ accessibility: false, screenRecording }),
     });
     await service.requestPermissions();
     expect(permissionUi.getSources).not.toHaveBeenCalled();
@@ -1089,11 +1090,9 @@ describe('confirming granted access through the driver', () => {
 });
 
 it('shares overlapping permission requests and permits a later retry after failure', async () => {
-  const service = new CuaService(authorization(), { platform: 'darwin' });
-  vi.spyOn(service, 'permissions').mockResolvedValue({
-    status: 'needs_permission',
-    accessibility: true,
-    screenRecording: false,
+  const service = new CuaService(authorization(), {
+    platform: 'darwin',
+    readPermissions: async () => ({ accessibility: true, screenRecording: false }),
   });
   permissionUi.openExternal
     .mockRejectedValueOnce(new Error('Permission service unavailable'))

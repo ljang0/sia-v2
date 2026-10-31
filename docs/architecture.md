@@ -35,6 +35,35 @@ The provider runtime can propose a Sia action, but only the main-process ActionG
 
 There is no generic renderer IPC, generic connector catalog, raw CUA server, arbitrary CDP/JavaScript route, cookie API, visualization tool, or cross-provider subagent abstraction.
 
+## Reviewing the computer-use path
+
+Start with the following modules, in order. The model-facing action layer owns task grants;
+the native service owns driver execution. Permission setup is an explicit user operation.
+
+| Module                                                                                                                                                 | Responsibility                                                                                                                |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| [`runtime-coordinator.ts`](../apps/desktop/src/main/providers/runtime-coordinator.ts)                                                                  | Chooses the admitted runtime and tools for the turn.                                                                          |
+| [`action-gateway`](../packages/action-gateway/src)                                                                                                     | Validates arguments and authorizes the proposed action.                                                                       |
+| [`desktop-action-backend.ts`](../apps/desktop/src/main/actions/desktop-action-backend.ts)                                                              | Dispatches to the computer, browser or connector collaborator.                                                                |
+| [`computer-grants.ts`](../apps/desktop/src/main/actions/computer-grants.ts), [`browser-grants.ts`](../apps/desktop/src/main/actions/browser-grants.ts) | Own window/tab bindings and single-use observation authority.                                                                 |
+| [`cua-service.ts`](../apps/desktop/src/main/mac/cua-service.ts)                                                                                        | Owns separate browser/native queues, driver lifetimes, authorization callbacks, cancellation and foreground checks.           |
+| [`cua-permissions.ts`](../apps/desktop/src/main/mac/cua-permissions.ts)                                                                                | Owns macOS setup, relaunch detection and cached access verification; its injected driver interface permits only window reads. |
+| [`cua-results.ts`](../apps/desktop/src/main/mac/cua-results.ts)                                                                                        | Decodes driver envelopes, sanitizes failures and bounds image results without depending on service state.                     |
+
+The native patch and its build/verification steps are documented in
+[`native/cua/README.md`](../apps/desktop/native/cua/README.md). The service regression suite covers
+permission setup, concurrent queues, cancellation, stale callbacks, foreground interference and
+content-free failure reporting through the public service API.
+
+The vision-only path is still staged; see [release status](./release-status.md) for the current
+cutover and signed-app acceptance gaps. Do not mistake a staged option or simulated test for the
+shipping default. The assisted paths must be retired as the new default is completed.
+
+Keep each stateful domain's lifecycle in its owning module. Extract a collaborator when it has a
+separate responsibility and a narrow interface; avoid splitting declarative catalogs just to reduce
+line counts. Shared contracts must not import host or UI implementations. ESLint flags static imports of main, preload, Electron, Node or native action runtimes in production
+renderer/mobile/shared modules, and imports of UI implementations in main. Tests may use Node fixtures.
+
 The main-process controller lives in `apps/desktop/src/main/controller/`. `DesktopController` is
 the only public entry point (IPC bridge, launcher, Scotty, phone remote and tests). It delegates to
 a `ControllerContext` that holds the shared state and wires one collaborator per domain: threads,

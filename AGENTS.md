@@ -84,6 +84,10 @@ admission checks in [`docs/harness-policy.md`](./docs/harness-policy.md).
 
 ## Change rules
 
+- Owner requirement, October 31: distribution and the Arena handoff require a lean, reviewable
+  codebase. Keep state ownership and module boundaries explicit; separate mixed responsibilities
+  through narrow interfaces, remove obsolete paths at cutover, and keep the architecture walkthrough
+  accurate. Do not add generic frameworks or split declarative tables only to lower line counts.
 - Prefer deleting obsolete paths over adding compatibility shims. Keep one canonical route per UI
   action and update its tests in the same change.
 - Keep secrets and provider credentials out of the renderer, IPC payloads, logs, fixtures, commits,

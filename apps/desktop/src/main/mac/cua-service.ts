@@ -1,4 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { CuaPermissions } from './cua-permissions.js';
+import type { CorePermission, CuaPermissionOptions } from './cua-permissions.js';
+import {
+  decodeDriverResult,
+  readForegroundInventory,
+  withDriverImages,
+} from './cua-results.js';
+import type { DriverResult } from './cua-results.js';
 import type { ComputerPermissionsView as ComputerView } from '../../shared/bridge.js';
 import {
   browserSessionDriver,
@@ -65,13 +73,6 @@ export type CuaAuthorizationContext =
         'browser_attach' | 'browser_navigate' | 'browser_detach' | 'access_check';
     };
 
-interface DriverResult {
-  rawJson: string;
-  structuredJson?: string;
-  errorCode?: string;
-  images?: Array<{ mimeType: string; dataBase64: string }>;
-}
-
 interface DriverLike {
   prepareBrowserSession?: (label: string) => void;
   callTool(
@@ -83,33 +84,11 @@ interface DriverLike {
   uniffiDestroy?: () => void;
 }
 
-type AccessVerification = 'confirmed' | 'unconfirmed' | 'failed' | 'needs_capture_consent';
-
-export type CorePermission = 'accessibility' | 'screenRecording';
-export interface CorePermissionStatus {
-  accessibility: boolean;
-  screenRecording: boolean;
-}
-
-interface CuaServiceOptions {
-  /** Production uses macOS's live frontmost PID, including non-regular utility apps. */
+interface CuaServiceOptions extends CuaPermissionOptions {
+  /** Production reads macOS's live frontmost PID, including utility apps. */
   readonly readForegroundPid?: () => Promise<number | undefined>;
-  readonly fakePermissions?: boolean;
-  readonly platform?: NodeJS.Platform;
-  /** Test seam for this process's own TCC view; production reads the Cua driver. */
-  readonly readPermissions?: () => Promise<CorePermissionStatus>;
-  /**
-   * Reads the same grants from a brand-new process. macOS applies some grants (notably Screen
-   * Recording) to a running app only after it reopens, so a fresh "yes" next to a stale "no"
-   * means one relaunch finishes setup. Undefined when the check could not run.
-   */
-  readonly freshPermissions?: () => Promise<CorePermissionStatus | undefined>;
   readonly callTimeoutMs?: number;
-  /** Process id that owns Sia's windows; the driver refuses to inspect its own process. */
-  readonly hostPid?: number;
-  /** Confirms granted access by reading another app's window through the driver. */
-  readonly verifyAccess?: boolean;
-  /** Test seam; receives the same authorization callback the native driver would use. */
+  /** Test seam; receives the same authorization callback as the native driver. */
   readonly driverFactory?: (
     authorize: (request: AuthorizationRequest) => Promise<'allow' | 'deny' | 'cancel'>,
   ) => DriverLike | Promise<DriverLike>;
@@ -133,26 +112,6 @@ const BROWSER_INPUT_TOOLS = new Set([
   'browser_type',
   'browser_pointer',
 ]);
-
-interface CuaDriverImage {
-  readonly mimeType: string;
-  readonly dataBase64: string;
-}
-
-export interface CuaCallResult {
-  readonly value: unknown;
-  readonly images: readonly CuaDriverImage[];
-}
-
-export function isCuaCallResult(value: unknown): value is CuaCallResult {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.hasOwn(value, 'value') &&
-    Array.isArray((value as Record<string, unknown>).images)
-  );
-}
 
 interface DriverLane {
   driver: DriverLike | undefined;
@@ -181,262 +140,37 @@ function driverLane(): DriverLane {
 export class CuaService {
   readonly #readForegroundPid: (() => Promise<number | undefined>) | undefined;
   readonly #authorization: AuthorizationBroker;
-  readonly #fakePermissions: boolean;
   readonly #callTimeoutMs: number;
   readonly #driverFactory: CuaServiceOptions['driverFactory'];
-  readonly #platform: NodeJS.Platform;
-  readonly #readPermissions: () => Promise<CorePermissionStatus>;
-  readonly #freshPermissions: CuaServiceOptions['freshPermissions'];
   // Each native runtime has its own authorization host. Serialize within a lane,
   // while a stalled browser transport cannot hold up an unrelated desktop action.
   readonly #browser = driverLane();
   readonly #desktop = driverLane();
-  #permissionRequest: Promise<ComputerView> | undefined;
-  #verification:
-    | { result: 'confirmed' | 'unconfirmed' }
-    | { result: 'failed' | 'needs_capture_consent'; checkedAt: number }
-    | undefined;
-  #verifying: Promise<AccessVerification> | undefined;
-  readonly #hostPid: number;
-  readonly #verifyAccessEnabled: boolean;
+  readonly #permissions: CuaPermissions;
   readonly #pausedBackgroundTurns = new Set<string>();
 
   constructor(authorization: AuthorizationBroker, options: CuaServiceOptions = {}) {
     this.#authorization = authorization;
     this.#readForegroundPid = options.readForegroundPid;
-    this.#fakePermissions = options.fakePermissions ?? false;
     const callTimeoutMs = options.callTimeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
     if (!Number.isFinite(callTimeoutMs) || callTimeoutMs <= 0) {
       throw new Error('CUA call timeout must be a positive number.');
     }
     this.#callTimeoutMs = callTimeoutMs;
     this.#driverFactory = options.driverFactory;
-    this.#platform = options.platform ?? process.platform;
-    this.#readPermissions =
-      options.readPermissions ??
-      (async () => {
-        const cua = await import('@trycua/cua-driver');
-        const status = cua.currentMacOsPermissionStatus();
-        return {
-          accessibility: Boolean(status.accessibility),
-          screenRecording: Boolean(status.screenRecording),
-        };
-      });
-    this.#freshPermissions = options.freshPermissions;
-    this.#hostPid = options.hostPid ?? process.pid;
-    this.#verifyAccessEnabled = options.verifyAccess ?? false;
+    this.#permissions = new CuaPermissions(
+      (tool, args, signal) =>
+        this.call(tool, args, { kind: 'direct_user', operation: 'access_check' }, signal),
+      options,
+    );
   }
 
-  async permissions(): Promise<ComputerView> {
-    if (this.#fakePermissions)
-      return {
-        status: 'ready',
-        accessibility: true,
-        screenRecording: true,
-        detail: 'Simulated permissions for development.',
-      };
-    if (this.#platform !== 'darwin') {
-      return {
-        status: 'unavailable',
-        accessibility: false,
-        screenRecording: false,
-        detail: 'Sia supports computer use on macOS only.',
-      };
-    }
-    try {
-      const { accessibility, screenRecording } = await this.#readPermissions();
-      const fresh =
-        accessibility && screenRecording
-          ? undefined
-          : await this.#freshPermissions?.().catch(() => undefined);
-      const relaunchFor = fresh
-        ? (['accessibility', 'screenRecording'] as const).filter(
-            (name) => fresh[name] && !{ accessibility, screenRecording }[name],
-          )
-        : [];
-      if (accessibility && screenRecording) {
-        if (!this.#verifyAccessEnabled)
-          return { status: 'ready', accessibility, screenRecording };
-        // The grants decide what Sia may attempt; the check only tells setup whether it works.
-        const verified = await this.#verifyAccess();
-        if (verified === 'needs_capture_consent')
-          return {
-            status: 'needs_permission',
-            accessibility,
-            screenRecording,
-            captureConsentRequired: true,
-            verified: 'failed',
-            detail:
-              'Finish See your screen in Settings → Computer. macOS needs one more approval for Sia to capture app windows directly.',
-          };
-        return {
-          status: 'ready',
-          accessibility,
-          screenRecording,
-          verified,
-          ...(verified === 'failed'
-            ? {
-                detail:
-                  'Mac access is allowed, but Sia could not verify screen access with the available window. Try your task; if it cannot continue, Sia will explain the specific issue. Your permissions have not been reset.',
-              }
-            : {}),
-        };
-      }
-      return {
-        status: 'needs_permission',
-        accessibility,
-        screenRecording,
-        ...(relaunchFor.length ? { relaunchFor: [...relaunchFor] } : {}),
-        ...(!accessibility || !screenRecording
-          ? {
-              detail: relaunchFor.length
-                ? 'Reopen Sia to finish turning on Mac access.'
-                : 'Accessibility and Screen Recording are both required.',
-            }
-          : {}),
-      };
-    } catch (error) {
-      return {
-        status: 'error',
-        accessibility: false,
-        screenRecording: false,
-        detail: error instanceof Error ? error.message : 'CUA permissions could not be read.',
-      };
-    }
+  permissions(): Promise<ComputerView> {
+    return this.#permissions.permissions();
   }
 
-  /**
-   * Asks macOS for one missing grant: the named one, or Accessibility then Screen Recording.
-   * A grant that only waits for a relaunch is not requested again.
-   */
   requestPermissions(permission?: CorePermission): Promise<ComputerView> {
-    // Setup and the inspector can request access together. Keep one OS prompt
-    // sequence in flight; subsequent clicks share its result and can retry later.
-    this.#permissionRequest ??= this.#requestPermissions(permission).finally(() => {
-      this.#permissionRequest = undefined;
-    });
-    return this.#permissionRequest;
-  }
-
-  async #requestPermissions(permission?: CorePermission): Promise<ComputerView> {
-    // An explicit request re-checks a failed functional check right away.
-    if (
-      this.#verification?.result === 'failed' ||
-      this.#verification?.result === 'needs_capture_consent'
-    )
-      this.#verification = undefined;
-    const current = await this.permissions();
-    if (current.status === 'ready' || current.status === 'unavailable') return current;
-    const missing = (name: CorePermission) =>
-      (!current[name] ||
-        (name === 'screenRecording' && current.captureConsentRequired === true)) &&
-      !current.relaunchFor?.includes(name);
-    const target = permission ?? (['accessibility', 'screenRecording'] as const).find(missing);
-    if (this.#platform === 'darwin' && target && missing(target)) {
-      const { systemPreferences, shell, desktopCapturer } = await import('electron');
-      // Request one permission at a time. Opening Screen Recording while the
-      // Accessibility prompt is still pending hides the first step on macOS.
-      if (target === 'accessibility') {
-        // macOS shows its prompt only the first time an app asks; an app already listed (but
-        // off) gets no prompt at all. Always open the Accessibility pane too, so there is
-        // something to act on either way.
-        systemPreferences.isTrustedAccessibilityClient(true);
-        await shell.openExternal(
-          'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
-        );
-      } else {
-        // Register the responsible, signed Electron app with TCC. This explicit
-        // setup request retains no image and sends nothing to the agent.
-        await desktopCapturer
-          .getSources({
-            types: ['screen'],
-            thumbnailSize: { width: 1, height: 1 },
-            fetchWindowIcons: false,
-          })
-          .catch(() => undefined);
-        this.#verification = undefined;
-        const after = await this.permissions();
-        if (!after.screenRecording && !after.relaunchFor?.includes('screenRecording'))
-          await shell.openExternal(
-            'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
-          );
-      }
-    }
-    return this.permissions();
-  }
-
-  /**
-   * Reads one window of another app through the driver Sia's tools use, then discards it.
-   * macOS can list a grant that the running process cannot use yet; this is what turns
-   * "allowed" into "works". Nothing is stored or sent anywhere.
-   */
-  #verifyAccess(): Promise<AccessVerification> {
-    const cached = this.#verification;
-    if (cached?.result === 'confirmed' || cached?.result === 'unconfirmed')
-      return Promise.resolve(cached.result);
-    if (
-      cached &&
-      'checkedAt' in cached &&
-      Date.now() - cached.checkedAt < (cached.result === 'failed' ? 15_000 : 2_000)
-    )
-      return Promise.resolve(cached.result);
-    this.#verifying ??= this.#runAccessCheck()
-      .then((result) => {
-        this.#verification =
-          result === 'failed' || result === 'needs_capture_consent'
-            ? { result, checkedAt: Date.now() }
-            : { result };
-        return result;
-      })
-      .finally(() => {
-        this.#verifying = undefined;
-      });
-    return this.#verifying;
-  }
-
-  async #runAccessCheck(): Promise<AccessVerification> {
-    const context: CuaAuthorizationContext = { kind: 'direct_user', operation: 'access_check' };
-    const signal = AbortSignal.timeout(10_000);
-    try {
-      const windows = findWindows(
-        await this.call('list_windows', { on_screen_only: true }, context, signal),
-      ).filter(({ pid }) => pid !== this.#hostPid);
-      // Finder is always running and holds no secure fields; prefer it when visible.
-      const target =
-        windows.find(({ appName }) => appName === 'Finder') ?? windows.find(() => true);
-      if (!target) return 'unconfirmed';
-      const state = await this.call(
-        'get_window_state',
-        { pid: target.pid, window_id: target.windowId, include_screenshot: true },
-        context,
-        signal,
-      );
-      const value = isCuaCallResult(state) ? state.value : state;
-      if (typeof value === 'object' && value !== null && 'screenshot_error' in value) {
-        const error = value.screenshot_error;
-        if (
-          typeof error === 'object' &&
-          error !== null &&
-          'reason' in error &&
-          typeof error.reason === 'string' &&
-          error.reason.startsWith('direct_capture_consent_required:')
-        )
-          return 'needs_capture_consent';
-      }
-      const images = isCuaCallResult(state) ? state.images.length : 0;
-      const refused =
-        typeof state === 'object' &&
-        state !== null &&
-        ((isCuaCallResult(state) &&
-          typeof state.value === 'object' &&
-          state.value !== null &&
-          'status' in state.value &&
-          state.value.status === 'refused') ||
-          ('status' in state && state.status === 'refused'));
-      return !refused && images > 0 ? 'confirmed' : 'failed';
-    } catch {
-      return 'failed';
-    }
+    return this.#permissions.requestPermissions(permission);
   }
 
   async call(
@@ -608,94 +342,9 @@ export class CuaService {
         }),
         operation.signal,
       );
-      if (result.errorCode) {
-        if (
-          tool === 'drag' &&
-          result.errorCode === 'background_unavailable' &&
-          (result.structuredJson ?? result.rawJson).includes('drag_and_drop_session')
-        ) {
-          // This arrives AFTER mouse-down/drag/release. Do not flatten it into
-          // the pre-input refusal used for a missing background delivery route.
-          throw new Error('CUA incomplete: background_drag_requires_pointer');
-        }
-        if (result.errorCode === 'browser_wrong_target_refused') {
-          // Classify known native proof failures without logging page/clipboard
-          // content, target identities, or the raw native error payload.
-          const raw = result.structuredJson ?? result.rawJson;
-          const hint = raw.includes('browser consent observation was truncated')
-            ? 'consent_observation_incomplete'
-            : /multiple.*consent|consent.*conflicting decisions/.test(raw)
-              ? 'consent_identity_ambiguous'
-              : raw.includes('consent did not settle')
-                ? 'consent_not_settled'
-                : 'target_unverified';
-          console.warn(`[sia:cua-browser] native_refusal tool=${tool} hint=${hint}`);
-        }
-        if (result.errorCode === 'authorization_host_failed') {
-          // Keep callback/transport diagnostics without recording resource identities,
-          // URLs, request digests or the driver's potentially content-bearing message.
-          const raw = result.structuredJson ?? result.rawJson;
-          const hint = /CDP [A-Za-z.]+ timed out/.test(raw)
-            ? 'browser_transport_timeout'
-            : raw.includes('live top-level')
-              ? 'browser_origin_unavailable'
-              : raw.includes('request timed out')
-                ? 'request_timeout'
-                : /denied in (?:standard|bounded) mode/.test(raw)
-                  ? 'mode_denied'
-                  : 'unspecified';
-          console.warn(
-            `[sia:cua-authorization] native_refusal tool=${tool} hint=${hint} callback_started=${lane.progress.started} callback_completed=${lane.progress.completed}`,
-          );
-          if (
-            tool === 'get_browser_state' &&
-            hint === 'browser_transport_timeout' &&
-            lane.progress.started === 0
-          )
-            throw new Error('CUA refused: browser_observation_timeout');
-        }
-        throw new Error(`CUA refused: ${result.errorCode}`);
-      }
-      if (
-        tool === 'get_window_state' &&
-        args.include_screenshot === true &&
-        !result.images?.length
-      ) {
-        // A valid AX observation can omit an unprovable screenshot. Preserve the
-        // usable controls, but retain a content-free reason for live diagnostics.
-        const raw = result.structuredJson ?? result.rawJson;
-        const hint = raw.includes('direct_capture_consent_required')
-          ? 'direct_capture_consent_required'
-          : raw.includes('px_frame_mismatch')
-            ? 'frame_mismatch'
-            : raw.includes('px_capture_unavailable')
-              ? 'capture_unavailable'
-              : 'image_missing';
-        console.warn(`[sia:cua-capture] screenshot_missing hint=${hint}`);
-      }
-      const json = result.structuredJson ?? result.rawJson;
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(json) as unknown;
-      } catch {
-        parsed = { text: json };
-      }
-      if (
-        typeof parsed === 'object' &&
-        parsed !== null &&
-        'error_code' in parsed &&
-        parsed.error_code === 'session_ended'
-      )
-        throw new Error('CUA refused: session_ended');
-      // Some driver failures use an MCP envelope instead of errorCode. Its text
-      // can contain app content, so never release it as an observation or error.
-      const nativeToolError = isNativeToolError(parsed);
-      if (nativeToolError && tool.startsWith('browser_')) {
-        console.warn(
-          `[sia:cua-browser] native_error tool=${tool} hint=${/CDP [A-Za-z.]+ timed out/.test(json) ? 'browser_transport_timeout' : 'unspecified'}`,
-        );
-      }
-      if (nativeToolError) parsed = { native_tool_error: true };
+      const decoded = decodeDriverResult(tool, args, result, lane.progress);
+      const nativeToolError = decoded.nativeToolError;
+      let parsed = decoded.value;
       if (protectDesktop) {
         const foreground = await this.#foregroundPid(lane, driver, operation.signal);
         operation.signal.throwIfAborted();
@@ -984,46 +633,6 @@ export class CuaService {
   }
 }
 
-/** Live native inventory only; never infer focus from a window title or cached snapshot. */
-function readForegroundInventory(
-  result: DriverResult,
-): { status: 'ready'; pid: number } | { status: 'empty' | 'unavailable' } {
-  try {
-    if (result.errorCode) return { status: 'unavailable' };
-    const parsed: unknown = JSON.parse(result.structuredJson ?? result.rawJson);
-    if (isNativeToolError(parsed)) return { status: 'unavailable' };
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      !('apps' in parsed) ||
-      !Array.isArray(parsed.apps)
-    )
-      return { status: 'unavailable' };
-    if (
-      parsed.apps.every(
-        (value: unknown) =>
-          !!value && typeof value === 'object' && 'active' in value && value.active === false,
-      )
-    )
-      return { status: 'empty' };
-    const active = (parsed.apps as unknown[]).filter(
-      (value): value is Record<string, unknown> =>
-        !!value && typeof value === 'object' && 'active' in value && value.active === true,
-    );
-    if (active.length !== 1) return { status: 'unavailable' };
-    const pid: unknown = active[0]?.pid;
-    return typeof pid === 'number' && Number.isInteger(pid) && pid > 0 && pid <= 2_147_483_647
-      ? { status: 'ready', pid }
-      : { status: 'unavailable' };
-  } catch {
-    return { status: 'unavailable' };
-  }
-}
-
-function isNativeToolError(value: unknown): boolean {
-  return !!value && typeof value === 'object' && 'isError' in value && value.isError === true;
-}
-
 async function waitForAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
   if (signal.aborted) {
     // The operation may already be in flight. Drain its eventual rejection even
@@ -1048,33 +657,5 @@ async function waitForAbort<T>(operation: Promise<T>, signal: AbortSignal): Prom
         reject(error);
       },
     );
-  });
-}
-
-function withDriverImages(value: unknown, images: DriverResult['images']): unknown {
-  const safeImages = images?.filter(
-    (image) =>
-      /^image\/[a-z0-9.+-]+$/i.test(image.mimeType) &&
-      image.dataBase64.length > 0 &&
-      image.dataBase64.length <= 40_000_000,
-  );
-  if (!safeImages?.length) return value;
-  return { value, images: safeImages.slice(0, 4) } satisfies CuaCallResult;
-}
-
-function findWindows(value: unknown): { pid: number; windowId: number; appName: string }[] {
-  const root = isCuaCallResult(value) ? value.value : value;
-  const windows =
-    typeof root === 'object' && root !== null && 'windows' in root ? root.windows : undefined;
-  if (!Array.isArray(windows)) return [];
-  return windows.flatMap((window: unknown) => {
-    if (typeof window !== 'object' || window === null) return [];
-    const record = window as Record<string, unknown>;
-    const pid = record.pid;
-    const windowId = record.window_id ?? record.windowId;
-    if (typeof pid !== 'number' || typeof windowId !== 'number') return [];
-    return [
-      { pid, windowId, appName: typeof record.app_name === 'string' ? record.app_name : '' },
-    ];
   });
 }
