@@ -1,6 +1,6 @@
 # Release status
 
-Updated October 31, 2026. **Distribution is not ready.** Alpha.42 is signed and notarized.
+Updated October 31, 2026. **Distribution is not ready.** Alpha.47 is signed and notarized.
 Internal signed alpha.46 completed concurrent public research and native proposal editing, plus
 verified filing. Final-candidate repeats, restart recovery and physical acceptance remain open.
 The last published Mac pilot is alpha.24; no new invitations or public download have been authorized.
@@ -28,9 +28,9 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.46 `6a2356b` passed the complete local pilot and CI gates, including unsigned universal packaging. | Alpha.47 full gate and exact-source CI. |
-| Signed Mac package | Alpha.42 from `c50782a873455719ee12bc931248aa0ad4f5c1fd` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Build and accept the final candidate; signature success is not product readiness. |
-| Signed app continuity | Alpha.42 retained the QA profile, settings and history without a new Keychain prompt. | Physical and clean-account acceptance. |
+| Source | Alpha.46 `6a2356b` passed the complete local pilot and CI gates, including unsigned universal packaging. | Alpha.48 full gate and exact-source CI. |
+| Signed Mac package | Alpha.47 from `61b3aacecc132ec4f3897c257d2e3b7445451a81` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Build and accept the final candidate; signature success is not product readiness. |
+| Signed app continuity | Alpha.47 retained the QA profile, settings and history without a new Keychain prompt. | Physical and clean-account acceptance. |
 | Everyday usefulness | Alpha.46: sourced plan and native brief with interleaved GUI actions; six-file packet with unchanged hashes. | Repeat, cancellation isolation and same-window contention on the final candidate. |
 | Browser | Alpha.46 connected three times and completed sourced planning; diagnostic alpha.45 survived 343.590 seconds idle. | Restart recovery and expiry UX on final candidate. Background new-tab creation remains unsupported. |
 | New recipient | Alpha.36 with an empty app profile showed only email sign-in, with no private app content. | Clean macOS-account signup, permissions, provider login cancel/retry, lock/sleep and voice acceptance. An empty profile is not a clean OS account; no fresh account or second Mac is currently available. |
@@ -45,8 +45,10 @@ between the configured browser lifetime and the native implicit five-minute leas
 the exact Chrome-prompt settlement budget and reduced decorative conversation repainting. Three
 live connection attempts succeeded; a sourced visitor plan and saved native proposal brief completed
 with interleaved actions. Filing six actual project documents preserved every hash. The complete
-alpha.46 local pilot gate passed. Alpha.47 makes connection authorization explicit in setup copy;
-its full gate and exact distribution package are pending.
+alpha.46 local pilot gate passed. Alpha.47 passed its full local gate and universal notarization, but live restart recovery still
+needed operator continuation because Chrome remained foreground. Alpha.48 returns to Sia after
+explicit setup before resuming, and corrects the remaining progress copy; its full gate and signed
+acceptance are pending.
 
 Ten switches during filing measured median 815 ms / worst 1,068 ms including CUA observation.
 GPU load improved in short spot checks, but working renderer CPU remains elevated; task conditions

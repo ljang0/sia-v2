@@ -4,7 +4,9 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
 public project documents and a real admitted model; fake-service demos are separate.
 
-**Current evidence:** internal signed alpha.46 completed public-source planning and a native
+**Current evidence:** notarized alpha.47 saved a sourced control-tool comparison and native brief,
+but its restart recovery needed operator continuation; alpha.48 is addressing that interruption.
+Earlier internal signed alpha.46 completed public-source planning and a native
 proposal brief with interleaved browser/TextEdit actions and no corrective messages. It also filed
 six actual project documents with unchanged hashes. Three Chrome connections succeeded; ten thread
 switches during filing took median 815 ms / worst 1,068 ms including observation. Final-candidate

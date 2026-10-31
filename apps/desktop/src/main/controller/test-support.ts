@@ -51,6 +51,7 @@ export async function createHarness(
     runCommand?: (file: string, args: readonly string[]) => Promise<string>;
     providerProbe?: ConstructorParameters<typeof DesktopController>[0]['providerProbe'];
     openExternal?: (url: string) => Promise<void>;
+    returnToAppAfterBrowserSetup?: () => Promise<void>;
     openMessages?: () => Promise<void>;
     openMessagesPermissions?: () => Promise<void>;
     requestMicrophonePermission?: () => Promise<void>;
@@ -101,6 +102,9 @@ export async function createHarness(
     fakeServices: options.fakeServices ?? true,
     ...(options.voice ? { voice: options.voice } : {}),
     openExternal: options.openExternal ?? (async () => undefined),
+    ...(options.returnToAppAfterBrowserSetup
+      ? { returnToAppAfterBrowserSetup: options.returnToAppAfterBrowserSetup }
+      : {}),
     openMessages: options.openMessages ?? (async () => undefined),
     ...(options.restartApp ? { restartApp: options.restartApp } : {}),
     ...(options.installCodex ? { installCodex: options.installCodex } : {}),

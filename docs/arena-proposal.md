@@ -61,8 +61,10 @@ local automated gate passed. Ten conversation switches during filing took median
 
 The final signed candidate still needs repeated workflows, cancellation/contention and restart
 recovery checks. Working renderer CPU remains elevated, and this Mac refuses keep-awake assertions
-even from Apple's own utility. Clean-account and physical acceptance remain unverified. Alpha.42
-is the latest notarized candidate, not an accepted distribution build. Background new-tab creation
+even from Apple's own utility. Clean-account and physical acceptance remain unverified. Alpha.47
+is notarized and saved a current control-tool comparison and native proposal brief, but needed
+operator continuation after Chrome setup left the browser foreground. Alpha.48 addresses that
+recovery interruption; it is not an accepted distribution build. Background new-tab creation
 and Finder file drag remain unsupported. These results support technical review, not distribution
 acceptance or a validated model ranking.
 The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident

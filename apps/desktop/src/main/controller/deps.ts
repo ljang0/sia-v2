@@ -20,6 +20,7 @@ export interface ControllerDeps {
   readonly fakeServices: boolean;
   readonly fakeTurnDelayMs: number;
   readonly openExternal: (url: string) => Promise<void>;
+  readonly returnToAppAfterBrowserSetup: ControllerOptions['returnToAppAfterBrowserSetup'];
   readonly localConnectors: LocalConnectorService | undefined;
   readonly trajectory: TrajectoryRecorder | undefined;
   readonly capabilitySetup: ControllerOptions['capabilitySetup'];
@@ -67,6 +68,7 @@ export function resolveControllerDeps(options: ControllerOptions): ControllerDep
     fakeServices: options.fakeServices,
     fakeTurnDelayMs: options.fakeTurnDelayMs ?? 160,
     openExternal: options.openExternal,
+    returnToAppAfterBrowserSetup: options.returnToAppAfterBrowserSetup,
     localConnectors: options.localConnectors,
     trajectory: options.trajectory,
     capabilitySetup: options.capabilitySetup,

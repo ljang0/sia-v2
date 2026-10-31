@@ -598,6 +598,14 @@ async function performApplicationCreation(): Promise<void> {
         shell.showItemInFolder(path);
       },
       openExternal: openSafeExternal,
+      returnToAppAfterBrowserSetup: async () => {
+        // Explicit connection setup can activate Chrome. Return to the existing Sia window
+        // before the saved background task resumes; never reopen a window the person closed.
+        if (shutdownStarted || !mainWindow || mainWindow.isDestroyed() || quietFixture) return;
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.focus();
+      },
       ...(localConnectors ? { localConnectors } : {}),
       openMessages: () => shell.openExternal('sms:', { activate: true }),
       ...(!fakeServices ? { requestMicrophonePermission } : {}),

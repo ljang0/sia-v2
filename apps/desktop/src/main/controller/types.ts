@@ -73,6 +73,8 @@ export interface ControllerOptions {
   fakeServices: boolean;
   fakeTurnDelayMs?: number;
   openExternal(url: string): Promise<void>;
+  /** Return to Sia after its explicit Chrome setup, before resuming background work. */
+  returnToAppAfterBrowserSetup?(): Promise<void>;
   /** Signs in to Outlook, Notion, and GitHub from this Mac; absent where unsupported. */
   localConnectors?: LocalConnectorService;
   openMessages?(): Promise<void>;

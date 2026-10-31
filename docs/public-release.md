@@ -3,9 +3,56 @@
 ## Current decision — October 31, 2026
 
 The owner selected **Mac first; iPhone follows** and confirmed ownership of the relevant Notch
-source rights. Alpha.42 is signed and notarized; internal alpha.46 completed useful concurrent
+source rights. Alpha.47 is signed and notarized; internal alpha.46 completed useful concurrent
 browser/native work and verified filing. Final-candidate repeatability and physical acceptance remain incomplete. **External pilot release is not complete.**
 No new artifacts were published or invitations sent; the last published Mac pilot remains alpha.24.
+
+## Exact alpha.47 artifact and live result
+
+Built from `61b3aacecc132ec4f3897c257d2e3b7445451a81`. The production source from `a36d0b6`
+passed the complete local pilot gate (1,827 desktop units, 46 Electron, 33 renderer, 72 phone-web
+checks); the final documentation-only split also passed formatting and the quality guard. The
+universal app and DMG passed Developer ID signing, notarization, stapling, Gatekeeper and packaged
+runtime/license/provenance checks. No artifact was published. The 120-line onboarding guide now
+links detailed feature behavior from [the desktop reference](./desktop-reference.md).
+
+| Artifact                           | SHA-256                                                            |
+| ---------------------------------- | ------------------------------------------------------------------ |
+| `Sia-0.1.0-alpha.47-universal.dmg` | `0f2c64466e728a0ff3cd4d62c58852c9b00287701ebe0519279b635740767a67` |
+| `Sia-0.1.0-alpha.47-universal.zip` | `bd844cb1cee56b689c8e7e712eece1765be70864d286028d6ea15f8cddab4ea8` |
+| Installed QA `app.asar`            | `96a31d592d50c372d90b3e8f32a54fb25c1f92935834eb4a4c5749bbf2b514b2` |
+| Saved native proposal brief        | `365ae627124599fd4a91270e18c124acc669148dd584c4d99c1876a6caada395` |
+| Saved control-tool comparison      | `7e19a9483c945bf54c74d885efbfa745eba4e69e4f0ba7964de8dd9a8d1a2385` |
+
+The exact app reopened the QA profile/history without a Keychain prompt. A fresh research task
+showed actionable inline Chrome recovery after restart. Selecting the approved public window
+connected in 2.407 seconds and resumed the saved request, but Chrome remained foreground and the
+background input guard paused the task. The operator activated Finder with CUA and pressed
+Continue task. **This was an assisted run, not a restart/concurrency pass.**
+
+Sia saved a 334-word brief using TextEdit's UI and a 768-word Cua/Browser Use/Playwright comparison
+using current official sources. Independent inspection verified output bytes and the comparison's
+main platform/setup/background/CDP claims. Recommendations remain judgments, not benchmarks. The
+native brief faithfully preserves the source proposal's dated evidence; it is not a new readiness
+certificate. Browser/native lifetimes overlapped, but the restart pause delayed browser mutations
+until after native editing; no unassisted GUI-concurrency pass is claimed for this version.
+
+A second agent requesting the same browser window visibly waited and sent no input. Stop caused
+its pending snapshot to be refused before execution and terminal cancellation in 214 ms. The CUA
+round trip was 5.857 seconds and still observed Stopping, so backend timing is not visible stop-to-idle
+latency. The owner subsequently completed its report. Its later local trajectory is incomplete;
+do not claim fully instrumented post-cancellation browser input. Same-folder queue cancellation
+was checked separately and is not evidence of the window lock.
+
+Sia again failed to create its real display-sleep assertion. New `caffeinate -d` and `-i` probes
+also failed, although other processes had assertions. Sleep prevention remains unverified.
+Private evidence is in `alpha47-artifacts/real-work`; original notarized alpha.42 and alpha.47
+artifacts and earlier QA bundles are preserved.
+
+Alpha.48 returns the existing Sia window to the front after **explicit** native connection setup,
+before any saved task continues, and removes the contradictory “Click Allow” progress copy.
+Automatic attachment/model actions cannot request that focus change. Twenty-four focused tests
+passed; the complete gate and exact signed-candidate acceptance are pending.
 
 ## Current internal alpha.46 evidence
 
@@ -17,8 +64,7 @@ and an unsent draft survived upgrade without a Keychain prompt. The complete loc
 passed: 1,827 desktop units, 46 Electron, 33 renderer, 72 phone-browser and 73 gateway tests.
 [Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41185786149) also passed, including
 unsigned universal packaging.
-Alpha.47 currently updates setup disclosure and these records; it has not yet passed its full gate
-or produced a verified package.
+The later alpha.47 package and its remaining live failure are recorded above.
 
 ### Useful work, independently checked
 
@@ -148,7 +194,7 @@ The last published alpha.24 pilot remains recorded in [release evidence](./relea
 
 ## Publication
 
-The alpha.42 artifact folder is prepared locally with the installer, checksums, signed-package verification and private
+The alpha.47 artifact folder is prepared locally with the installer, checksums, signed-package verification and private
 real-work evidence. It is an acceptance candidate, not a published release. Keep private
 recipient lists and download links outside Git. After the remaining [release gates](./release-status.md)
 pass and the owner authorizes distribution, follow [release operations](./release.md) and verify the

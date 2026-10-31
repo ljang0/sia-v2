@@ -1,4 +1,8 @@
-# Sia 0.1.0-alpha.47
+# Sia 0.1.0-alpha.48
+
+Explicit Chrome setup now returns to the existing Sia window before a saved task resumes, avoiding
+an immediate background-input pause when setup left Chrome in front. Automatic attachment and
+task tools cannot use that focus change.
 
 Pilot candidate — acceptance and distribution pending.
 
