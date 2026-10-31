@@ -4,13 +4,13 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
 public project documents and a real admitted model; fake-service demos are separate.
 
-**Current evidence:** internal signed arm64 alpha.55 completed the dinner/grocery and outing
-plans below, with independently checked sources, quantities, budget and previews. A native
-TextEdit revision interleaved with browser work, and a stopped shopping-checklist task resumed
-without changing its source files. One explicit Chrome setup and one operator clarification of
-the approved tab title were required. Final-artifact repeats and the remaining concurrency and
-physical gates are open; alpha.56 passed its full local gate and awaits signed acceptance.
-The linked record retains earlier failures rather than treating them as passes.
+**Current evidence:** internal signed arm64 alpha.56 completed the dinner/grocery and outing
+plans below with independently checked sources, quantities, budget and previews. Native TextEdit
+work progressed during slow browser observation; Stop during Save/readback and read-only recovery
+preserved completed work and browser access. Initial browser timeouts recovered automatically.
+One explicit Chrome setup was required after relaunch; the outing needed no operator correction.
+Full local checks passed. Final universal repeats, clipboard preservation, restart/expiry and
+physical acceptance remain open. The linked record retains earlier failures and interventions.
 
 ## Start here
 
@@ -28,7 +28,7 @@ The linked record retains earlier failures rather than treating them as passes.
 Chrome connection is part of default Mac setup, with a deliberate opt-out. Choosing a window
 authorizes its explicit connection setup, including the exact Chrome prompt. macOS grants remain
 person-owned. Existing profiles can use the conversation's
-**Connect Chrome & continue** control when the host reports missing browser access. Alpha.55 verified explicit
+**Connect Chrome & continue** control when the host reports missing browser access. Alpha.56 verified explicit
 connection and request resumption; restart/expiry and final-candidate repeats remain required.
 
 ## Demo 1: prepare a reviewer packet
@@ -139,7 +139,7 @@ actually interleave. Merely overlapping task lifetimes does not establish concur
 
 The owner requested a couple of ordinary personal-assistant tasks. Alongside the outing plan,
 run this household-planning request in a fresh conversation. These are acceptance scenarios;
-alpha.55 produced independently verified outputs, and each new candidate still needs its own repeats.
+alpha.55 and alpha.56 produced independently verified outputs, and each new candidate still needs its own repeats.
 
 > Plan five weekday dinners for two adults using real published recipes. Assume no dietary
 > restrictions, basic kitchen equipment and at most 35 minutes of active cooking per dinner;

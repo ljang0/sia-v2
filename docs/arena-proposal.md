@@ -53,16 +53,16 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Internal signed alpha.55 completed a five-dinner plan and consolidated groceries from published
-recipes, a Pittsburgh afternoon itinerary from official sources, and a native TextEdit brief
-while browser actions continued. Saved files, quantities, budget arithmetic and previews were
-checked independently. A stopped checklist task resumed while the outing continued. These are
-useful rehearsals with recorded setup/interventions, not a reliability estimate or final release.
+Internal signed alpha.56 completed a five-dinner plan with consolidated groceries, a sourced
+Pittsburgh itinerary and a native TextEdit brief. Saved outputs, quantities, budget and previews
+were independently checked. Native work progressed during a slow browser read; Stop/recovery
+preserved saved changes, and the next browser task retained its access. Initial browser timeouts
+recovered automatically. These useful rehearsals include recorded interventions and limitations;
+they are not a reliability estimate or final-release proof.
 
-Alpha.56 adds separate browser/desktop runtimes and late-callback rejection; its full local gate
-passed, and signed acceptance remains pending. Repeated final-artifact workflows, stalled-operation isolation,
-native cancellation, restart and physical acceptance remain gates. Clean-account testing is
-unavailable on the current Mac. Background new-tab creation and Finder file drag remain unsupported.
+The full local gate passed. Universal notarization, repeated final-artifact workflows, clipboard
+preservation, restart/expiry and physical acceptance remain gates. Clean-account testing is
+unavailable on the current Mac. Background new tabs and Finder file drag remain unsupported.
 See [release status](./release-status.md) and [artifact evidence](./public-release.md) for exact
 versions, timings, failures and limitations. Lawrence Jang is the support/incident owner,
 and the relevant native source rights are confirmed.

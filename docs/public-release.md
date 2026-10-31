@@ -2,102 +2,101 @@
 
 ## Current decision — October 31, 2026
 
-**Distribution is not ready.** Internal signed arm64 alpha.55 completed the real household,
-outing and native-document workflows below. Alpha.56 adds browser/desktop runtime isolation,
-late-authorization rejection and a result-link rendering fix. Its full local pilot gate passed; exact-source CI and signed acceptance
-remain pending. No new version was published; the last published Mac pilot is alpha.24.
+**Distribution is not ready.** Internal signed arm64 alpha.56 completed real household planning,
+a sourced outing, native TextEdit editing, and Stop/recovery during native Save/readback while
+browser work remained independent. The full local pilot gate passed. Universal notarization,
+exact-artifact repeats and physical acceptance remain open. Nothing new was published; the last
+published Mac pilot is alpha.24. The owner selected **Mac first; iPhone follows**, confirmed the
+relevant Notch source rights and named Lawrence Jang as support/incident owner.
 
-The owner selected **Mac first; iPhone follows**, confirmed the relevant Notch source rights,
-and named Lawrence Jang as support/incident owner.
+## Exact alpha.56 internal artifact
 
-## Exact alpha.55 internal artifact
-
-Source: `e190e48766df8be15d645cf4c8f4ca92e4e82b17`.
+Source: `9a82f49c0b7e8e8e708fbe09cba2552628f063dd`.
 Installed `app.asar` SHA-256:
-`febb649f352e83c70716e20c92f1a6b8d573564246da780fe20b02f7e46e0885`.
-Developer ID strict signature, packaged runtime, installed signature and ASAR equality passed.
-This arm64 build is internal QA and **not notarized**. Its full local pilot gate passed:
-1,858 desktop, 46 Electron, 36 renderer, 72 phone-web and native/shared checks, including
-235 browser regressions (one opt-in live test skipped) and 11 Chrome-consent tests.
-[Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41209741237) passed.
+`1320c11a2e1c557fdb0f1494841258976a1547c7e1edb38f441602f74ed322af`.
+Strict Developer ID signature, packaged runtime, installed signature and ASAR equality passed.
+This arm64 app is **not notarized**. The full local gate passed: 1,864 desktop, 46 Electron,
+36 renderer, 72 phone-web and native/shared checks, including 235 browser regressions and
+11 Chrome-consent tests. Exact-source CI was still running at this update.
 
 Fresh assistants used default GPT-6-Astra through the ChatGPT plan and separate working folders.
-The only browser scope was the approved public Chrome window; no purchases, bookings, sign-ins,
-messages or publication were performed. The following files were independently read and checked,
-and their Sia result previews loaded:
+Browser scope remained the chosen public Chrome window and its existing tab. No buying, booking,
+sign-ins, messages or publication occurred. All three planning files were independently read,
+source/quantity checked, and opened successfully in Sia's result preview:
 
-| Deliverable            | Bytes  | SHA-256                                                            |
-| ---------------------- | ------ | ------------------------------------------------------------------ |
-| Dinner plan            | 11,803 | `aa4904ca60438f2b2e7fef9e404c4ddbf852f0eb611f6911802d445259d76634` |
-| Consolidated groceries | 7,920  | `36f36fe14fbf28765613c15fe619c2a927da80827f5df8f0ac7e329100d5466f` |
-| Shopping checklist     | 3,074  | `521d8ee6e3066442bef5d65f5c5c8a6c1df0966227b727cd5d7f6bff8f96e357` |
-| Pittsburgh outing      | 8,186  | `e1b5c41816e3448430d3f21970e8ac32df5a382db7740aa6091bfc8465767dd7` |
+| Deliverable            | Bytes | SHA-256                                                            |
+| ---------------------- | ----- | ------------------------------------------------------------------ |
+| Dinner plan            | 9,154 | `2ddbc6cf0f5cf3bfbff65a243e3d52ea99dbdadbf4b1f701e1437063d8f84af7` |
+| Consolidated groceries | 6,681 | `1b171e28195634fc9f6ba5de3f75eb2660b71c13ec36f9d5a88be02c0df96dde` |
+| Pittsburgh outing      | 7,542 | `4b1717f72df17d9746cb527b0e685ff8e04864e180942a952d04ef842db0e679` |
 
-The household task checked six published recipe pages, serving conversions, active versus elapsed
-cooking time, a prep schedule and consolidated ingredient totals for two adults. It completed about
-7m12s after explicit Chrome connection (native setup 3.729 seconds), which resumed the saved request.
-The recipes were not physically cooked; cooking estimates remain estimates.
+The household plan checked five published recipes for November 2–6, two adults, ingredient reuse,
+serving adjustments, active/elapsed cooking time and a consolidated list. It explicitly budgets
+six freezer quesadillas and two future chicken/rice portions. Totals reconcile, including six
+garlic cloves, five eggs, eight ounces spinach, six cooked cups rice and sixteen ounces broccoli.
+Freezer capacity is required; cooking time and rice yield are estimates. No meals were cooked.
 
-The outing task planned Saturday November 7, 1–7 pm from CMU, with a museum, meal and rain option.
-Official admission, hours, transit fares and the date-specific ticket listing were independently
-checked. The $60 arithmetic includes explicit meal/tax/walking estimates and contingency. One
-operator clarification corrected a numeric tab ID from the external test tool: the model then used
-its own identifier for the already-approved public page. Resumed activity was about 5m1s. The task
-reused the existing Chrome connection and recovered a 404 through fresh observation. This is an
-assisted run; no actual trip or reservation was made.
+After relaunch, explicit Chrome setup took 2.059 seconds and resumed the saved request. Initial
+Page.navigate and Page.getFrameTree timeouts recovered automatically through fresh observation,
+without replaying uncertain navigation or operator continuation. The household task finished
+about 6m43s after connection. This is successful recovery, **not zero-timeout reliability**.
 
-## Background work, cancellation and responsiveness
+The outing checked official museum/dining hours, admission, actual café menu prices and PRT fares.
+Independent CUA inspection confirmed the $16 club sandwich with fries. Admission, meal, estimated
+tax and tip total $45.32; $5.50 transit reserve plus $9.18 contingency bring the allocation to $60.
+The walking plan returns around 5:30 p.m., with an indoor rain alternative. Specific bus departures,
+seating and November 7 ticket availability remain unverified and are labeled accordingly. The
+roughly five-minute run required no operator correction or renewed Chrome setup after native Stop.
+New-context links were refused before input and recovered via observed destinations in the same
+tab; a stale transit link and unsupported route selector were reported rather than invented away.
 
-A native TextEdit brief was first saved at 340 words, then revised to 303 words while the outing
-was active. The final file hash is
-`aac695987b5e5b0f8b4f7af93ddca51f590839370510be74f3b32ec8b795b794`.
-Its source was the proposal before this acceptance update; its older readiness statements reflect
-that input, rather than current release status. Successful actions actually interleaved on October 31 UTC:
+## Native work, concurrency and Stop
 
-| Time         | Observed action             |
-| ------------ | --------------------------- |
-| 14:36:11.441 | Browser navigation          |
-| 14:36:11.796 | Native TextEdit replacement |
-| 14:36:18.209 | Browser click               |
-| 14:36:19.187 | Native TextEdit save        |
+TextEdit first saved a faithful 316-word proposal brief, then a 289-word revision with a proposed
+45-minute review agenda and two concrete decisions. The final file SHA-256 is
+`d98b3bb9422ede7b547ef13523d153ad91b79e519726c39cfa0746b6d02eebfe`.
+Saved bytes, word count, factual qualifications and absence of an unsaved marker were checked.
+The brief reflects the proposal supplied before this acceptance update.
 
-A separate operator TextEdit note remained intact after both native edits. Ten conversation/activity
-switches during browser work measured median 1,062 ms / worst 1,502 ms including CUA observation;
-click acknowledgements were 88–149 ms. These are observed interaction timings, not render benchmarks.
-No browser CDP timeout was observed during these alpha.55 runs.
+Actual operations interleaved: native replacement completed at 15:08:49.033 UTC while a browser
+observation was pending until 15:08:50.288; native Save completed at 15:08:55.656, followed by a
+browser observation at 15:08:59.221. Native work continued while the browser recovered from its
+slow read, establishing more than overlapping task lifetimes.
 
-The shopping-checklist task was stopped through Sia while the outing kept running. The click
-acknowledged in 106 ms and **Task cancelled** appeared within 828 ms including observation.
-The outing subsequently saved its plan and finished. An explicit continuation produced the checklist,
-retaining all 25 grocery items and 11 pantry checks; original dinner/grocery hashes remained unchanged.
-This tests a file-task cancellation, not native in-flight cancellation. A native Stop attempt
-arrived after completion and delivered no Stop; it is not counted as a pass. Clipboard preservation
-was not tested on alpha.55. Private traces, screenshots and `result.json` are retained in
-`alpha55-artifacts/real-work` outside the repository.
+During revision, the native Save/readback action started at 15:11:21.158. Stop was clicked at
+15:11:21.547, acknowledged in 128 ms and visibly cancelled within 1,149 ms including CUA observation.
+The key had been delivered but its follow-up observation was unavailable. Continuation inspected
+the exact document using inventory and a snapshot only: it preserved the saved changes and sent
+no repeated input. The outing subsequently navigated successfully at 15:14:23.362 with the existing
+browser grant. Same-window browser work waited for the preceding household turn to release it.
 
-## Follow-up and retained failures
+Ten conversation/Activity switches during browser work measured median 1,151 ms / worst 2,432 ms
+including CUA observation; click acknowledgements were 88–147 ms. These are observed interactions,
+not isolated renderer benchmarks. An external CUA clipboard read timed out before any backup or
+write; no clipboard was changed, and clipboard preservation is **not** a pass on this candidate.
+Private traces, screenshots and `result.json` remain in `alpha56-artifacts/real-work` outside Git.
 
-Alpha.56 focused tests reproduced stalled-browser blocking and late callback authority inheritance
-before the fixes. Browser and desktop work now have separate runtimes, queues, timeout clocks and
-authorization contexts. Cancellation retires only the affected runtime; retired callbacks and
-approvals arriving after cancellation fail closed. Physical-window leases and focus guards remain.
-The full local pilot gate passed: 1,864 desktop tests, 46 Electron, 36 renderer, 72 phone-web
-and native/shared checks including 235 browser regressions. Signed live proof remains pending.
+## Changes and retained failures
 
-Alpha.55 namespaced frame-local snapshot ids, bounded cyclic parent traversal, preserved subtree
-frame identity through pagination and refused stale documents. Three regressions failed before
-those fixes. They establish real defects; they do not prove the sole cause of prior Chrome stalls.
-Alpha.53/.54 failed useful planning runs despite passing automated/package checks. Exact prior
-artifact hashes, timeouts, interventions and the corrected Quit observation remain in the
-[previous record](https://github.com/ljang0/sia-v2/blob/e190e48766df8be15d645cf4c8f4ca92e4e82b17/docs/public-release.md).
-Notarized alpha.53 and signed alpha.54 backups are retained; older passes do not transfer to a new candidate.
+Browser and native work now use separate runtimes, queues, authorization contexts and timeout
+clocks. Cancellation retires only its runtime; retired callbacks and approvals arriving after
+cancellation fail closed. Physical-window leases and focus guards remain. Focused regressions
+failed before the fixes and passed afterward. Spaced Markdown destinations now render correctly,
+verified in the signed app against an earlier malformed dinner-plan link.
+
+Alpha.55 completed the same two everyday scenarios, native editing and file-task Stop/resume.
+Its full gate and [source CI](https://github.com/ljang0/sia-v2/actions/runs/41209741237) passed.
+Earlier alpha.53/.54 browser failures, exact artifacts and interventions are retained through the
+[previous record](https://github.com/ljang0/sia-v2/blob/9a82f49c0b7e8e8e708fbe09cba2552628f063dd/docs/public-release.md).
+Frame-scoping, bounded traversal and CDP cleanup defects were independently reproduced and fixed;
+they are not established as the sole cause of browser timeouts. Notarized alpha.53 installers and
+signed alpha.55 app backups are retained and checksummed.
 
 ## Remaining acceptance and rollback
 
-Complete alpha.56's exact-source CI and signed isolation/cancellation acceptance, then
-final universal notarization and repeated useful tasks on that exact artifact. Verify contention,
-restart/expiry, response times and clipboard preservation. Live acceptance must not overlap
-automated Electron/renderer checks or packaged runtime verification.
+Finish exact-source CI, universal signing/notarization and repeated useful tasks on that exact
+artifact, including clipboard preservation, restart/expiry and responsiveness. Do not overlap
+live acceptance with automated Electron/renderer checks or packaged runtime verification.
 
 This Mac refuses Sia's display-sleep assertion with `kIOReturnNoMemory`; independent Apple
 `caffeinate` probes also failed. Physical RAM is not an established cause. Keep-awake, physical
