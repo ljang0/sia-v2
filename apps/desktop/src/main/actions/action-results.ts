@@ -21,6 +21,13 @@ export function inputWasRefused(error: unknown): boolean {
 
 /** The driver can report this after a click has already changed the page. */
 export function browserInputTrustFailure(error: unknown): ActionExecutionResult | undefined {
+  if (/^(?:CUA refused: )?browser_input_incomplete$/.test(safeErrorMessage(error)))
+    return {
+      outcome: 'accepted_unverified',
+      summary:
+        'Browser input or cleanup was incomplete. Input may have arrived; inspect a fresh screenshot without replaying the action.',
+      data: { input_delivery_uncertain: true, blocker_code: 'browser_input_incomplete' },
+    };
   if (!/^(?:CUA refused: )?browser_input_trust_unavailable$/.test(safeErrorMessage(error)))
     return undefined;
   return {
@@ -34,11 +41,13 @@ export function browserInputTrustFailure(error: unknown): ActionExecutionResult 
 export function classifyFailure(error: unknown): ActionExecutionResult {
   const message = safeErrorMessage(error);
   const normalized = message.toLowerCase();
+  if (/^(?:cua refused: )?browser_input_incomplete$/.test(normalized))
+    return browserInputTrustFailure(error)!;
   if (/^(?:cua refused: )?browser_new_context_refused$/.test(normalized))
     return {
       outcome: 'refused',
       summary:
-        'No click was sent because this link opens another tab or window and could interrupt your work. Read the current page with read_links:true, then use computer_open_url with an observed permitted destination to navigate the existing tab. Do not retry this click or switch to foreground input.',
+        'No click was sent because this link opens another tab or window and could interrupt your work. Use computer_open_url only with a permitted destination already visible in the screenshot or supplied by the person to navigate the existing tab. If no destination is known, report this blocked step; do not extract hidden link targets. Do not retry this click or switch to foreground input.',
       reason: message,
       data: { blocker_code: 'browser_new_context_refused', input_not_sent: true },
     };

@@ -217,16 +217,7 @@ export class DesktopActionSession implements ActionBackend {
   async #invoke(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
     if (request.context.signal?.aborted) return refused('Action cancelled before execution.');
     if (this.#ctx.options.visionOnly) {
-      const target = this.#ctx.computer.resolveWindow(
-        String(request.arguments.app_id),
-        String(request.arguments.window_id),
-      );
-      if (
-        request.name.startsWith('browser_') ||
-        ['mac_automation', 'computer_open_url'].includes(request.name) ||
-        (['computer_snapshot', 'computer_action'].includes(request.name) &&
-          this.#macBrowser.supports(target))
-      )
+      if (['mac_automation', 'browser_upload'].includes(request.name))
         return {
           ...refused(
             'This route has not yet been migrated to visual control. No assisted fallback was used.',

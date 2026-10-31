@@ -117,12 +117,12 @@ const computerAction = z
         });
       if (
         (x !== undefined || y !== undefined || to_x !== undefined || to_y !== undefined) &&
-        (!coordinates || element_ref || !['click', 'drag', 'type'].includes(action))
+        (!coordinates || element_ref || !['click', 'drag', 'type', 'scroll'].includes(action))
       )
         context.addIssue({
           code: 'custom',
           message:
-            'Use either an element reference or complete screenshot coordinates for click/drag/type.',
+            'Use either an element reference or complete screenshot coordinates for click/drag/type/scroll.',
         });
       if (action !== 'drag' && (to_x !== undefined || to_y !== undefined))
         context.addIssue({ code: 'custom', message: 'End coordinates only apply to drag.' });
@@ -194,8 +194,14 @@ const browserAction = z
   .object({
     tab_id: id,
     snapshot_id: id,
-    action: z.enum(['click', 'type', 'scroll']),
-    element_ref: id,
+    action: z.enum(['click', 'type', 'scroll', 'drag']),
+    element_ref: id.optional(),
+    x: z.number().finite().min(0).max(32768).optional(),
+    y: z.number().finite().min(0).max(32768).optional(),
+    to_x: z.number().finite().min(0).max(32768).optional(),
+    to_y: z.number().finite().min(0).max(32768).optional(),
+    button: z.enum(['left', 'right']).optional(),
+    count: z.number().int().min(1).max(2).optional(),
     text: z.string().max(20_000).optional(),
     direction: z.enum(['up', 'down', 'left', 'right']).optional(),
     amount: z.number().int().positive().max(10_000).optional(),
@@ -203,7 +209,38 @@ const browserAction = z
     private: z.boolean().optional(),
     target_role: z.string().max(128).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((args, context) => {
+    const coordinates = args.x !== undefined && args.y !== undefined;
+    if (
+      (args.x !== undefined || args.y !== undefined) &&
+      (!coordinates || args.element_ref || args.action === 'type')
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'Use a semantic ref or a complete screenshot point, not both.',
+      });
+    if (args.action !== 'type' && !args.element_ref && !coordinates)
+      context.addIssue({
+        code: 'custom',
+        message: 'Pointer input needs a screenshot point or current ref.',
+      });
+    if (
+      args.action === 'drag' &&
+      (!coordinates || args.to_x === undefined || args.to_y === undefined)
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'Drag requires screenshot start and end points.',
+      });
+    if (args.action !== 'drag' && (args.to_x !== undefined || args.to_y !== undefined))
+      context.addIssue({ code: 'custom', message: 'End points apply only to drag.' });
+    if (
+      ((args.button !== undefined || args.count !== undefined) && args.action !== 'click') ||
+      (args.button === 'right' && args.count === 2)
+    )
+      context.addIssue({ code: 'custom', message: 'Button/count require a supported click.' });
+  });
 
 const browserUpload = z
   .object({

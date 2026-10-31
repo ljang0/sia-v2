@@ -33,14 +33,24 @@ results only as assisted-mode baseline evidence.
 Implementation progress: native-window visual observation and pointer/keyboard authority checks
 are staged behind a host-only `visionOnly` option. They require an image, omit semantic content
 and targets, skip text/OCR helpers, reject semantic input and revoke stale/failed image authority.
-Unmigrated browser routes refuse instead of falling back. This option is **not enabled in the
-shipping host yet**: background browser input, foreground runtime/tool isolation, model schemas
-and prompts, all-route regression checks and signed real-task acceptance must land before cutover.
-The native boundary tests are transport/authorization checks, not evidence of visual task skill.
-The staged foundation passed `pnpm check`, including 1,877 desktop tests, and 82 focused
-observation/input/recovery checks. Continue now retires obsolete Chrome setup markers from the
+The background browser now has staged image-only responses, verified screenshot-to-viewport
+coordinates, pointer delivery and text insertion into a visually focused field. It rechecks page
+protection before input and refuses stale/mismatched images or unknown delivery without replay.
+A host-only document token binds capture and input to the live frame/loader identities, including
+same-URL reloads and reloads triggered by focus emulation. Capture checks its protection snapshot
+identity before and after the image; no identity token or semantic content is exposed to the model.
+Host-side DOM inspection remains for protection and new-tab guards; it supplies no model targets.
+Browser keyboard commands are not migrated yet. Semantic snapshot traversal also remains internally,
+so this change does not establish latency improvement. This option is **not enabled in the shipping
+host yet**: browser keyboard support, viewport scroll/zoom revalidation, bounded capture/protection
+timing, foreground runtime/tool isolation, model schemas and prompts, all-route regression checks
+and signed real-task acceptance must land before cutover.
+The current staged implementation passed `pnpm test:pilot`: build, formatting, lint, quality,
+types, native/shared checks, 1,899 desktop tests, 46 desktop end-to-end tests, 36 renderer tests
+and 72 Chromium/WebKit phone tests. These automated transport/authorization and UI checks are not
+evidence of visual task skill. Continue also retires obsolete Chrome setup markers from the
 previous execution while retaining its history. No new signed artifact contains these changes yet;
-the full pilot gate and live vision acceptance remain required before handoff.
+the post-cutover pilot gate and signed real-task acceptance remain required before handoff.
 
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.

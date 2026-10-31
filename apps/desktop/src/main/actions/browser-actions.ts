@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { browserVisualInput, browserVisualSnapshot } from './browser-vision.js';
 import { rm } from 'node:fs/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import {
@@ -184,6 +185,15 @@ export class BrowserActions {
     if (binding.origin && !this.ctx.browser.bindingOriginAllowed(binding)) {
       return refused('The tab origin is outside the current browser grant.');
     }
+    if (
+      this.ctx.options.visionOnly &&
+      (request.arguments.continue_from !== undefined || request.arguments.read_links === true)
+    ) {
+      this.ctx.browser.invalidateSnapshot(binding.tabId);
+      return refused(
+        'Visual browser observation does not expose semantic continuations or hidden link destinations.',
+      );
+    }
     let continuation: string | undefined;
     if (request.arguments.continue_from !== undefined) {
       const previous = await this.ctx.browser.capability(
@@ -224,7 +234,9 @@ export class BrowserActions {
       target_id: binding.targetId,
       tab_id: binding.tabId,
       snapshot_format: 'semantic_v2',
-      include_screenshot: request.arguments.include_image !== false,
+      ...(this.ctx.options.visionOnly ? { require_visual_identity: true } : {}),
+      include_screenshot:
+        this.ctx.options.visionOnly || request.arguments.include_image !== false,
       ...(continuation ? { continuation } : {}),
     });
     const refusalResult = resultRefusal(raw);
@@ -280,6 +292,8 @@ export class BrowserActions {
     const privateLinks =
       [title, text].some(observationHasPrivateLinks) ||
       findElementRecords(raw, 'browser').some(observationRecordHasPrivateLinks);
+    if (this.ctx.options.visionOnly)
+      return browserVisualSnapshot(this.ctx, binding, raw, liveUrl, privateLinks);
     const elementMap = new Map<string, { nativeRef: string; label?: string; role?: string }>();
     const elements = findElementRecords(raw, 'browser')
       .map((record, position) => {
@@ -407,62 +421,87 @@ export class BrowserActions {
       target_id: capability.targetId,
       tab_id: capability.tabId,
     };
-    switch (args.action) {
-      case 'click':
-        if (!nativeRef)
-          return refused(
-            `browser_action ${String(args.action)} requires an exact element reference.`,
-          );
-        tool = 'browser_click';
-        input = {
-          ...base,
-          ref: nativeRef,
-          input_route: 'trusted',
-          delivery_mode: 'background',
-        };
-        break;
-      case 'type': {
-        if (!nativeRef)
-          return refused('browser_action type requires an exact element reference.');
-        const text = typeof args.text === 'string' ? args.text : undefined;
-        if (text === undefined) return refused('browser_action type requires text.');
-        tool = 'browser_type';
-        input = {
-          ...base,
-          ref: nativeRef,
-          text,
-          mode: 'insert_text',
-          replace: args.replace === true,
-          delivery_mode: 'background',
-        };
-        break;
-      }
-      case 'scroll': {
-        const direction = requiredEnum(
-          args.direction,
-          ['up', 'down', 'left', 'right'],
-          'direction',
+    if (this.ctx.options.visionOnly) {
+      const visual = browserVisualInput(capability, args);
+      if ('outcome' in visual) return visual;
+      // Recheck current page protection and geometry before dispatch. The model receives
+      // none of this guard's semantic data; a failed read revokes the earlier image.
+      const observed = await this.#captureBrowser(binding, request);
+      if (observed.outcome !== 'verified') return observed;
+      const latest = await this.ctx.browser.capability(
+        binding.tabId,
+        asRecord(observed.data)?.snapshot_id,
+      );
+      if ('outcome' in latest) return latest;
+      if (
+        capability.capturedAt === undefined ||
+        Date.now() - capability.capturedAt > 30_000 ||
+        latest.url !== capability.url ||
+        latest.visualDocument !== capability.visualDocument ||
+        JSON.stringify(latest.pixels) !== JSON.stringify(capability.pixels)
+      ) {
+        this.ctx.browser.invalidateSnapshot(binding.tabId);
+        return stale(
+          'The browser page or screenshot geometry changed. Inspect a fresh image before input.',
         );
-        const amount = typeof args.amount === 'number' ? args.amount : 480;
-        tool = 'browser_pointer';
-        input = compact({
-          ...base,
-          action: 'scroll',
-          input_route: 'trusted',
-          delivery_mode: 'background',
-          ref: nativeRef,
-          delta_x: direction === 'left' ? -amount : direction === 'right' ? amount : 0,
-          delta_y: direction === 'up' ? -amount : direction === 'down' ? amount : 0,
-        });
-        break;
       }
-      default:
-        return refused('Unsupported browser action.');
-    }
+      tool = visual.tool;
+      input = visual.input;
+    } else
+      switch (args.action) {
+        case 'click':
+          if (!nativeRef)
+            return refused(
+              `browser_action ${String(args.action)} requires an exact element reference.`,
+            );
+          tool = 'browser_click';
+          input = {
+            ...base,
+            ref: nativeRef,
+            input_route: 'trusted',
+            delivery_mode: 'background',
+          };
+          break;
+        case 'type': {
+          if (!nativeRef)
+            return refused('browser_action type requires an exact element reference.');
+          const text = typeof args.text === 'string' ? args.text : undefined;
+          if (text === undefined) return refused('browser_action type requires text.');
+          tool = 'browser_type';
+          input = {
+            ...base,
+            ref: nativeRef,
+            text,
+            mode: 'insert_text',
+            replace: args.replace === true,
+            delivery_mode: 'background',
+          };
+          break;
+        }
+        case 'scroll': {
+          const direction = requiredEnum(
+            args.direction,
+            ['up', 'down', 'left', 'right'],
+            'direction',
+          );
+          const amount = typeof args.amount === 'number' ? args.amount : 480;
+          tool = 'browser_pointer';
+          input = compact({
+            ...base,
+            action: 'scroll',
+            input_route: 'trusted',
+            delivery_mode: 'background',
+            ref: nativeRef,
+            delta_x: direction === 'left' ? -amount : direction === 'right' ? amount : 0,
+            delta_y: direction === 'up' ? -amount : direction === 'down' ? amount : 0,
+          });
+          break;
+        }
+        default:
+          return refused('Unsupported browser action.');
+      }
     // Native refs are single-use authority. A transport error cannot prove a write failed.
-    this.ctx.browser.snapshots.delete(capability.id);
-    if (this.ctx.browser.latestSnapshot.get(capability.tabId) === capability.id)
-      this.ctx.browser.latestSnapshot.delete(capability.tabId);
+    this.ctx.browser.invalidateSnapshot(capability.tabId);
     let raw: unknown;
     try {
       raw = await this.ctx.callCua(request, tool, input);

@@ -51,6 +51,27 @@ The relation to observed navigation stalls is not established. Opt-in
 `SIA_CUA_CONSENT_DIAGNOSTICS` timeout logs contain only the CDP method and a fixed stage
 (`focus_enable`, `focus_restore` or `command`), never raw parameters or page data.
 
+## Visual browser input
+
+The staged vision-only host route uses screenshot coordinates for pointer input and a new
+`browser_type` focused mode for text. Focused mode never focuses, selects or sets a DOM element.
+It checks the current caret before and after focus emulation, refuses protected or unproven fields,
+inserts text once and restores focus emulation even after uncertain delivery. Visual capture
+checks its protection snapshot document identity before and after the image. The host forwards
+a hash of live frame/loader identities with input; reloads at the same URL revoke it, including
+reloads triggered by focus emulation. This token never reaches model responses. Its host-only check
+returns a boolean, never field contents or an element target. Browser keyboard commands are still
+pending; this mode accepts text only.
+
+Coordinate clicks and button gestures perform a security hit-test at the selected point, then run
+the same new-context guard described above. They do not move the point, scroll an element into view,
+rewrite the page or expose the hit node. Unknown checks refuse before input. The CDP method policy
+admits `DOM.getNodeForLocation` for this host-side check. A drag checks both endpoints. JavaScript
+may still cause unexpected focus changes, so post-input checks remain necessary.
+
+These transport regressions do not prove visual task completion or background reliability in the
+signed app. See `docs/release-status.md` for the uncompleted default cutover and live acceptance.
+
 ## Embedded-frame snapshots
 
 The pinned driver also contains the renderer-local AX identity collision reported in

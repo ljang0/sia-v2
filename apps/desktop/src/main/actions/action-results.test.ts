@@ -60,3 +60,13 @@ it('recovers a refused new-context link through a separate observed-URL navigati
     data: { input_not_sent: true },
   });
 });
+
+it('keeps structured incomplete delivery uncertain and forbids replay', () => {
+  expect(inputWasRefused(new Error('CUA refused: browser_input_incomplete'))).toBe(false);
+  expect(
+    resultRefusal({ status: 'refused', refusal: { code: 'browser_input_incomplete' } }),
+  ).toMatchObject({ outcome: 'accepted_unverified', data: { input_delivery_uncertain: true } });
+  expect(
+    classifyFailure(new Error('CUA refused: browser_new_context_refused')).summary,
+  ).not.toContain('read_links');
+});

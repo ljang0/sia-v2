@@ -405,6 +405,7 @@ export class MacBrowserControl {
         windowId: window.windowId,
         browserUrl: capability.url,
         protectedControls: false,
+        ...(capability.pixels ? { pixels: capability.pixels } : {}),
         elements: new Map(
           [...capability.elements].map(([ref, e]) => [
             ref,
@@ -430,7 +431,7 @@ export class MacBrowserControl {
           ? { source_url: new URL(capability.url).origin + new URL(capability.url).pathname }
           : {}),
         ...(typeof data?.text === 'string' ? { visible_text: data.text } : {}),
-        pixel_actions_available: false,
+        pixel_actions_available: Boolean(capability?.pixels),
       },
     };
   }
@@ -668,9 +669,10 @@ export class MacBrowserControl {
       return refused('This browser route stays in the background.');
     const action = String(request.arguments.action);
     if (
-      !['click', 'type', 'set', 'scroll'].includes(action) ||
-      request.arguments.count === 2 ||
-      (request.arguments.button && request.arguments.button !== 'left')
+      !this.ctx.options.visionOnly &&
+      (!['click', 'type', 'set', 'scroll'].includes(action) ||
+        request.arguments.count === 2 ||
+        (request.arguments.button && request.arguments.button !== 'left'))
     )
       return refused(
         'Use an observed browser control for this step. This background browser route supports element clicks, text entry and scrolling; it does not send native keys or pointer input.',
@@ -685,6 +687,16 @@ export class MacBrowserControl {
       ...(request.arguments.direction ? { direction: request.arguments.direction } : {}),
       ...(typeof request.arguments.amount === 'number'
         ? { amount: request.arguments.amount }
+        : {}),
+      ...(this.ctx.options.visionOnly
+        ? {
+            action,
+            ...Object.fromEntries(
+              ['x', 'y', 'to_x', 'to_y', 'button', 'count', 'value', 'modifiers']
+                .filter((name) => request.arguments[name] !== undefined)
+                .map((name) => [name, request.arguments[name]]),
+            ),
+          }
         : {}),
     };
     let result: ActionExecutionResult;

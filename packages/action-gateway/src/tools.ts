@@ -433,15 +433,22 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   },
   browser_action: {
     name: 'browser_action',
-    description: 'Perform one ref-based action in a granted tab without raw JavaScript or CDP.',
+    description:
+      'Perform one action in a granted tab. Visual control uses original screenshot coordinates and types into the visually focused field. Assisted snapshots use their current element refs. No raw JavaScript or CDP.',
     inputSchema: object(
       {
         tab_id: string('Granted tab id'),
         snapshot_id: string('Fresh browser snapshot id'),
         action: string('Action', {
-          enum: ['click', 'type', 'scroll'],
+          enum: ['click', 'type', 'scroll', 'drag'],
         }),
-        element_ref: string('Element reference'),
+        element_ref: string('Assisted snapshot element reference; unavailable in visual mode'),
+        x: { type: 'number', minimum: 0, maximum: 32768 },
+        y: { type: 'number', minimum: 0, maximum: 32768 },
+        to_x: { type: 'number', minimum: 0, maximum: 32768 },
+        to_y: { type: 'number', minimum: 0, maximum: 32768 },
+        button: string('Mouse button', { enum: ['left', 'right'] }),
+        count: { type: 'integer', minimum: 1, maximum: 2 },
         text: string('Text to type'),
         direction: string('Scroll direction', { enum: ['up', 'down', 'left', 'right'] }),
         amount: { type: 'integer', minimum: 1, maximum: 10000 },
@@ -449,7 +456,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         private: { type: 'boolean' },
         target_role: string('Accessible role'),
       },
-      ['tab_id', 'snapshot_id', 'action', 'element_ref', 'origin'],
+      ['tab_id', 'snapshot_id', 'action', 'origin'],
     ),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
   },

@@ -250,7 +250,7 @@ export class ComputerInput {
     const pixel =
       typeof args.x === 'number' &&
       typeof args.y === 'number' &&
-      ['click', 'drag', 'type'].includes(String(args.action));
+      ['click', 'drag', 'type', 'scroll'].includes(String(args.action));
     const backgroundDelivery = this.ctx.macBrowserAccess() && args.delivery !== 'foreground';
     // An exact element lets type_text use the driver's semantic-only AX path.
     // A refused process-keyboard route does not forbid that path; the driver
@@ -447,6 +447,7 @@ export class ComputerInput {
           direction: requiredEnum(args.direction, ['up', 'down', 'left', 'right'], 'direction'),
           amount: typeof args.amount === 'number' ? args.amount : 3,
           by: 'line',
+          ...(pixel ? { x: args.x, y: args.y } : {}),
         };
         break;
       case 'key': {

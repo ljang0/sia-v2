@@ -1,8 +1,16 @@
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
-index c401f20..ef3382e 100644
+index c401f20..045b28f 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
-@@ -64,6 +64,7 @@ const EXISTING_PROFILE_METHODS: &[&str] = &[
+@@ -46,6 +46,7 @@ const EXISTING_PROFILE_METHODS: &[&str] = &[
+     "DOM.describeNode",
+     "DOM.focus",
+     "DOM.getBoxModel",
++    "DOM.getNodeForLocation",
+     "DOM.getDocument",
+     "DOM.resolveNode",
+     "DOM.scrollIntoViewIfNeeded",
+@@ -64,6 +65,7 @@ const EXISTING_PROFILE_METHODS: &[&str] = &[
      "Page.navigate",
      "Runtime.callFunctionOn",
      "Runtime.evaluate",
@@ -10,7 +18,7 @@ index c401f20..ef3382e 100644
      "Target.activateTarget",
      "Target.attachToTarget",
      "Target.detachFromTarget",
-@@ -326,6 +327,12 @@ impl CdpConnection {
+@@ -326,6 +328,12 @@ impl CdpConnection {
          }
      }
  
@@ -23,7 +31,7 @@ index c401f20..ef3382e 100644
      pub fn has_dialog_session(&self, target_id: &str) -> bool {
          self.demux
              .session_targets
-@@ -392,6 +399,16 @@ impl CdpConnection {
+@@ -392,6 +400,16 @@ impl CdpConnection {
          match tokio::time::timeout(CALL_TIMEOUT, rx).await {
              Err(_) => {
                  self.demux.pending.lock().unwrap().remove(&id);
@@ -40,7 +48,7 @@ index c401f20..ef3382e 100644
                  anyhow::bail!("CDP {method} timed out after {CALL_TIMEOUT:?}")
              }
              Ok(Err(_)) => anyhow::bail!("CDP socket closed during {method}"),
-@@ -1199,7 +1216,10 @@ mod tests {
+@@ -1199,7 +1217,10 @@ mod tests {
          conn.call(None, "Target.getTargets", json!({}))
              .await
              .expect("reviewed method remains available");
@@ -53,7 +61,7 @@ index c401f20..ef3382e 100644
  
      #[tokio::test]
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
-index 1d0940c..42ce48a 100644
+index 1d0940c..aff8061 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
 @@ -247,6 +247,43 @@ fn endpoint_access_class(
@@ -109,7 +117,29 @@ index 1d0940c..42ce48a 100644
  }
  
  fn viewport_point_to_screen(
-@@ -1260,9 +1297,9 @@ impl BrowserEngine {
+@@ -450,6 +487,7 @@ pub(crate) struct SemanticSnapshotOutcome {
+ }
+ 
+ pub(crate) struct BrowserTabScreenshot {
++    pub visual_document: Option<String>,
+     pub data_base64: String,
+     pub width: u32,
+     pub height: u32,
+@@ -551,6 +589,13 @@ pub(crate) struct LocalFrameTree {
+ }
+ 
+ impl LocalFrameTree {
++    fn visual_document(&self) -> String {
++        let mut frames: Vec<_> = self.frames.iter().collect();
++        frames.sort();
++        let encoded = serde_json::to_vec(&(&self.main_frame_id, frames)).expect("frame strings serialize");
++        format!("{:x}", Sha256::digest(encoded))
++    }
++
+     fn main_identity(&self) -> FrameIdentity {
+         FrameIdentity {
+             frame_id: self.main_frame_id.clone(),
+@@ -1260,9 +1305,9 @@ impl BrowserEngine {
      /// Attach (flattened) to a tab's target and return the CDP session id.
      async fn attach(
          &self,
@@ -121,7 +151,7 @@ index 1d0940c..42ce48a 100644
          let attached = conn
              .call(
                  None,
-@@ -1276,7 +1313,7 @@ impl BrowserEngine {
+@@ -1276,7 +1321,7 @@ impl BrowserEngine {
                      format!("cannot attach to tab target {cdp_target_id}: {e}"),
                  )
              })?;
@@ -130,7 +160,7 @@ index 1d0940c..42ce48a 100644
              .get("sessionId")
              .and_then(Value::as_str)
              .map(str::to_owned)
-@@ -1285,7 +1322,8 @@ impl BrowserEngine {
+@@ -1285,7 +1330,8 @@ impl BrowserEngine {
                      BrowserRefusalCode::BrowserTabNotFound,
                      format!("attach to {cdp_target_id} returned no sessionId"),
                  )
@@ -140,7 +170,7 @@ index 1d0940c..42ce48a 100644
      }
  
      // ── Binding (get_browser_state, pid + window_id mode) ──────────────
-@@ -1745,7 +1783,7 @@ impl BrowserEngine {
+@@ -1745,7 +1791,7 @@ impl BrowserEngine {
          // feedback is safer than drawing a cursor over another tab.
          let tab_is_active = tab_visibility_proven(&validated.conn, &validated.cdp_session).await;
  
@@ -149,7 +179,77 @@ index 1d0940c..42ce48a 100644
              validated
                  .conn
                  .call(Some(cdp_session), "Page.getLayoutMetrics", json!({}))
-@@ -2603,7 +2641,7 @@ impl BrowserEngine {
+@@ -1977,6 +2023,21 @@ impl BrowserEngine {
+         }
+     }
+ 
++    /// Host-owned screenshot authority: same-URL reloads must revoke coordinate input.
++    pub(super) async fn verify_visual_document(
++        &self, tab: &ValidatedTab, expected: Option<&str>,
++    ) -> Result<(), BrowserRefusal> {
++        let Some(expected) = expected else { return Ok(()); };
++        let tree = self.local_frame_tree(&tab.conn, &tab.cdp_session).await
++            .map_err(|_| refuse(BrowserRefusalCode::BrowserRefStale,
++                "the visual input document could not be checked; no input sent"))?;
++        if tree.visual_document() != expected {
++            return Err(refuse(BrowserRefusalCode::BrowserRefStale,
++                "the document changed since its screenshot; no input sent"));
++        }
++        Ok(())
++    }
++
+     // ── Read-side: page snapshot (ref minting) ──────────────────────────
+ 
+     /// Capture the exact page target's current viewport through its attached
+@@ -1988,6 +2049,7 @@ impl BrowserEngine {
+         session: &str,
+         target_id: &str,
+         tab_id: &str,
++        expected_snapshot: Option<u64>,
+     ) -> Result<BrowserTabScreenshot, BrowserRefusal> {
+         let record = self.store.get_target(session, target_id)?;
+         let tab = record.tabs.get(tab_id).cloned().ok_or_else(|| {
+@@ -1998,6 +2060,21 @@ impl BrowserEngine {
+         })?;
+         let conn = self.connection_for_record(session, &record).await?;
+         let cdp_session = self.attach(&conn, &tab.cdp_target_id).await?;
++        let visual_document = if let Some(id) = expected_snapshot {
++            let identity = tab.snapshots.get(&id)
++                .filter(|s| s.generation == record.generation)
++                .and_then(|s| s.semantic_root_identity.as_ref())
++                .ok_or_else(|| refuse(BrowserRefusalCode::BrowserRefStale,
++                    "the visual protection snapshot has no proven document identity"))?;
++            let tree = self.local_frame_tree(&conn, &cdp_session).await
++                .map_err(|_| refuse(BrowserRefusalCode::BrowserRefStale,
++                    "the visual document identity could not be checked"))?;
++            if !tree.proves(identity) {
++                return Err(refuse(BrowserRefusalCode::BrowserRefStale,
++                    "the document changed after its protection snapshot; no image returned"));
++            }
++            Some(tree.visual_document())
++        } else { None };
+         let metrics = conn
+             .call(Some(&cdp_session), "Page.getLayoutMetrics", json!({}))
+             .await
+@@ -2065,7 +2142,17 @@ impl BrowserEngine {
+                 "PNG dimensions must be non-zero",
+             ));
+         }
++        if let Some(expected) = visual_document.as_deref() {
++            let tree = self.local_frame_tree(&conn, &cdp_session).await
++                .map_err(|_| refuse(BrowserRefusalCode::BrowserRefStale,
++                    "the captured document identity could not be checked"))?;
++            if tree.visual_document() != expected {
++                return Err(refuse(BrowserRefusalCode::BrowserRefStale,
++                    "the document changed during capture; no image returned"));
++            }
++        }
+         Ok(BrowserTabScreenshot {
++            visual_document,
+             data_base64,
+             width,
+             height,
+@@ -2603,7 +2690,7 @@ impl BrowserEngine {
                  continuation.offset,
                  DEFAULT_SEMANTIC_NODE_BUDGET,
                  continuation.query.as_deref(),
@@ -158,7 +258,7 @@ index 1d0940c..42ce48a 100644
              );
              let start_index = snapshot
                  .refs
-@@ -2643,7 +2681,7 @@ impl BrowserEngine {
+@@ -2643,7 +2730,7 @@ impl BrowserEngine {
                              SemanticContinuation {
                                  offset,
                                  query: continuation.query.clone(),
@@ -167,7 +267,7 @@ index 1d0940c..42ce48a 100644
                                  oopif_supported: continuation.oopif_supported,
                                  oopif_frames: continuation.oopif_frames,
                              },
-@@ -2654,12 +2692,10 @@ impl BrowserEngine {
+@@ -2654,12 +2741,10 @@ impl BrowserEngine {
              return Ok(outcome);
          }
  
@@ -184,7 +284,7 @@ index 1d0940c..42ce48a 100644
              None => None,
          };
          let record = self.store.get_target(session, target_id)?;
-@@ -2791,11 +2827,21 @@ impl BrowserEngine {
+@@ -2791,11 +2876,21 @@ impl BrowserEngine {
              semantic.complete = false;
          }
  
@@ -207,7 +307,7 @@ index 1d0940c..42ce48a 100644
          );
          let next_offset = page.next_offset;
          let snapshot_id = self.store.mint_snapshot_id();
-@@ -2829,7 +2875,7 @@ impl BrowserEngine {
+@@ -2829,7 +2924,7 @@ impl BrowserEngine {
                              SemanticContinuation {
                                  offset,
                                  query: query.map(str::to_owned),
@@ -216,6 +316,79 @@ index 1d0940c..42ce48a 100644
                                  oopif_supported: matches!(oopif, OopifStatus::Attached(_)),
                                  oopif_frames: oopif.frames(),
                              },
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/mod.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/mod.rs
+index 070d6c0..6a294de 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/mod.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/mod.rs
+@@ -41,6 +41,7 @@ pub mod cdp_ws;
+ pub mod download;
+ pub mod engine;
+ mod grant;
++mod visual_input;
+ mod keyed_gates;
+ #[cfg(test)]
+ pub(crate) mod mock_cdp;
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/pointer.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/pointer.rs
+index bc741d9..2c1f242 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/pointer.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/pointer.rs
+@@ -110,6 +110,7 @@ enum Location {
+ 
+ #[derive(Debug, Clone, PartialEq)]
+ struct PointerRequest {
++    visual_document: Option<String>,
+     action: PointerAction,
+     route: InputRoute,
+     /// `delivery_mode="foreground"`: the caller accepts that trusted input
+@@ -203,6 +204,7 @@ fn parse_request(args: &Value) -> Result<PointerRequest, String> {
+     }
+ 
+     Ok(PointerRequest {
++        visual_document: args.opt_str("visual_document"),
+         action,
+         route,
+         foreground,
+@@ -304,7 +306,8 @@ impl BrowserPointerTool {
+                 input_schema: json!({
+                     "type": "object",
+                     "properties": {
+-                        "target_id": { "type": "string", "description": "Opaque target id minted by get_browser_state." },
++                        "visual_document": { "type": "string", "description": "Host-owned document token from a visual screenshot; refuse if it changed." },
++                    "target_id": { "type": "string", "description": "Opaque target id minted by get_browser_state." },
+                         "tab_id": { "type": "string", "description": "Opaque tab id minted by get_browser_state." },
+                         "session": required_session_schema(),
+                         "action": { "type": "string", "enum": ["hover", "right_click", "double_click", "scroll", "drag"], "description": "Pointer gesture. scroll needs delta_x or delta_y; drag needs destination_ref or to_x/to_y." },
+@@ -598,6 +601,18 @@ impl BrowserPointerTool {
+             _ => unreachable!("destination resolution matches request"),
+         };
+ 
++        if let Err(refusal) = self.engine.verify_visual_document(validated, request.visual_document.as_deref()).await {
++            return refusal.to_tool_result();
++        }
++
++        if !request.foreground && !matches!(request.action, PointerAction::Hover | PointerAction::Scroll) {
++            for point in std::iter::once(origin).chain(destination) {
++                if let Err(refusal) = super::tools::guard_background_point(conn, cdp_session, point.0, point.1).await {
++                    return refusal.to_tool_result();
++                }
++            }
++        }
++
+         self.engine
+             .visualize_browser_action(
+                 session,
+@@ -625,6 +640,11 @@ impl BrowserPointerTool {
+         }
+         tokio::time::sleep(Duration::from_millis(25)).await;
+ 
++        if let Err(refusal) = self.engine.verify_visual_document(validated, request.visual_document.as_deref()).await {
++            let _ = conn.call(Some(cdp_session), "Emulation.setFocusEmulationEnabled", json!({"enabled": false})).await;
++            return refusal.to_tool_result();
++        }
++
+         let delivery = self
+             .dispatch_trusted(conn, cdp_session, request, origin, destination)
+             .await;
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
 index d709315..33f41ca 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
@@ -510,10 +683,10 @@ index 68f2099..96f1e08 100644
      pub oopif_frames: usize,
  }
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
-index df04401..5db475b 100644
+index df04401..1e55d60 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
-@@ -51,6 +51,83 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
+@@ -51,6 +51,105 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
  
  // ── Shared helpers ───────────────────────────────────────────────────────────
  
@@ -594,10 +767,88 @@ index df04401..5db475b 100644
 +        .ok_or_else(unavailable)
 +}
 +
++// Security hit-test of the model-chosen point. Never changes the point or returns a DOM target.
++pub(super) async fn guard_background_point(
++    conn: &CdpConnection, cdp: &str, x: f64, y: f64,
++) -> Result<(), BrowserRefusal> {
++    let unavailable = || BrowserRefusal::new(BrowserRefusalCode::BrowserActionUnavailable,
++        "the chosen point's browsing context could not be checked; no input was sent");
++    if !x.is_finite() || !y.is_finite() || x < 0.0 || y < 0.0 || x > i32::MAX as f64 || y > i32::MAX as f64 {
++        return Err(unavailable());
++    }
++    let hit = conn.call(Some(cdp), "DOM.getNodeForLocation", json!({
++        "x": x.floor() as i32, "y": y.floor() as i32,
++        "includeUserAgentShadowDOM": true,
++    })).await.map_err(|_| unavailable())?;
++    let backend = hit.get("backendNodeId").and_then(Value::as_i64)
++        .filter(|id| *id > 0).ok_or_else(unavailable)?;
++    if background_link_opens_context(conn, cdp, backend).await? {
++        return Err(BrowserRefusal::new(BrowserRefusalCode::BrowserNewContextRefused,
++            "the chosen point opens another browsing context; no background input was sent"));
++    }
++    Ok(())
++}
++
  const DOM_CLICK_READBACK: &str = r#"function() {
    const bounded = value => typeof value === 'string' ? value.slice(0, 512) : null;
    const attr = name => bounded(this.getAttribute(name));
-@@ -1338,6 +1415,19 @@ impl Tool for BrowserClickTool {
+@@ -381,6 +480,7 @@ fn with_tab_screenshot(mut result: ToolResult, screenshot: BrowserTabScreenshot)
+     if let Some(structured) = result.structured_content.as_mut() {
+         structured["screenshot"] = json!({
+             "source": "cdp_tab",
++            "visual_document": screenshot.visual_document,
+             "scope": "viewport",
+             "mime_type": "image/png",
+             "width": screenshot.width,
+@@ -453,6 +553,10 @@ impl GetBrowserStateTool {
+                         "type": "string",
+                         "description": "Opaque continuation minted by an earlier semantic_v2 response."
+                     },
++                    "require_visual_identity": {
++                        "type": "boolean", "default": false,
++                        "description": "Host-side visual capture requires a proven semantic snapshot document identity before and after screenshot capture."
++                    },
+                     "include_screenshot": {
+                         "type": "boolean",
+                         "default": false,
+@@ -618,9 +722,18 @@ impl Tool for GetBrowserStateTool {
+                     Err(refusal) => return refusal.to_tool_result(),
+                 };
+                 if include_screenshot {
++                    let expected_snapshot = if args.opt_bool("require_visual_identity").unwrap_or(false) {
++                        let id = snapshot.structured_content.as_ref()
++                            .and_then(|v| v.pointer("/snapshot/id"))
++                            .and_then(Value::as_str)
++                            .and_then(|s| s.strip_prefix('p'))
++                            .and_then(|s| s.parse::<u64>().ok());
++                        if id.is_none() { return ToolResult::error("missing visual protection snapshot identity"); }
++                        id
++                    } else { None };
+                     return match self
+                         .engine
+-                        .capture_tab_screenshot(&session, &target_id, &tab_id)
++                        .capture_tab_screenshot(&session, &target_id, &tab_id, expected_snapshot)
+                         .await
+                     {
+                         Ok(screenshot) => with_tab_screenshot(snapshot, screenshot),
+@@ -673,7 +786,7 @@ impl Tool for GetBrowserStateTool {
+             if include_screenshot {
+                 return match self
+                     .engine
+-                    .capture_tab_screenshot(&session, &target_id, &tab_id)
++                    .capture_tab_screenshot(&session, &target_id, &tab_id, None)
+                     .await
+                 {
+                     Ok(screenshot) => with_tab_screenshot(snapshot, screenshot),
+@@ -1158,6 +1271,7 @@ impl BrowserClickTool {
+                 "properties": {
+                     "target_id": schema_target_id(),
+                     "tab_id": schema_tab_id(),
++                    "visual_document": { "type": "string", "description": "Host-owned document token from a visual screenshot; refuse if it changed." },
+                     "session": schema_session(),
+                     "ref": schema_ref(),
+                     "x": { "type": "number", "description": "Viewport x (CSS px) — alternative to ref." },
+@@ -1338,6 +1452,19 @@ impl Tool for BrowserClickTool {
          let conn = &validated.conn;
          let cdp = cdp_session.as_str();
  
@@ -617,19 +868,127 @@ index df04401..5db475b 100644
          // dom_event route: explicit opt-in only.
          if route == "dom_event" {
              let backend = backend_node_id.expect("checked above");
+@@ -1486,6 +1613,16 @@ impl Tool for BrowserClickTool {
+             (None, None) => unreachable!("validated above"),
+         };
+ 
++        if let Err(refusal) = self.engine.verify_visual_document(&validated, args.opt_str("visual_document").as_deref()).await {
++            return refusal.to_tool_result();
++        }
++
++        if !foreground && backend_node_id.is_none() {
++            if let Err(refusal) = guard_background_point(conn, cdp, x, y).await {
++                return refusal.to_tool_result();
++            }
++        }
++
+         self.engine
+             .visualize_browser_action(
+                 &session,
+@@ -1515,6 +1652,11 @@ impl Tool for BrowserClickTool {
+         }
+         tokio::time::sleep(std::time::Duration::from_millis(25)).await;
+ 
++        if let Err(refusal) = self.engine.verify_visual_document(&validated, args.opt_str("visual_document").as_deref()).await {
++            let _ = conn.call(Some(cdp), "Emulation.setFocusEmulationEnabled", json!({"enabled": false})).await;
++            return refusal.to_tool_result();
++        }
++
+         let mut delivery_error = None;
+         for (event_type, click_count) in [("mousePressed", 1), ("mouseReleased", 1)] {
+             if let Err(error) = conn
+@@ -1813,21 +1955,22 @@ impl BrowserTypeTool {
+                 at the caret, so typing into a field that already holds text appends \
+                 to it; pass replace=true to set the field instead, or to clear it by \
+                 typing an empty string. Pass a ref to an editable element from the \
+-                latest snapshot. A ref is required; heuristic bindings are refused."
++                latest snapshot for these modes. mode=\"focused\" instead inserts at the visually chosen caret after a protection check, with no ref or replacement. Heuristic bindings are refused."
+                 .into(),
+             input_schema: json!({
+                 "type": "object",
+                 "properties": {
+                     "target_id": schema_target_id(),
+                     "tab_id": schema_tab_id(),
++                    "visual_document": { "type": "string", "description": "Host-owned document token from a visual screenshot; refuse if it changed." },
+                     "session": schema_session(),
+                     "text": { "type": "string", "description": "Text to type." },
+                     "ref": schema_ref(),
+                     "mode": {
+                         "type": "string",
+-                        "enum": ["insert_text", "keystrokes"],
++                        "enum": ["insert_text", "keystrokes", "focused"],
+                         "description": "insert_text (default): bulk Input.insertText. \
+-                            keystrokes: per-character Input.dispatchKeyEvent."
++                            keystrokes: per-character Input.dispatchKeyEvent. focused: insert at the current permitted caret without a DOM target."
+                     },
+                     "replace": {
+                         "type": "boolean",
+@@ -1839,7 +1982,7 @@ impl BrowserTypeTool {
+                             framework state stays consistent."
+                     },
+                 },
+-                "required": ["target_id", "tab_id", "ref", "text"],
++                "required": ["target_id", "tab_id", "text"],
+                 "additionalProperties": true
+             }),
+             read_only: false,
+@@ -1895,9 +2038,9 @@ impl Tool for BrowserTypeTool {
+             Err(e) => return e,
+         };
+         let mode = args.opt_str("mode").unwrap_or_else(|| "insert_text".into());
+-        if mode != "insert_text" && mode != "keystrokes" {
++        if mode != "insert_text" && mode != "keystrokes" && mode != "focused" {
+             return ToolResult::error(format!(
+-                "mode must be \"insert_text\" or \"keystrokes\", got {mode:?}"
++                "mode must be \"insert_text\", \"keystrokes\" or \"focused\", got {mode:?}"
+             ));
+         }
+         let replace = args.opt_bool("replace").unwrap_or(false);
+@@ -1919,6 +2062,19 @@ impl Tool for BrowserTypeTool {
+             Err(refusal) => return refusal.to_tool_result(),
+         };
+ 
++        if mode == "focused" {
++            if args.get("ref").is_some() || replace {
++                return ToolResult::error("focused input does not accept a ref or semantic replacement");
++            }
++            if validated.record.cdp_window_id.is_some() && self.engine.platform
++                .standalone_trusted_input_background_limitation().is_some() {
++                return BrowserRefusal::new(BrowserRefusalCode::BrowserActionUnavailable,
++                    "trusted focused input cannot stay in the background on this platform")
++                    .to_tool_result();
++            }
++            return super::visual_input::deliver(&self.engine, &validated, &args, &text).await;
++        }
++
+         let ext_ref = match args.require_str("ref") {
+             Ok(value) => value,
+             Err(error) => return error,
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-index d5f50d2..75c2a35 100644
+index d5f50d2..e4a6228 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-@@ -59,6 +59,7 @@ pub(super) struct FixtureState {
+@@ -57,13 +57,19 @@ pub(super) struct FixtureState {
+     tab_sessions: u64,
+     oopif_sessions: u64,
      fail_key_down_after: Option<usize>,
++    visual_focus_safe: bool,
++    visual_focus_changes: bool,
++    visual_insert_fails: bool,
      completed_key_pairs: usize,
      semantic_large_page: bool,
 +    oopif_input_backend_id: i64,
      semantic_html_style: String,
      semantic_full_dom_fails: bool,
      semantic_full_dom_times_out: bool,
-@@ -76,6 +77,7 @@ pub(super) struct FixtureState {
+     semantic_truncated_dom: bool,
+     screenshot_data: String,
++    reload_during_capture: bool,
++    reload_on_focus: bool,
+     viewport_css_width: f64,
+     viewport_css_height: f64,
+     tab_visible: bool,
+@@ -76,6 +82,7 @@ pub(super) struct FixtureState {
      omit_primary_target: bool,
      /// Make `Browser.getWindowForTarget` for T1 answer this CDP error.
      primary_window_error: Option<(i64, String)>,
@@ -637,15 +996,27 @@ index d5f50d2..75c2a35 100644
      dom_click_changes_readback: bool,
      dom_click_readback_available: bool,
      dom_click_stall_after: Option<usize>,
-@@ -106,6 +108,7 @@ impl Default for FixtureState {
+@@ -99,13 +106,19 @@ impl Default for FixtureState {
+             omit_primary_target: false,
+             primary_window_error: None,
+             main_loader: "L_MAIN_1".into(),
++            reload_during_capture: false,
++            reload_on_focus: false,
+             iframe_loader: "L_IFRAME_1".into(),
+             oopif_loader: "L_OOPIF_1".into(),
+             tab_sessions: 0,
+             oopif_sessions: 0,
              fail_key_down_after: None,
++            visual_focus_safe: true,
++            visual_focus_changes: false,
++            visual_insert_fails: false,
              completed_key_pairs: 0,
              semantic_large_page: false,
 +            oopif_input_backend_id: 100,
              semantic_html_style: String::new(),
              semantic_full_dom_fails: false,
              semantic_full_dom_times_out: false,
-@@ -115,6 +118,7 @@ impl Default for FixtureState {
+@@ -115,6 +128,7 @@ impl Default for FixtureState {
              viewport_css_height: 600.0,
              tab_visible: true,
              select_outcome: Value::Null,
@@ -653,7 +1024,7 @@ index d5f50d2..75c2a35 100644
              dom_click_changes_readback: true,
              dom_click_readback_available: true,
              dom_click_stall_after: None,
-@@ -548,7 +552,12 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -548,7 +562,12 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                      "node": large_semantic_document(&st.semantic_html_style)["root"]["children"][0].clone()
                  }))
              }
@@ -667,7 +1038,7 @@ index d5f50d2..75c2a35 100644
              "Accessibility.getFullAXTree" if is_tab => {
                  let frame_id = call.params["frameId"].as_str().unwrap_or("F_MAIN");
                  if st.semantic_large_page {
-@@ -561,7 +570,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -561,7 +580,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                  {"nodeId": "oopif-root", "ignored": false,
                   "role": {"value": "RootWebArea"}, "childIds": ["oopif-input"]},
                  {"nodeId": "oopif-input", "parentId": "oopif-root", "ignored": false,
@@ -676,7 +1047,7 @@ index d5f50d2..75c2a35 100644
                   "name": {"value": "Embedded input"},
                   "properties": [{"name": "editable", "value": {"value": "plaintext"}}],
                   "childIds": []}
-@@ -586,7 +595,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -586,7 +605,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                  }
              }
              "DOMSnapshot.captureSnapshot" if is_oopif => MockReply::ok(semantic_layout_snapshot(
@@ -685,15 +1056,45 @@ index d5f50d2..75c2a35 100644
                  &[[0.0, 0.0, 300.0, 100.0], [10.0, 10.0, 120.0, 30.0]],
              )),
              "Page.getLayoutMetrics" => MockReply::ok(json!({
-@@ -705,12 +714,23 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -597,6 +616,10 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+                     "clientHeight": st.viewport_css_height
+                 }
+             })),
++            "Runtime.evaluate" if call.params["expression"].as_str().is_some_and(|s| s.contains("siaVisualFocusGuard")) => {
++                MockReply::ok(json!({"result": {"type": "boolean", "value": st.visual_focus_safe}}))
++            }
++            "Input.insertText" if st.visual_insert_fails => MockReply::err(-32000, "uncertain insert"),
+             "Runtime.evaluate"
+                 if call.params["expression"] == "document.visibilityState === 'visible'" =>
+             {
+@@ -608,6 +631,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+                 }))
+             }
+             "Page.captureScreenshot" if is_tab => {
++                if st.reload_during_capture { st.main_loader = "reloaded".into(); }
+                 MockReply::ok(json!({"data": st.screenshot_data.clone()}))
+             }
+             "Page.navigate" if is_tab => MockReply::ok(json!({
+@@ -704,13 +728,33 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+                     MockReply::ok(json!({}))
                  }
              }
++            "Emulation.setFocusEmulationEnabled" => {
++                if call.params["enabled"] == true && st.reload_on_focus {
++                    st.main_loader = "reloaded".into();
++                }
++                if call.params["enabled"] == true && st.visual_focus_changes {
++                    st.visual_focus_safe = false;
++                }
++                MockReply::ok(json!({}))
++            }
              "DOM.focus"
+-            | "Emulation.setFocusEmulationEnabled"
 +            | "Page.enable"
 +            | "Target.detachFromTarget"
-             | "Emulation.setFocusEmulationEnabled"
              | "Input.dispatchMouseEvent"
              | "Input.insertText" => MockReply::ok(json!({})),
++            "DOM.getNodeForLocation" => MockReply::ok(json!({"backendNodeId": 10})),
              "DOM.resolveNode" => MockReply::ok(json!({
                  "object": { "objectId": format!("obj-{}", call.params["backendNodeId"]) }
              })),
@@ -709,7 +1110,7 @@ index d5f50d2..75c2a35 100644
              "Runtime.callFunctionOn"
                  if call.params["functionDeclaration"]
                      .as_str()
-@@ -1880,6 +1900,65 @@ fn recorded_calls(f: &Fixture, method: &str) -> Vec<(Option<String>, Value)> {
+@@ -1880,6 +1924,65 @@ fn recorded_calls(f: &Fixture, method: &str) -> Vec<(Option<String>, Value)> {
          .collect()
  }
  
@@ -727,7 +1128,7 @@ index d5f50d2..75c2a35 100644
 +    // A failed independent operation must clean up its own attachment without
 +    // releasing this still-live validation on the same tab and connection.
 +    f.state.lock().unwrap().screenshot_data = "not-a-png".to_owned();
-+    assert!(f.engine.capture_tab_screenshot(SESSION, &target, &tab).await.is_err());
++    assert!(f.engine.capture_tab_screenshot(SESSION, &target, &tab, None).await.is_err());
 +    assert!(!recorded_calls(&f, "Target.detachFromTarget").iter()
 +        .any(|(_, params)| params["sessionId"] == live_session),
 +        "a live operation must retain its attachment");
@@ -775,7 +1176,7 @@ index d5f50d2..75c2a35 100644
  // ── Snapshot composition ─────────────────────────────────────────────────────
  
  #[tokio::test]
-@@ -2326,6 +2405,57 @@ async fn semantic_query_and_content_scope_are_read_only_and_precise() {
+@@ -2326,6 +2429,57 @@ async fn semantic_query_and_content_scope_are_read_only_and_precise() {
      assert!(recorded_calls(&f, "Target.activateTarget").is_empty());
  }
  
@@ -833,7 +1234,7 @@ index d5f50d2..75c2a35 100644
  #[tokio::test]
  async fn navigation_targets_an_inactive_tab_without_activating_it() {
      let f = fixture().await;
-@@ -2755,6 +2885,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
+@@ -2755,6 +2909,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
      );
  }
  
@@ -886,8 +1287,290 @@ index d5f50d2..75c2a35 100644
  #[tokio::test]
  async fn click_routes_oopif_refs_through_the_contained_child_session() {
      let f = fixture().await;
+@@ -3603,3 +3803,139 @@ async fn method_unsupported_keeps_the_electron_none_path() {
+     assert_eq!(tabs.len(), 1, "{s}");
+     assert_eq!(tabs[0]["url"], "https://fixture.test/");
+ }
++
++#[tokio::test]
++async fn visual_focused_typing_never_focuses_or_selects_a_dom_target() {
++    let f = fixture().await;
++    let (target, tab) = bind(&f).await;
++    let result = BrowserTypeTool::new(f.engine.clone()).invoke(json!({
++        "target_id": target, "tab_id": tab, "session": SESSION,
++        "text": "Visual input", "mode": "focused"
++    })).await;
++    let s = structured(&result);
++    assert_eq!(s["status"], "ok", "{s}");
++    assert_eq!(recorded_calls(&f, "Input.insertText").len(), 1);
++    for method in ["DOM.focus", "DOM.resolveNode", "DOM.scrollIntoViewIfNeeded", "Runtime.callFunctionOn", "Page.bringToFront", "Target.activateTarget"] {
++        assert!(recorded_calls(&f, method).is_empty(), "unexpected {method}");
++    }
++    let focus = recorded_calls(&f, "Emulation.setFocusEmulationEnabled");
++    assert_eq!(focus.len(), 2);
++    assert_eq!(focus[0].1["enabled"], true);
++    assert_eq!(focus[1].1["enabled"], false);
++}
++
++#[tokio::test]
++async fn visual_focused_typing_refuses_unproven_focus_without_input() {
++    let f = fixture_with(|s| s.visual_focus_safe = false).await;
++    let (target, tab) = bind(&f).await;
++    let result = BrowserTypeTool::new(f.engine.clone()).invoke(json!({
++        "target_id": target, "tab_id": tab, "session": SESSION,
++        "text": "must not arrive", "mode": "focused"
++    })).await;
++    assert_ne!(structured(&result)["status"], "ok");
++    assert!(recorded_calls(&f, "Input.insertText").is_empty());
++    assert!(recorded_calls(&f, "DOM.focus").is_empty());
++}
++
++#[tokio::test]
++async fn visual_focused_typing_cleans_up_uncertain_delivery_without_replay() {
++    let f = fixture_with(|s| s.visual_insert_fails = true).await;
++    let (target, tab) = bind(&f).await;
++    let result = BrowserTypeTool::new(f.engine.clone()).invoke(json!({
++        "target_id": target, "tab_id": tab, "session": SESSION,
++        "text": "only once", "mode": "focused"
++    })).await;
++    assert_ne!(structured(&result)["status"], "ok");
++    assert_eq!(recorded_calls(&f, "Input.insertText").len(), 1);
++    let focus = recorded_calls(&f, "Emulation.setFocusEmulationEnabled");
++    assert_eq!(focus.last().unwrap().1["enabled"], false);
++}
++
++#[tokio::test]
++async fn visual_coordinate_input_preserves_new_context_guard() {
++    for action in ["click", "double_click", "right_click", "drag"] {
++        for new_context in [json!(true), Value::Null, json!(false)] {
++            let f = fixture().await;
++            let (target, tab) = bind(&f).await;
++            f.state.lock().unwrap().background_new_context = new_context.clone();
++            let mut args = json!({"target_id": target, "tab_id": tab, "session": SESSION,
++                "x": 10.5, "y": 20.5, "action": action});
++            if action == "drag" { args["to_x"] = json!(30); args["to_y"] = json!(40); }
++            let result = if action == "click" {
++                BrowserClickTool::new(f.engine.clone()).invoke(args).await
++            } else {
++                super::pointer::BrowserPointerTool::new(f.engine.clone()).invoke(args).await
++            };
++            if new_context == json!(false) {
++                assert!(!result.is_error.unwrap_or(false), "{result:?}");
++                assert!(!recorded_calls(&f, "Input.dispatchMouseEvent").is_empty());
++            } else {
++                assert_ne!(structured(&result)["status"], "ok");
++                assert!(recorded_calls(&f, "Input.dispatchMouseEvent").is_empty());
++                assert!(recorded_calls(&f, "Emulation.setFocusEmulationEnabled").is_empty());
++            }
++            assert!(recorded_calls(&f, "DOM.scrollIntoViewIfNeeded").is_empty());
++            assert!(recorded_calls(&f, "DOM.focus").is_empty());
++            assert!(recorded_calls(&f, "Page.navigate").is_empty());
++        }
++    }
++}
++
++#[tokio::test]
++async fn visual_focused_typing_rechecks_focus_after_page_handlers() {
++    let f = fixture_with(|s| s.visual_focus_changes = true).await;
++    let (target, tab) = bind(&f).await;
++    let result = BrowserTypeTool::new(f.engine.clone()).invoke(json!({
++        "target_id": target, "tab_id": tab, "session": SESSION,
++        "text": "must not arrive", "mode": "focused"
++    })).await;
++    assert_ne!(structured(&result)["status"], "ok");
++    assert!(recorded_calls(&f, "Input.insertText").is_empty());
++    let focus = recorded_calls(&f, "Emulation.setFocusEmulationEnabled");
++    assert_eq!(focus.len(), 2);
++    assert_eq!(focus.last().unwrap().1["enabled"], false);
++}
++
++#[tokio::test]
++async fn visual_document_reload_during_capture_returns_no_image() {
++    let f = fixture_with(|s| s.reload_during_capture = true).await;
++    let (target, tab) = bind(&f).await;
++    let result = GetBrowserStateTool::new(f.engine.clone()).invoke(json!({
++        "target_id": target, "tab_id": tab, "session": SESSION,
++        "snapshot_format": "semantic_v2", "include_screenshot": true, "require_visual_identity": true,
++    })).await;
++    assert_eq!(structured(&result)["refusal"]["code"], "browser_ref_stale");
++    assert!(!result.content.iter().any(|c| matches!(c, Content::Image { .. })));
++}
++
++#[tokio::test]
++async fn visual_document_reload_at_same_url_revokes_pointer_and_text() {
++    for action in ["click", "scroll", "type"] {
++        for phase in ["stable", "before", "focus"] {
++            let reloaded = phase != "stable";
++            let f = fixture().await;
++            let (target, tab) = bind(&f).await;
++            let observed = GetBrowserStateTool::new(f.engine.clone()).invoke(json!({
++                "target_id": target, "tab_id": tab, "session": SESSION,
++                "snapshot_format": "semantic_v2", "include_screenshot": true, "require_visual_identity": true,
++            })).await;
++            let snap = structured(&observed);
++            let token = snap["screenshot"]["visual_document"].as_str().expect("document token");
++            if phase == "before" { f.state.lock().unwrap().main_loader = "reloaded".into(); }
++            if phase == "focus" { f.state.lock().unwrap().reload_on_focus = true; }
++            let args = json!({"target_id": target, "tab_id": tab, "session": SESSION,
++                "visual_document": token, "x": 10, "y": 20, "action": action, "delta_y": 100,
++                "mode": "focused", "text": "one write"});
++            let result = match action {
++                "click" => BrowserClickTool::new(f.engine.clone()).invoke(args).await,
++                "type" => BrowserTypeTool::new(f.engine.clone()).invoke(args).await,
++                _ => super::pointer::BrowserPointerTool::new(f.engine.clone()).invoke(args).await,
++            };
++            if reloaded {
++                assert_eq!(structured(&result)["refusal"]["code"], "browser_ref_stale", "{result:?}");
++                assert!(recorded_calls(&f, "Input.dispatchMouseEvent").is_empty());
++                assert!(recorded_calls(&f, "Input.insertText").is_empty());
++            } else { assert!(!result.is_error.unwrap_or(false), "{result:?}"); }
++        }
++    }
++}
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/visual_input.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/visual_input.rs
+new file mode 100644
+index 0000000..3e1bd3a
+--- /dev/null
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/visual_input.rs
+@@ -0,0 +1,136 @@
++//! Input for a visually selected caret. No DOM focus, selection, setters or ref targets.
++use super::engine::{BrowserEngine, ValidatedTab};
++use super::refusal::{BrowserRefusal, BrowserRefusalCode};
++use crate::protocol::ToolResult;
++use serde_json::{json, Value};
++
++// Security-only inspection; no content or element identifier is returned to the caller.
++// Unknown/cross-origin focused frames fail closed. The model must click from its image first.
++const FOCUSED_INPUT_GUARD: &str = r#"(() => { /* siaVisualFocusGuard */
++  let root = document, field;
++  for (let depth = 0; depth < 32; depth++) {
++    field = root.activeElement;
++    if (!field) return false;
++    if (field.shadowRoot) { root = field.shadowRoot; continue; }
++    if (field.localName === 'iframe' || field.localName === 'frame') {
++      try { root = field.contentDocument; } catch { return false; }
++      if (!root) return false;
++      continue;
++    }
++    if (field.localName === 'input' && /^(password|hidden)$/i.test(field.type)) return false;
++    if (/password|one-time-code|cc-|webauthn/i.test(field.getAttribute('autocomplete') || '')) return false;
++    if (field.closest('form')?.querySelector('input[type=password]')) return false;
++    if (field.matches(':disabled') || field.readOnly) return false;
++    return field.localName === 'textarea' ||
++      (field.localName === 'input' && /^(text|search|email|tel|url|number)$/i.test(field.type)) ||
++      field.isContentEditable === true;
++  }
++  return false;
++})()"#;
++
++pub(super) async fn deliver(
++    engine: &BrowserEngine,
++    tab: &ValidatedTab,
++    args: &Value,
++    text: &str,
++) -> ToolResult {
++    // This first slice is text insertion only. Key commands are a separate validated contract.
++    if args.get("key").is_some() || args.get("keys").is_some() || args.get("modifiers").is_some() {
++        return ToolResult::error("focused text does not accept keyboard commands");
++    }
++    let conn = &tab.conn;
++    let cdp = tab.cdp_session.as_str();
++    let guard = conn
++        .call(
++            Some(cdp),
++            "Runtime.evaluate",
++            json!({
++                "expression": FOCUSED_INPUT_GUARD, "returnByValue": true, "silent": true,
++            }),
++        )
++        .await;
++    if !matches!(guard, Ok(ref reply) if reply.get("exceptionDetails").is_none() && reply.pointer("/result/value").and_then(Value::as_bool) == Some(true))
++    {
++        return BrowserRefusal::new(
++            BrowserRefusalCode::BrowserActionUnavailable,
++            "no permitted focused editable field was proven; no text was sent",
++        )
++        .to_tool_result();
++    }
++    if conn
++        .call(
++            Some(cdp),
++            "Emulation.setFocusEmulationEnabled",
++            json!({"enabled": true}),
++        )
++        .await
++        .is_err()
++    {
++        return BrowserRefusal::new(
++            BrowserRefusalCode::BrowserActionUnavailable,
++            "background focus emulation could not be established; no text was sent",
++        )
++        .to_tool_result();
++    }
++    // Focus emulation can run page focus handlers. Prove the resulting caret again.
++    let guard = conn
++        .call(
++            Some(cdp),
++            "Runtime.evaluate",
++            json!({
++                "expression": FOCUSED_INPUT_GUARD, "returnByValue": true, "silent": true,
++            }),
++        )
++        .await;
++    if !matches!(guard, Ok(ref reply) if reply.get("exceptionDetails").is_none() && reply.pointer("/result/value").and_then(Value::as_bool) == Some(true))
++    {
++        let restored = conn
++            .call(
++                Some(cdp),
++                "Emulation.setFocusEmulationEnabled",
++                json!({"enabled": false}),
++            )
++            .await;
++        return BrowserRefusal::new(
++            BrowserRefusalCode::BrowserActionUnavailable,
++            "focus changed to an unproven field; no text was sent",
++        )
++        .with_detail(json!({"cleanup_confirmed": restored.is_ok(), "retryable": false}))
++        .to_tool_result();
++    }
++    if let Err(refusal) = engine
++        .verify_visual_document(tab, args.get("visual_document").and_then(Value::as_str))
++        .await
++    {
++        let _ = conn
++            .call(
++                Some(cdp),
++                "Emulation.setFocusEmulationEnabled",
++                json!({"enabled": false}),
++            )
++            .await;
++        return refusal.to_tool_result();
++    }
++    let delivered = conn
++        .call(Some(cdp), "Input.insertText", json!({"text": text}))
++        .await;
++    // Always attempt cleanup, including uncertain delivery. Never repeat text after an error.
++    let restored = conn
++        .call(
++            Some(cdp),
++            "Emulation.setFocusEmulationEnabled",
++            json!({"enabled": false}),
++        )
++        .await;
++    if delivered.is_err() || restored.is_err() {
++        return BrowserRefusal::new(BrowserRefusalCode::BrowserInputIncomplete,
++            "focused text delivery or cleanup was uncertain; inspect the tab without replaying input")
++            .with_detail(json!({"retryable": false, "delivery": "unknown"})).to_tool_result();
++    }
++    ToolResult::text("Text delivered to the visually focused field; inspect a fresh screenshot.")
++        .with_structured(json!({
++            "status": "ok", "route": "trusted", "delivery_mode": "background",
++            "target_id": args["target_id"], "tab_id": args["tab_id"], "mode": "focused",
++            "requested_chars": text.chars().count(), "delivered_chars": text.chars().count(),
++        }))
++}
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs
-index 09007a5..f6adf9a 100644
+index 09007a5..eb6fd6d 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs
 @@ -266,7 +266,8 @@ impl From<crate::browser::refusal::BrowserRefusalCode> for ToolRefusalCode {
@@ -900,6 +1583,15 @@ index 09007a5..f6adf9a 100644
          }
      }
  }
+@@ -407,7 +408,7 @@ pub fn tool_operation(tool_name: &str, args: Option<&serde_json::Value>) -> Tool
+             Some(_) => ToolOperation::Other,
+         },
+         "browser_type" => match string_arg("mode") {
+-            None | Some("insert_text") => ToolOperation::BrowserTypeInsertText,
++            None | Some("insert_text" | "focused") => ToolOperation::BrowserTypeInsertText,
+             Some("keystrokes") => ToolOperation::BrowserTypeKeystrokes,
+             Some(_) => ToolOperation::Other,
+         },
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
 index 681c636..a748f2c 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs

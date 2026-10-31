@@ -155,18 +155,12 @@ it('rejects keyboard input from an expired image', async () => {
   expect(h.inputs).toEqual([]);
 });
 
-it('does not silently route a visual session through assisted browser tools', async () => {
+it('does not silently route a visual session through semantic upload or Mac automation', async () => {
   const cua = fakeCua(async () => {
     throw new Error('Driver must not be called');
   });
   const backend = new DesktopActionBackend({ cua, visionOnly: true });
-  for (const name of [
-    'browser_snapshot',
-    'browser_action',
-    'browser_navigate',
-    'computer_open_url',
-    'mac_automation',
-  ] as const) {
+  for (const name of ['browser_upload', 'mac_automation'] as const) {
     const result = await backend.invoke(request(name, {}));
     expect(result.outcome).toBe('refused');
     expect(result.data).toMatchObject({ blocker_code: 'visual_route_unavailable' });
