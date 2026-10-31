@@ -89,6 +89,14 @@ set membership over the same reviewed commands. A source-extracted reproduction 
 the change; regression checks cover every declared method and coordinate input on a restricted
 existing-profile socket. The earlier unrestricted fixtures could not detect this failure.
 
+Native background keyboard focus now uses the same proven sheet-to-document ownership as
+observation. The raw focused-window ID remains separate for focus records and restoration.
+A parent-document route requires matching window and focused-element ancestry; missing,
+conflicting or sibling ancestry remains refused. Foreground focus readers retain raw IDs.
+The sheet regression fails with the prior comparison and passes with the correction; the pilot
+gate now also runs exact-target ownership and key-focus regressions. Signed TextEdit Save/reopen
+acceptance remains required; this source correction alone does not establish a live fix.
+
 These transport regressions do not prove visual task completion or background reliability in the
 signed app. See `docs/release-status.md` for the uncompleted default cutover and live acceptance.
 
@@ -137,7 +145,7 @@ For native regression checks on the host architecture:
 pnpm --filter @sia/desktop native:cua --test
 ```
 
-The full pilot gate includes these checks. They test sheet recognition, browser routing and refusal boundaries. They cannot replace a signed-app Chrome
+The full pilot gate includes these checks. They test consent-sheet recognition, exact-target ownership, keyboard focus, browser routing and refusal boundaries. They cannot replace a signed-app Chrome
 connection, background research, detach/reconnect and restart test. Intel builds are statically
 verified on the Apple Silicon release Mac; execution requires an Intel Mac.
 

@@ -2244,6 +2244,28 @@ index 09007a5..fb06ee7 100644
              Some(_) => ToolOperation::Other,
          },
          "browser_prepare" => {
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
+index 7ccdae7..fe5ff44 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
+@@ -141,7 +141,7 @@ unsafe fn element_in_app_menu_bar(app: AXUIElementRef, element: AXUIElementRef)
+ /// # Safety
+ ///
+ /// `window` must be a valid `AXUIElementRef` for the duration of the call.
+-unsafe fn owning_window_id(window: AXUIElementRef) -> Option<u32> {
++pub(crate) unsafe fn owning_window_id(window: AXUIElementRef) -> Option<u32> {
+     resolve_owning_window(
+         RetainedElement::retain(window as usize),
+         MAX_SHEET_NESTING,
+@@ -324,7 +324,7 @@ pub fn gather_background_facts(
+                 element_ancestry(window, in_menu_bar, window_id)
+             });
+             let focused_window_id = copy_element_attr(app, "AXFocusedWindow").and_then(|window| {
+-                let window_id = ax_get_window_id(window);
++                let window_id = owning_window_id(window);
+                 CFRelease(window as CFTypeRef);
+                 window_id
+             });
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
 index 681c636..a748f2c 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
@@ -2453,3 +2475,150 @@ index 82dac61..74d90b1 100644
      }
  
      fn captured_chinese_sheet() -> Vec<AXNode> {
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
+index 136e0c9..c0c1e77 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
+@@ -65,9 +65,11 @@ pub enum KeyPrime {
+ /// Where an app's keyboard focus is, as Accessibility reports it.
+ #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+ pub struct KeyFocus {
+-    /// The app's `AXFocusedWindow`.
++    /// The raw `AXFocusedWindow` id, retained for focus records and restoration.
+     pub window: Option<u32>,
+-    /// The window holding the app's `AXFocusedUIElement`.
++    /// Its proven document owner; an attached AXSheet resolves to its parent.
++    pub window_owner: Option<u32>,
++    /// The proven document owner of `AXFocusedUIElement`.
+     pub element_window: Option<u32>,
+ }
+ 
+@@ -75,11 +77,14 @@ impl KeyFocus {
+     /// Keys posted to the app go to `target`. The focused window is the
+     /// predictor: in every LibreOffice trial keys went to `AXFocusedWindow`
+     /// (a sibling document or Find & Replace when the switch failed, the
+-    /// target when it held). The focused element is not used here: VCL keeps
++    /// target when it held). A direct window match ignores the element: VCL keeps
+     /// reporting a modeless dialog's field as focused after its document
+-    /// window has become key and is receiving the keys.
++    /// window has become key and is receiving the keys. An attached sheet may
++    /// instead prove the document through both window and focused-element
++    /// ancestry; missing or conflicting ancestry never grants that route.
+     fn routes_to(self, target: u32) -> bool {
+         self.window == Some(target)
++            || (self.window_owner == Some(target) && self.element_window == Some(target))
+     }
+ 
+     /// `target` is key with nothing left to prime. A focused window without
+@@ -225,9 +230,42 @@ fn set_app_focused_window(pid: pid_t, wid: u32) -> bool {
+ 
+ /// The app's focus as Accessibility reports it.
+ fn key_focus_of_pid(pid: pid_t) -> KeyFocus {
+-    KeyFocus {
+-        window: crate::ax::bindings::focused_window_id_of_pid(pid),
+-        element_window: crate::ax::bindings::focused_element_window_id_of_pid(pid),
++    use crate::ax::{
++        bindings::{ax_get_window_id, copy_element_attr, AXUIElementCreateApplication},
++        exact_target::{element_window_id, owning_window_id},
++    };
++    use core_foundation::base::{CFRelease, CFTypeRef};
++
++    // Read both proofs from this app. Keep the raw window for restoration, but
++    // compare an attached sheet using the same ownership rule as its snapshot.
++    // Global/foreground focus readers keep their existing raw-id semantics.
++    unsafe {
++        let app = AXUIElementCreateApplication(pid);
++        if app.is_null() {
++            return KeyFocus {
++                window: None,
++                window_owner: None,
++                element_window: None,
++            };
++        }
++        let (window, window_owner) = copy_element_attr(app, "AXFocusedWindow")
++            .map(|focused| {
++                let ids = (ax_get_window_id(focused), owning_window_id(focused));
++                CFRelease(focused as CFTypeRef);
++                ids
++            })
++            .unwrap_or((None, None));
++        let element_window = copy_element_attr(app, "AXFocusedUIElement").and_then(|element| {
++            let owner = element_window_id(element);
++            CFRelease(element as CFTypeRef);
++            owner
++        });
++        CFRelease(app as CFTypeRef);
++        KeyFocus {
++            window,
++            window_owner,
++            element_window,
++        }
+     }
+ }
+ 
+@@ -1629,10 +1667,65 @@ mod key_prime_tests {
+     fn at(window: Option<u32>, element_window: Option<u32>) -> KeyFocus {
+         KeyFocus {
+             window,
++            window_owner: window,
+             element_window,
+         }
+     }
+ 
++    #[test]
++    fn attached_sheet_is_already_key_for_its_proven_document() {
++        let sheet = KeyFocus {
++            window: Some(99),
++            window_owner: Some(7),
++            element_window: Some(7),
++        };
++        assert_eq!(
++            prime_exact_window_key(
++                7,
++                || sheet,
++                || panic!("must not re-key a sheet"),
++                || panic!("AX focus"),
++            ),
++            Ok(KeyPrime::AlreadyKey),
++        );
++        assert_eq!(sheet.window, Some(99), "retain the raw window for restoration");
++    }
++
++    #[test]
++    fn sheet_ownership_never_admits_a_sibling_or_unproven_element() {
++        for (owner, element) in [
++            (Some(9), Some(7)),
++            (None, Some(7)),
++            (Some(7), None),
++            (Some(7), Some(9)),
++        ] {
++            let sheet = KeyFocus {
++                window: Some(99),
++                window_owner: owner,
++                element_window: element,
++            };
++            let result = prime_exact_window_key(7, || sheet, || true, || true);
++            assert!(result.unwrap_err().contains("no keys were sent"));
++        }
++    }
++
++    #[test]
++    fn raw_sheet_target_remains_exact_and_restoration_keeps_its_id() {
++        let sheet = KeyFocus {
++            window: Some(99),
++            window_owner: Some(7),
++            element_window: Some(7),
++        };
++        assert_eq!(
++            prime_exact_window_key(99, || sheet, || panic!("record"), || panic!("AX")),
++            Ok(KeyPrime::AlreadyKey),
++        );
++        assert_eq!(
++            restore_target(11, sheet.window, &[99, 7, 11], &[99, 7, 11]),
++            Some(99),
++        );
++    }
++
+     #[test]
+     fn already_key_sends_nothing() {
+         let r = prime_exact_window_key(

@@ -52,6 +52,14 @@ notes remained intact. These limited observations do not establish completed con
 clipboard preservation or acceptable end-to-end performance. See the
 [artifact record](./public-release.md) for exact hashes, interventions and failures.
 
+Alpha.60 source corrects a native focus mismatch: observation mapped an attached Save sheet to its
+parent document, while keyboard priming still compared the raw sheet ID. The correction requires
+matching window/element ownership and retains raw IDs for restoration. Thirteen key-focus
+regressions pass, including a new sheet case that failed with the old comparison. The full local
+pilot gate passed: 1,950 desktop, 249 native browser, 46 Electron, 40 renderer and 72 phone-browser
+tests, plus build/static/shared checks and 12 exact-target ownership tests. Signing and live
+Save/reopen acceptance are pending; alpha.59 remains the installed artifact.
+
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
 The release requires real-source research and writing, file/document preparation, and planning
@@ -69,7 +77,7 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.59 full local pilot gate passed: 1,950 desktop, 46 Electron, 40 renderer, 72 phone-web and native/shared checks including 249 browser regressions. The alpha.57 artifact source passed exact-source CI, including universal package verification. | Alpha.59 exact-source CI and successful exact-artifact real-task repeats. |
+| Source | Alpha.60 full local pilot gate passed, including the native Save-sheet ownership regressions. The alpha.57 artifact source passed exact-source CI, including universal package verification. | Latest candidate exact-source CI and successful exact-artifact real-task repeats. |
 | Signed package | Universal vision-only alpha.59 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Repeat failed real workflows after recovery fixes. |
 | Useful work | Alpha.57 saved a source-checked three-dinner plan and consolidated groceries after recovery; previews loaded. Native TextEdit Save failed. | Unattended browser recovery, native Save/reopen and the sourced outing (alpha.59 stopped on network-error recovery). |
 | Background/concurrency | Alpha.59 delivered browser clicks/scrolls while separate supervisor-typed notes remained intact; ten CUA navigation samples median 946.5 ms / worst 1,199 ms. Earlier assisted-mode Stop/recovery evidence is retained in history. | Two completed Sia tasks, contention, Stop/recovery, focus and clipboard preservation on the final artifact. |
