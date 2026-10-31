@@ -1,7 +1,7 @@
 # Release status
 
-Updated October 30, 2026. **Distribution is not ready.** Alpha.37 is signed and notarized,
-and its background browser, file, Calculator and cancellation/restart rehearsals passed. The last
+Updated October 30, 2026. **Distribution is not ready.** Alpha.38 is signed and notarized.
+Two real document workflows completed concurrently with all five result previews verified. The last
 published Mac pilot is alpha.24; no new invitations or public download have been authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
@@ -27,11 +27,11 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.37 full local pilot gate passed: 1,768 desktop unit, 46 Electron, 31 renderer and 72 phone-browser checks. The [artifact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41132056136), [merged-main CI](https://github.com/ljang0/sia-v2/actions/runs/41134874934) and 66 local documentation links passed. | Re-run the runtime gates if application code changes. |
-| Signed Mac package | Alpha.37 from `a5cac3f188a23196bcb538319d01064b6b47e900` passed universal signing, app/DMG notarization and stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Any runtime change requires a new signed candidate. |
-| Signed app tasks | Alpha.37 retained the QA profile and background settings without a new Keychain prompt, created and previewed the exact CSV (total 15), operated native Calculator (`29 × 17 = 493`), and cancelled a disposable task. After a full quit/relaunch, cancellation and the exact CSV preview persisted. | Physical and clean-account acceptance below. |
-| Everyday usefulness | Basic signed-app smoke tests passed; they do not demonstrate everyday usefulness. | Real-source workflows, background work alongside user input, simultaneous tasks, measured responsiveness, and default browser setup/recovery acceptance. |
-| Browser | Alpha.37 read the IANA title/heading through the default background Mac route, then followed the public link to IANA-managed Reserved Domains. Chrome independently confirmed the resulting page. Detach caused `browser_consent_required`; explicitly reconnecting the same window restored background reading. | Live unexpected expiry remains unverified. Background new-tab creation is unsupported by driver 0.37.0. |
+| Source | Alpha.38 full local pilot gate passed: 1,779 desktop unit, 46 Electron, 31 renderer, 72 phone-browser and 66 action-gateway tests. [Artifact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41157278849) passed. | Re-run runtime gates after application changes. |
+| Signed Mac package | Alpha.38 from `e0abb66ffa68f5560aa826b7e49c747ec51d39fa` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Any runtime change requires a new signed candidate. |
+| Signed app continuity | Alpha.38 retained the QA profile, settings and history without a new Keychain prompt. After a full quit/relaunch, cancellation persisted and matrix/CSV previews reopened. | Physical and clean-account acceptance. |
+| Everyday usefulness | Two real GPT-6-Astra tasks overlapped in separate default folders: a three-file reviewer packet and a two-file release plan. Contents and all previews checked; no corrective prompts. A later cancellation left the separate task working; foreground TextEdit typing was preserved. Ten thread switches: median 762.5 ms / worst 868 ms including CUA overhead. | Repeat fresh runs, real-source browser research and personal planning, foreground-user coexistence during GUI input, clipboard preservation, default browser setup/recovery and broader latency measurements. GUI loops still serialize. |
+| Browser | Alpha.37 background IANA read/navigation and explicit same-window detach/reconnect passed. Alpha.38 adds default setup and in-conversation recovery with regression coverage. | Signed alpha.38 live setup/recovery and unexpected expiry. Native operator CUA Chrome inspection timed out; no suitable disposable window was identified in Sia's picker. Background new-tab creation is unsupported by driver 0.37.0. |
 | New recipient | Alpha.36 with an empty app profile showed only email sign-in, with no private app content. | Clean macOS-account signup, permissions, provider login cancel/retry, lock/sleep and voice acceptance. An empty profile is not a clean OS account; no fresh account or second Mac is currently available. |
 | Cloud feedback | Ratings/account deletion deployed; a synthetic authenticated rating reached the report. October 30: 18 alarms OK with actions enabled, five Lambdas Active/Successful, anonymous catalog/report/release requests return 401. | Recheck if configuration changes before invitations. |
 | iPhone follow-on | Build 31 is Ready to Test in internal Pilot QA; native tests, signed archive and Apple processing passed. | Deferred from this Mac-first handoff. Physical-device checks and external beta review remain. |
@@ -39,44 +39,21 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 ## Current fixes
 
-Alpha.38 is in development. Real-provider review-packet and codebase-guide attempts on alpha.37
-stopped after 18 and 38 seconds because the source files were outside the task workspace. Adding
-the five source documents through Add files let the review-packet retry finish in 39 seconds and
-produce three documents. Only one received a Preview control, and the installation guide incorrectly
-used the fake-service development route as its first-hour walkthrough. This is assisted partial
-coverage, not a first-run or quality pass; no substantive concurrent task overlap was established.
+Alpha.38 includes Chrome in default Mac setup with an explicit opt-out, and adds a host-triggered
+**Connect Chrome & continue** control to Mac conversations. Existing approved sessions are reused
+only for the same process/window; revoked or expired access must be reconnected deliberately.
+macOS and Chrome still own their permission decisions. The signed-app consent path remains unverified.
 
-The later assisted codebase-guide retry completed in 45 seconds; all linked source paths exist.
-A review-packet revision corrected its setup path and citations, but still proposed an unspecified
-fictional-data exercise. Two requests in the same folder visibly queued safely. Independent
-background tasks then exposed the whole-task GUI lease even for document-only work. Alpha.38
-defers that lease until the first GUI tool call; parallel physical-window control remains unsupported.
+Real alpha.37 work exposed three additional problems: outside-workspace files needed Add files,
+only one generated file received a preview, and document-only tasks unnecessarily held the whole GUI
+lane. Alpha.38 explains attachments, adds controls for all validated output files, and acquires the
+GUI lane only on the first GUI call. Its real document retest produced five checked files with five
+working previews while both tasks overlapped. GUI calls still reserve the lane through completion;
+parallel control of physical windows is unsupported.
 
-The next candidate includes Chrome in default Mac setup, adds host-triggered connection recovery
-inside Mac conversations, gives all verified output files result controls, and explains Add files
-for source documents. Full gates and new signed-app acceptance are required. Native Chrome inspection
-through the operator CUA tool timed out during real-source browser preparation; browser research
-and foreground-user concurrency remain unverified.
-
-
-Alpha.35 clears a dead Chrome attachment instead of leaving Settings at Attached. A late failure
-from an old session cannot revoke a new connection, and recovery does not automatically replay
-input or select another window.
-
-Live alpha.35 acceptance also exposed a tool-contract ambiguity: browser URL fields intentionally
-show only origins, but the model interpreted one as a full page URL and stopped on a false path
-mismatch. Reading the same tab after explaining the redaction succeeded. Alpha.36 labels that
-redaction in results and tool descriptions while keeping private paths, queries and fragments hidden.
-The signed alpha.36 retest read the page correctly without an operator explaining the redaction.
-
-Alpha.37 reuses the explicitly approved Chrome session only for the same process and window.
-The alpha.36 live test showed that creating a separate session made the default Mac route request
-setup again, which driver 0.37.0 refused in the background. Detaching or replacing the connection
-revokes Mac-route references; expiry requires reconnecting the chosen window. No foreground fallback
-is added. Its full local gate, signed package checks, live background navigation and explicit
-detach/reconnect passed. The earlier foreground pause was resumed; independent UI inspection
-confirmed the completed navigation, Calculator result and CSV. CUA input errors delayed that
-verification but did not establish an application failure.
+The [real-work demo guide](./demo.md) records prompts, failures, interventions, measured outcomes
+and limits. Fake-service regression checks and small Calculator/CSV smoke tasks remain useful but
+are not everyday-use acceptance. No real-source browser research pass is claimed for alpha.38.
 
 ## Release decision
 

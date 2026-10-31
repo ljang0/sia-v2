@@ -3,64 +3,82 @@
 ## Current decision — October 30, 2026
 
 The owner selected **Mac first; iPhone follows** and confirmed ownership of the relevant Notch
-source rights. Alpha.37 is the signed acceptance candidate. **External pilot release is not complete.**
+source rights. Alpha.38 is the signed acceptance candidate. **External pilot release is not complete.**
 No new artifacts were published or invitations sent; the last published Mac pilot remains alpha.24.
 
-The universal alpha.37 app, DMG and ZIP were built from
-`a5cac3f188a23196bcb538319d01064b6b47e900`. The full local pilot gate passed: 1,768 desktop unit,
-46 Electron, 31 renderer and 72 Chromium/WebKit phone checks. The
-[artifact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41132056136) and
-[merged-main CI](https://github.com/ljang0/sia-v2/actions/runs/41134874934) both passed.
-`pnpm package:mac` passed signing, app/DMG notarization and stapling, strict signatures, Gatekeeper
-and packaged native/runtime verification. DMG notarization `33d86494-ed78-43d6-a333-74a7331c872c` was Accepted.
+## Exact alpha.38 artifact
 
-The alpha.36-to-.37 QA upgrade retained history and the default Use my Mac / Work in background /
-Pause and tell me settings without a new Keychain prompt. After explicitly choosing the isolated
-public Chrome window, a fresh task read IANA’s “Example Domains” title and first heading through
-the default background Mac route. Native Chrome independently confirmed both. Alpha.36 had refused
-this same route with `background_unavailable` even after explicit attachment; alpha.37 reuses the
-approved session for that exact process/window instead of requesting a second session.
+The universal app, DMG and ZIP were built from `e0abb66ffa68f5560aa826b7e49c747ec51d39fa`.
+The full local `pnpm test:pilot` gate passed: 1,779 desktop unit tests, 46 Electron E2E,
+31 renderer and 72 Chromium/WebKit phone checks; 66 action-gateway tests also passed.
+The [artifact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41157278849) passed.
+An earlier local E2E run failed because its setup helper did not handle the new Chrome step;
+that helper was corrected and the complete gate rerun successfully. Fixture setup explicitly opts
+out of Chrome and does not establish live Chrome consent acceptance.
 
-The public-link task initially paused because Chrome was foreground, then resumed and completed.
-Later independent UI checks confirmed the resulting `https://www.iana.org/domains/reserved` page
-and heading, native Calculator's `29 × 17 = 493`, and the exact `alpha37-check.csv` preview:
-
-```csv
-item,count
-pears,6
-plums,9
-```
-
-The file includes a final newline and the counts total 15. A separate disposable task was stopped.
-After a full quit/relaunch of the signed QA app, that task remained cancelled and the exact CSV
-preview still opened. CUA input failures delayed verification; they did not establish that the
-task had failed.
-
-Explicit Chrome detachment caused the next background read to refuse with
-`browser_consent_required` (`background_browser_unavailable`). Reconnecting the same isolated
-window restored reading and returned the correct heading. Live unexpected session expiry remains
-unverified; regression tests cover expiry, replacement and detachment. Explicit detach/reconnect
-and application restart do not establish unexpected-expiry recovery.
-
-Closing the disposable Chrome window outside Sia produced a missing-window result on fresh
-discovery; the task stopped without reading unrelated windows or reconnecting. This checks
-closed-window handling, not a live `session_ended` response from the browser driver.
+`pnpm package:mac` passed universal signing, app/DMG notarization and stapling, strict signatures,
+Gatekeeper and packaged native/runtime verification. App notarization
+`bdec9fa4-31d1-4717-b268-68e54763d354` and DMG notarization
+`de32b047-2764-46c6-ad58-3d39f4144064` were Accepted.
 
 | Artifact                           | SHA-256                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |
-| `Sia-0.1.0-alpha.37-universal.dmg` | `df69fd3c4ada24afa6897673f8a7051261dd2bf7d79dd935944962fa421ad57d` |
-| `Sia-0.1.0-alpha.37-universal.zip` | `caf309dd8a2056ace83852201865b834fbdcbe305a9204ca7c05685a566c4c85` |
+| `Sia-0.1.0-alpha.38-universal.dmg` | `639bc6f01c8bbb3be0a12a4b9fd0b83d4cc94a6cb95c443d51ec16d271253c05` |
+| `Sia-0.1.0-alpha.38-universal.zip` | `f37c6b117a9aea43c5e02ff46938ce769d292490d2bac633a00b49568f8388c3` |
+| Installed `app.asar`               | `cb4ef1c978d7ea79337b7c4e93c8df38662ab301c2487407dcc3f80c0b6e8dc8` |
 
-Clean macOS-account acceptance is incomplete: the owner has no fresh account or second Mac
-available. Voice/lock/sleep and the final owner release decision remain open. See
-[release status](./release-status.md) for the exact remaining gates.
+Later documentation-only acceptance edits are not part of that artifact's source commit.
+The signed QA app replaced alpha.37 after preserving a verified rollback copy. It reopened the
+existing QA profile with history/settings intact and no new Keychain prompt. That is upgrade
+coverage, not clean-account setup acceptance.
 
-Alpha.36 is retained for rollback. Its DMG SHA-256 is
-`12ce7e73c0b8252603a7bb7e160b758367af8695cada59893603b91242dfab66`.
-Its [CI](https://github.com/ljang0/sia-v2/actions/runs/41089283694), signed packaging, connected-browser
-read, exact CSV creation/preview (total 13), native Calculator (`17 × 23 = 391`), cancellation/restart,
-and empty-profile sign-in wall passed. Alpha.34 separately passed safe IANA link navigation.
-Earlier results do not establish acceptance of every behavior on the current artifact.
+## Real work on the signed app
+
+Both tasks used GPT-6-Astra through Codex App Server and the operator's actual ChatGPT plan,
+Use my Mac / Work in background / Pause and tell me, with automatic action approval. Sources were
+actual public project documents attached before the initial request. Each assistant used its
+separate default folder. No corrective follow-up was required for either initial task.
+
+| Workflow                | Independently checked result                                                                                                                                                                       | Observed UI work segments                                                                                                            |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Technical-review packet | Three saved Markdown files; 484-word brief; real signed-app/ChatGPT-plan walkthrough; portable source paths; version-specific evidence and unresolved gates; all three previews opened.            | 5 seconds / 1 step, then 3 minutes 3 seconds / 10 steps.                                                                             |
+| Five-day release plan   | Markdown plan plus CSV; 12 unique tasks, valid dependency IDs, requested owner, 35 labeled estimated hours, November 2–6 dates, unavailable clean-account execution blocked; both previews opened. | 17 seconds / 3 steps, then 2 minutes 36 seconds / 7 steps. One task-tracking step failed then recovered; writes/readbacks completed. |
+
+The packet started at 02:06:44 UTC October 31 (10:06 PM EDT October 30); the plan started at
+02:07:19 UTC. Both showed substantive ongoing work together, then completed at about 02:09 and
+02:10 UTC. Their attachments intentionally contained the pre-acceptance release record; reporting
+alpha.37 evidence rather than inventing alpha.38 passes was correct. Exact inputs, output hashes,
+UI captures and timing records remain in the private local artifact folder.
+
+A later planning task was cancelled while a separate evidence-review task continued. The app showed
+Ready and Task cancelled in 807 ms. The surviving task completed a saved evidence matrix,
+with a working preview, after UI work segments of 7 seconds and 3 minutes 17 seconds. Ten conversation switches during that work measured median
+762.5 ms and worst 868 ms. These are CUA click-to-accessibility-observation times, including tool
+overhead, not isolated app latency or internal dispatch-cutoff measurements. Exact TextEdit canary
+text remained intact while the document task ran. GUI/browser-input coexistence and clipboard
+preservation were not established. After a full quit/relaunch, the cancellation persisted and
+the evidence matrix and planner CSV previews reopened without a new Keychain prompt.
+
+These are useful document workflows, each with one fresh-conversation run on alpha.38. They do
+not close repeatability, real-source browser research, practical public-source outing planning,
+default Chrome setup/recovery, unexpected expiry, parallel GUI control, clean macOS-account signup
+and provider retry, or physical voice/lock/sleep acceptance. Native Chrome inspection through the
+operator CUA tool timed out, and Sia's picker did not identify the isolated research window; no
+unrelated window was selected. GUI loops serialize and background new-tab creation is unsupported.
+
+## Prior candidate evidence and rollback
+
+Alpha.37 established background IANA read/navigation, explicit same-window detach/reconnect,
+Calculator, exact CSV and cancellation/restart smoke checks. Its fuller real-document attempts
+exposed the outside-workspace attachment gap, missing result previews and unnecessary document-task
+serialization fixed in alpha.38. See the [demo guide](./demo.md) for failed and assisted attempts.
+Earlier passes are not transferred to the new artifact.
+
+The verified alpha.37 rollback app is retained locally. Its DMG SHA-256 is
+`df69fd3c4ada24afa6897673f8a7051261dd2bf7d79dd935944962fa421ad57d` and ZIP SHA-256 is
+`caf309dd8a2056ace83852201865b834fbdcbe305a9204ca7c05685a566c4c85`.
+The [alpha.37 acceptance record](https://github.com/ljang0/sia-v2/blob/b7093362720dda05473c89e55754f7a69cfd1893/docs/public-release.md)
+contains its exact source and scope. See [release status](./release-status.md) for remaining gates.
 
 ## Cloud and follow-on iPhone evidence
 
@@ -84,9 +102,9 @@ The last published alpha.24 pilot remains recorded in [release evidence](./relea
 
 ## Publication
 
-The alpha.37 handoff folder is prepared locally with the installer, checksums, proposal, setup
-notes and third-party notices. It is an acceptance candidate, not a published release. Keep private
+The alpha.38 artifact folder is prepared locally with the installer, checksums, signed-package verification and private
+real-work evidence. It is an acceptance candidate, not a published release. Keep private
 recipient lists and download links outside Git. After the remaining [release gates](./release-status.md)
 pass and the owner authorizes distribution, follow [release operations](./release.md) and verify the
-recipient's downloaded hash. Keep alpha.36 available for rollback. Research recruitment retains
+recipient's downloaded hash. Keep alpha.37 available for rollback. Research recruitment retains
 its separate [sign-off](./research-release-signoff.md).
