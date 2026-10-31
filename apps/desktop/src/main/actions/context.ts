@@ -17,6 +17,17 @@ export class ActionBackendContext {
   readonly macBackgroundControl: () => boolean;
   readonly hostPid: number;
 
+  /** Visual on-screen turns use foreground delivery unless explicitly overridden. */
+  foregroundDelivery(args: Readonly<Record<string, unknown>>): boolean {
+    return (
+      args.delivery === 'foreground' ||
+      (args.delivery === undefined &&
+        this.options.visionOnly === true &&
+        this.macBrowserAccess() &&
+        !this.macBackgroundControl())
+    );
+  }
+
   constructor(readonly options: DesktopActionBackendOptions) {
     this.macBrowserAccess = options.macBrowserAccess ?? (() => false);
     this.macBackgroundControl = options.macBackgroundControl ?? (() => false);

@@ -258,7 +258,7 @@ export class ComputerInventory {
     const mac = this.ctx.macBrowserAccess();
     const background =
       request.arguments.delivery === 'background' ||
-      (mac && request.arguments.delivery !== 'foreground');
+      (mac && !this.ctx.foregroundDelivery(request.arguments));
     let document: string | undefined;
     if (typeof request.arguments.workspace_path === 'string') {
       if (!mac || !background)
@@ -416,7 +416,7 @@ export class ComputerInventory {
             'Use an ordinary observed website link or an already-authorized browser window. Do not attempt authentication or infer account status from a blocked address.',
         },
       };
-    const background = request.arguments.delivery !== 'foreground';
+    const background = !this.ctx.foregroundDelivery(request.arguments);
     if (request.context.backgroundOnly)
       return {
         outcome: 'needs_foreground',

@@ -1822,7 +1822,7 @@ describe('Codex library review isolation', () => {
         const start = adapter.createSession({
           ...sessionOptions,
           tools: [],
-          nativeTools: background ? 'mac-background' : 'disabled',
+          nativeTools: background ? 'mac-hosted' : 'disabled',
           ...(background ? { baseInstructions: 'Use only background window tools.' } : {}),
         });
         if (unsafe || invalidPermissions)

@@ -55,6 +55,13 @@ The native patch and its build/verification steps are documented in
 permission setup, concurrent queues, cancellation, stale callbacks, foreground interference and
 content-free failure reporting through the public service API.
 
+For staged visual sessions, [`visual-tools.ts`](../apps/desktop/src/main/actions/visual-tools.ts)
+projects the canonical descriptors onto screenshot actions, and
+[`mac-visual-guidance.ts`](../apps/desktop/src/main/actions/mac-visual-guidance.ts) supplies the same
+operating contract for on-screen and background work. The Codex `mac-hosted` session mode disables
+provider-native tools for both policies; it is independent of the host's foreground lease. Backend
+validation remains authoritative even if a caller ignores the advertised schema.
+
 The vision-only path is still staged; see [release status](./release-status.md) for the current
 cutover and signed-app acceptance gaps. Do not mistake a staged option or simulated test for the
 shipping default. The assisted paths must be retired as the new default is completed.

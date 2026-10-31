@@ -610,8 +610,8 @@ export interface ProviderAccount {
 }
 
 export interface ProviderSessionOptions {
-  /** Dynamic-tool-only sessions: supported by the Codex harness, with native execution disabled. */
-  readonly nativeTools?: 'disabled' | 'mac' | 'mac-background';
+  /** mac-hosted uses Sia tools with native execution disabled, regardless of foreground policy. */
+  readonly nativeTools?: 'disabled' | 'mac' | 'mac-hosted';
   /** Explicit desktop Mac mode: native commands run outside the workspace sandbox. */
   readonly nativeApproval?: 'ask' | 'auto';
   /** Replaces the coding persona for the native or window-based Mac assistant. */

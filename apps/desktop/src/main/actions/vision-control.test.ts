@@ -8,7 +8,7 @@ vi.mock('node:timers/promises', async (original) => ({
 }));
 afterEach(() => vi.restoreAllMocks());
 
-async function fixture() {
+async function fixture(background = true) {
   let capture: 'image' | 'missing' | 'throw' | 'protected' | 'private-link' = 'image';
   // Transport fixture only: these tests prove the observation/authority boundary, not visual skill.
   const png = Buffer.alloc(24);
@@ -54,7 +54,7 @@ async function fixture() {
     cua,
     visionOnly: true,
     macBrowserAccess: () => true,
-    macBackgroundControl: () => true,
+    macBackgroundControl: () => background,
     readWindowContext,
     readImageText,
   });
@@ -188,4 +188,23 @@ it('delivers visual coordinates in the background and returns another image with
   expect(result.data).toMatchObject({ control_mode: 'vision' });
   expect(JSON.stringify(result)).not.toContain('hidden-semantic-content');
   expect(JSON.stringify(result)).not.toContain('secret-element-token');
+});
+
+it('admits the same visual tools on screen without enabling semantic observation', async () => {
+  const h = await fixture(false);
+  const observed = await h.snapshot();
+  expect(observed.outcome).toBe('verified');
+  expect(observed.images).toHaveLength(1);
+  expect(observed.data).toMatchObject({ control_mode: 'vision' });
+  expect(JSON.stringify(observed)).not.toContain('hidden-semantic-content');
+  const result = await h.act(dataRecord(observed.data).snapshot_id, {
+    action: 'key',
+    value: 'Return',
+  });
+  expect(['refused', 'stale']).not.toContain(result.outcome);
+  expect(h.inputs.find((input) => input.tool === 'press_key')?.args.delivery_mode).toBe(
+    'foreground',
+  );
+  expect(h.readWindowContext).not.toHaveBeenCalled();
+  expect(h.readImageText).not.toHaveBeenCalled();
 });

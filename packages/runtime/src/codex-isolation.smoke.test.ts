@@ -4,7 +4,7 @@ import { CODEX_SUPPORTED_VERSIONS, CodexAppServerAdapter } from './providers/cod
 const realSmoke = process.env.SIA_CODEX_REAL_SMOKE === '1' ? it : it.skip;
 
 describe('Codex isolation smoke', () => {
-  realSmoke.each([undefined, 'disabled', 'mac', 'mac-background'] as const)(
+  realSmoke.each([undefined, 'disabled', 'mac', 'mac-hosted'] as const)(
     'retains ChatGPT auth while creating a verified ephemeral session (native tools: %s)',
     async (nativeTools) => {
       const candidate = process.env.SIA_CODEX_CANDIDATE_COMMAND;
@@ -51,7 +51,7 @@ describe('Codex isolation smoke', () => {
           instructions: 'Isolation smoke only. Do not start a turn.',
           tools: [],
           ...(nativeTools ? { nativeTools } : {}),
-          ...(nativeTools === 'mac' || nativeTools === 'mac-background'
+          ...(nativeTools === 'mac' || nativeTools === 'mac-hosted'
             ? {
                 nativeApproval: 'auto' as const,
                 baseInstructions: 'You are Sia. This is a no-turn configuration test.',

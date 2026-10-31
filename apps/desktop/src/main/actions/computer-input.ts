@@ -251,7 +251,8 @@ export class ComputerInput {
       typeof args.x === 'number' &&
       typeof args.y === 'number' &&
       ['click', 'drag', 'type', 'scroll'].includes(String(args.action));
-    const backgroundDelivery = this.ctx.macBrowserAccess() && args.delivery !== 'foreground';
+    const backgroundDelivery =
+      this.ctx.macBrowserAccess() && !this.ctx.foregroundDelivery(args);
     // An exact element lets type_text use the driver's semantic-only AX path.
     // A refused process-keyboard route does not forbid that path; the driver
     // still proves ancestry and refuses any unsafe keyboard fallback. Pixels
@@ -345,7 +346,7 @@ export class ComputerInput {
       window_id: binding.windowId,
       session: this.ctx.computer.session(request),
       delivery_mode: this.ctx.macBrowserAccess()
-        ? args.delivery === 'foreground'
+        ? this.ctx.foregroundDelivery(args)
           ? 'foreground'
           : 'background'
         : !address

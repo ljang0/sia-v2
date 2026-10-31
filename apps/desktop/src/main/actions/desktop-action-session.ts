@@ -241,7 +241,9 @@ export class DesktopActionSession implements ActionBackend {
     if (
       this.#ctx.macBrowserAccess() &&
       request.name !== 'memory_vault' &&
-      !macExecutionTools(this.#ctx.macBackgroundControl()).includes(request.name) &&
+      !macExecutionTools(
+        this.#ctx.macBackgroundControl() || this.#ctx.options.visionOnly,
+      ).includes(request.name) &&
       !(this.#ctx.macBackgroundControl() && request.name === 'browser_tabs')
     )
       return refused(

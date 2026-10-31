@@ -54,13 +54,20 @@ focus/setter fallback, protected-focus and new-context checks, and no clipboard 
 shortcuts. Unknown delivery consumes its authority without replay. Chromium checks cover the exact
 focus guard and selection/replacement, Tab and Enter. Semantic snapshot traversal remains internally,
 so this change does not establish latency improvement. This option is **not enabled in the shipping
-host yet**: bounded capture/protection timing, foreground runtime/tool
-isolation, model schemas and prompts, all-route regression checks and signed real-task acceptance
-must land before cutover. CI exposed new patch sources missing from the cache's diff check;
+host yet**. The staged runtime now uses the same hosted-tool boundary for visual on-screen and
+background turns, without native shell tools or the legacy runtime screen-context injection. Connected visual turns
+also disable provider-native tools and require the verified Codex harness boundary. The installed
+managed Codex 0.160.0 passed a no-turn hosted-session isolation probe; this is configuration evidence,
+not real-task acceptance.
+Visual tool schemas omit semantic references, setters, OCR and menu APIs; a concise visual prompt
+replaces the native/assisted recipe for that route. On-screen visual actions default to foreground
+delivery, and background policy stays enforced. Controller context/memory injection still needs an
+all-route review, followed by bounded capture/protection timing, production wiring and signed
+real-task acceptance before cutover. CI exposed new patch sources missing from the cache's diff check;
 that verification is corrected and passed twice against a fresh pinned upstream sparse checkout.
 Divergent and unexpected local source files remain refused without replacement.
 The current staged implementation passed `pnpm test:pilot`: build, formatting, lint, quality,
-types, native/shared checks, 1,910 desktop tests, 46 desktop end-to-end tests, 40 renderer tests
+types, native/shared checks, 1,916 desktop tests, 46 desktop end-to-end tests, 40 renderer tests
 and 72 Chromium/WebKit phone tests. These automated transport/authorization and UI checks are not
 evidence of visual task skill. Continue also retires obsolete Chrome setup markers from the
 previous execution while retaining its history. No new signed artifact contains these changes yet;

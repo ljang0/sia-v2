@@ -30,8 +30,10 @@ const MAC_BACKGROUND_TOOLS: readonly string[] = [
   'skill_run',
 ];
 
-export function macExecutionTools(background = false): readonly string[] {
-  return background ? [...MAC_EXECUTION_TOOLS, ...MAC_BACKGROUND_TOOLS] : MAC_EXECUTION_TOOLS;
+export function macExecutionTools(hostedControl = false): readonly string[] {
+  return hostedControl
+    ? [...MAC_EXECUTION_TOOLS, ...MAC_BACKGROUND_TOOLS]
+    : MAC_EXECUTION_TOOLS;
 }
 
 // Window control needs its own operating recipe. Foreground executes the pinned
