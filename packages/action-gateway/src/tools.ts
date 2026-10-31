@@ -6,7 +6,8 @@ import {
   OUTLOOK_FOLDERS,
   SCHEDULE_CADENCES,
   SCHEDULE_DAYS,
-  computerList,
+  computerListFiles,
+  computerMoveFile,
   computerReadFile,
   computerWriteFile,
   libraryList,
@@ -131,14 +132,14 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_list_files: {
     name: 'computer_list_files',
     description:
-      'List ordinary text/data files in this task’s workspace folder. Returns the workspace path and eligible top-level txt/md/csv/tsv/json/ics files. Hidden files, credentials, links and subdirectories are excluded.',
-    inputSchema: z.toJSONSchema(computerList),
+      'List ordinary UTF-8 txt/md/csv/tsv/json/ics files up to 256 KB and subfolders in the task workspace. Omit directory for its root; otherwise pass a relative directory. Returns root-relative names and file_details with bytes and sha256 revisions for moves. Hidden paths, credentials and links are excluded. Listing is not recursive; inspect subdirectories separately.',
+    inputSchema: z.toJSONSchema(computerListFiles),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },
   computer_read_file: {
     name: 'computer_read_file',
     description:
-      'Read one UTF-8 text/data file by its exact name in the task workspace, up to 256 KB. Returns the complete content, path and SHA-256 revision. Use fresh app evidence for account facts; old files do not replace current investigation.',
+      'Read one UTF-8 text/data file by its exact relative path in the task workspace, up to 256 KB. Returns the complete content, path and SHA-256 revision. Use fresh app evidence for account facts; old files do not replace current investigation.',
     inputSchema: z.toJSONSchema(computerReadFile),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },
@@ -147,6 +148,13 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
     description:
       'Create or edit a UTF-8 txt/md/csv/tsv/json/ics file in the task workspace without opening an app. An ICS file is saved only; it is not imported into a calendar or sent. Pass its name and complete text (up to 256 KB). To edit an existing file, first read it and pass its returned sha256 as expected_sha256; a changed revision is refused. Without expected_sha256, an existing file is never overwritten. Returns data.path, data.sha256 and data.text read back from disk. Verify the content before reporting success or returning output_file.',
     inputSchema: z.toJSONSchema(computerWriteFile),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  computer_move_file: {
+    name: 'computer_move_file',
+    description:
+      'Move or rename one ordinary UTF-8 txt/md/csv/tsv/json/ics file up to 256 KB within the task workspace without using Finder, clipboard or focus. Pass root-relative source and destination and the current expected_sha256 from list/read. Creates missing destination folders. Existing destinations are never overwritten; changed revisions and links are refused. Returns the verified destination path and unchanged SHA-256. If the outcome is uncertain, inspect both paths before continuing.',
+    inputSchema: z.toJSONSchema(computerMoveFile),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
   },
   assistant_library: {

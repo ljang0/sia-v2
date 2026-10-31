@@ -1,20 +1,15 @@
 # Useful work to try in Sia
 
-Latest candidate: **alpha.42**, exact source `c50782a`. Its signed setup fixed the missing direct-capture
-approval and real Finder screenshots now arrive. A fresh clipboard-free filing run still failed
-before moving files (about 84 seconds); all six hashes and the clipboard canary remained unchanged.
-Chrome reconnection failed with native `consent_not_settled`. Neither a completed clipboard-safe
-workflow nor parallel GUI use is accepted. See [exact evidence](./public-release.md).
-
 Use the exact signed candidate recorded in [release status](./release-status.md) and
-[artifact evidence](./public-release.md). Distribution is not approved. The examples below use
-actual public project documents and a real admitted model; they are not fake-service demos.
+[artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
+public project documents and a real admitted model; fake-service demos are separate.
 
-A later **engineering probe**, using the alpha.42 host with a locally patched native driver,
-recovered Chrome and completed the practical visitor-planning workflow below. It verified
-museum/transit facts, saved a feasible $45 itinerary with a rain alternative, and opened its
-preview while independent TextEdit work and the clipboard survived. It required one initial
-foreground-pause intervention, then 4m04s; this is not an exact signed-candidate or parallel-GUI pass.
+**Current evidence:** internal signed alpha.43 completed the visitor plan in 3m51s with checked
+sources, arithmetic and preview while independent TextEdit work and the clipboard survived.
+The overlapping Finder task created folders but moved none: background file drag needs the
+physical pointer. A file-tool recovery also failed because that build lacked file moves.
+Alpha.44 source adds a direct file route; its signed-app acceptance is still pending. Preserve
+those failures when recording a later success. Earlier version evidence remains in Git history.
 
 ## Start here
 
@@ -216,38 +211,17 @@ controlled lab, not ordinary-app acceptance; follow [manual acceptance](./manual
 for that separate gate. Never convert a blocked native run into a simulated pass. Keep prompts, transcripts, screenshots, timings and file hashes outside Git; retain failed
 attempts when a later retry succeeds. Only exact-candidate acceptance supports a release decision.
 
-## Alpha.39 real GUI attempts
+## Demo 5: organize the real review deliverables
 
-The signed candidate attempted a real-source browser comparison alongside Finder filing of six
-actual handoff documents. Neither completed. Finder left all input hashes unchanged and created no
-folders. The browser read Cua's documentation, then navigation/authorization failed; restarting Sia
-and reconnecting the same approved window did not restore reads. No report was saved. TextEdit
-text survived, but foreground ownership and clipboard preservation were not verified. These are
-failed acceptance attempts, not successful demos. Historical exact evidence remains in Git history and the private alpha.39 artifact folder.
+Use a selected task working folder containing the actual outputs from Demos 1–3 in an `Inbox`
+subfolder. Record their initial hashes. Do not treat a typed external path as a file access grant.
 
-## Alpha.40 real GUI results
+> Organize the six project deliverables in Inbox into Review packet, Planning and Evidence
+> subfolders, according to their contents. Keep their filenames and bytes unchanged, never
+> overwrite an existing file, and leave anything ambiguous in Inbox with an explanation.
+> Use the available file tools; do not use Finder drag, clipboard operations or foreground
+> control. Verify each destination and the remaining Inbox, and report exactly what moved.
 
-The same useful browser comparison passed in one fresh conversation: three official sources,
-a saved 751-word report, verified readback and a working preview, in about 120 seconds. The
-operator prepared a new ordinary Chrome window in the existing profile before the request; no
-corrective prompt followed. TextEdit was confirmed active during browser input and its typed
-canary survived. Both the driver and window setup changed, so the cause of recovery is unproved.
-
-Finder filing still failed after an operator-assisted resume. Navigation and folder creation
-worked, but exact-field rename and pixel typing did not. Six input files remained unchanged in
-Inbox and one empty untitled folder was left behind. The two requests overlapped, but their GUI
-input did not; do not present this as concurrent computer-use acceptance. Clipboard preservation
-and a second fresh-conversation run remain open. See [exact results](./public-release.md#prior-alpha40-browser-result).
-
-## Alpha.41 real filing and recovery
-
-Finder organized all six actual project deliverables into the requested 3/2/1 folders, left Inbox
-empty, and passed independent hash checks without a corrective prompt. TextEdit was confirmed
-active and foreground typing survived. The app reported 5m27s / 67 steps with six problem steps;
-do not call that fast or frictionless. Clipboard preservation failed: copying/moving in Finder
-replaced the canary with three filenames. A fresh run that forbade shared-clipboard commands stopped before filing: requested snapshots
-supplied no usable pixel targets, and all six input files remained unchanged.
-
-Browser research stopped before source reading. The inline connection control showed the picker,
-but the approved public window still failed after Chrome consent. There was no overlapping browser
-input and no research report. See [exact results](./public-release.md#alpha41-real-gui-results).
+Independently compare every source/destination hash and count. Run this alongside the browser
+planning task while typing in a third app. This checks practical background file work, not
+simultaneous GUI input in two apps. Native-app GUI concurrency still needs its separate acceptance.

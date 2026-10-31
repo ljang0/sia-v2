@@ -53,20 +53,18 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Alpha.42 is signed and notarized, with full local gates and exact-source CI passing. It repairs
-missing direct-capture setup and provides real Finder screenshots, but a fresh clipboard-free
-filing task still stopped before moving files. Chrome recovery reports a native consent timeout.
-Alpha.41 previously filed six real documents with matching hashes in 5m27s, but changed the shared
-clipboard. Alpha.40 completed one sourced browser report with TextEdit active; alpha.38 produced
-five checked document/planning outputs concurrently. These results support technical review,
-not general desktop readiness. Reliable filing, clipboard preservation, Chrome recovery,
-repeatability, parallel GUI control, clean macOS-account setup/provider retry, and physical
-voice/lock/sleep acceptance remain open. Background browser new-tab creation is unsupported.
-A subsequent native-driver engineering probe recovered Chrome and completed a useful visitor
-plan from official museum/transit sources while TextEdit stayed active; saved output, arithmetic,
-preview and clipboard were independently checked. That patch is being prepared for a reproducible
-candidate build and still needs repeat/restart and simultaneous GUI acceptance.
-Distribution remains blocked on these gates and the owner's release decision.
+The latest internal signed alpha.43 build completed a sourced CMU visitor plan in 3m51s.
+Its facts, budget arithmetic, saved preview, independent TextEdit typing and clipboard preservation
+were checked. The simultaneous filing task failed: macOS file drag-and-drop requires the physical
+pointer, and Sia lacked a workspace file-move tool. Alpha.44 source adds verified, non-overwriting
+file moves and fixes a preview animation that kept running while paused; signed-app acceptance is
+pending. Alpha.42 remains the latest notarized candidate, not an accepted distribution build.
+
+Distribution remains blocked on repeatable useful workflows, simultaneous native/browser work,
+restart/reconnect behavior, responsiveness and the remaining clean-account and physical acceptance
+checks. Background browser new-tab creation and background Finder file drag are unsupported.
+See the current evidence before rehearsing or making a capability claim. These results support a
+technical review, not general desktop readiness or the owner's final distribution decision.
 The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
 owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.
 

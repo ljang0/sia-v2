@@ -1,3 +1,4 @@
+import { workspaceFileMover } from './mac/workspace-file-move.js';
 import { BrowserWindowService } from './mac/browser-window.js';
 import { backgroundControlUnavailable } from './controller/computer-access.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
@@ -690,6 +691,11 @@ async function performApplicationCreation(): Promise<void> {
     rendererLoad = loadRenderer(window, rendererDevUrl);
     rendererLoad.catch(() => undefined);
     const actionBackend = new DesktopActionBackend({
+      workspaceFileMove: workspaceFileMover(
+        app.isPackaged
+          ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
+          : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
+      ),
       computerUnavailable: async () =>
         backgroundControlUnavailable(await computer.permissions()),
       macAutomation: runMacAutomation,

@@ -524,11 +524,15 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   account identifiers and authentication controls. This refusal returns no supplemental text, OCR,
   images or input refs, and the fresh-read revocation prevents reuse of an older ordinary grant.
   Literal password discussion in otherwise ordinary document prose is not a structural field marker.
-  Background also exposes `computer_list_files`, `computer_read_file` and `computer_write_file`
+  Background also exposes `computer_list_files`, `computer_read_file`, `computer_write_file` and `computer_move_file`
   through ActionGateway. They read bounded UTF-8 data files and create new txt/md/csv/tsv/json
-  reports in the host-pinned task workspace. Updating an existing file requires the SHA-256 from
+  reports in the host-pinned task workspace. Ordinary subfolders are supported.
+  `computer_move_file` uses the signed native helper’s exclusive rename with a current SHA-256,
+  creates destination folders, never overwrites and verifies unchanged bytes at the new path.
+  File operations stay within ordinary UTF-8 data files up to 256 KB; they do not use Finder,
+  clipboard or foreground input. Source/destination operations share path locks across turns. Updating an existing file requires the SHA-256 from
   its latest read; stale revisions are refused, and concurrent Sia writes are serialized. Creation
-  never replaces an existing file. They cannot traverse subdirectories, follow file links, read
+  never replaces an existing file. They cannot leave the pinned workspace, follow file links, read
   hidden/credential files or open apps. Writes return disk readback and a
   SHA-256 digest; arbitrary filesystem and native script operations still use the native route.
   Both Mac routes record the structured

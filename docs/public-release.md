@@ -46,7 +46,9 @@ an inline gradient animation style that overrode pause CSS. The regression fails
 and passes afterward; live package performance remains to be rechecked. Other subsequent changes
 preserve uncertainty after partial native drags and explain the unsupported background filing
 route instead of encouraging retries. Their focused 119-unit and renderer regression checks
-passed; final exact-source and signed-artifact gates remain pending.
+passed. The full source pilot gate on `a25bd7b` then passed 1,823 desktop units, 46 Electron,
+32 renderer, 72 phone-browser and 72 gateway tests. Alpha.44 now adds bounded workspace file moves;
+its source and signed-artifact gates remain pending.
 
 ## Exact alpha.42 artifact and live result
 

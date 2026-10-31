@@ -29,11 +29,11 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.42 exact-source full pilot gate passed: 1,814 desktop unit, 46 Electron, 31 renderer, 72 phone-browser and 72 action-gateway tests. [CI](https://github.com/ljang0/sia-v2/actions/runs/41171344097) passed. | Further native input/reconnect work requires new exact-source acceptance. |
+| Source | Alpha.43 source `a25bd7b` passed the full local pilot gate: 1,823 desktop unit, 46 Electron, 32 renderer, 72 phone-browser and 72 gateway tests. | Alpha.44 file-tool changes require new exact-source gates and signed-app acceptance. |
 | Signed Mac package | Alpha.42 from `c50782a873455719ee12bc931248aa0ad4f5c1fd` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Live acceptance is failing; signature success is not product readiness. |
 | Signed app continuity | Alpha.42 retained the QA profile, settings and history without a new Keychain prompt. | Physical and clean-account acceptance. |
-| Everyday usefulness | Alpha.38 completed two real document tasks concurrently with five checked previews. Alpha.41 filed all six real documents correctly with matching hashes in 5m27s; six steps needed recovery. Alpha.42’s clipboard-free rerun got real screenshots but failed before filing. | Fix the observed clipboard overwrite; repeat useful workflows and verify parallel GUI results and responsiveness. |
-| Browser | Alpha.40 read three official sources, saved a checked 751-word comparison and opened its preview in about 120 seconds with TextEdit active. | Alpha.41 stopped before reading sources; alpha.42 recovery reports native consent_not_settled. Inline recovery showed the picker, but the approved public window still failed to reconnect after Chrome consent. Fix recovery and repeat real work. Background new-tab creation remains unsupported. |
+| Everyday usefulness | Alpha.38 completed two real document tasks concurrently with five checked previews. Alpha.41 filed all six real documents correctly with matching hashes in 5m27s; six steps needed recovery. Alpha.42’s clipboard-free rerun got real screenshots but failed before filing. | Alpha.43 preserves the clipboard in the planning run but Finder filing fails. Verify the new file route, repeated useful workflows, parallel GUI results and responsiveness. |
+| Browser | Alpha.40 read three official sources, saved a checked 751-word comparison and opened its preview in about 120 seconds with TextEdit active. | Alpha.43 reconnects the approved window and completes the real-source plan. Restart still required choosing the window; repeat/restart and parallel GUI acceptance remain open. Background new-tab creation remains unsupported. |
 | New recipient | Alpha.36 with an empty app profile showed only email sign-in, with no private app content. | Clean macOS-account signup, permissions, provider login cancel/retry, lock/sleep and voice acceptance. An empty profile is not a clean OS account; no fresh account or second Mac is currently available. |
 | Cloud feedback | Ratings/account deletion deployed; a synthetic authenticated rating reached the report. October 30: 18 alarms OK with actions enabled, five Lambdas Active/Successful, anonymous catalog/report/release requests return 401. | Recheck if configuration changes before invitations. |
 | iPhone follow-on | Build 31 is Ready to Test in internal Pilot QA; native tests, signed archive and Apple processing passed. | Deferred from this Mac-first handoff. Physical-device checks and external beta review remain. |
@@ -58,8 +58,7 @@ QA copy, not the notarized alpha.42 artifact or an alpha.43 release. See [exact 
 
 Existing changes reserve individual physical windows, queue same-window work, and acquire GUI
 ownership only when a task first uses it. Document-only concurrency passed on alpha.38; two
-simultaneous native/browser tasks still need to complete on the exact candidate. The latest
-Finder probe failed with `window_not_key` while two Finder windows existed.
+simultaneous native/browser tasks still need to complete on the exact candidate. The current Finder failure is a native file-drag limitation; window-level locking does not fix it.
 
 The packaged alpha.43 rerun recovered Chrome and completed the practical visitor plan in 3m51s
 without a browser intervention, alongside the Finder task. The plan's facts, budget, saved preview,
@@ -68,7 +67,14 @@ native macOS file drag-and-drop requires the hardware pointer. A follow-up permi
 also failed because the background tools cannot traverse folders or move files. This is a product
 gap, not a successful parallel GUI demo. Later source fixes explain the drag limitation, preserve
 uncertainty after a partial drag, and stop an inline gradient animation from overriding pause
-styles. Those fixes passed focused regressions; final package acceptance remains pending.
+styles. Those fixes passed the full source pilot gate; final package acceptance remains pending.
+
+Alpha.44 source adds listing/reading within ordinary subfolders and a `computer_move_file` action.
+The existing signed native helper performs an exclusive rename, checks the observed revision and
+reads back unchanged bytes. It never overwrites a destination or touches the clipboard. Gateway
+checks use real temporary files and the compiled native helper, including competing moves and
+edits. The capability is limited to ordinary UTF-8 txt/md/csv/tsv/json/ics files up to 256 KB within
+the task’s working folder. This implementation is not yet a signed-app usefulness pass.
 
 Default Mac setup includes Chrome with a deliberate opt-out. **Connect Chrome & continue**
 preserves the saved request. Existing approval is reused only for the same process/window;

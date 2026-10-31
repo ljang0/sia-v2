@@ -143,11 +143,26 @@ const computerAction = z
 
 const browserTabs = z.object({}).strict();
 
-const workspaceFileName = z
+const workspaceRelativePath = z
   .string()
   .min(1)
-  .max(180)
-  .regex(/^[^./\\\x00-\x1f][^/\\\x00-\x1f]*\.(?:txt|md|csv|tsv|json|ics)$/i);
+  .max(1800)
+  .regex(
+    /^[^./\\:\x00-\x1f\x7f][^/\\:\x00-\x1f\x7f]*(?:\/[^./\\:\x00-\x1f\x7f][^/\\:\x00-\x1f\x7f]*)*$/,
+  );
+const workspaceFileName = workspaceRelativePath.regex(/\.(?:txt|md|csv|tsv|json|ics)$/i);
+
+export const computerListFiles = z
+  .object({ directory: workspaceRelativePath.optional() })
+  .strict();
+
+export const computerMoveFile = z
+  .object({
+    source: workspaceFileName,
+    destination: workspaceFileName,
+    expected_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
 
 export const computerReadFile = z.object({ name: workspaceFileName }).strict();
 
@@ -886,9 +901,10 @@ export const actionInputSchemas = {
   computer_open_url: computerOpenUrl,
   computer_snapshot: computerSnapshot,
   computer_action: computerAction,
-  computer_list_files: computerList,
+  computer_list_files: computerListFiles,
   computer_read_file: computerReadFile,
   computer_write_file: computerWriteFile,
+  computer_move_file: computerMoveFile,
   browser_tabs: browserTabs,
   browser_snapshot: browserSnapshot,
   browser_navigate: browserNavigate,

@@ -243,7 +243,8 @@ export class DesktopActionSession implements ActionBackend {
         case 'computer_list_files':
         case 'computer_read_file':
         case 'computer_write_file':
-          return await workspaceFileAction(request);
+        case 'computer_move_file':
+          return await workspaceFileAction(request, this.#ctx.options.workspaceFileMove);
         case 'assistant_library':
         case 'task_checkpoint':
         case 'memory_learn':

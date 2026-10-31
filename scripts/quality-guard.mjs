@@ -25,6 +25,7 @@ const expectedActionTools = [
   'computer_list_files',
   'computer_read_file',
   'computer_write_file',
+  'computer_move_file',
   'browser_tabs',
   'browser_snapshot',
   'browser_navigate',
