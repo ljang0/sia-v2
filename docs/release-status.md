@@ -1,10 +1,10 @@
 # Release status
 
-Updated October 31, 2026. **Distribution is not ready.** Universal alpha.59 passed signing,
-notarization and final-DMG installation verification. Its repaired browser clicks worked in a
-real outing, but Chrome restart setup and recovery from a restaurant network-error page still
-failed; no itinerary was saved. Native TextEdit Save and exact-artifact uninterrupted workflows
-remain open. The last published Mac pilot is alpha.24; no new distribution is authorized.
+Updated October 31, 2026. **Distribution is not ready.** Universal alpha.60 passed signing,
+notarization and final-DMG installation verification, but its native TextEdit brief stopped at Save.
+A parent-document diagnostic also failed. Alpha.59 corrected browser clicks worked; Chrome restart
+setup and network-error recovery still failed without an itinerary. Exact-artifact uninterrupted
+workflows remain open. The last published Mac pilot is alpha.24; no new distribution is authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
 is the initially admitted engine. The [Arena proposal](./arena-proposal.md) describes a bounded
@@ -38,11 +38,9 @@ The [architecture walkthrough](./architecture.md#reviewing-the-computer-use-path
 the [native patch guide](../apps/desktop/native/cua/README.md) covers the pinned driver and regressions.
 Remaining assisted branches are internal test seams to retire after visual cutover acceptance.
 
-Alpha.59 passed the full local pilot gate: 1,950 desktop, 249 native browser, 46 Electron,
-40 renderer and 72 phone-browser tests, plus build, static and other native/shared checks. Signed
-universal package and mounted-DMG installation verification passed. The restricted coordinate
-regression fails with the original allowlist lookup and passes with the correction; a live
-Visit-menu click confirms that fix. Exact-source CI was still running at the last check.
+Alpha.59's restricted coordinate regression failed with the original allowlist lookup and passed
+with the correction; a live Visit-menu click confirmed that fix. The artifact record retains the
+prior package, gate and intervention evidence.
 
 The fresh signed outing needed Chrome reconnection, then failed after a restaurant network timeout.
 Continue and a diagnostic restart did not restore reading of the settled error page; diagnostics
@@ -57,8 +55,11 @@ parent document, while keyboard priming still compared the raw sheet ID. The cor
 matching window/element ownership and retains raw IDs for restoration. Thirteen key-focus
 regressions pass, including a new sheet case that failed with the old comparison. The full local
 pilot gate passed: 1,950 desktop, 249 native browser, 46 Electron, 40 renderer and 72 phone-browser
-tests, plus build/static/shared checks and 12 exact-target ownership tests. Signing and live
-Save/reopen acceptance are pending; alpha.59 remains the installed artifact.
+tests, plus build/static/shared checks and 12 exact-target ownership tests. The signed universal
+artifact is installed and verified. Live Save/reopen failed: the new Save panel was AX-unresolved,
+and a recorded parent-document diagnostic returned needs_foreground. The source regression does
+not establish a live fix. Its 444-word brief was preserved by operator CUA, not saved in the
+requested workspace by Sia; all interventions are in the artifact record.
 
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
@@ -78,8 +79,8 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
 | Source | Alpha.60 full local pilot gate passed, including the native Save-sheet ownership regressions. The alpha.57 artifact source passed exact-source CI, including universal package verification. | Latest candidate exact-source CI and successful exact-artifact real-task repeats. |
-| Signed package | Universal vision-only alpha.59 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Repeat failed real workflows after recovery fixes. |
-| Useful work | Alpha.57 saved a source-checked three-dinner plan and consolidated groceries after recovery; previews loaded. Native TextEdit Save failed. | Unattended browser recovery, native Save/reopen and the sourced outing (alpha.59 stopped on network-error recovery). |
+| Signed package | Universal vision-only alpha.60 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Repeat failed real workflows after recovery fixes. |
+| Useful work | Alpha.57 saved a source-checked three-dinner plan and consolidated groceries after recovery; previews loaded. Alpha.60 typed a real reviewer brief, but Save and the parent-document diagnostic failed. | Unattended browser recovery, native Save/reopen and the sourced outing (alpha.59 stopped on network-error recovery). |
 | Background/concurrency | Alpha.59 delivered browser clicks/scrolls while separate supervisor-typed notes remained intact; ten CUA navigation samples median 946.5 ms / worst 1,199 ms. Earlier assisted-mode Stop/recovery evidence is retained in history. | Two completed Sia tasks, contention, Stop/recovery, focus and clipboard preservation on the final artifact. |
 | Setup/recovery | Alpha.59 resumed the saved request after explicit connection; relaunch still required setup and one prompt-dismissal attempt failed. | Reliable restart/expiry and prompt dismissal; clean-account setup. No fresh account or second Mac is available. |
 | Physical use | Existing grants work on the QA Mac. | Keep-awake, lock/sleep and voice. This Mac refuses Sia and independent caffeinate display-awake assertions. |

@@ -1,65 +1,68 @@
 # Distribution acceptance record
 
-Updated October 31, 2026. **Distribution is not ready.** Universal alpha.59 passed signed-package
-and final-DMG installation verification. Its real outing confirms the repaired background click
-path, but restart setup and recovery from a restaurant network error still failed. No itinerary
-was saved. Nothing new was published; the last published Mac pilot is alpha.24.
+Updated October 31, 2026. **Distribution is not ready.** Universal alpha.60 passed signed-package
+and final-DMG installation verification. Its real native document task reached Save but failed;
+a parent-document diagnostic also failed. Alpha.59 browser recovery and restart issues remain open.
+Nothing new was published; the last published Mac pilot is alpha.24.
 
-## Exact universal alpha.59 artifact
+## Exact universal alpha.60 artifact
 
-Source: `820f45aad9177e0d3ec5f189903037e4e06bbbe2`. Developer ID signatures, app/DMG notarization,
+Source: `b22d9c279eea120118d73083aa27281964dc727f`. Developer ID signatures, app/DMG notarization,
 stapling, Gatekeeper and packaged runtime checks passed. The app was installed from the read-only
-mounted final DMG and its ASAR matched. Packaging never published. Alpha.58 is retained as a backup.
+mounted final DMG and its ASAR matched. Packaging never published. Alpha.59 is retained as a backup.
 
 | Artifact       | SHA-256                                                            |
 | -------------- | ------------------------------------------------------------------ |
-| Universal DMG  | `dd2c835780963adce4c520d91e1a8116ffbfedcd1c1c6c5fc7456a69cbc2e6af` |
-| Universal ZIP  | `d48f85ed7c8eec79972eb8d257e36b3e69b94c098a4daad07d4d3a52340d19b7` |
-| Installed ASAR | `112c8c1302df80b4b0aad976d6f888378510ee67d6508dc019262a2023c90525` |
+| Universal DMG  | `af33f7157412d3e8b4befdd31f1360dd42a87ba58cc44b16f48a1dad64839ae1` |
+| Universal ZIP  | `75a97eac0e07f475a78a8e0518e031387c05f909e3b512fd16ce1b5b2c32afeb` |
+| Installed ASAR | `15bf1a235112be62631900e01f401bdf9991cd6295d12caa13bc6e85520a285e` |
 
 The exact source passed `pnpm test:pilot`: 1,950 desktop tests, 249 native browser tests,
 46 Electron E2E, 40 renderer and 72 Chromium/WebKit phone tests, plus build, format, lint,
-quality, types and other native/shared checks. Skips are retained in the gate log.
-[Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41239134811) was still running
-at the last check. Automated checks do not establish real task skill.
+quality, types and other native/shared checks. The gate now includes 12 exact-target ownership
+and 13 key-focus regressions. Skips are retained in the log. [Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41242349687)
+was still running at the last check.
+Automated checks do not establish real task skill.
 
-## Real outing and recovery
+## Native document and Save recovery
 
-A fresh agent used GPT-6-Astra through the ChatGPT plan, vision-only background Mac control and a
-new workspace. The unchanged request asked for a solo Pittsburgh outing on November 7, 10 a.m.–
-6 p.m., starting/ending near CMU, within $60: inspect official attraction, restaurant-menu and PRT
-sources; provide budget arithmetic and a weather fallback; save/read back `pittsburgh-outing.md`.
-No booking, purchase or message was authorized or performed.
+A fresh agent used GPT-6-Astra through the ChatGPT plan and vision-only background Mac control.
+The real proposal and current release evidence were supplied as a text attachment. The task was
+to prepare a 350–500-word technical-review brief in a new TextEdit document, save it in the agent
+workspace, close it, reopen it and visually verify its filename and complete contents.
 
-- At 20:41:57 UTC the fresh request began. After relaunch, existing Chrome access was unavailable.
-  The operator used Connect Chrome & continue and selected the previously approved public window.
-  Sia resumed the preserved request automatically. This is an intervention, not an uninterrupted pass.
-- At 20:43:09 the Visit-menu click that failed in alpha.58 was delivered in the background; the
-  next page was the museum's visitor information. Further clicks and scrolling worked. Sia read
-  Saturday hours and $25 admission from official pages. A refused ticket link did not end research:
-  the model continued through another official page without a rescue prompt.
-- Navigation to the restaurant site lost its acknowledgement; two bounded observations timed out.
-  At 20:45:20 the task stopped without an itinerary. Supervisor CUA found Chrome's
-  `ERR_CONNECTION_TIMED_OUT` page. A Continue attempt also failed to observe that settled page.
-- Restarting the same signed build with content-free driver diagnostics did not repair the read.
-  Diagnostics identify `Page.getFrameTree` as the timed-out command. During reconnection, Sia
-  reported accepting Chrome's prompt while it remained open; supervisor CUA accepted the already
-  approved prompt, then retried the exact public window. Setup completed, but page reads still
-  timed out. The operator finally returned the disposable tab to the previous museum page.
+- The request began at 21:21:27 UTC. Background keys created a new document, selected plain text
+  and entered the brief. After opening Save, the host reported a separate Save window and told
+  the model to inspect it. That snapshot had `ax_unresolved` with no available input route.
+  Sia stopped at 21:22:38, leaving the requested file absent. It did not claim completion.
+- A recorded supervisor follow-up asked for a fresh observation of the original document,
+  because attached sheets can be owned by that document. After reacquiring the expired turn grant,
+  its screenshot was available, but Cmd+A returned `needs_foreground` without attempting input.
+  The diagnostic stopped at 21:24:09. This intervention did not establish a live fix.
+- After both attempts ended, supervisor CUA selected the QA document to preserve the draft.
+  A click intended for Cancel instead activated Save after CUA indices changed. It saved
+  `Untitled 3.txt` in the previously selected alpha.58 evidence folder. That operator-created
+  file was retained and copied into alpha.60 evidence; it is not the requested Sia deliverable.
 
-The runtime preserved uncertainty and did not replay the failed navigation. It did not complete
-the requested work. Browser network-error recovery and Chrome setup remain release blockers.
-Private receipts, exact prompts, original traces, screenshots and diagnostics are in
-`alpha59-artifacts/real-work` and its parent artifact directory. The report's absence was checked
-independently; no operator-written itinerary substitutes for it.
+The preserved brief has 444 words and accurately keeps distribution on hold. The requested
+workspace file remains absent; Save/close/reopen acceptance failed. The source ownership change
+passed a regression that failed under the old comparison, but live sheet focus remains unresolved.
+The new-window guidance also fails to explain the parent-document route. Do not remove focus or
+ownership checks to make this case pass.
 
-## Responsiveness and coexistence
+Private `alpha60-artifacts` holds exact package/install receipts, gate logs, the source prompt,
+original trace reference, `native-result.json`, screenshots and `operator-preserved-native-brief.txt`.
+The observer read existing alpha.59 notes unchanged; this does not establish a concurrent-task pass.
 
-While the browser task ran, supervisor CUA typed a separate 239-character TextEdit note and
-verified the full text remained intact. Ten agent-navigation interactions measured median
-946.5 ms and worst 1,199 ms for click plus accessibility observation, including CUA overhead.
-These samples do not establish renderer-only latency, clipboard/focus preservation, or two
-successful concurrent Sia tasks. Those checks remain required.
+## Browser evidence retained from alpha.59
+
+The [alpha.59 record](https://github.com/ljang0/sia-v2/blob/b22d9c279eea120118d73083aa27281964dc727f/docs/public-release.md)
+retains its exact hashes, outing timeline and interventions. Corrected Visit-menu clicks and
+scrolling worked, but the outing failed on a restaurant network-error page. Continue and restart
+still timed out on `Page.getFrameTree`; one approved Chrome setup prompt also failed to dismiss.
+No itinerary was saved. Ten navigation samples measured median 946.5 ms / worst 1,199 ms including
+CUA overhead, and separate 239-character notes stayed intact. These observations do not establish
+renderer-only latency, clipboard/focus preservation or two completed concurrent Sia tasks.
 
 ## Prior evidence and remaining gates
 

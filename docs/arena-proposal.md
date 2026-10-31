@@ -53,11 +53,11 @@ independently; count operator rescue and failed attempts rather than accepting c
 
 ## Current evidence and remaining work
 
-Signed universal alpha.59 passed signing, notarization, installation verification and the full
-local pilot gate. Its repaired background browser clicks worked in a real outing; Chrome setup
-and recovery from a restaurant network error still prevented completion. A prior visual meal
-plan produced independently checked files after operator recovery. Native TextEdit Save remains
-unresolved. These are useful failure records, not unattended acceptance passes.
+Signed universal alpha.60 passed signing, notarization, installation verification and the full
+local pilot gate. It typed a real 444-word reviewer brief, but Save and a parent-document recovery
+diagnostic failed. Alpha.59 background browser clicks worked; Chrome setup and restaurant
+network-error recovery still prevented an outing plan. A prior visual meal plan produced checked
+files after operator recovery. These are failure records, not unattended acceptance passes.
 
 Exact-artifact workflow repeats, concurrency, Stop/recovery, clipboard, restart/expiry and physical
 acceptance remain open. A fresh Mac account is currently unavailable. Background new tabs and
