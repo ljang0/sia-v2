@@ -4,15 +4,12 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
 public project documents and a real admitted model; fake-service demos are separate.
 
-**Current evidence:** internal signed arm64 alpha.56 completed the dinner/grocery and outing
-plans below with independently checked sources, quantities, budget and previews. Native TextEdit
-work progressed during slow browser observation; Stop during Save/readback and read-only recovery
-preserved completed work and browser access. Initial browser timeouts recovered automatically.
-One explicit Chrome setup was required after relaunch; the outing needed no operator correction.
-Full local checks and universal notarization passed; the universal repeat needed operator browser
-recovery. These are assisted DOM/accessibility runs. The owner now requires vision-only control
-throughout Sia, so every scenario needs a new signed visual-control repeat, including clipboard,
-restart/expiry and physical acceptance. The linked record retains failures and interventions.
+**Current evidence:** signed universal alpha.58 passed package verification, but its fresh outing
+failed on browser clicks. The investigation reproduced a native command-policy defect; alpha.59
+source corrects it and still needs signed live acceptance. Alpha.57 produced checked dinner/grocery
+files after operator recovery; native TextEdit Save failed. Earlier alpha.56 successes used
+DOM/accessibility assistance and do not validate the vision-only default. Every selected demo
+needs two fresh signed runs, with failures and interventions retained in the linked record.
 
 ## Start here
 
@@ -33,8 +30,9 @@ restart/expiry and physical acceptance. The linked record retains failures and i
 Chrome connection is part of default Mac setup, with a deliberate opt-out. Choosing a window
 authorizes its explicit connection setup, including the exact Chrome prompt. macOS grants remain
 person-owned. Existing profiles can use the conversation's
-**Connect Chrome & continue** control when the host reports missing browser access. Alpha.56 verified explicit
-connection and request resumption; restart/expiry and final-candidate repeats remain required.
+**Connect Chrome & continue** control when the host reports missing browser access. Alpha.58 verified explicit
+connection and request resumption after relaunch, but did not reuse access automatically.
+Restart/expiry and final-candidate repeats remain required.
 
 ## Demo 1: prepare a reviewer packet
 
@@ -49,7 +47,8 @@ Attach [README](../README.md), [Arena proposal](./arena-proposal.md),
 > Mac app, an actual ChatGPT plan, and useful work on these public documents. Include a complete
 > copyable task prompt and output checks. Keep fake-service developer setup in a separate optional
 > note. Prioritize unresolved decisions without inventing agreements or passed tests. Use portable
-> source links to https://github.com/ljang0/sia-v2/blob/main/. Read back every saved file and link
+> GitHub source links pinned to the revision in the artifact evidence; do not imply main contains
+> unmerged changes. Read back every saved file and link
 > all three. Do not modify source files, publish anything, or contact anyone.
 
 Check the exact version/hash against the attached evidence; verify every factual claim and linked

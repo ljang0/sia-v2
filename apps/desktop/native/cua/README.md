@@ -83,6 +83,12 @@ rewrite the page or expose the hit node. Unknown checks refuse before input. The
 admits `DOM.getNodeForLocation` for this host-side check. A drag checks both endpoints. JavaScript
 may still cause unexpected focus changes, so post-input checks remain necessary.
 
+Signed alpha.58 exposed an allowlist lookup defect: `DOM.getNodeForLocation` was declared out of
+sort order, so binary search rejected it before Chrome received the request. The policy now uses
+set membership over the same reviewed commands. A source-extracted reproduction failed before
+the change; regression checks cover every declared method and coordinate input on a restricted
+existing-profile socket. The earlier unrestricted fixtures could not detect this failure.
+
 These transport regressions do not prove visual task completion or background reliability in the
 signed app. See `docs/release-status.md` for the uncompleted default cutover and live acceptance.
 

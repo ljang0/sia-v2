@@ -1,83 +1,68 @@
-# Computer Use Arena distribution proposal
+# Computer Use Arena: a Mac pilot with Sia
 
-Proposed partnership between Sia and Arena. Prepared for technical review, October 31, 2026.
+Draft for Arena technical review · October 31, 2026 · Not approved for distribution
 
-Sia proposes a small invited pilot that lets people evaluate AI by completing real tasks on
-their Macs. Arena would help select models, define the evaluation and recruit the initial
-cohort. Sia would provide the signed desktop app, computer-use integration and task feedback.
-The first decision is whether to run a joint technical review and bounded pilot; this is not
-an announcement of an Arena partnership or a request for unrestricted distribution.
+Sia proposes a small invited pilot for evaluating agents on useful Mac tasks: researching a plan,
+preparing documents and working across desktop apps. Sia supplies the client and computer-use
+integration; Arena would help choose models, evaluation design and the initial cohort. The first
+ask is a joint technical review and task rehearsal, followed by a bounded pilot if acceptance passes.
 
-The owner has selected vision-only computer use as Sia's default: the model observes screenshots
-and chooses pointer/keyboard actions. That migration is in progress. Current alpha.56 evidence
-uses DOM/accessibility assistance and must not be presented as visual-agent evaluation results.
-Release acceptance will repeat useful personal-assistant and concurrent tasks on the exact signed
-vision-only build before an invited pilot. Explicit file/connector tools must be recorded separately
-from visual interactions so reviewers can understand what each run actually tested.
+Arena's [Agent Mode](https://help.arena.ai/articles/5432423882-how-to-use-agent-mode) already measures
+multi-step agent work. Sia's proposed addition is a personal Mac execution surface, where the
+person can keep working while the agent uses an authorized browser or desktop window.
 
-## The experience
+## What the reviewer gets
 
-Install Sia, sign in, choose an admitted model and ask it to complete a task. Sia works with
-local files and Mac apps, shows progress, and supports stopping a task. Afterward, the person
-rates the result and can add a reason or optional comment. Start the pilot with explicit
-action confirmations and disposable tasks; expand access only after acceptance.
+- A Mac-first app for macOS 14+, with sign-in, guided permission setup, visible task progress,
+  Stop and result feedback. iPhone follows separately.
+- Vision-only computer control by default: screenshots in, pointer/keyboard actions out. Explicit
+  file and connector tools are recorded separately. Background use and simultaneous tasks must
+  pass the real-work gate before handoff.
+- A repository that runs with fake services for UI review without cloud credentials or model spend.
+  The [README](../README.md) covers setup; the [architecture walkthrough](./architecture.md#reviewing-the-computer-use-path)
+  traces model request → authorization → driver → result and names each module's owner.
+- Once verified, the signed universal installer, checksums, a short [demo guide](./demo.md) and an
+  acceptance record containing outputs, interventions, timings and failures.
 
-The owner selected a Mac-first handoff, with iPhone following later. The proposed first cohort
-uses macOS 14+ and one admitted engine, Codex App Server. A sponsor
-can supply compatible hosted models through Sia's existing relay; each model still needs a
-live compatibility check. The iPhone companion and additional engines have separate acceptance
-gates. A reviewer can explore the UI with fake services without cloud credentials or model spend.
+Codex App Server is the initially admitted engine. Compatible sponsored models can use the existing
+[model relay](./arena-model-harness.md), subject to a live compatibility check. Additional engines
+are not part of the first distribution commitment.
 
-## What Arena would learn
+## Evaluation contract
 
-Feedback is tied to the exact model and engine, task outcome, duration, tool-step count, and
-whether computer or browser tools were used. The aggregate report groups these by model and
-engine. Rating payloads exclude prompts, replies, files and screenshots; users preview optional
-comments before sending them. Research trace collection requires separate consent and approval.
+Sia currently supports **pick and rate**: the person chooses a visible model. Feedback records the
+model/engine, outcome, duration and tool-step count. Ratings exclude prompts, replies, files and
+screenshots; optional comments are previewed before submission. Trace sharing requires separate
+consent and release approval. See the [ratings contract](./arena-ratings.md).
 
-This is **pick and rate**: people see and choose the model. Self-selection and different task
-difficulty limit comparisons, so these ratings are descriptive feedback, not a blind battle
-or a causal model ranking. For the initial evaluation, agree on a shared disposable task set,
-fresh agent/workspace state and a fixed learning configuration. Report observed completion
-separately from a model's claim that it finished.
+These self-selected sessions provide descriptive product feedback, not a blind comparison or
+causal ranking. Any randomized assignment or integration with Arena's rankings needs an agreed
+design and separate implementation verification. For the first rehearsal, use the same disposable
+inputs, fresh agent/workspace state and fixed learning configuration. Verify saved deliverables
+independently; count operator rescue and failed attempts rather than accepting completion claims.
 
-Arena's [Agent Mode](https://help.arena.ai/articles/5432423882-how-to-use-agent-mode) already
-evaluates multi-step work. Sia's proposed contribution is a Mac execution surface with local
-app interactions and explicit model/engine attribution. Evaluation design and any integration
-with Arena's existing rankings would be agreed together.
+## Rehearsal and rollout
 
-## A small first engagement
+1. Run three useful workflows: a source-checked research comparison, a native document prepared
+   from project material, and a practical household or outing plan. Verify citations, arithmetic,
+   saved files and reopening. Repeat with another app active and with two Sia tasks running.
+2. Measure time to result, UI responsiveness, Stop, recovery and clipboard preservation. Agree on
+   supported tasks/models, a sponsor spending cap, cohort size and success criteria.
+3. After the exact signed artifact passes acceptance, invite the agreed cohort and review failures
+   and aggregate feedback before expanding. Lawrence Jang owns support and incidents.
 
-1. Review the repository and rehearse real work: a sourced technical comparison, a reviewer packet
-   prepared from actual project documents, and a practical plan using current public information.
-   Verify the saved outputs while the person keeps working in another app. Check simultaneous
-   tasks, responsiveness, failure recovery and cancellation as well as success.
-2. Agree on a small invited cohort, supported tasks/models, a sponsor spending cap, support owner,
-   data handling and success criteria. Sia operates the client; Arena's role and infrastructure
-   responsibilities remain proposals until agreed.
-3. Complete the release gates, distribute the exact verified artifact to that cohort, then review
-   aggregate feedback and failure cases before expanding. No public leaderboard is required to start.
+## Current evidence and remaining work
 
-## Readiness and review
+Signed universal alpha.57 passed notarization and exact-source CI. Its visual meal-planning task
+saved independently checked dinner/grocery files after operator recovery. A separate outing
+stopped on browser clicks; concurrent TextEdit creation reached Save but could not complete it.
+These are useful failure records, not unattended acceptance passes. Earlier assisted-mode results
+do not validate the visual default.
 
-Internal signed alpha.56 completed a five-dinner plan with consolidated groceries, a sourced
-Pittsburgh itinerary and a native TextEdit brief. Saved outputs, quantities, budget and previews
-were independently checked. Native work progressed during a slow browser read; Stop/recovery
-preserved saved changes, and the next browser task retained its access. Initial browser timeouts
-recovered automatically. These useful rehearsals include recorded interventions and limitations;
-they are not a reliability estimate or final-release proof.
-
-Universal alpha.57 includes vision-only control and passed the full local gate and notarization.
-Meal planning recovered and saved checked outputs; native TextEdit Save remains blocked.
-Exact-source CI passed. Uninterrupted signed workflow repeats,
-clipboard preservation, restart/expiry and physical acceptance remain gates. Clean-account testing is
-unavailable on the current Mac. Background new tabs and Finder file drag remain unsupported.
-See [release status](./release-status.md) and [artifact evidence](./public-release.md) for exact
-versions, timings, failures and limitations. Lawrence Jang is the support/incident owner,
-and the relevant native source rights are confirmed.
-
-Try the [real-work demo guide](./demo.md), which preserves failures and corrective interventions.
-Start with the [README setup and task path](../README.md), then
-[architecture](./architecture.md), [ratings](./arena-ratings.md) and
-[sponsor integration](./arena-model-harness.md). The initial handoff is the repository, a verified
-installer with checksums, a short task rehearsal, and an explicit acceptance record.
+Alpha.58 passed signed-package verification but reproduced refused browser clicks. Alpha.59
+source corrects the reproduced command-policy lookup and structured-refusal handling and passed
+the full local pilot gate; signed live
+verification remains open, alongside Stop/recovery, clipboard, restart/expiry and physical acceptance. A fresh Mac
+account is currently unavailable. Background new tabs and Finder file drag are unsupported.
+The [release status](./release-status.md) and [artifact record](./public-release.md) are authoritative.
+No partnership, public release, invitation or leaderboard claim is implied by this proposal.

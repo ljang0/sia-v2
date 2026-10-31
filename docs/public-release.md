@@ -1,10 +1,39 @@
 # Distribution acceptance record
 
-Updated October 31, 2026. **Distribution is not ready.** Universal alpha.57 is signed,
-notarized and installed from its final DMG. It is the first candidate with vision-only control
-selected throughout Sia. Real meal planning produced independently checked files after operator
-recovery; native TextEdit creation stopped at Save. These are useful failure findings, not an
-unattended acceptance pass. Nothing new was published; the last published Mac pilot is alpha.24.
+Updated October 31, 2026. **Distribution is not ready.** Universal alpha.58 is signed,
+notarized and installed from its final DMG. Its fresh outing task still failed on coordinate
+clicks. The investigation reproduced an incorrectly searched native command allowlist and
+host handling that missed structured refusals. Alpha.59 source fixes those paths; signed live
+acceptance is still required. Nothing new was published; the last published Mac pilot is alpha.24.
+
+## Exact universal alpha.58 artifact
+
+Source: `e5b5b78dd0b7c7ce67ee9c398669f7de2c16ee8b`. Developer ID signatures, app/DMG notarization,
+stapling, Gatekeeper and packaged runtime checks passed. The app was installed from the read-only
+mounted final DMG and its ASAR matched. Packaging never published.
+
+| Artifact       | SHA-256                                                            |
+| -------------- | ------------------------------------------------------------------ |
+| Universal DMG  | `b587a6b4876dacb3dbba70cb2d88723b56a7c1b72bee7f79504ab43889339770` |
+| Universal ZIP  | `2dd0c94e44da7aba9ee3205de470a313b485e8106404d2b9eb45fd6e39ccdc9f` |
+| Installed ASAR | `767557a98e26bcb05f5b621d271154e8c55f094aab931657e9130ab64609b9ae` |
+
+A fresh agent/conversation started the real $60 Pittsburgh outing task at 20:06:52 UTC.
+After relaunch it required the operator to choose the previously approved public Events window;
+Connect Chrome & continue resumed the saved request. Two clicks at the visible Visit menu were
+refused, and the task ended at 20:08:41 without an itinerary. No task rescue prompt, purchase,
+booking or message occurred. Restart access reuse and unattended completion remain unproven.
+
+The exact native allowlist reproduction rejected its declared `DOM.getNodeForLocation` method:
+binary search depended on sort order that the added entry violated. Alpha.59 uses membership in
+the same reviewed list and tests coordinate input under the production connection restriction.
+It also handles structured refusal envelopes for diagnostics and bounded screenshot recovery;
+alpha.58 only handled the exception form. No permission guard or allowed-method set was relaxed.
+
+The older alpha.57 native draft was saved separately by supervisor CUA into the private evidence
+folder. AX field setters were needed after clipboard paste did not update the Save path. This
+preserves its 327-word content but is not a Sia Save or vision-only acceptance pass. Receipts,
+failure screenshot, original traces and this operator recovery are in `alpha58-artifacts/real-work`.
 
 ## Exact universal alpha.57 artifact
 
@@ -30,7 +59,7 @@ quality, type and other native/shared checks. Skipped cases are recorded in the 
 unsigned universal packaging.
 Automated transport and authorization checks do not establish real task skill.
 
-## Real household work
+## Alpha.57 household work
 
 A new agent used default GPT-6-Astra through the ChatGPT plan, background Mac control and a
 private workspace. The prompt requested three weeknight dinners for two adults, inspected
@@ -58,7 +87,7 @@ four portions, including two reserved lunches. Both files opened in the installe
 No meals were cooked, pantry stock/prices were not verified, and food-storage advice was not
 independently checked.
 
-## Native work and concurrency
+## Alpha.57 native work and concurrency
 
 A separate new agent received a GUI-only TextEdit task: create, save, reopen and visibly verify
 a 250–350-word Arena pilot brief. It used screenshots, coordinates and keys, created a new
@@ -89,8 +118,12 @@ and phone counts; 155 focused checks cover the changed boundaries.
 Alpha.58 additionally removes the native-skill UI branch and enforces the visual policy across
 library reads and skill launches. All local pilot-gate stages completed with 1,942 desktop tests
 and the same native/E2E, renderer and phone counts. One obsolete native-creation E2E expectation
-was updated; its three-test library file and the remaining stages passed separately. This source
-has not yet been signed or accepted in real tasks.
+was updated; its three-test library file and the remaining stages passed separately. Its artifact
+passed signed-package and mounted-DMG verification, but its live outing still failed as recorded
+above. Alpha.59 corrections passed the full `pnpm test:pilot` gate: 1,950 desktop, 249 native
+browser, 46 Electron, 40 renderer and 72 phone-browser tests, plus build, static and other
+native/shared checks. The restricted coordinate test fails with the old lookup and passes with
+the correction. Alpha.59 still requires signing, exact-source CI and live acceptance.
 
 Retain the alpha.56 QA backup for rollback. Its assisted-mode successes and interventions are
 in the [previous acceptance record](https://github.com/ljang0/sia-v2/blob/47352213cfe9bf254a39d3a1094ad765902d4a1b/docs/public-release.md);

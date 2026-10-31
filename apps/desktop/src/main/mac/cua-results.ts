@@ -25,6 +25,16 @@ export function isCuaCallResult(value: unknown): value is CuaCallResult {
   );
 }
 
+/** Classify only known guard messages; never return native page or target content. */
+export function browserGuardRefusalCode(code: string, message = ''): string | undefined {
+  if (code !== 'browser_action_unavailable') return undefined;
+  if (message.includes("the chosen point's browsing context could not be checked"))
+    return 'browser_point_context_unavailable';
+  if (message.includes("the link's browsing context could not be checked"))
+    return 'browser_link_context_unavailable';
+  return undefined;
+}
+
 /** Decode native envelopes without exposing content-bearing failure payloads. */
 export function decodeDriverResult(
   tool: string,
@@ -33,14 +43,11 @@ export function decodeDriverResult(
   progress: { started: number; completed: number },
 ): { value: unknown; nativeToolError: boolean } {
   if (result.errorCode) {
-    if (result.errorCode === 'browser_action_unavailable') {
-      const raw = result.structuredJson ?? result.rawJson;
-      // Preserve which read-only guard failed, never its page content or target.
-      if (raw.includes("the chosen point's browsing context could not be checked"))
-        throw new Error('CUA refused: browser_point_context_unavailable');
-      if (raw.includes("the link's browsing context could not be checked"))
-        throw new Error('CUA refused: browser_link_context_unavailable');
-    }
+    const guardCode = browserGuardRefusalCode(
+      result.errorCode,
+      result.structuredJson ?? result.rawJson,
+    );
+    if (guardCode) throw new Error(`CUA refused: ${guardCode}`);
     if (
       tool === 'drag' &&
       result.errorCode === 'background_unavailable' &&

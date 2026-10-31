@@ -215,7 +215,13 @@ export class BrowserActions {
     continuation?: string,
   ): Promise<ActionExecutionResult> {
     try {
-      return await this.#captureBrowserOnce(binding, request, continuation);
+      const result = await this.#captureBrowserOnce(binding, request, continuation);
+      if (
+        !this.ctx.options.visionOnly ||
+        result.outcome !== 'stale' ||
+        !/^(?:CUA refused: )?browser_ref_stale$/.test(result.reason ?? '')
+      )
+        return result;
     } catch (error) {
       // Scroll/reflow can invalidate the protection/image pair during capture.
       // Retry only this read, once, with all identity/protection checks intact.
@@ -226,9 +232,11 @@ export class BrowserActions {
         error.message !== 'CUA refused: browser_ref_stale'
       )
         throw error;
-      await delay(100, undefined, { signal: request.context.signal });
-      return this.#captureBrowserOnce(binding, request, continuation);
     }
+    // Native browser refusals are structured successful envelopes, not necessarily
+    // transport exceptions. Both forms share the same single read-only retry.
+    await delay(100, undefined, { signal: request.context.signal });
+    return this.#captureBrowserOnce(binding, request, continuation);
   }
 
   async #captureBrowserOnce(

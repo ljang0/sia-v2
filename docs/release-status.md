@@ -1,11 +1,11 @@
 # Release status
 
-Updated October 31, 2026. **Distribution is not ready.** Universal alpha.57 is signed,
-notarized and installed from the final DMG with matching ASAR hashes. Vision-only household
-planning produced independently checked recipe and grocery files after operator recovery.
-Concurrent native TextEdit creation stopped at Save; parent-window recovery also failed its
-keyboard check. Exact-source CI passed. Exact-artifact uninterrupted workflows and physical acceptance remain
-open. The last published Mac pilot is alpha.24; no new distribution is authorized.
+Updated October 31, 2026. **Distribution is not ready.** Universal alpha.58 passed signing,
+notarization and final-DMG installation with matching ASAR hashes, but its fresh outing still
+failed on browser clicks. Alpha.59 source fixes a reproduced native command-policy lookup defect
+and host handling of structured refusals. The prior alpha.57 meal plan needed operator recovery;
+native TextEdit Save remains unresolved. Exact-artifact uninterrupted workflows and physical
+acceptance remain open. The last published Mac pilot is alpha.24; no new distribution is authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
 is the initially admitted engine. The [Arena proposal](./arena-proposal.md) describes a bounded
@@ -88,7 +88,14 @@ All local pilot-gate stages passed: 1,942 desktop tests, 46 Electron tests, 40 r
 72 Chromium/WebKit phone tests and native/shared checks, plus build, formatting, lint, quality
 and types. The initial Electron run found one obsolete native-creation expectation; its updated
 three-test library file passed, and the remaining renderer/phone stages completed separately.
-Signed alpha.58 verification and exact-source CI remain pending.
+Signed alpha.58 package and final-DMG installation verification passed; its fresh outing failed.
+Alpha.58 exact-source CI had not completed at the last check. Alpha.59 source corrects an order-dependent native allowlist
+lookup that rejected coordinate hit testing and covers the structured refusal format used by
+the real driver. The source reproduction failed before the correction. Native/focused checks
+passed. The full `pnpm test:pilot` gate then passed with 1,950 desktop, 249 native browser,
+46 Electron, 40 renderer and 72 phone-browser tests plus build, static and other native/shared
+checks. The restricted-socket coordinate regression fails with the original lookup and passes
+with the fix. Alpha.59 signing, exact-source CI and live repeats remain pending.
 
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
@@ -107,8 +114,8 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.58 local pilot-gate stages passed: 1,942 desktop, 46 Electron, 40 renderer, 72 phone-web and native/shared checks including 248 browser regressions. The alpha.57 artifact source passed exact-source CI, including universal package verification. | Alpha.58 exact-source CI and final universal artifact repeats. |
-| Signed package | Universal vision-only alpha.57 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Fix and repeat failed real tasks on the final artifact. |
+| Source | Alpha.59 full local pilot gate passed: 1,950 desktop, 46 Electron, 40 renderer, 72 phone-web and native/shared checks including 249 browser regressions. The alpha.57 artifact source passed exact-source CI, including universal package verification. | Alpha.59 exact-source CI and final universal artifact repeats. |
+| Signed package | Universal vision-only alpha.58 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Sign alpha.59 corrections and repeat failed real tasks on the final artifact. |
 | Useful work | Alpha.57 saved a source-checked three-dinner plan and consolidated groceries after recovery; previews loaded. Native TextEdit Save failed. | Unattended browser recovery, native Save/reopen and the sourced outing (which also stopped on refused clicks). |
 | Background/concurrency | Alpha.56 native editing progressed during slow browser observation. Stop during Save/readback showed cancellation within 1,149 ms including CUA; read-only recovery preserved saved work and browser access. Ten switches median 1,151 ms / worst 2,432 ms. | Final-artifact concurrency, contention/recovery repeats and clipboard preservation. |
 | Setup/recovery | Alpha.56 explicit Chrome setup took 2.059 seconds and resumed the saved request. Outing reused it after native cancellation; new-context links recovered within the existing tab. | Final restart/expiry and clean-account setup. No fresh account or second Mac is available. |
