@@ -8,8 +8,9 @@ No new artifacts were published or invitations sent; the last published Mac pilo
 
 The universal alpha.37 app, DMG and ZIP were built from
 `a5cac3f188a23196bcb538319d01064b6b47e900`. The full local pilot gate passed: 1,768 desktop unit,
-46 Electron, 31 renderer and 72 Chromium/WebKit phone checks. Hosted verification is tracked in
-[PR #31 CI](https://github.com/ljang0/sia-v2/actions/runs/41132056136).
+46 Electron, 31 renderer and 72 Chromium/WebKit phone checks. The
+[artifact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41132056136) and
+[merged-main CI](https://github.com/ljang0/sia-v2/actions/runs/41134874934) both passed.
 `pnpm package:mac` passed signing, app/DMG notarization and stapling, strict signatures, Gatekeeper
 and packaged native/runtime verification. DMG notarization `33d86494-ed78-43d6-a333-74a7331c872c` was Accepted.
 
@@ -20,11 +21,30 @@ the default background Mac route. Native Chrome independently confirmed both. Al
 this same route with `background_unavailable` even after explicit attachment; alpha.37 reuses the
 approved session for that exact process/window instead of requesting a second session.
 
-The subsequent public-link click paused because Chrome was foreground. CUA then returned
-`noWindowsAvailable` for pointer input and `elementHasNoFrame` for Continue task. Navigation,
-detach/reconnect, and the new CSV/Calculator rehearsal were not completed on alpha.37. This is a
-recorded acceptance gap, not a claim that those actions succeeded. Live unexpected session expiry
-also remains unverified; regression tests cover expiry, replacement and detachment.
+The public-link task initially paused because Chrome was foreground, then resumed and completed.
+Later independent UI checks confirmed the resulting `https://www.iana.org/domains/reserved` page
+and heading, native Calculator's `29 × 17 = 493`, and the exact `alpha37-check.csv` preview:
+
+```csv
+item,count
+pears,6
+plums,9
+```
+
+The file includes a final newline and the counts total 15. A separate disposable task was stopped.
+After a full quit/relaunch of the signed QA app, that task remained cancelled and the exact CSV
+preview still opened. CUA input failures delayed verification; they did not establish that the
+task had failed.
+
+Explicit Chrome detachment caused the next background read to refuse with
+`browser_consent_required` (`background_browser_unavailable`). Reconnecting the same isolated
+window restored reading and returned the correct heading. Live unexpected session expiry remains
+unverified; regression tests cover expiry, replacement and detachment. Explicit detach/reconnect
+and application restart do not establish unexpected-expiry recovery.
+
+Closing the disposable Chrome window outside Sia produced a missing-window result on fresh
+discovery; the task stopped without reading unrelated windows or reconnecting. This checks
+closed-window handling, not a live `session_ended` response from the browser driver.
 
 | Artifact                           | SHA-256                                                            |
 | ---------------------------------- | ------------------------------------------------------------------ |
