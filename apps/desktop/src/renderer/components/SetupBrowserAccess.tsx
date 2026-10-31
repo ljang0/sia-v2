@@ -22,9 +22,9 @@ export function SetupBrowserAccess({
     <section className={styles.providerSetup} aria-labelledby="setup-browser-title">
       <h2 id="setup-browser-title">Use Chrome in the background</h2>
       <p className={styles.note}>
-        Choose the window Sia should use for websites. Chrome may appear briefly during setup;
-        approve its permission prompt yourself. After setup, Sia can work in that window while
-        you use another app.
+        Choose the window Sia should use for websites. This lets Sia confirm Chrome’s connection
+        prompt for that window. Chrome may appear briefly during setup; afterward, Sia can work
+        in the background while you use another app.
       </p>
       {browser.snapshotLabel && browser.status === 'error' ? (
         <p role="alert" className={styles.error}>

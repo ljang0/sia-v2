@@ -1,8 +1,8 @@
 # Release status
 
 Updated October 31, 2026. **Distribution is not ready.** Alpha.42 is signed and notarized.
-Internal signed alpha.44 passes repeated useful file organization and saves native proposal edits.
-Browser continuity, simultaneous native/browser completion and responsiveness still block acceptance.
+Internal signed alpha.46 completed concurrent public research and native proposal editing, plus
+verified filing. Final-candidate repeats, restart recovery and physical acceptance remain open.
 The last published Mac pilot is alpha.24; no new invitations or public download have been authorized.
 
 The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
@@ -28,11 +28,11 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.44 production source plus test-only `092006d` passed full local pilot and CI gates, including unsigned universal packaging. | Alpha.45 full local gate passed; live Chrome setup failed before model work. |
-| Signed Mac package | Alpha.42 from `c50782a873455719ee12bc931248aa0ad4f5c1fd` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Live acceptance is failing; signature success is not product readiness. |
+| Source | Alpha.46 `6a2356b` passed the complete local pilot and CI gates, including unsigned universal packaging. | Alpha.47 full gate and exact-source CI. |
+| Signed Mac package | Alpha.42 from `c50782a873455719ee12bc931248aa0ad4f5c1fd` passed universal signing, app/DMG notarization/stapling, strict signatures, Gatekeeper and packaged runtime checks. [Exact hashes](./public-release.md) are recorded. | Build and accept the final candidate; signature success is not product readiness. |
 | Signed app continuity | Alpha.42 retained the QA profile, settings and history without a new Keychain prompt. | Physical and clean-account acceptance. |
-| Everyday usefulness | Alpha.44: two file-organization repeats with all six hashes intact; two saved native proposal briefs; typing and clipboard preserved during filing. | Second native run had a final scroll refusal. Browser recovery prevented concurrent GUI acceptance. Repeat on the final candidate. |
-| Browser | Alpha.44 saved two sourced, checked visitor plans after recovery. | Restart requires reconnect; five-minute implicit session expiry broke the fresh repeat. Alpha.45 declares the configured host lifetime; restart and simultaneous GUI acceptance remain open. Background new-tab creation is unsupported. |
+| Everyday usefulness | Alpha.46: sourced plan and native brief with interleaved GUI actions; six-file packet with unchanged hashes. | Repeat, cancellation isolation and same-window contention on the final candidate. |
+| Browser | Alpha.46 connected three times and completed sourced planning; diagnostic alpha.45 survived 343.590 seconds idle. | Restart recovery and expiry UX on final candidate. Background new-tab creation remains unsupported. |
 | New recipient | Alpha.36 with an empty app profile showed only email sign-in, with no private app content. | Clean macOS-account signup, permissions, provider login cancel/retry, lock/sleep and voice acceptance. An empty profile is not a clean OS account; no fresh account or second Mac is currently available. |
 | Cloud feedback | Ratings/account deletion deployed; a synthetic authenticated rating reached the report. October 30: 18 alarms OK with actions enabled, five Lambdas Active/Successful, anonymous catalog/report/release requests return 401. | Recheck if configuration changes before invitations. |
 | iPhone follow-on | Build 31 is Ready to Test in internal Pilot QA; native tests, signed archive and Apple processing passed. | Deferred from this Mac-first handoff. Physical-device checks and external beta review remain. |
@@ -40,34 +40,28 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 ## Current fixes and useful-work evidence
 
-Alpha.44 adds bounded subfolder listing/reading and exclusive, revision-checked file moves through
-the signed native helper. Both real filing repeats passed without corrective input. This supports
-ordinary UTF-8 txt/md/csv/tsv/json/ics files up to 256 KB inside the task folder; background Finder
-file drag remains unsupported. Native TextEdit editing produced two saved briefs, with a final
-scroll limitation in the repeat. The exact hashes and qualifications are in [artifact evidence](./public-release.md).
+Alpha.44 added bounded subfolder operations and exclusive file moves. Alpha.45 fixed the mismatch
+between the configured browser lifetime and the native implicit five-minute lease. Alpha.46 increased
+the exact Chrome-prompt settlement budget and reduced decorative conversation repainting. Three
+live connection attempts succeeded; a sourced visitor plan and saved native proposal brief completed
+with interleaved actions. Filing six actual project documents preserved every hash. The complete
+alpha.46 local pilot gate passed. Alpha.47 makes connection authorization explicit in setup copy;
+its full gate and exact distribution package are pending.
 
-Both browser planning attempts needed recovery. The second exposed a five-minute native implicit
-session lifetime despite Sia's fifteen-minute host configuration. Alpha.45 source creates a
-Standard-mode host lease during explicit connection setup, retaining expiry and revocation.
-A real native-runtime probe confirmed the declared lifetime and terminal revocation. The full
-alpha.45 local pilot gate passed, but three signed-app Chrome setup attempts failed with
-`consent_not_settled`; accepting the pending Chrome prompt did not repair the next attempt.
-Native consent timing is under diagnosis. This does not establish restart persistence.
+Ten switches during filing measured median 815 ms / worst 1,068 ms including CUA observation.
+GPU load improved in short spot checks, but working renderer CPU remains elevated; task conditions
+were not matched. Earlier diagnostic alpha.45 completed a fresh browser task after 343.590 seconds
+idle without reconnect. Its second native run saved successfully but refused a final scroll.
+See [artifact evidence](./public-release.md) for exact versions, hashes and qualifications.
 
-Browser/native task lifetimes overlapped, but successful GUI actions did not interleave. Ten
-thread switches during filing measured 1,335 ms median / 2,345 ms worst including CUA observation;
-this misses the one-second observation target and is not a pure paint-latency measurement.
-Cancellation isolation and same-window contention still need current-candidate checks. Alpha.45
-preview CPU spot checks improved to GPU median 0.0% and renderer median 0.0%, with covered
-animation pause/resume verified; see the qualified measurements in the artifact record.
+Default Mac setup includes Chrome with a deliberate opt-out. Choosing a window authorizes its
+explicit connection setup, including Chrome's exact prompt. Task tools cannot approve permission
+dialogs. macOS grants remain person-owned. Expiry, revocation and restart require actionable recovery.
 
-Default Mac setup includes Chrome with a deliberate opt-out. **Connect Chrome & continue**
-preserves the saved request. macOS and Chrome still own permission decisions; no program can
-silently pre-grant those OS permissions. Clean-account setup remains unverified.
-
-The [real-work demo guide](./demo.md) records useful prompts and independent checks. Earlier
-per-version details and failed attempts remain in Git history and private evidence; the current
-artifact record determines readiness.
+This Mac currently refuses power assertions from both Sia and Apple's `caffeinate`; physical
+keep-awake/sleep behavior remains unverified. No fresh macOS account or second Mac is available.
+The [real-work demo guide](./demo.md) specifies useful prompts and independent checks; fake-service
+tests remain regression coverage, not proof of desktop usefulness.
 
 ## Release decision
 

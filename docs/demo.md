@@ -4,12 +4,13 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
 public project documents and a real admitted model; fake-service demos are separate.
 
-**Current evidence:** internal signed alpha.44 filed six actual project documents correctly in
-each of two fresh runs, preserving every hash, independent typing and the clipboard. Two native
-TextEdit tasks saved useful proposal briefs; the second hit a final scroll limitation. Both
-public-source plans saved after browser recovery, so neither is an unassisted repeat pass.
-Browser/native GUI concurrency remains unaccepted. Alpha.45 source corrects premature browser
-session expiry; signed-app acceptance is pending. See [the exact record](./public-release.md).
+**Current evidence:** internal signed alpha.46 completed public-source planning and a native
+proposal brief with interleaved browser/TextEdit actions and no corrective messages. It also filed
+six actual project documents with unchanged hashes. Three Chrome connections succeeded; ten thread
+switches during filing took median 815 ms / worst 1,068 ms including observation. Final-candidate
+repeats, cancellation/contention, restart recovery and physical acceptance remain open. Working
+renderer CPU and this Mac's failing keep-awake assertions are recorded limitations. See
+[the exact record](./public-release.md); useful rehearsals do not establish broad desktop readiness.
 
 ## Start here
 
@@ -24,8 +25,9 @@ session expiry; signed-app acceptance is pending. See [the exact record](./publi
 4. Use a fresh conversation and new output filenames for every repeat. Inspect the actual saved
    files and their previews, rather than accepting the model's completion claim.
 
-Chrome connection is part of alpha.38's default Mac setup, with a deliberate opt-out. macOS and
-Chrome still require their own permission decisions. Existing profiles can use the conversation's
+Chrome connection is part of default Mac setup, with a deliberate opt-out. Choosing a window
+authorizes its explicit connection setup, including the exact Chrome prompt. macOS grants remain
+person-owned. Existing profiles can use the conversation's
 **Connect Chrome & continue** control when the host reports missing browser access. These new
 paths require signed-candidate acceptance; unit tests do not establish live consent behavior.
 

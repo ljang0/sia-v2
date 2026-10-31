@@ -53,19 +53,18 @@ with Arena's existing rankings would be agreed together.
 
 ## Readiness and review
 
-Internal signed alpha.44 completed two file-organization runs with unchanged hashes and two
-saved native proposal edits. Alpha.45 passed its full local automated gate. A signed diagnostic
-copy then completed a sourced visitor plan and a saved proposal brief with interleaved browser
-and native actions, without corrective task messages. That is one useful concurrent run, not
-repeatability or release acceptance: production Chrome setup failed three times, and conversation
-CPU remains excessive. Alpha.46 is addressing setup timing and decorative rendering cost.
-Alpha.42 remains the latest notarized candidate, not an accepted distribution build.
+Internal signed alpha.46 completed a sourced visitor plan and a saved proposal brief with interleaved
+browser/TextEdit actions, without corrective task messages. A reviewer packet made from six actual
+project documents preserved every file hash. Three explicit Chrome connections and the complete
+local automated gate passed. Ten conversation switches during filing took median 815 ms / worst
+1,068 ms including observation overhead. These are useful rehearsals, not general desktop readiness.
 
-Distribution remains blocked on repeatable useful workflows, simultaneous native/browser work,
-restart/reconnect behavior, responsiveness and the remaining clean-account and physical acceptance
-checks. Background browser new-tab creation and background Finder file drag are unsupported.
-See the current evidence before rehearsing or making a capability claim. These results support a
-technical review, not general desktop readiness or the owner's final distribution decision.
+The final signed candidate still needs repeated workflows, cancellation/contention and restart
+recovery checks. Working renderer CPU remains elevated, and this Mac refuses keep-awake assertions
+even from Apple's own utility. Clean-account and physical acceptance remain unverified. Alpha.42
+is the latest notarized candidate, not an accepted distribution build. Background new-tab creation
+and Finder file drag remain unsupported. These results support technical review, not distribution
+acceptance or a validated model ranking.
 The owner confirmed the relevant native source rights; Lawrence Jang is the pilot support/incident
 owner. See [release status](./release-status.md) for exact-version evidence and remaining gates.
 

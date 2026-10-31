@@ -330,7 +330,7 @@ permission checks.
 In Connected apps mode, when the latest request attempted browser tools and Chrome is detached, the conversation shows
 **Connect Chrome & continue** beneath the response. Open the task's website in Chrome, use that
 button, and choose the correct window if several are open. The setup disclosure explains that
-Chrome may appear briefly. Review Chrome's own remote-debugging prompt yourself if it appears. Sia continues the same conversation after the attachment is verified; the
+Chrome may appear briefly and Sia may confirm its exact connection prompt for the chosen window. Sia continues the same conversation after the attachment is verified; the
 user does not have to retype the request. Failed connections show their repair detail in place.
 The original request remains in history, and an unsent draft is preserved.
 

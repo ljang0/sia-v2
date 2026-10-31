@@ -37,7 +37,9 @@ lint, quality, type, unit, deterministic desktop E2E, renderer, and Chromium/Web
   up Sia** click walks them in order; macOS still approves each one, and Start using Sia stays off
   until all are on. Fn voice stays optional because it also needs a voice service. Google
   Workspace, Slack, GitHub, and Notion stay optional. Chrome connection is included in default Mac
-  setup, with an explicit Continue without Chrome option; its own consent remains user-owned.
+  setup, with an explicit Continue without Chrome option. Choosing a window authorizes its
+  connection setup, including the exact Chrome connection prompt; task tools cannot approve
+  permission dialogs. macOS permission decisions remain with the person.
   The Connected apps only route needs no Mac permissions. Calendar, Tasks, and Outlook connectors remain disabled.
 - Bypass (no per-action approvals) is the default for every route, including profiles that never
   chose; confirmations are an explicit opt-in (onboarding's Customize setup → Ask before each

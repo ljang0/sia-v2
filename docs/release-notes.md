@@ -1,10 +1,22 @@
-# Sia 0.1.0-alpha.39
+# Sia 0.1.0-alpha.47
 
 Pilot candidate — acceptance and distribution pending.
 
 Sia is a private macOS 14+ alpha of a personal assistant that works in your apps for you. Sign in
 with your invited email, then connect your ChatGPT plan in Settings → AI. You don't need to install
 anything else or paste an API key.
+
+## Current candidate
+
+Chrome connection setup has more time to verify its exact permission prompt on a busy Mac.
+The connection now uses its configured lifetime across tasks. Expired connections still need
+explicit recovery; restarting Sia does not silently restore browser access. Setup wording now
+explains that choosing a window lets Sia complete its connection prompt. macOS permissions
+remain with you.
+
+Active conversations keep a still background and lightweight status indicators to reduce
+continuous graphics work. Full source gates and useful-work evidence are tracked separately
+from signed-artifact acceptance in [release status](./release-status.md).
 
 ## Concurrent background work
 
@@ -63,7 +75,7 @@ When another task owns the window or screen, the conversation explains the wait 
 ## Changes since alpha.37
 
 - **Chrome setup before the first task.** Default Mac setup offers a window connection and checks
-  that a website is available. Chrome's own permission prompts still require your approval.
+  that a website is available. Choosing a window authorizes its connection setup, including the exact Chrome connection prompt.
 - **Continue after browser access expires.** A conversation offers Connect Chrome & continue when
   the host reports missing browser access. It preserves the request and asks for the task window.
 - **All saved documents are accessible.** A multi-file response gives each verified result its
@@ -80,7 +92,7 @@ tracked in [release status](./release-status.md).
 ## Earlier Chrome setup changes
 
 - **Clearer Chrome connection.** Connect Chrome explains that setup may briefly show Chrome.
-  You review any Chrome permission prompt yourself. Automatic background connection never starts
+  Choosing a window lets Sia confirm Chrome’s connection prompt for it. Automatic background connection never starts
   this foreground setup, and a refused browser read no longer reports a successful connection.
 
 ## Good to know

@@ -65,7 +65,8 @@ export function BrowserTaskRecovery({
         <p>
           Choose the window with the website for this task open. Sia will continue this
           conversation once it connects—you don’t need to repeat your request. Chrome may appear
-          briefly during setup. You review any Chrome permission prompt yourself.
+          briefly during setup. Choosing a window lets Sia confirm Chrome’s connection prompt
+          for it.
         </p>
       </div>
       <button

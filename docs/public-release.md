@@ -3,81 +3,85 @@
 ## Current decision — October 31, 2026
 
 The owner selected **Mac first; iPhone follows** and confirmed ownership of the relevant Notch
-source rights. Alpha.42 is signed and notarized; internal alpha.44 passes repeated file organization.
-Browser continuity and parallel GUI acceptance remain incomplete. **External pilot release is not complete.**
+source rights. Alpha.42 is signed and notarized; internal alpha.46 completed useful concurrent
+browser/native work and verified filing. Final-candidate repeatability and physical acceptance remain incomplete. **External pilot release is not complete.**
 No new artifacts were published or invitations sent; the last published Mac pilot remains alpha.24.
 
-## Internal alpha.44 QA candidate
+## Current internal alpha.46 evidence
 
-The alpha.44 QA app is an **arm64 Developer ID signed internal build, not notarized or accepted
-for distribution**, from `9338a1b8824cca6751333b9b0149bc2b70025f63`.
-App.asar SHA-256: `f799b6a4bd0323f37556cdf0324fbef447b4164ce8eb44ce272fe51bf01fc898`.
-Strict signatures, package/runtime, SDK provenance and license checks passed. Profile/history
-survived the upgrade without a Keychain prompt. Test-only follow-up `092006d119c56f564353cf4efa1b43a771182078`
-passed the complete local pilot gate and [CI, including unsigned universal packaging](https://github.com/ljang0/sia-v2/actions/runs/41180267503).
-The gate included 1,826 desktop units, 46 Electron, 32 renderer, 72 phone-browser and 73 gateway tests.
+Internal arm64 Developer ID signed alpha.46 was built from
+`6a2356b662fbdd31e3c82d3d90217984bb4ca11f`; it is **not notarized or accepted for distribution**.
+App.asar SHA-256: `16ee5eb9ac26d56df6b41ec6f86ee40314eba060c53eb0ab04ef2ba514223adb`.
+Strict signatures, package/runtime, native provenance and license checks passed. Profile/history
+and an unsent draft survived upgrade without a Keychain prompt. The complete local pilot gate
+passed: 1,827 desktop units, 46 Electron, 33 renderer, 72 phone-browser and 73 gateway tests.
+[Exact-source CI](https://github.com/ljang0/sia-v2/actions/runs/41185786149) also passed, including
+unsigned universal packaging.
+Alpha.47 currently updates setup disclosure and these records; it has not yet passed its full gate
+or produced a verified package.
 
-### Real work, independently checked
+### Useful work, independently checked
 
-| Workflow                                                | Result                                                                                                                                                                                               | Limits                                                                                                                                                                                  |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| File organization, two fresh conversations              | Six actual project deliverables each moved into three correct folders; all hashes unchanged, both Inboxes empty. First run: 36 seconds / 19 steps. Independent typing and clipboard canary survived. | Uses bounded file tools, not Finder drag. Ordinary UTF-8 text formats only, at most 256 KB each.                                                                                        |
-| TextEdit proposal editing, two fresh conversations      | Saved 327- and 332-word briefs from actual proposal copies using native UI. Content, limits and saved bytes checked. Finder was foreground.                                                          | Second run's final scroll was refused with same-process keyboard ambiguity; saved brief was independently verified.                                                                     |
-| Public-source visitor planning, two fresh conversations | Both saved plans after recovery; museum/dining/fare claims and budget checked. Second preview opened.                                                                                                | First required restart connection and foreground recovery. Second failed after the native browser session expired, then finished after reconnect. Neither is an unassisted repeat pass. |
-| Concurrent GUI work                                     | Browser and native task lifetimes overlapped.                                                                                                                                                        | Browser blocked until after native work finished. No interleaved successful browser/native GUI execution; concurrency is not accepted.                                                  |
+- **Concurrent public research and native editing:** a museum/meal/transit plan for a hypothetical
+  CMU visitor and a 338-word brief condensed from the actual Arena proposal both completed with
+  interleaved browser/TextEdit actions, without corrective task messages. Browser duration was
+  about 152 seconds; native editing about 61 seconds. One browser checkpoint failed and recovered.
+  The plan labels walking times, meal prices and date-specific availability as unverified; no
+  booking, sign-in or communication occurred. The brief preserves the source draft's dated evidence.
+- **Reviewer packet:** six actual repository documents moved into three requested folders in
+  46 seconds / 26 steps. Independent SHA-256 checks matched all originals; Inbox remained empty
+  and present. One step had a problem, but no corrective task message was needed.
+- **Chrome setup:** three attach/detach attempts succeeded without an operator clicking Allow.
+  The first native prompt scan/settlement finished in 2.09 seconds; warm repeats needed no new
+  prompt. Only the explicitly approved public window was selected.
+- **Responsiveness:** ten conversation switches during filing had median 815 ms / worst 1,068 ms
+  including CUA observation; click acknowledgements were 29–96 ms. Two observations exceeded one
+  second. These are control round trips, not isolated paint timings.
 
-The plan's $45.32 main spend plus $5.50 transit reserve leaves $9.18 of the $60 budget.
-Primary checks: [museum](https://carnegieart.org/visit/come-visit/),
-[dining hours](https://carnegieart.org/visit/dine-with-us/),
-[menu](https://thecafecarnegie.com/menu.html), [fares](https://www.rideprt.org/fares-and-payment/).
-Walking times, tax allowance and future availability remain explicitly estimated or unverified.
-This is a hypothetical visitor request using real sources; no booking occurred.
+| Saved output | SHA-256                                                            |
+| ------------ | ------------------------------------------------------------------ |
+| Visitor plan | `4d02a2e201646fab8f116d2ddba013acd64b00cacca82b5bd1038dc1f4eddca2` |
+| Native brief | `b678f0a8ecc931a8434e6eeb6ef83339383ab3b69c45b9166cef2982bebf5ac3` |
 
-| Saved output            | SHA-256                                                            |
-| ----------------------- | ------------------------------------------------------------------ |
-| Visitor plan, first run | `46e32d9ff60292e60cda065f3b84652bf61cd4f492b01565a9ec1c754513b995` |
-| Visitor plan, repeat    | `40a3ef51561736a5c6740ed93c3f646549e95158801d055e90c26bbf24f314ae` |
-| Native brief, first run | `8c2a2983fb94365804739b3881e79dfec52ea4362c2473514b3bb9bfa2a7ecd6` |
-| Native brief, repeat    | `83183e9da6ca420462fa49dc3b4efd3f258a20749d68e11de6a23e383fe1b746` |
+Private prompts, trajectories, timings, screenshots and per-file hashes are retained in
+`alpha46-artifacts/real-work`. A single successful pair does not establish general repeatability.
+Current-candidate cancellation, same-window contention, restart recovery and physical checks remain.
 
-Ten thread switches during filing measured 1,335 ms median / 2,345 ms worst, including CUA
-observation overhead. Only filing was active; the browser had paused. This does not meet the
-one-second observation target or establish pure UI latency. Settings clicks returned in
-108–203 ms; observed total control round trips were 827–1,223 ms. Preview sampling (11 one-second samples after discarding the first) still showed elevated GPU/renderer CPU; see the correction below.
-Exact private prompts, trajectories, timings, hashes, screenshots and interventions are retained
-in `alpha44-artifacts/real-work`.
+### Fixes and earlier diagnostic evidence
 
-### Alpha.45 signed QA result
+Alpha.44 added bounded subfolder reads and exclusive revision-checked file moves. Two filing
+repeats preserved all hashes; two native briefs were saved, with a final scroll refusal on the
+second run. Its browser runs required reconnect and did not establish simultaneous GUI success.
 
-Internal arm64 Developer ID signed alpha.45 is built from
-`a5e1705464290318999d06e4d953fbcaaaac104c`; it is **not notarized or accepted for distribution**.
-App.asar SHA-256: `5cf64c97236c01dec3468ddb2fb85ec46c2650f0bb6496fa392a10d08e1c14a6`.
-Strict signatures, package/runtime, SDK provenance and license checks passed; profile/history
-survived without a Keychain prompt. The full local pilot gate passed: 1,827 desktop unit,
-46 Electron, 33 renderer, 72 phone-browser and 73 gateway tests.
+Alpha.45 creates a supported Standard-mode browser lease during explicit connection setup:
+fifteen-minute idle and eight-hour absolute limits, retaining revocation and restart recovery.
+Its production Chrome setup failed three times. A signed diagnostic copy with content-free timing
+logs completed two concurrent useful task pairs; the second fresh browser task worked after
+343.590 seconds idle without reconnect. The second native run saved its brief but refused a final
+scroll. Cancelling another read-only task took 221 ms to terminal cancellation; the browser pipeline
+subsequently saved its output, although no post-cancellation browser input was established. A draft
+typed while that pipeline ran was confirmed intact after reopening and restart; initial immediate
+AX observation had missed the asynchronous typing. This is qualified diagnostic evidence, not
+acceptance of the production alpha.45 package.
 
-The browser repeat exposed the native implicit session's five-minute idle expiry. Sia configured
-a fifteen-minute host idle limit but never created a host lease, so that limit did not apply.
-Alpha.45 declares a Standard-mode browser lease through the supported SDK, only during explicit
-connection setup. It retains the fifteen-minute idle/eight-hour absolute bounds; expiry,
-revocation and app restart still require connection recovery. It does not poll pages or revive
-expired authority. A real-runtime lifecycle/revocation probe and 89 focused tests passed.
+The native consent diagnostic measured 3.798 seconds scanning and 1.986 seconds confirming closure,
+near/beyond the old four-second budget. Alpha.46 allows eight seconds while preserving exact prompt,
+process, ambiguity and post-click checks. Its three successful setups are encouraging; they do not
+prove that timing alone caused every prior failure.
 
-**Live Chrome setup failed three times**, each with `consent_not_settled`, before any model task.
-The operator accepted the exact pending native Chrome prompt after the second failure; the next
-attempt still failed and left another prompt visible. Only the designated public museum window
-was selected. The complete connection flow and useful browser/native concurrency remain blocked;
-the lifecycle probe does not establish them. Native consent timing is being diagnosed separately.
+Alpha.46 freezes the decorative backdrop in conversations and removes costly text/shadow animation.
+Short process-CPU spot checks showed completed-conversation GPU median/max 5.1%/5.3% and renderer
+6.0%/7.0%. With one browser task still active after native editing had finished, GPU was 4.7%/4.9%
+and renderer 34.5%/36.4%. Alpha.45's earlier both-active sample was 64.6%/79.6% and 58.4%/70.6%.
+These different task states are not a controlled benchmark; working renderer CPU remains elevated.
 
-The result preview now pauses covered shell animations, including presence pulses. A renderer
-regression verifies pause, resume and composer usability. On the installed alpha.45 app, eleven
-one-second samples after discarding the first showed GPU median/max 0.0%/0.0% and renderer
-median/max 0.0%/2.2%, versus alpha.44's 28.3%/30.3% and 7.8%/8.1%. These are short process-CPU
-spot checks, with the automated gate running during alpha.45 sampling, not a controlled battery
-or latency benchmark. Private evidence is in `alpha45-artifacts/real-work`.
+**Keep-awake is unverified on this Mac.** Sia's native call returned `kIOReturnNoMemory`, and separate
+Apple `caffeinate -d` and `-i` probes also failed to create power assertions. No Sia display-sleep
+assertion was present. The error does not establish a physical RAM diagnosis. Mocked tests cannot
+certify real sleep prevention; no system service or personal app was restarted to hide the failure.
 
-Earlier alpha.43 results and failed Finder/file-tool attempts remain in
-[the previous record](https://github.com/ljang0/sia-v2/blob/092006d/docs/public-release.md).
+Earlier artifact hashes and failures remain in
+[the prior record](https://github.com/ljang0/sia-v2/blob/121cf20/docs/public-release.md).
 
 ## Exact alpha.42 artifact and live result
 

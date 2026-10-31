@@ -267,7 +267,7 @@ export class MacBrowserControl {
             ? { browser_connection_required: true }
             : {}),
           next_step: this.#preparationAttempted.has(window.id)
-            ? 'Background setup was already attempted for this window. Do not repeat setup. If Chrome shows its own permission prompt, the person must review it; Sia must not approve it. This is browser access, not website sign-out. Never fall back to native off-Space input or foreground control.'
+            ? 'Background setup was already attempted for this window. Do not repeat setup. Do not approve Chrome permission prompts from task tools. Use the explicit Connect Chrome & continue flow. This is browser access, not website sign-out. Never fall back to native off-Space input or foreground control.'
             : 'Use computer_open_url with prepare_only:true, this exact app_id and window_id, and the ordinary website needed for the task. That acting tool can restore browser access and list existing tabs without navigating. Never fall back to native off-Space browser input or foreground control.',
         },
       };
