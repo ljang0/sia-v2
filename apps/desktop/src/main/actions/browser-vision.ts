@@ -103,6 +103,34 @@ export function browserVisualSnapshot(
   };
 }
 
+function permittedPageKey(value: unknown, modifiers: unknown): boolean {
+  if (typeof value !== 'string' || (modifiers !== undefined && !Array.isArray(modifiers)))
+    return false;
+  const keys = (modifiers ?? []) as unknown[];
+  if (
+    new Set(keys).size !== keys.length ||
+    keys.some((key) => !['cmd', 'shift', 'option'].includes(String(key)))
+  )
+    return false;
+  const key = value.toLowerCase();
+  const shifted = keys.includes('shift');
+  if (shifted && key === 'escape') return false;
+  const base = keys.filter((key) => key !== 'shift');
+  if (!base.length)
+    return (
+      /^(?:[a-z0-9]|enter|return|tab|escape|up|down|left|right|space|delete|backspace|home|end|pageup|pagedown)$/.test(
+        key,
+      ) && !(shifted && /^[0-9]$/.test(key))
+    );
+  if (base.length !== 1) return false;
+  if (base[0] === 'cmd')
+    return (
+      ['left', 'right', 'up', 'down', 'z'].includes(key) ||
+      (!shifted && ['a', 'delete', 'backspace'].includes(key))
+    );
+  return ['left', 'right'].includes(key) || (!shifted && ['delete', 'backspace'].includes(key));
+}
+
 export function browserVisualInput(
   capability: BrowserSnapshotCapability,
   args: Readonly<Record<string, unknown>>,
@@ -119,7 +147,7 @@ export function browserVisualInput(
     return refused(
       'Visual browser input accepts no semantic targets, setters or foreground fallback.',
     );
-  if (Array.isArray(args.modifiers) && args.modifiers.length)
+  if (args.action !== 'key' && Array.isArray(args.modifiers) && args.modifiers.length)
     return refused('Visual browser pointer and text input do not accept key modifiers.');
   const base = {
     session: capability.session,
@@ -128,6 +156,26 @@ export function browserVisualInput(
     delivery_mode: 'background',
     visual_document: capability.visualDocument,
   };
+  if (args.action === 'key') {
+    if (
+      args.x !== undefined ||
+      args.y !== undefined ||
+      args.text !== undefined ||
+      !permittedPageKey(args.value, args.modifiers)
+    )
+      return refused(
+        'Use a supported page key or editing shortcut. Background keys cannot use the clipboard, browser-wide shortcuts or semantic targets.',
+      );
+    return {
+      tool: 'browser_type',
+      input: {
+        ...base,
+        mode: 'focused_key',
+        text: String(args.value).toLowerCase(),
+        modifiers: args.modifiers ?? [],
+      },
+    };
+  }
   if (args.action === 'type') {
     if (typeof args.text !== 'string' || args.x !== undefined || args.y !== undefined)
       return refused(
@@ -137,7 +185,7 @@ export function browserVisualInput(
   }
   if (!['click', 'scroll', 'drag'].includes(String(args.action)))
     return refused(
-      'This visual browser route supports coordinate clicks, scrolling, drag and typing into a visually focused field.',
+      'This visual browser route supports coordinate clicks, scrolling, drag, page keys and typing into a visually focused field.',
     );
   const points =
     args.action === 'drag'

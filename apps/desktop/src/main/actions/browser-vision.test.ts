@@ -214,7 +214,11 @@ it.each([
   { action: 'click', x: 1600, y: 10 },
   { action: 'click', x: 10, y: 1200 },
   { action: 'type', text: 'text', modifiers: ['cmd'] },
-  { action: 'key', value: 'enter' },
+  { action: 'key', value: 'l', modifiers: ['cmd'] },
+  { action: 'key', value: 'escape', modifiers: ['shift'] },
+  { action: 'key', value: 'c', modifiers: ['cmd'] },
+  { action: 'key', value: 'v', modifiers: ['cmd'] },
+  { action: 'key', value: 'tab', modifiers: ['ctrl'] },
 ])('refuses unsupported or out-of-image input without dispatch: %o', async (args) => {
   const h = await fixture();
   const first = await h.snapshot();
@@ -281,4 +285,60 @@ it('refuses an old driver screenshot that has no document authority', async () =
   expect(result.outcome).toBe('refused');
   expect(result.images).toBeUndefined();
   expect(dataRecord(result.data).snapshot_id).toBeUndefined();
+});
+
+it.each([
+  { value: 'enter' },
+  { value: 'tab', modifiers: ['shift'] },
+  { value: 'a', modifiers: ['cmd'] },
+  { value: 'z', modifiers: ['cmd', 'shift'] },
+  { value: 'left', modifiers: ['option', 'shift'] },
+])('sends a page key once using screenshot authority: %o', async (key) => {
+  const h = await fixture();
+  const first = await h.snapshot();
+  const args = { action: 'key', ...key };
+  expect((await h.act(dataRecord(first.data).snapshot_id, args)).outcome).toBe(
+    'accepted_unverified',
+  );
+  expect(h.state.inputCalls).toEqual([
+    {
+      name: 'browser_type',
+      args: expect.objectContaining({
+        mode: 'focused_key',
+        text: key.value,
+        visual_document: 'a'.repeat(64),
+        delivery_mode: 'background',
+      }),
+    },
+  ]);
+  expect((await h.act(dataRecord(first.data).snapshot_id, args)).outcome).toBe('stale');
+  expect(h.state.inputCalls).toHaveLength(1);
+});
+
+it('accepts direct browser key arguments without a semantic ref or coordinates', () => {
+  const ids = { tab_id: 'tab', snapshot_id: 'snapshot', origin: 'https://example.com' };
+  expect(
+    parseActionArguments('browser_action', { ...ids, action: 'key', value: 'enter' }),
+  ).toMatchObject({ action: 'key', value: 'enter' });
+  for (const extra of [{ element_ref: 'ref' }, { x: 10, y: 20 }, { text: 'hidden' }])
+    expect(() =>
+      parseActionArguments('browser_action', {
+        ...ids,
+        action: 'key',
+        value: 'enter',
+        ...extra,
+      }),
+    ).toThrow();
+});
+
+it('consumes keyboard authority after uncertain delivery without replaying', async () => {
+  const h = await fixture();
+  const first = await h.snapshot();
+  h.state.incompleteReceipt = true;
+  const args = { action: 'key', value: 'enter' };
+  expect((await h.act(dataRecord(first.data).snapshot_id, args)).outcome).toBe(
+    'accepted_unverified',
+  );
+  expect((await h.act(dataRecord(first.data).snapshot_id, args)).outcome).toBe('stale');
+  expect(h.state.inputCalls).toHaveLength(1);
 });

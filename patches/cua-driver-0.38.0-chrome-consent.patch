@@ -394,14 +394,15 @@ index 1d0940c..bf5305e 100644
  
      #[test]
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/mod.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/mod.rs
-index 070d6c0..6a294de 100644
+index 070d6c0..f17a5fa 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/mod.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/mod.rs
-@@ -41,6 +41,7 @@ pub mod cdp_ws;
+@@ -41,6 +41,8 @@ pub mod cdp_ws;
  pub mod download;
  pub mod engine;
  mod grant;
 +mod visual_input;
++mod visual_key;
  mod keyed_gates;
  #[cfg(test)]
  pub(crate) mod mock_cdp;
@@ -760,7 +761,7 @@ index 68f2099..96f1e08 100644
      pub oopif_frames: usize,
  }
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
-index df04401..d0b0286 100644
+index df04401..0096a9b 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 @@ -51,6 +51,105 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
@@ -974,12 +975,12 @@ index df04401..d0b0286 100644
          let mut delivery_error = None;
          for (event_type, click_count) in [("mousePressed", 1), ("mouseReleased", 1)] {
              if let Err(error) = conn
-@@ -1813,21 +1955,22 @@ impl BrowserTypeTool {
+@@ -1813,21 +1955,23 @@ impl BrowserTypeTool {
                  at the caret, so typing into a field that already holds text appends \
                  to it; pass replace=true to set the field instead, or to clear it by \
                  typing an empty string. Pass a ref to an editable element from the \
 -                latest snapshot. A ref is required; heuristic bindings are refused."
-+                latest snapshot for these modes. mode=\"focused\" instead inserts at the visually chosen caret after a protection check, with no ref or replacement. Heuristic bindings are refused."
++                latest snapshot for these modes. mode=\"focused\" instead inserts at the visually chosen caret after a protection check, with no ref or replacement. mode=\"focused_key\" treats text as one named page key, with optional cmd/shift/option modifiers and a required visual token. Heuristic bindings are refused."
                  .into(),
              input_schema: json!({
                  "type": "object",
@@ -988,19 +989,21 @@ index df04401..d0b0286 100644
                      "tab_id": schema_tab_id(),
 +                    "visual_document": { "type": "string", "description": "Host-owned document and CSS viewport token from a visual screenshot; refuse if it changed." },
                      "session": schema_session(),
-                     "text": { "type": "string", "description": "Text to type." },
+-                    "text": { "type": "string", "description": "Text to type." },
++                    "text": { "type": "string", "description": "Text to type, or one key name in focused_key mode." },
++                    "modifiers": { "type": "array", "items": {"type": "string", "enum": ["cmd", "shift", "option"]}, "description": "Only for focused_key; clipboard/browser-wide shortcuts are refused." },
                      "ref": schema_ref(),
                      "mode": {
                          "type": "string",
 -                        "enum": ["insert_text", "keystrokes"],
-+                        "enum": ["insert_text", "keystrokes", "focused"],
++                        "enum": ["insert_text", "keystrokes", "focused", "focused_key"],
                          "description": "insert_text (default): bulk Input.insertText. \
 -                            keystrokes: per-character Input.dispatchKeyEvent."
-+                            keystrokes: per-character Input.dispatchKeyEvent. focused: insert at the current permitted caret without a DOM target."
++                            keystrokes: per-character Input.dispatchKeyEvent. focused: insert at the current permitted caret without a DOM target. focused_key: one named page key from text."
                      },
                      "replace": {
                          "type": "boolean",
-@@ -1839,7 +1982,7 @@ impl BrowserTypeTool {
+@@ -1839,7 +1983,7 @@ impl BrowserTypeTool {
                              framework state stays consistent."
                      },
                  },
@@ -1009,23 +1012,23 @@ index df04401..d0b0286 100644
                  "additionalProperties": true
              }),
              read_only: false,
-@@ -1895,9 +2038,9 @@ impl Tool for BrowserTypeTool {
+@@ -1895,9 +2039,9 @@ impl Tool for BrowserTypeTool {
              Err(e) => return e,
          };
          let mode = args.opt_str("mode").unwrap_or_else(|| "insert_text".into());
 -        if mode != "insert_text" && mode != "keystrokes" {
-+        if mode != "insert_text" && mode != "keystrokes" && mode != "focused" {
++        if !["insert_text", "keystrokes", "focused", "focused_key"].contains(&mode.as_str()) {
              return ToolResult::error(format!(
 -                "mode must be \"insert_text\" or \"keystrokes\", got {mode:?}"
-+                "mode must be \"insert_text\", \"keystrokes\" or \"focused\", got {mode:?}"
++                "mode must be insert_text, keystrokes, focused or focused_key, got {mode:?}"
              ));
          }
          let replace = args.opt_bool("replace").unwrap_or(false);
-@@ -1919,6 +2062,19 @@ impl Tool for BrowserTypeTool {
+@@ -1919,6 +2063,22 @@ impl Tool for BrowserTypeTool {
              Err(refusal) => return refusal.to_tool_result(),
          };
  
-+        if mode == "focused" {
++        if mode == "focused" || mode == "focused_key" {
 +            if args.get("ref").is_some() || replace {
 +                return ToolResult::error("focused input does not accept a ref or semantic replacement");
 +            }
@@ -1035,6 +1038,9 @@ index df04401..d0b0286 100644
 +                    "trusted focused input cannot stay in the background on this platform")
 +                    .to_tool_result();
 +            }
++            if mode == "focused_key" {
++                return super::visual_key::deliver(&self.engine, &validated, &args, &text).await;
++            }
 +            return super::visual_input::deliver(&self.engine, &validated, &args, &text).await;
 +        }
 +
@@ -1042,16 +1048,18 @@ index df04401..d0b0286 100644
              Ok(value) => value,
              Err(error) => return error,
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-index d5f50d2..6d86fef 100644
+index d5f50d2..645bace 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-@@ -57,14 +57,29 @@ pub(super) struct FixtureState {
+@@ -57,14 +57,31 @@ pub(super) struct FixtureState {
      tab_sessions: u64,
      oopif_sessions: u64,
      fail_key_down_after: Option<usize>,
 +    visual_focus_safe: bool,
 +    visual_focus_changes: bool,
 +    visual_insert_fails: bool,
++    visual_key_up_fails: bool,
++    visual_focus_restore_fails: bool,
      completed_key_pairs: usize,
      semantic_large_page: bool,
 +    oopif_input_backend_id: i64,
@@ -1075,7 +1083,7 @@ index d5f50d2..6d86fef 100644
      viewport_css_height: f64,
      tab_visible: bool,
      select_outcome: Value,
-@@ -76,6 +91,7 @@ pub(super) struct FixtureState {
+@@ -76,6 +93,7 @@ pub(super) struct FixtureState {
      omit_primary_target: bool,
      /// Make `Browser.getWindowForTarget` for T1 answer this CDP error.
      primary_window_error: Option<(i64, String)>,
@@ -1083,7 +1091,7 @@ index d5f50d2..6d86fef 100644
      dom_click_changes_readback: bool,
      dom_click_readback_available: bool,
      dom_click_stall_after: Option<usize>,
-@@ -99,22 +115,38 @@ impl Default for FixtureState {
+@@ -99,22 +117,40 @@ impl Default for FixtureState {
              omit_primary_target: false,
              primary_window_error: None,
              main_loader: "L_MAIN_1".into(),
@@ -1097,6 +1105,8 @@ index d5f50d2..6d86fef 100644
 +            visual_focus_safe: true,
 +            visual_focus_changes: false,
 +            visual_insert_fails: false,
++            visual_key_up_fails: false,
++            visual_focus_restore_fails: false,
              completed_key_pairs: 0,
              semantic_large_page: false,
 +            oopif_input_backend_id: 100,
@@ -1122,7 +1132,7 @@ index d5f50d2..6d86fef 100644
              dom_click_changes_readback: true,
              dom_click_readback_available: true,
              dom_click_stall_after: None,
-@@ -548,7 +580,12 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -548,7 +584,12 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                      "node": large_semantic_document(&st.semantic_html_style)["root"]["children"][0].clone()
                  }))
              }
@@ -1136,7 +1146,7 @@ index d5f50d2..6d86fef 100644
              "Accessibility.getFullAXTree" if is_tab => {
                  let frame_id = call.params["frameId"].as_str().unwrap_or("F_MAIN");
                  if st.semantic_large_page {
-@@ -561,7 +598,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -561,7 +602,7 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                  {"nodeId": "oopif-root", "ignored": false,
                   "role": {"value": "RootWebArea"}, "childIds": ["oopif-input"]},
                  {"nodeId": "oopif-input", "parentId": "oopif-root", "ignored": false,
@@ -1145,7 +1155,7 @@ index d5f50d2..6d86fef 100644
                   "name": {"value": "Embedded input"},
                   "properties": [{"name": "editable", "value": {"value": "plaintext"}}],
                   "childIds": []}
-@@ -586,17 +623,26 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -586,17 +627,26 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                  }
              }
              "DOMSnapshot.captureSnapshot" if is_oopif => MockReply::ok(semantic_layout_snapshot(
@@ -1168,14 +1178,14 @@ index d5f50d2..6d86fef 100644
                      "clientHeight": st.viewport_css_height
                  }
              })),
-+            "Runtime.evaluate" if call.params["expression"].as_str().is_some_and(|s| s.contains("siaVisualFocusGuard")) => {
++            "Runtime.evaluate" if call.params["expression"].as_str().is_some_and(|s| s.contains("siaVisualFocusGuard") || s.contains("siaVisualKeyGuard")) => {
 +                MockReply::ok(json!({"result": {"type": "boolean", "value": st.visual_focus_safe}}))
 +            }
 +            "Input.insertText" if st.visual_insert_fails => MockReply::err(-32000, "uncertain insert"),
              "Runtime.evaluate"
                  if call.params["expression"] == "document.visibilityState === 'visible'" =>
              {
-@@ -608,6 +654,8 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -608,6 +658,8 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                  }))
              }
              "Page.captureScreenshot" if is_tab => {
@@ -1184,10 +1194,22 @@ index d5f50d2..6d86fef 100644
                  MockReply::ok(json!({"data": st.screenshot_data.clone()}))
              }
              "Page.navigate" if is_tab => MockReply::ok(json!({
-@@ -704,13 +752,36 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+@@ -694,7 +746,9 @@ fn fixture_handler(state: SharedState) -> MockHandler {
+             }
+             "Input.dispatchKeyEvent" => {
+                 let event_type = call.params["type"].as_str().unwrap_or_default();
+-                if event_type == "keyDown" && st.fail_key_down_after == Some(st.completed_key_pairs)
++                if event_type == "keyUp" && st.visual_key_up_fails {
++                    MockReply::err(-32000, "uncertain key release")
++                } else if event_type == "keyDown" && st.fail_key_down_after == Some(st.completed_key_pairs)
+                 {
+                     MockReply::err(-32000, "fixture key delivery failure")
+                 } else {
+@@ -704,13 +758,37 @@ fn fixture_handler(state: SharedState) -> MockHandler {
                      MockReply::ok(json!({}))
                  }
              }
++            "Emulation.setFocusEmulationEnabled" if call.params["enabled"] == false && st.visual_focus_restore_fails => MockReply::err(-32000, "uncertain focus restore"),
 +            "Emulation.setFocusEmulationEnabled" => {
 +                if call.params["enabled"] == true && st.viewport_change_on_focus {
 +                    st.viewport_page_y += 120.0;
@@ -1222,7 +1244,7 @@ index d5f50d2..6d86fef 100644
              "Runtime.callFunctionOn"
                  if call.params["functionDeclaration"]
                      .as_str()
-@@ -1880,6 +1951,65 @@ fn recorded_calls(f: &Fixture, method: &str) -> Vec<(Option<String>, Value)> {
+@@ -1880,6 +1958,65 @@ fn recorded_calls(f: &Fixture, method: &str) -> Vec<(Option<String>, Value)> {
          .collect()
  }
  
@@ -1288,7 +1310,7 @@ index d5f50d2..6d86fef 100644
  // ── Snapshot composition ─────────────────────────────────────────────────────
  
  #[tokio::test]
-@@ -2326,6 +2456,57 @@ async fn semantic_query_and_content_scope_are_read_only_and_precise() {
+@@ -2326,6 +2463,57 @@ async fn semantic_query_and_content_scope_are_read_only_and_precise() {
      assert!(recorded_calls(&f, "Target.activateTarget").is_empty());
  }
  
@@ -1346,7 +1368,7 @@ index d5f50d2..6d86fef 100644
  #[tokio::test]
  async fn navigation_targets_an_inactive_tab_without_activating_it() {
      let f = fixture().await;
-@@ -2755,6 +2936,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
+@@ -2755,6 +2943,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
      );
  }
  
@@ -1399,7 +1421,7 @@ index d5f50d2..6d86fef 100644
  #[tokio::test]
  async fn click_routes_oopif_refs_through_the_contained_child_session() {
      let f = fixture().await;
-@@ -3603,3 +3830,200 @@ async fn method_unsupported_keeps_the_electron_none_path() {
+@@ -3603,3 +3837,294 @@ async fn method_unsupported_keeps_the_electron_none_path() {
      assert_eq!(tabs.len(), 1, "{s}");
      assert_eq!(tabs[0]["url"], "https://fixture.test/");
  }
@@ -1600,6 +1622,100 @@ index d5f50d2..6d86fef 100644
 +        }
 +    }
 +}
++
++#[tokio::test]
++async fn visual_key_delivers_one_page_pair_without_dom_or_foreground_fallback() {
++    for (key, modifiers, command) in [
++        ("enter", json!([]), None),
++        ("a", json!(["shift"]), None),
++        ("tab", json!(["shift"]), None),
++        ("a", json!(["cmd"]), Some("selectAll")),
++        ("z", json!(["cmd", "shift"]), Some("redo")),
++        ("left", json!(["option", "shift"]), Some("moveWordLeftAndModifySelection")),
++    ] {
++        let f = fixture().await;
++        let (target, tab) = bind(&f).await;
++        let observed = GetBrowserStateTool::new(f.engine.clone()).invoke(json!({
++            "target_id": target, "tab_id": tab, "session": SESSION,
++            "snapshot_format": "semantic_v2", "include_screenshot": true, "require_visual_identity": true,
++        })).await;
++        let token = structured(&observed)["screenshot"]["visual_document"].clone();
++        f.state.lock().unwrap().calls.clear();
++        let result = BrowserTypeTool::new(f.engine.clone()).invoke(json!({
++            "target_id": target, "tab_id": tab, "session": SESSION,
++            "mode": "focused_key", "text": key, "modifiers": modifiers, "visual_document": token,
++        })).await;
++        assert_eq!(structured(&result)["status"], "ok", "{result:?}");
++        let calls = recorded_calls(&f, "Input.dispatchKeyEvent");
++        assert_eq!(calls.len(), 2);
++        assert_eq!(calls[0].1["type"], "keyDown");
++        assert_eq!(calls[1].1["type"], "keyUp");
++        assert_eq!(calls[0].0, calls[1].0);
++        if let Some(command) = command { assert_eq!(calls[0].1["commands"], json!([command])); }
++        else { assert!(calls[0].1.get("commands").is_none()); }
++        if key == "enter" { assert_eq!(calls[0].1["text"], "\r"); }
++        if key == "a" && command.is_none() {
++            assert_eq!(calls[0].1["text"], "A");
++            assert_eq!(calls[0].1["unmodifiedText"], "a");
++        }
++        assert!(calls[1].1.get("commands").is_none());
++        assert!(calls[1].1.get("text").is_none());
++        for forbidden in ["DOM.focus", "Runtime.callFunctionOn", "Input.insertText", "Page.bringToFront", "Target.activateTarget"] {
++            assert!(recorded_calls(&f, forbidden).is_empty(), "{forbidden}");
++        }
++        let focus = recorded_calls(&f, "Emulation.setFocusEmulationEnabled");
++        assert_eq!(focus.len(), 2);
++        assert_eq!(focus[1].1["enabled"], false);
++    }
++}
++
++#[tokio::test]
++async fn visual_key_refuses_stale_or_unsafe_focus_and_cleans_up_uncertain_delivery() {
++    for scenario in ["protected", "focus", "reload", "scroll", "focus_scroll", "press", "release", "cleanup", "clipboard", "no_token"] {
++        let f = fixture().await;
++        let (target, tab) = bind(&f).await;
++        let observed = GetBrowserStateTool::new(f.engine.clone()).invoke(json!({
++            "target_id": target, "tab_id": tab, "session": SESSION,
++            "snapshot_format": "semantic_v2", "include_screenshot": true, "require_visual_identity": true,
++        })).await;
++        let token = structured(&observed)["screenshot"]["visual_document"].clone();
++        {
++            let mut state = f.state.lock().unwrap();
++            state.calls.clear();
++            match scenario {
++                "protected" => state.visual_focus_safe = false,
++                "focus" => state.visual_focus_changes = true,
++                "reload" => state.main_loader = "reloaded".into(),
++                "scroll" => state.viewport_page_y = 150.0,
++                "focus_scroll" => state.viewport_change_on_focus = true,
++                "press" => state.fail_key_down_after = Some(0),
++                "release" => state.visual_key_up_fails = true,
++                "cleanup" => state.visual_focus_restore_fails = true,
++                _ => {},
++            }
++        }
++        let mut args = json!({"target_id": target, "tab_id": tab, "session": SESSION,
++            "mode": "focused_key", "text": "enter", "visual_document": token});
++        if scenario == "clipboard" { args["text"] = json!("c"); args["modifiers"] = json!(["cmd"]); }
++        if scenario == "no_token" { args.as_object_mut().unwrap().remove("visual_document"); }
++        let result = BrowserTypeTool::new(f.engine.clone()).invoke(args).await;
++        let uncertain = matches!(scenario, "press" | "release" | "cleanup");
++        let code = structured(&result)["refusal"]["code"].as_str().unwrap();
++        if uncertain {
++            assert_eq!(code, "browser_input_incomplete");
++            let events = recorded_calls(&f, "Input.dispatchKeyEvent");
++            assert_eq!(events.len(), 2, "{scenario}");
++            assert_eq!(events[1].1["type"], "keyUp");
++        } else {
++            assert_ne!(code, "browser_input_incomplete", "{scenario}");
++            assert!(recorded_calls(&f, "Input.dispatchKeyEvent").is_empty(), "{scenario}");
++        }
++        let focus = recorded_calls(&f, "Emulation.setFocusEmulationEnabled");
++        if matches!(scenario, "protected" | "reload" | "scroll" | "clipboard" | "no_token") {
++            assert!(focus.is_empty(), "{scenario}");
++        } else { assert_eq!(focus.last().unwrap().1["enabled"], false, "{scenario}"); }
++    }
++}
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/visual_input.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/visual_input.rs
 new file mode 100644
 index 0000000..3e1bd3a
@@ -1742,8 +1858,339 @@ index 0000000..3e1bd3a
 +            "requested_chars": text.chars().count(), "delivered_chars": text.chars().count(),
 +        }))
 +}
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/visual_key.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/visual_key.rs
+new file mode 100644
+index 0000000..9416a0a
+--- /dev/null
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/visual_key.rs
+@@ -0,0 +1,325 @@
++//! A named key at the visually selected page focus, never a DOM focus/setter or OS shortcut.
++use super::engine::{BrowserEngine, ValidatedTab};
++use super::refusal::{BrowserRefusal, BrowserRefusalCode};
++use crate::protocol::ToolResult;
++use serde_json::{json, Value};
++
++// Security-only, side-effect-checked inspection. Returns no text, refs, or focus targets.
++// A page keyboard event may activate a link/form just like a pointer click.
++pub(super) const FOCUSED_KEY_GUARD: &str = r#"((requireEditable, canActivate) => { /* siaVisualKeyGuard */
++  let root = document, field;
++  for (let depth = 0; depth < 32; depth++) {
++    field = root.activeElement;
++    if (!field) return false;
++    if (field.shadowRoot) { root = field.shadowRoot; continue; }
++    if (field.localName === 'iframe' || field.localName === 'frame') {
++      try { root = field.contentDocument; } catch { return false; }
++      if (!root) return false;
++      continue;
++    }
++    if (field.localName === 'input' && /^(password|hidden|file)$/i.test(field.type)) return false;
++    if (/password|one-time-code|cc-|webauthn/i.test(field.getAttribute('autocomplete') || '')) return false;
++    if (field.disabled || field.readOnly) return false;
++    const ownDoc = field.ownerDocument;
++    const base = canActivate ? (ownDoc.querySelector('base[target]')?.getAttribute('target') || '') : '';
++    const other = target => target !== '' && target.toLowerCase() !== '_self';
++    let parent = canActivate ? field : null, remaining = 512;
++    while (parent) {
++      if (--remaining === 0) return false;
++      if ((parent.localName === 'a' || parent.localName === 'area') &&
++          parent.getAttribute('href') !== null && other(parent.getAttribute('target') || base)) return false;
++      parent = parent.parentElement;
++    }
++    const form = field.form;
++    if (form) {
++      if (canActivate && other(field.getAttribute('formtarget') || form.getAttribute('target') || base)) return false;
++      // Includes externally associated controls: Enter may activate a default submitter
++      // outside the form's DOM subtree. No control values or names leave this guard.
++      const controls = form.elements;
++      if (controls.length > 512) return false;
++      for (let index = 0; index < controls.length; index++) {
++        const control = controls[index];
++        if (control.localName === 'input' && control.type === 'password') return false;
++        const target = control.getAttribute('formtarget');
++        if (canActivate && target !== null && other(target || base)) return false;
++      }
++    }
++    if (!requireEditable) return true;
++    return field.localName === 'textarea' ||
++      (field.localName === 'input' && /^(text|search|email|tel|url|number)$/i.test(field.type)) ||
++      field.isContentEditable === true;
++  }
++  return false;
++})"#;
++
++struct VisualKey {
++    key: String,
++    code: String,
++    virtual_code: u32,
++    modifiers: u32,
++    text: Option<String>,
++    command: Option<&'static str>,
++    editable: bool,
++}
++
++fn parse(key: &str, args: &Value) -> Result<VisualKey, &'static str> {
++    let mut modifiers = 0;
++    if let Some(raw) = args.get("modifiers") {
++        let values = raw.as_array().ok_or("modifiers must be an array")?;
++        for modifier in values {
++            let bit = match modifier.as_str() {
++                Some("cmd") => 4,
++                Some("shift") => 8,
++                Some("option") => 1,
++                _ => return Err("this background page shortcut is unavailable"),
++            };
++            if modifiers & bit != 0 {
++                return Err("duplicate key modifier");
++            }
++            modifiers |= bit;
++        }
++    }
++    let key = key.to_ascii_lowercase();
++    let shifted = modifiers & 8 != 0;
++    let base_modifiers = modifiers & !8;
++    if shifted && key == "escape" {
++        return Err("browser-wide shortcuts are unavailable in background page input");
++    }
++    let mut command = None;
++    if base_modifiers != 0 {
++        command =
++            Some(match (base_modifiers, key.as_str(), shifted) {
++                (4, "a", false) => "selectAll",
++                (4, "z", false) => "undo",
++                (4, "z", true) => "redo",
++                (4, "left", false) => "moveToBeginningOfLine",
++                (4, "left", true) => "moveToBeginningOfLineAndModifySelection",
++                (4, "right", false) => "moveToEndOfLine",
++                (4, "right", true) => "moveToEndOfLineAndModifySelection",
++                (4, "up", false) => "moveToBeginningOfDocument",
++                (4, "up", true) => "moveToBeginningOfDocumentAndModifySelection",
++                (4, "down", false) => "moveToEndOfDocument",
++                (4, "down", true) => "moveToEndOfDocumentAndModifySelection",
++                (4, "delete" | "backspace", false) => "deleteToBeginningOfLine",
++                (1, "left", false) => "moveWordLeft",
++                (1, "left", true) => "moveWordLeftAndModifySelection",
++                (1, "right", false) => "moveWordRight",
++                (1, "right", true) => "moveWordRightAndModifySelection",
++                (1, "delete" | "backspace", false) => "deleteWordBackward",
++                _ => return Err(
++                    "clipboard and browser-wide shortcuts are unavailable in background page input",
++                ),
++            });
++    }
++    let (named, code, virtual_code, text, editable) = match key.as_str() {
++        "enter" | "return" => ("Enter".into(), "Enter".into(), 13, Some("\r".into()), false),
++        "tab" => ("Tab".into(), "Tab".into(), 9, None, false),
++        "escape" => ("Escape".into(), "Escape".into(), 27, None, false),
++        "space" => (" ".into(), "Space".into(), 32, Some(" ".into()), false),
++        "delete" | "backspace" => ("Backspace".into(), "Backspace".into(), 8, None, true),
++        "up" => ("ArrowUp".into(), "ArrowUp".into(), 38, None, false),
++        "down" => ("ArrowDown".into(), "ArrowDown".into(), 40, None, false),
++        "left" => ("ArrowLeft".into(), "ArrowLeft".into(), 37, None, false),
++        "right" => ("ArrowRight".into(), "ArrowRight".into(), 39, None, false),
++        "home" => ("Home".into(), "Home".into(), 36, None, false),
++        "end" => ("End".into(), "End".into(), 35, None, false),
++        "pageup" => ("PageUp".into(), "PageUp".into(), 33, None, false),
++        "pagedown" => ("PageDown".into(), "PageDown".into(), 34, None, false),
++        value if value.len() == 1 && value.as_bytes()[0].is_ascii_alphanumeric() => {
++            let byte = value.as_bytes()[0];
++            // Shifted digits need a keyboard-layout contract; type literal text instead.
++            if shifted && byte.is_ascii_digit() {
++                return Err("type the literal symbol instead");
++            }
++            let text = if shifted {
++                value.to_ascii_uppercase()
++            } else {
++                value.into()
++            };
++            let code = if byte.is_ascii_digit() {
++                format!("Digit{value}")
++            } else {
++                format!("Key{}", value.to_ascii_uppercase())
++            };
++            (
++                text.clone(),
++                code,
++                u32::from(byte.to_ascii_uppercase()),
++                Some(text),
++                false,
++            )
++        }
++        _ => return Err("use a supported page key or type literal text"),
++    };
++    Ok(VisualKey {
++        key: named,
++        code,
++        virtual_code,
++        modifiers,
++        text: if base_modifiers == 0 { text } else { None },
++        command,
++        // Cmd+A/Z are page-local even in custom canvas editors. Movement/deletion
++        // shortcuts need an editable caret to avoid browser history commands.
++        editable: editable
++            || (command.is_some() && !(base_modifiers == 4 && matches!(key.as_str(), "a" | "z")))
++            || (shifted && matches!(key.as_str(), "enter" | "return")),
++    })
++}
++
++async fn focus_is_safe(tab: &ValidatedTab, key: &VisualKey) -> bool {
++    let response = tab
++        .conn
++        .call(
++            Some(&tab.cdp_session),
++            "Runtime.evaluate",
++            json!({
++                "expression": format!("({FOCUSED_KEY_GUARD})({}, {})", key.editable, matches!(key.key.as_str(), "Enter" | " ")),
++                "returnByValue": true, "silent": true, "throwOnSideEffect": true,
++            }),
++        )
++        .await;
++    matches!(response, Ok(ref reply) if reply.get("exceptionDetails").is_none() &&
++        reply.pointer("/result/value").and_then(Value::as_bool) == Some(true))
++}
++
++pub(super) async fn deliver(
++    engine: &BrowserEngine,
++    tab: &ValidatedTab,
++    args: &Value,
++    key: &str,
++) -> ToolResult {
++    let key = match parse(key, args) {
++        Ok(key) => key,
++        Err(message) => {
++            return BrowserRefusal::new(BrowserRefusalCode::BrowserActionUnavailable, message)
++                .to_tool_result()
++        }
++    };
++    let Some(token) = args
++        .get("visual_document")
++        .and_then(Value::as_str)
++        .filter(|s| s.len() == 64 && s.bytes().all(|c| c.is_ascii_hexdigit()))
++    else {
++        return BrowserRefusal::new(
++            BrowserRefusalCode::BrowserRefStale,
++            "a fresh visual observation is required for page keys",
++        )
++        .to_tool_result();
++    };
++    if let Err(refusal) = engine.verify_visual_document(tab, Some(token)).await {
++        return refusal.to_tool_result();
++    }
++    if !focus_is_safe(tab, &key).await {
++        return BrowserRefusal::new(BrowserRefusalCode::BrowserActionUnavailable, "the current page focus is protected, unproven or could open another context; no key sent").to_tool_result();
++    }
++    let conn = &tab.conn;
++    let cdp = tab.cdp_session.as_str();
++    // Even a failed focus call may have reached Chrome: always attempt restore.
++    let focused = conn
++        .call(
++            Some(cdp),
++            "Emulation.setFocusEmulationEnabled",
++            json!({"enabled": true}),
++        )
++        .await;
++    let mut refusal = None;
++    let mut uncertain = focused.is_err();
++    if !uncertain {
++        if !focus_is_safe(tab, &key).await {
++            refusal = Some(BrowserRefusal::new(
++                BrowserRefusalCode::BrowserActionUnavailable,
++                "page focus changed to an unproven target; no key sent",
++            ));
++        } else if let Err(changed) = engine.verify_visual_document(tab, Some(token)).await {
++            refusal = Some(changed);
++        } else {
++            let mut event = json!({"type": "keyDown", "key": key.key, "code": key.code,
++                "windowsVirtualKeyCode": key.virtual_code, "modifiers": key.modifiers});
++            if let Some(text) = &key.text {
++                event["text"] = json!(text);
++                event["unmodifiedText"] = json!(text.to_ascii_lowercase());
++            }
++            if let Some(command) = key.command {
++                event["commands"] = json!([command]);
++            }
++            let pressed = conn.call(Some(cdp), "Input.dispatchKeyEvent", event).await;
++            // Release once even if the press acknowledgement was lost. Never replay keyDown.
++            let released = conn
++                .call(
++                    Some(cdp),
++                    "Input.dispatchKeyEvent",
++                    json!({
++                        "type": "keyUp", "key": key.key, "code": key.code,
++                        "windowsVirtualKeyCode": key.virtual_code, "modifiers": key.modifiers,
++                    }),
++                )
++                .await;
++            uncertain = pressed.is_err() || released.is_err();
++        }
++    }
++    let restored = conn
++        .call(
++            Some(cdp),
++            "Emulation.setFocusEmulationEnabled",
++            json!({"enabled": false}),
++        )
++        .await;
++    if uncertain || restored.is_err() {
++        return BrowserRefusal::new(BrowserRefusalCode::BrowserInputIncomplete,
++            "page keyboard delivery or focus cleanup was uncertain; inspect without replaying the key")
++            .with_detail(json!({"retryable": false, "delivery": "unknown"})).to_tool_result();
++    }
++    if let Some(refusal) = refusal {
++        return refusal.to_tool_result();
++    }
++    ToolResult::text("Page key delivered; inspect a fresh screenshot to verify its effect.")
++        .with_structured(
++            json!({"status": "ok", "route": "trusted", "delivery_mode": "background",
++            "target_id": args["target_id"], "tab_id": args["tab_id"], "mode": "focused_key"}),
++        )
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    #[test]
++    fn page_key_allowlist_has_no_clipboard_or_browser_global_shortcuts() {
++        for key in ["c", "x", "v", "l", "r", "t", "w", "q", "f", "1"] {
++            for modifier in ["cmd", "ctrl"] {
++                assert!(
++                    parse(key, &json!({"modifiers": [modifier]})).is_err(),
++                    "{modifier}/{key}"
++                );
++            }
++        }
++        assert!(parse("tab", &json!({"modifiers": ["ctrl"]})).is_err());
++        assert!(parse("escape", &json!({"modifiers": ["shift"]})).is_err());
++        assert!(
++            parse("enter", &json!({"modifiers": ["shift"]}))
++                .unwrap()
++                .editable
++        );
++        assert!(!parse("a", &json!({"modifiers": ["cmd"]})).unwrap().editable);
++        assert!(!parse("g", &json!({})).unwrap().editable);
++        assert!(parse("enter", &json!({"modifiers": ["cmd"]})).is_err());
++        assert!(parse("a", &json!({"modifiers": ["cmd", "cmd"]})).is_err());
++        assert!(parse("a", &json!({"modifiers": "cmd"})).is_err());
++        assert_eq!(
++            parse("a", &json!({"modifiers": ["cmd"]})).unwrap().command,
++            Some("selectAll")
++        );
++        assert_eq!(
++            parse("z", &json!({"modifiers": ["cmd", "shift"]}))
++                .unwrap()
++                .command,
++            Some("redo")
++        );
++        assert_eq!(
++            parse("left", &json!({"modifiers": ["option", "shift"]}))
++                .unwrap()
++                .command,
++            Some("moveWordLeftAndModifySelection")
++        );
++        assert_eq!(parse("delete", &json!({})).unwrap().virtual_code, 8);
++    }
++}
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs
-index 09007a5..eb6fd6d 100644
+index 09007a5..fb06ee7 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/server.rs
 @@ -266,7 +266,8 @@ impl From<crate::browser::refusal::BrowserRefusalCode> for ToolRefusalCode {
@@ -1756,15 +2203,17 @@ index 09007a5..eb6fd6d 100644
          }
      }
  }
-@@ -407,7 +408,7 @@ pub fn tool_operation(tool_name: &str, args: Option<&serde_json::Value>) -> Tool
+@@ -407,8 +408,8 @@ pub fn tool_operation(tool_name: &str, args: Option<&serde_json::Value>) -> Tool
              Some(_) => ToolOperation::Other,
          },
          "browser_type" => match string_arg("mode") {
 -            None | Some("insert_text") => ToolOperation::BrowserTypeInsertText,
+-            Some("keystrokes") => ToolOperation::BrowserTypeKeystrokes,
 +            None | Some("insert_text" | "focused") => ToolOperation::BrowserTypeInsertText,
-             Some("keystrokes") => ToolOperation::BrowserTypeKeystrokes,
++            Some("keystrokes" | "focused_key") => ToolOperation::BrowserTypeKeystrokes,
              Some(_) => ToolOperation::Other,
          },
+         "browser_prepare" => {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
 index 681c636..a748f2c 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs

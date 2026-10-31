@@ -63,8 +63,19 @@ scrolling, resizing, pan and zoom changes revoke it, including changes during fo
 Capture also rechecks the viewport after the image and returns no image if it changed. Missing or
 invalid viewport metadata refuses input; optional zoom metadata remains explicitly absent when
 Chrome does not report it. This token never reaches model responses. Its host-only check
-returns a boolean, never field contents or an element target. Browser keyboard commands are still
-pending; this mode accepts text only.
+returns a boolean, never field contents or an element target.
+
+The `focused_key` mode treats the text argument as one named page key, with optional Cmd, Shift
+or Option modifiers. It sends one CDP key-down/up pair to the bound page, using reviewed editor
+commands for selection, undo/redo and caret movement. A side-effect-checked focus guard rejects
+protected, unknown and cross-origin fields; Enter/Space also check known new-context links and
+form targets. Tab and other non-activating keys can leave those links. Checks repeat after focus
+emulation. Key release and focus restoration are attempted even after uncertain delivery; the host
+consumes that image authority and never replays the key. Clipboard and browser-wide shortcuts
+remain unavailable, including Shift+Escape. Shift+Enter needs an editable caret so it cannot open
+a focused link in another window. Plain letter keys and Cmd+A/Z remain available to page apps
+with custom focus handling. Chromium tests exercise the exact guard and selection/Tab/Enter behavior;
+these are transport checks, not signed real-task acceptance.
 
 Coordinate clicks and button gestures perform a security hit-test at the selected point, then run
 the same new-context guard described above. They do not move the point, scroll an element into view,
@@ -91,6 +102,12 @@ do not establish the cause of the live navigation/focus-emulation timeout.
 Install Rust through [rustup](https://rustup.rs) in addition to the normal Sia prerequisites.
 The first native build downloads the pinned compiler and source; later builds verify and reuse
 cached outputs. `pnpm build` and `pnpm dev` build the host architecture automatically.
+
+The source-cache check includes new patch files, including caches created by older builds. It
+applies patches without disturbing the sparse index, then marks only declared new files for the
+exact diff comparison. Changed or unexpected source files are refused and preserved. The full
+pinned patch passed two consecutive checks in a fresh upstream sparse checkout; regressions also
+cover first apply, older-cache recovery, divergent files and sparse-index preservation.
 Universal packaging builds both architectures before signing.
 
 ```sh

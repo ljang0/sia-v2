@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { copyFile, mkdir, readFile, access, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { buildCuaLicenses, cuaBuildRecipe } from './cua-driver-licenses.mjs';
+import { prepareCuaPatch } from './cua-driver-patch.mjs';
 
 const desktop = resolve(import.meta.dirname, '..');
 const root = resolve(desktop, '../..');
@@ -113,14 +114,7 @@ if (run('git', ['rev-parse', 'HEAD'], source, {}, true) !== pin.commit) {
     `The native source cache does not match ${pin.commit}. Inspect ${source} before rebuilding.`,
   );
 }
-const currentDiff = run('git', ['diff', 'HEAD', '--binary'], source, {}, true);
-if (currentDiff && currentDiff !== patch.toString('utf8').trim()) {
-  throw new Error(
-    `The native source cache has a different patch. Inspect ${source} before rebuilding.`,
-  );
-}
-if (!currentDiff) run('git', ['apply', '--check', join(root, pin.patch)], source);
-if (!currentDiff) run('git', ['apply', join(root, pin.patch)], source);
+prepareCuaPatch(source, join(root, pin.patch));
 
 // rustup must be installed by the contributor; the checked-in pin chooses the compiler.
 run('rustup', ['toolchain', 'install', pin.rustToolchain, '--profile', 'minimal']);

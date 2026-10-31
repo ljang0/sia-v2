@@ -86,7 +86,7 @@ const computerAction = z
       .string()
       .trim()
       .regex(
-        /^(?:[a-z0-9]|enter|return|tab|escape|up|down|left|right|space|delete|home|end|pageup|pagedown|f(?:[1-9]|1[0-2]))$/i,
+        /^(?:[a-z0-9]|enter|return|tab|escape|up|down|left|right|space|delete|backspace|home|end|pageup|pagedown|f(?:[1-9]|1[0-2]))$/i,
       )
       .optional(),
     modifiers: z
@@ -194,7 +194,12 @@ const browserAction = z
   .object({
     tab_id: id,
     snapshot_id: id,
-    action: z.enum(['click', 'type', 'scroll', 'drag']),
+    action: z.enum(['click', 'type', 'scroll', 'drag', 'key']),
+    value: z.string().trim().min(1).max(20).optional(),
+    modifiers: z
+      .array(z.enum(['cmd', 'shift', 'option']))
+      .max(3)
+      .optional(),
     element_ref: id.optional(),
     x: z.number().finite().min(0).max(32768).optional(),
     y: z.number().finite().min(0).max(32768).optional(),
@@ -213,14 +218,24 @@ const browserAction = z
   .superRefine((args, context) => {
     const coordinates = args.x !== undefined && args.y !== undefined;
     if (
+      args.action === 'key'
+        ? !args.value || args.element_ref || args.text !== undefined
+        : args.value !== undefined || args.modifiers !== undefined
+    )
+      context.addIssue({
+        code: 'custom',
+        message:
+          'Page keys require a value and optional modifiers without a semantic target or text.',
+      });
+    if (
       (args.x !== undefined || args.y !== undefined) &&
-      (!coordinates || args.element_ref || args.action === 'type')
+      (!coordinates || args.element_ref || ['type', 'key'].includes(args.action))
     )
       context.addIssue({
         code: 'custom',
         message: 'Use a semantic ref or a complete screenshot point, not both.',
       });
-    if (args.action !== 'type' && !args.element_ref && !coordinates)
+    if (!['type', 'key'].includes(args.action) && !args.element_ref && !coordinates)
       context.addIssue({
         code: 'custom',
         message: 'Pointer input needs a screenshot point or current ref.',

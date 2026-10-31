@@ -31,7 +31,7 @@
     "typecheck": "tsc --noEmit",
     "native:build": "pnpm native:cua && node scripts/build-voice-helper.mjs",
     "predev": "pnpm --filter '@sia/desktop^...' build && pnpm native:build && pnpm remote:build && node scripts/prepare-dev-electron.mjs",
-    "native:test": "pnpm native:cua --test && node scripts/build-voice-helper.mjs && node scripts/port-notch-prompts.mjs --check && node --test scripts/cua-driver-licenses.test.mjs scripts/prepare-dev-electron.test.mjs scripts/release-identity.test.mjs && node scripts/test-voice-helper.mjs",
+    "native:test": "pnpm native:cua --test && node scripts/build-voice-helper.mjs && node scripts/port-notch-prompts.mjs --check && node --test scripts/cua-driver-licenses.test.mjs scripts/cua-driver-patch.test.mjs scripts/prepare-dev-electron.test.mjs scripts/release-identity.test.mjs && node scripts/test-voice-helper.mjs",
     "remote:build": "vite build --config vite.remote.config.ts",
     "test:remote": "pnpm remote:build && playwright test --config playwright.remote.config.ts",
     "test:renderer": "playwright test --config playwright.renderer.config.ts",

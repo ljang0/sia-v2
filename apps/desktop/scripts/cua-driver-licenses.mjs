@@ -54,6 +54,7 @@ export async function cuaBuildRecipe(desktopRoot) {
   const inputs = await cuaLicenseInputs(join(desktopRoot, 'build/license-sources'));
   const bytes = Buffer.concat([
     await readFile(join(desktopRoot, 'scripts/build-cua-driver.mjs')),
+    await readFile(join(desktopRoot, 'scripts/cua-driver-patch.mjs')),
     await readFile(import.meta.filename),
     inputs.fingerprint,
   ]);

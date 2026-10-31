@@ -434,13 +434,13 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   browser_action: {
     name: 'browser_action',
     description:
-      'Perform one action in a granted tab. Visual control uses original screenshot coordinates and types into the visually focused field. Assisted snapshots use their current element refs. No raw JavaScript or CDP.',
+      'Perform one action in a granted tab. Visual control uses original screenshot coordinates and sends text or named keys to the visually focused page control. Assisted snapshots use their current element refs. No raw JavaScript or CDP.',
     inputSchema: object(
       {
         tab_id: string('Granted tab id'),
         snapshot_id: string('Fresh browser snapshot id'),
         action: string('Action', {
-          enum: ['click', 'type', 'scroll', 'drag'],
+          enum: ['click', 'type', 'scroll', 'drag', 'key'],
         }),
         element_ref: string('Assisted snapshot element reference; unavailable in visual mode'),
         x: { type: 'number', minimum: 0, maximum: 32768 },
@@ -450,6 +450,15 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
         button: string('Mouse button', { enum: ['left', 'right'] }),
         count: { type: 'integer', minimum: 1, maximum: 2 },
         text: string('Text to type'),
+        value: string(
+          'Page key: enter, tab, escape, arrows, space, delete, home/end, pageup/pagedown or one letter/digit',
+        ),
+        modifiers: {
+          type: 'array',
+          items: { type: 'string', enum: ['cmd', 'shift', 'option'] },
+          description:
+            'Page editing shortcuts only; clipboard and browser-wide commands are unavailable.',
+        },
         direction: string('Scroll direction', { enum: ['up', 'down', 'left', 'right'] }),
         amount: { type: 'integer', minimum: 1, maximum: 10000 },
         origin: string('Current origin'),

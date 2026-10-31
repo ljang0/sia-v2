@@ -42,13 +42,18 @@ reloads, and viewport changes before input or during focus emulation revoke the 
 checks its protection snapshot identity and viewport before and after the image; no identity token
 or semantic content is exposed to the model.
 Host-side DOM inspection remains for protection and new-tab guards; it supplies no model targets.
-Browser keyboard commands are not migrated yet. Semantic snapshot traversal also remains internally,
+Browser page keys and common editing shortcuts are staged too: one key-down/up pair, no DOM
+focus/setter fallback, protected-focus and new-context checks, and no clipboard or browser-wide
+shortcuts. Unknown delivery consumes its authority without replay. Chromium checks cover the exact
+focus guard and selection/replacement, Tab and Enter. Semantic snapshot traversal remains internally,
 so this change does not establish latency improvement. This option is **not enabled in the shipping
-host yet**: browser keyboard support, bounded capture/protection timing, foreground runtime/tool
+host yet**: bounded capture/protection timing, foreground runtime/tool
 isolation, model schemas and prompts, all-route regression checks and signed real-task acceptance
-must land before cutover.
+must land before cutover. CI exposed new patch sources missing from the cache's diff check;
+that verification is corrected and passed twice against a fresh pinned upstream sparse checkout.
+Divergent and unexpected local source files remain refused without replacement.
 The current staged implementation passed `pnpm test:pilot`: build, formatting, lint, quality,
-types, native/shared checks, 1,899 desktop tests, 46 desktop end-to-end tests, 36 renderer tests
+types, native/shared checks, 1,910 desktop tests, 46 desktop end-to-end tests, 40 renderer tests
 and 72 Chromium/WebKit phone tests. These automated transport/authorization and UI checks are not
 evidence of visual task skill. Continue also retires obsolete Chrome setup markers from the
 previous execution while retaining its history. No new signed artifact contains these changes yet;

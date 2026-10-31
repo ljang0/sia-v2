@@ -572,24 +572,20 @@ describe('DesktopActionBackend browser boundary', () => {
     );
     expect(mismatch.outcome).toBe('stale');
 
-    expect(() =>
-      request('browser_action', {
-        tab_id: 'tab-1',
-        snapshot_id: snapshotData.snapshot_id,
-        action: 'key',
-        value: 'Enter',
-      }),
-    ).not.toThrow();
-    expect(() =>
-      parseActionArguments('browser_action', {
-        tab_id: 'tab-1',
-        snapshot_id: snapshotData.snapshot_id,
-        action: 'key',
-        value: 'Enter',
-        origin: 'https://one.example',
-      }),
-    ).toThrow();
-    expect(cua.call.mock.calls.some(([tool]) => tool === 'press_key')).toBe(false);
+    const key = parseActionArguments('browser_action', {
+      tab_id: 'tab-1',
+      snapshot_id: snapshotData.snapshot_id,
+      action: 'key',
+      value: 'Enter',
+      origin: 'https://one.example',
+    });
+    // Page keys belong to screenshot authority. The assisted route must never
+    // reinterpret a now-valid schema as permission for global keyboard input.
+    const unsupported = await backend.invoke(request('browser_action', key));
+    expect(unsupported.outcome).toBe('refused');
+    expect(
+      cua.call.mock.calls.some(([tool]) => ['press_key', 'browser_type'].includes(tool)),
+    ).toBe(false);
   });
 
   it('isolates uploads in a private temporary vault', async () => {
