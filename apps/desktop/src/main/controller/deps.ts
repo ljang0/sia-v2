@@ -12,6 +12,7 @@ import { normalizeWorkspace } from './workspace-paths.js';
 
 /** The host capabilities a desktop controller runs with, with defaults applied. */
 export interface ControllerDeps {
+  readonly visionOnly: boolean;
   readonly notchHelperPath: string;
   readonly repository: RecordRepository;
   readonly cloud: CloudClient;
@@ -58,6 +59,7 @@ export interface ControllerDeps {
 
 export function resolveControllerDeps(options: ControllerOptions): ControllerDeps {
   return {
+    visionOnly: options.visionOnly === true,
     notchHelperPath:
       options.notchHelperPath ??
       resolve(import.meta.dirname, '../../../build/native/SiaVoiceHelper'),

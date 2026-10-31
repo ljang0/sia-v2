@@ -15,6 +15,7 @@ func emit(_ value: [String: Any]) {
 final class VoiceHelper {
     private var contextEnabled = false
     private var macContext = false
+    private var visionOnlyContext = false
     private var monitor: PushToTalkMonitor?
     private let glow = EdgeGlowWindowController()
     private var capture: AudioCaptureEngine?
@@ -43,7 +44,7 @@ final class VoiceHelper {
             let id = UUID().uuidString
             self.heldID = id
             var event: [String: Any] = ["type": "hold", "id": id]
-            if self.contextEnabled, let context = self.macContext ? ScreenContextProvider().capture()?.siaContext : FnContext.capture() { event["context"] = context }
+            if self.contextEnabled, let context = self.visionOnlyContext ? FnContext.activationApp() : (self.macContext ? ScreenContextProvider().capture()?.siaContext : FnContext.capture()) { event["context"] = context }
             emit(event)
         }
         monitor?.onReleased = { [weak self] in
@@ -92,6 +93,7 @@ final class VoiceHelper {
         case "context":
             contextEnabled = value["enabled"] as? Bool == true
             macContext = value["mac"] as? Bool == true
+            visionOnlyContext = value["visionOnly"] as? Bool == true
         case "ping":
             lastPing = Date()
             emit(["type": "ready", "accessibility": AXIsProcessTrusted(), "microphone": AVCaptureDevice.authorizationStatus(for: .audio) == .authorized])

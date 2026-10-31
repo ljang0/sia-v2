@@ -148,6 +148,7 @@ export class MacSession {
   /** Host-only Cmd+E capture, before the command panel takes the user's app focus. */
   async captureLauncherContext(): Promise<string | undefined> {
     const allowed = () =>
+      !this.ctx.deps.visionOnly &&
       !this.ctx.deps.fakeServices &&
       !this.ctx.speech.assistantSuspended &&
       !this.ctx.releaseAccessLocked() &&

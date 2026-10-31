@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { visualActivationContext } from '../mac/activation-context.js';
 import type { ProviderAttachment } from '@sia/protocol';
 import {
   type BridgeRequestMap,
@@ -183,6 +184,7 @@ export class Turns {
         (attachmentGrants.length ? 'Attached files' : UNTITLED_THREAD_TITLE);
       thread.titleSource = 'message';
     }
+    if (this.ctx.deps.visionOnly) context = visualActivationContext(context);
     const queued: QueuedTurn = {
       ...(context ? { context } : {}),
       id: turnId,

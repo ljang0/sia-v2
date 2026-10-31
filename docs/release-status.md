@@ -38,9 +38,9 @@ work, Stop/recovery and responsiveness on the exact signed vision-only candidate
 results only as assisted-mode baseline evidence.
 
 Implementation progress: native-window visual observation and pointer/keyboard authority checks
-are staged behind a host-only `visionOnly` option. They require an image, omit semantic content
+are selected by the central production `visionOnly` setting. They require an image, omit semantic content
 and targets, skip text/OCR helpers, reject semantic input and revoke stale/failed image authority.
-The background browser now has staged image-only responses, verified screenshot-to-viewport
+The background browser now has image-only responses, verified screenshot-to-viewport
 coordinates, pointer delivery and text insertion into a visually focused field. It rechecks page
 protection before input and refuses stale/mismatched images or unknown delivery without replay.
 A host-only token binds capture and input to the live frame/loader identities and CSS viewport
@@ -49,29 +49,33 @@ reloads, and viewport changes before input or during focus emulation revoke the 
 checks its protection snapshot identity and viewport before and after the image; no identity token
 or semantic content is exposed to the model.
 Host-side DOM inspection remains for protection and new-tab guards; it supplies no model targets.
-Browser page keys and common editing shortcuts are staged too: one key-down/up pair, no DOM
+Browser page keys and common editing shortcuts use one key-down/up pair, no DOM
 focus/setter fallback, protected-focus and new-context checks, and no clipboard or browser-wide
 shortcuts. Unknown delivery consumes its authority without replay. Chromium checks cover the exact
 focus guard and selection/replacement, Tab and Enter. Semantic snapshot traversal remains internally,
-so this change does not establish latency improvement. This option is **not enabled in the shipping
-host yet**. The staged runtime now uses the same hosted-tool boundary for visual on-screen and
+so this change does not establish latency improvement. The source host now enables this option for the controller, action backend and runtime together.
+The installed signed alpha.56 still predates it. The runtime uses the same hosted-tool boundary for visual on-screen and
 background turns, without native shell tools or the legacy runtime screen-context injection. Connected visual turns
 also disable provider-native tools and require the verified Codex harness boundary. The installed
 managed Codex 0.160.0 passed a no-turn hosted-session isolation probe; this is configuration evidence,
 not real-task acceptance.
 Visual tool schemas omit semantic references, setters, OCR and menu APIs; a concise visual prompt
 replaces the native/assisted recipe for that route. On-screen visual actions default to foreground
-delivery, and background policy stays enforced. Controller context/memory injection still needs an
-all-route review, followed by bounded capture/protection timing, production wiring and signed
-real-task acceptance before cutover. CI exposed new patch sources missing from the cache's diff check;
+delivery, and background policy stays enforced. Voice activation captures app identity only, without
+walking accessibility content; persisted activation context is stripped to that same identity.
+Launcher semantic capture is disabled. Native memory retains preferences and relevant notes but
+omits captured UI text and native-script instructions, including when memory preparation fails.
+Bounded capture/protection timing and signed real-task acceptance remain required. Research
+episode route names still carry legacy foreground/background labels; add explicit visual-control
+provenance before using new traces for Arena evaluation. CI exposed new patch sources missing from the cache's diff check;
 that verification is corrected and passed twice against a fresh pinned upstream sparse checkout.
 Divergent and unexpected local source files remain refused without replacement.
-The current staged implementation passed `pnpm test:pilot`: build, formatting, lint, quality,
-types, native/shared checks, 1,916 desktop tests, 46 desktop end-to-end tests, 40 renderer tests
+The production-default source passed `pnpm test:pilot`: build, formatting, lint, quality,
+types, native/shared checks, 1,928 desktop tests, 46 desktop end-to-end tests, 40 renderer tests
 and 72 Chromium/WebKit phone tests. These automated transport/authorization and UI checks are not
 evidence of visual task skill. Continue also retires obsolete Chrome setup markers from the
 previous execution while retaining its history. No new signed artifact contains these changes yet;
-the post-cutover pilot gate and signed real-task acceptance remain required before handoff.
+exact-source CI and signed real-task acceptance remain required before handoff.
 
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
@@ -90,7 +94,7 @@ scenarios and evidence requirements are in [manual acceptance](./manual-acceptan
 
 | Area | Verified evidence | Still required |
 | --- | --- | --- |
-| Source | Alpha.55 full local gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web and native/shared checks including 235 browser regressions. Alpha.56 full local gate passed with 1,864 desktop tests and the same E2E/native counts; exact-source CI passed. | Vision-only source gate and final universal artifact repeats. |
+| Source | Alpha.55 full local gate passed: 1,858 desktop, 46 Electron, 36 renderer, 72 phone-web and native/shared checks including 235 browser regressions. Alpha.56 full local gate passed with 1,864 desktop tests and the same E2E/native counts; exact-source CI passed. | Exact-source CI for the vision-only default and final universal artifact repeats. |
 | Signed package | Universal alpha.56 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Signed vision-only candidate and live acceptance. |
 | Useful work | Alpha.56 saved checked five-dinner plan, consolidated groceries and $60 outing; previews loaded. Alpha.55 also completed these and a shopping checklist. | Repeat on the final universal artifact. |
 | Background/concurrency | Alpha.56 native editing progressed during slow browser observation. Stop during Save/readback showed cancellation within 1,149 ms including CUA; read-only recovery preserved saved work and browser access. Ten switches median 1,151 ms / worst 2,432 ms. | Final-artifact concurrency, contention/recovery repeats and clipboard preservation. |

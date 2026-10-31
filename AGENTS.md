@@ -60,8 +60,8 @@ lint, quality, type, unit, deterministic desktop E2E, renderer, and Chromium/Web
   pending step. Turns from a trusted person's Sia and from the plain-HTTP Wi-Fi link always
   require confirmation on the Mac, one request at a time. When text approvals are
   enabled, YES/NO binds only to the exact pending request shown to that trusted sender. Hard safety blocks apply in every mode: Sia-hosted tools block secure fields,
-  authentication surfaces, Keychain, and password managers. Native shell execution follows the
-  provider's approval boundary; the same restrictions in its prompt are not shell enforcement.
+  authentication surfaces, Keychain, and password managers. Vision-only sessions disable provider-native
+  shell and UI tools; host actions retain their capability and approval checks.
 - Local turns and schedules require the Sia process to remain open and the Mac to stay awake. Sia
   keeps the display awake during Use my Mac tasks and pauses them if the Mac locks or sleeps.
 - Research capture is off unless the user separately consents. A pilot is not a research release.
@@ -96,8 +96,8 @@ admission checks in [`docs/harness-policy.md`](./docs/harness-policy.md).
 - Extend the provider catalog, execution resolver, and signed harness registry when adding a model
   or harness. Do not scatter provider-name conditionals through the UI.
 - Sia-hosted browser, computer, connector, Messages, and schedule actions must pass through
-  `packages/action-gateway` and capability validation in the desktop main process. Use my Mac's
-  native shell and file tools instead run through Codex's approval boundary, as documented in
+  `packages/action-gateway` and capability validation in the desktop main process. Vision-only
+  sessions use the hosted-tool boundary in both foreground and background, as documented in
   [`docs/architecture.md`](./docs/architecture.md).
 - The renderer must use the typed preload bridge. Do not add generic IPC, raw CDP/JavaScript,
   cookie access, arbitrary shell tools, or a model-visible terminal.

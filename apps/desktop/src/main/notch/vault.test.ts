@@ -296,6 +296,23 @@ it.runIf(process.platform === 'darwin')(
     expect(first).toContain('Sum integers');
     expect(first.indexOf('<recent_activity')).toBeLessThan(first.indexOf('<lessons'));
     expect(first).toContain('USER REQUEST (spoken): Read this course');
+    const visual = await vault.engine(helper, {
+      operation: 'prepare',
+      request: 'Read this course',
+      context: 'SECRET AX CONTENT',
+      visionOnly: true,
+      background: false,
+      learning: true,
+      nativeLearning: true,
+    });
+    expect(visual.prompt).toContain('JUNIPER');
+    expect(visual.prompt).toContain('Expand all accounts.');
+    expect(visual.prompt).toContain('Sum integers');
+    expect(visual.prompt).toContain('historical references only in every focus mode');
+    expect(visual.prompt).not.toContain('SECRET AX CONTENT');
+    expect(visual.prompt).not.toContain('<screen_context>');
+    expect(visual.prompt).not.toContain('Learn reusable skills and notes as described');
+
     const paused = await vault.engine(helper, {
       operation: 'prepare',
       request: 'Read my preferences',

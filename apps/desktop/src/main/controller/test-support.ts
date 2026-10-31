@@ -43,6 +43,8 @@ export interface ResearchBatchView {
 export async function createHarness(
   options: {
     fakeServices?: boolean;
+    visionOnly?: boolean;
+    captureMacContext?: ConstructorParameters<typeof DesktopController>[0]['captureMacContext'];
     voice?: ConstructorParameters<typeof DesktopController>[0]['voice'];
     runtime?: unknown;
     cloud?: CloudClient;
@@ -88,6 +90,8 @@ export async function createHarness(
   const repository =
     options.repository ?? new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
   const controller = new DesktopController({
+    visionOnly: options.visionOnly === true,
+    ...(options.captureMacContext ? { captureMacContext: options.captureMacContext } : {}),
     repository,
     cloud: options.cloud ?? new CloudClient(undefined, { read: async () => undefined }),
     computer: options.computer ?? computer,

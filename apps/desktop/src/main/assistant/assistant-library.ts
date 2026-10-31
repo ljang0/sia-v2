@@ -180,7 +180,7 @@ export class AssistantLibrary {
   }
   memoryPrompt(
     agentId: string,
-    mode: 'connected' | 'mac' | 'mac-background' = 'connected',
+    mode: 'connected' | 'mac' | 'mac-background' | 'mac-visual' = 'connected',
     request = '',
   ): string {
     const view = this.view();
@@ -202,9 +202,11 @@ export class AssistantLibrary {
         ? view.nativeLearningAgents?.includes(agentId)
           ? 'Notch-style learning is enabled: save reusable native skills as you learn them. Idle reviews may automatically save evidence-based lessons and scripts without executing them.'
           : 'Notch-style learning is off. Do not automatically create native skills; save them when explicitly requested.'
-        : mode === 'mac-background'
-          ? 'Background window control is active. Apply saved preferences and lessons. Reuse gateway skills through skill_run; each sia_action keeps this turn’s tool allowlist and foreground policy. Native AppleScript scripts require On my screen; never execute them directly or silently change routes.'
-          : '',
+        : mode === 'mac-visual'
+          ? 'Vision-only computer control is active in every focus mode. Apply saved preferences and lessons. Reuse gateway skills through skill_run; each sia_action keeps this turn’s visual tool contract and foreground policy. Native scripts are historical references only; never execute them directly.'
+          : mode === 'mac-background'
+            ? 'Background window control is active. Apply saved preferences and lessons. Reuse gateway skills through skill_run; each sia_action keeps this turn’s tool allowlist and foreground policy. Native AppleScript scripts require On my screen; never execute them directly or silently change routes.'
+            : '',
     ]
       .filter(Boolean)
       .join('\n\n');

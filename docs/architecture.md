@@ -31,7 +31,7 @@ Electron main -------------- Sia cloud API
                          `-- legacy included-model direct adapter (persisted threads only)
 ```
 
-The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. Confirmation mode (`computer.trust === 'ask'`) renders a request tied to the exact action digest. Answered and expired approval cards collapse to a status row; expanding the row preserves the exact action and target for review. Pending approvals stay fully visible. Its card can also answer **Allow for this task**: the controller keeps a per-turn grant for the same action kind on the same app, site, account, recipients, or item (never saved skills or uploads, and never phone turns), and the grant ends with the turn. Hard safety denials run before any grant. Autonomous mode (`computer.trust === 'auto'`) is the default whenever the person has not explicitly chosen confirmations; in it the controller authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation. Eligible action results, timeline items, and automatic authorizations are appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). A Google Workspace invocation atomically removes earlier diagnostic rows for that turn and suppresses later rows; only the normal local user-facing transcript remains. Known textual credential forms and access-bearing links use the derived-context detector to exclude the diagnostic turn, removing earlier rows and referenced images and suppressing later rows, including refused actions with sensitive original arguments. Without a turn ID, only that event and its images are omitted. This does not rewrite encrypted conversations or scan arbitrary prose/image secrets, and research capture retains its separate consent boundary. Complete thread directories roll off after 90 days or to make room within the local trajectory store's 128 MiB budget, oldest first. An event that cannot fit without deleting its own thread is omitted together with its images; an already oversized legacy active log is preserved without further growth. Failed writes invalidate the cached size before another event is admitted. These best-effort diagnostics do not establish complete trace coverage and are separate from the encrypted consented-research outbox. New `once` schedules are bounded to one run; recurring cadences repeat until paused or deleted unless the person sets an optional run limit (`schedules.update` with `maxRuns: null` clears it). Recurring schedules saved with the old ten-run default are made unlimited once, on the first load after the change (`unlimitedRecurringSchedules` marks it done). The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekdays/weekly/monthly/yearly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Codex provider-native work uses `approvalPolicy: never` inside the verified workspace-write sandbox, while host-side effects still cross the ActionGateway.
+The provider runtime can propose a Sia action, but only the main-process ActionGateway can authorize it. Confirmation mode (`computer.trust === 'ask'`) renders a request tied to the exact action digest. Answered and expired approval cards collapse to a status row; expanding the row preserves the exact action and target for review. Pending approvals stay fully visible. Its card can also answer **Allow for this task**: the controller keeps a per-turn grant for the same action kind on the same app, site, account, recipients, or item (never saved skills or uploads, and never phone turns), and the grant ends with the turn. Hard safety denials run before any grant. Autonomous mode (`computer.trust === 'auto'`) is the default whenever the person has not explicitly chosen confirmations; in it the controller authorizes eligible computer, browser, connector, message, upload, and schedule actions after capability and input validation. Eligible action results, timeline items, and automatic authorizations are appended to the always-on local `TrajectoryRecorder` (`<userData>/trajectories/<threadId>/events.jsonl` plus image files). A Google Workspace invocation atomically removes earlier diagnostic rows for that turn and suppresses later rows; only the normal local user-facing transcript remains. Known textual credential forms and access-bearing links use the derived-context detector to exclude the diagnostic turn, removing earlier rows and referenced images and suppressing later rows, including refused actions with sensitive original arguments. Without a turn ID, only that event and its images are omitted. This does not rewrite encrypted conversations or scan arbitrary prose/image secrets, and research capture retains its separate consent boundary. Complete thread directories roll off after 90 days or to make room within the local trajectory store's 128 MiB budget, oldest first. An event that cannot fit without deleting its own thread is omitted together with its images; an already oversized legacy active log is preserved without further growth. Failed writes invalidate the cached size before another event is admitted. These best-effort diagnostics do not establish complete trace coverage and are separate from the encrypted consented-research outbox. New `once` schedules are bounded to one run; recurring cadences repeat until paused or deleted unless the person sets an optional run limit (`schedules.update` with `maxRuns: null` clears it). Recurring schedules saved with the old ten-run default are made unlimited once, on the first load after the change (`unlimitedRecurringSchedules` marks it done). The model-visible schedule surface is limited to create/list/update/delete for controller-owned once/hourly/daily/weekdays/weekly/monthly/yearly tasks in the current thread; it cannot write an OS crontab or arbitrary shell schedule. Vision-only sessions disable provider-native tools; hosted effects cross the ActionGateway, and explicit file-output tools use the verified workspace boundary.
 
 There is no generic renderer IPC, generic connector catalog, raw CUA server, arbitrary CDP/JavaScript route, cookie API, visualization tool, or cross-provider subagent abstraction.
 
@@ -55,16 +55,19 @@ The native patch and its build/verification steps are documented in
 permission setup, concurrent queues, cancellation, stale callbacks, foreground interference and
 content-free failure reporting through the public service API.
 
-For staged visual sessions, [`visual-tools.ts`](../apps/desktop/src/main/actions/visual-tools.ts)
+For visual sessions, [`visual-tools.ts`](../apps/desktop/src/main/actions/visual-tools.ts)
 projects the canonical descriptors onto screenshot actions, and
 [`mac-visual-guidance.ts`](../apps/desktop/src/main/actions/mac-visual-guidance.ts) supplies the same
 operating contract for on-screen and background work. The Codex `mac-hosted` session mode disables
 provider-native tools for both policies; it is independent of the host's foreground lease. Backend
 validation remains authoritative even if a caller ignores the advertised schema.
 
-The vision-only path is still staged; see [release status](./release-status.md) for the current
-cutover and signed-app acceptance gaps. Do not mistake a staged option or simulated test for the
-shipping default. The assisted paths must be retired as the new default is completed.
+The source host enables vision-only control centrally for the controller, action backend and runtime.
+Voice activation provides app identity only; `mac/activation-context.ts` also strips old queued
+context before it reaches the model. The native memory adapter retains saved notes without UI
+extraction or executable native-script instructions. See [release status](./release-status.md)
+for the signed-app acceptance gaps: the installed alpha.56 predates this default. Remaining assisted
+implementation branches are internal test seams and must be retired after the visual cutover passes.
 
 Keep each stateful domain's lifecycle in its owning module. Extract a collaborator when it has a
 separate responsibility and a narrow interface; avoid splitting declarative catalogs just to reduce
@@ -327,15 +330,12 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   attempt. Chrome attachment failures include an
   actionable connection repair instruction without changing trust mode. Connected apps returns a connection refusal for
   unattached `browser_tabs`.
-  **On my screen runs the Notch-style native execution path.** It uses the same Codex
-  App Server harness and subscription login, with `baseInstructions` replacing the coding persona
-  with the port of Notch's `ClaudeCodeInvoker` prompt. Native shell, file operations and image
-  viewing are enabled in `danger-full-access`; provider web search, inherited plugins/MCPs,
-  project instruction discovery and subagents are disabled. Connected-browser tools are not exposed.
-  The native route exposes only Sia library/memory/schedule tools through ActionGateway,
-  with no CUA tools. Its foreground operating prompt comes from the pinned Notch source, followed
-  by the Codex tool-name, screenshot-coordinate, presentation and permission adapters. It does not
-  append the separate background window-control recipe or a hardcoded Canvas investigation plan.
+  **On my screen uses the same hosted visual tools as background work**, with explicit foreground
+  delivery. Codex App Server supplies the model session; `macVisualGuidance` supplies screenshot
+  and pointer/keyboard instructions. Native shell, semantic setters, element references and OCR
+  are not model tools. Ordinary file, library, memory and schedule capabilities remain explicit
+  host tools with their own authorization. The old Notch foreground recipe is retained only in
+  internal assisted-mode tests, not selected by the production host.
   While an On my screen turn is running (not waiting on the person, paused, or ended),
   `screen-control-indicator.ts` shows one click-through, non-focusable, content-protected panel
   per display and registers a global `Control+Escape` (⌃Esc) that cancels those turns; both are released as soon
@@ -343,20 +343,17 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   host-pid exclusion already keeps out of window control. Plain Escape is
   left alone, so an Escape the task types reaches apps normally. The route is pinned when the turn starts.
   Background turns show no overlay, only a Scotty/Dock status.
-  Matching saved skills can use the already signed-in apps; an explicit UI-only/no-API request
-  takes precedence. Private account data and observed email addresses must not go to public search.
-  A separately installed, reviewed `canvas-api` skill reads active CMU courses/teachers or a course's
-  assignments through Safari. It accepts only those GET routes and validated page/course numbers;
-  it does not navigate to JSON pages, read credentials, or run in background window-control mode.
-  Both routes require verified outcomes and honest coverage gaps. The background prompt separately
-  guides course inventories, per-course materials, account switchers and destination verification.
+  Saved gateway skills retain the same visual tool contract and foreground restrictions as the
+  invoking turn. Historical native scripts are reference material only. Explicit file/connector
+  work must be reported separately from visual task completion. Private account data and observed
+  email addresses must not go to public search.
   For reads in a profile the person explicitly selected or just authenticated, live signed-in
   content at the verified institution establishes the selected session when no identity conflict
   or profile ambiguity is visible. An unrequested display name does not require entering account
   security settings or turn a verified read into a failed task. Named-account requirements,
   conflicting identities and write destinations still require resolution. Protected surfaces
   remain blocked. The opt-in fictional-account probe checks both completion and identity conflict.
-  These are model instructions, not a shell enforcement boundary or a guarantee of completion.
+  These are model instructions, not a guarantee of completion; hosted protection checks remain authoritative.
   Report files are verified by readback and linked in Sia/phone, without repeatedly activating an
   external editor. Native learning uses the same indexed vault for later verification.
   Every Mac turn receives the current local date/time and timezone, including after a session
@@ -367,46 +364,28 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   "Your Mac locked/went to sleep" message and the Continue task banner. New or continued Mac turns
   stay queued until unlock or resume. A structured unsuccessful task result ends as needing attention across desktop,
   phone, schedules, journal and notifications, even when Codex completed its response normally.
-  Cmd+E captures source context before its panel takes focus and delivers it through the host
-  send route, without placing private context in renderer IPC or the displayed user message.
-  `--mac-apps` lists running application names, bundle IDs and PIDs. `--mac-context <pid>`
-  reads the chosen app without taking focus or substituting another app; it has a bounded
-  1,200-node, 28-level, 12,000-character, two-second budget. Truncated or timed-out reads
-  are explicitly partial evidence. Fn retains its shorter capture budget.
-  Browser page identity, when exposed by accessibility, precedes the bounded outline so truncation
-  does not erase the observed origin/account path. Queries and fragments are omitted; authentication
-  paths are reduced to their origin. Missing identity still requires fresh app inspection.
-  `SiaVoiceHelper --mac-screenshot` captures one display on demand and normalizes its Retina image
-  to logical point dimensions, bounded to 1920×1200. It returns the display origin and exact
-  points-per-image-pixel transform. The native prompt uses this command for observation and
-  verification; it must not divide those image coordinates by Retina scale again. Pure native tests
-  cover Retina/large/portrait geometry and PNG orientation without OS capture or input.
+  Cmd+E no longer collects accessibility content. Fn activation captures only the frontmost
+  app's name and bundle ID through NSWorkspace; it does not walk accessibility content. The host
+  strips legacy queued activation context to that same identity before model dispatch. A fresh
+  tool screenshot remains required for UI observation. Native helper context/screenshot commands
+  remain internal legacy test surfaces, unavailable to the visual model runtime.
   **Work in background** under Settings → Computer → Where Sia works is the Use my Mac default:
-  profiles without a saved choice use it, and an explicit **On my screen** choice selects the native
-  route and is kept. Onboarding does not change this choice. Before a background turn starts, the host
+  profiles without a saved choice use it, and an explicit **On my screen** choice selects foreground
+  delivery and is kept. Onboarding does not change this choice. Before a background turn starts, the host
   rereads driver permissions; if the driver cannot load or Accessibility/Screen Recording is missing,
-  the turn fails before any model call with a plain next step (allow access, or choose On my screen)
-  and the Continue task banner. The background route uses
+  ordinary conversation remains available; computer tools explain missing access when needed. The background route uses
   `@trycua/cua-driver` through `CuaService` in the Electron main process, without a VM or driver daemon.
   The SDK and both bundled Mac native libraries are pinned together at 0.38.0. Sia explicitly
   requests structured `elements` and verbose background-route metadata; the driver's compact
-  markdown default cannot support Sia's protected-field checks or input grants. Actions use only
-  observed snapshot-bound element tokens, without the retired index/snapshot input arguments.
+  markdown default cannot support Sia's protected-field checks or input grants. Visual actions use
+  coordinates bound to a recent screenshot; internal structured state is used for protection only.
   Starting a fresh window observation revokes its previous input snapshot even if the new read
   is protected, unavailable or fails its expected-URL check. Browser preflight revokes changed
   surface grants and refuses newly detected authentication controls even at an unchanged URL.
   Returning to an ordinary document does not revive an old grant; a fresh successful snapshot is
   required. Other windows keep their own authority.
-  `set_value` is an exact accessibility operation and does not accept a delivery-mode argument.
-  Element double-clicks use the driver's `double_click`/AXOpen route, while pixel double-clicks
-  retain the bounded screenshot route. When foreground recovery is permitted, exact native menu
-  paths use `invoke_menu` on the granted window rather than the global menu bar. Its SDK operation
-  has no background delivery ceiling, so the host propagates the immutable turn policy and refuses
-  it before driver initialization in background-only turns. Those turns use separately available
-  accessibility controls or explicitly background keyboard equivalents instead. Menu calls
-  retain snapshot, protected-window, route and authorization checks; authentication, credential,
-  terminal and scripting menus are refused. `window_not_key` is an explicit no-input refusal,
-  not uncertain delivery, and never triggers an automatic foreground retry.
+  Visual action schemas and backend validation reject semantic setters, element references and
+  menu-path invocation. A foreground refusal never silently retries in another delivery mode.
   An unexpected foreground acknowledgement remains uncertain, revokes the old snapshot, and
   records its driver operation. A new dialog cannot relabel that input as "not sent."
   In strict background turns, each native input and Chromium browser mutation/setup reads the live foreground application before
@@ -498,14 +477,14 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   app/window/snapshot refs and discovers fresh ones; an aborted old call cannot clear current refs.
   Ended driver sessions are never revived and uncertain input is never replayed. Window ids stay
   stable across inventory refreshes within the same turn.
-  Background control adds built-in CUA `computer_list`, `computer_snapshot`, `computer_action`,
+  Both Mac focus policies expose built-in CUA `computer_list`, `computer_snapshot`, `computer_action`,
   `computer_open_app` and `computer_open_url` through ActionGateway and changes the session prompt.
-  It uses a distinct `mac-background` Codex session with verified native-tool disablement and a
+  They use the `mac-hosted` Codex session with verified native-tool disablement and a
   workspace-write sandbox with no additional writable roots, temporary-directory grant or process
   network access. Shell/image tool gates remain disabled and are verified before the turn. Read-only
   memory reviews retain their read-only sandbox. Workspace permission matches the explicit file-output
   tools, avoiding a contradictory read-only instruction that caused a real model to decline reports.
-  Its standalone window-control prompt contains no native command instructions;
+  The visual operating prompt contains no native command instructions;
   foreground native context is not injected. Mac response formatting and the progress watchdog remain active.
   `computer_list` adds current page origin/path metadata for up to eight existing browser windows,
   read in batches of four without page contents or screenshots. Queries and fragments are omitted;

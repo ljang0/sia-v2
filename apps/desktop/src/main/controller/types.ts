@@ -53,6 +53,7 @@ export interface BrowserCapabilitySink {
 }
 
 export interface ControllerOptions {
+  readonly visionOnly?: boolean;
   notchHelperPath?: string;
   repository: RecordRepository;
   cloud: CloudClient;

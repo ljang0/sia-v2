@@ -83,6 +83,65 @@ describe('Use my Mac power and lock handling', () => {
     return { ...harness, keepAwake, threadId, status };
   }
 
+  it('does not collect semantic launcher context in visual mode', async () => {
+    const captureMacContext = vi.fn(async () => 'AX window contents');
+    const { controller } = await macThread({ visionOnly: true, captureMacContext });
+    try {
+      await controller.invoke('computer.setAccessMode', { mode: 'mac', background: false });
+      expect(await controller.captureLauncherContext()).toBeUndefined();
+      expect(captureMacContext).not.toHaveBeenCalled();
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
+  it.each([false, true])(
+    'keeps visual control instructions when memory preparation fails=%s',
+    async (fail) => {
+      const engine = vi
+        .spyOn(NotchVault.prototype, 'engine')
+        .mockImplementation(async (_helper, input) => {
+          if (input.operation !== 'prepare') return { recorded: true };
+          if (fail) throw new Error('unavailable');
+          return {
+            prompt: `Saved useful preference: walking trips.\n${String(input.request)}`,
+          };
+        });
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const { runtime, requests, configurations } = holdingRuntime();
+      const { controller, threadId } = await macThread({ runtime, visionOnly: true });
+      try {
+        await controller.invoke('threads.send', { threadId, text: 'Plan a walking trip' });
+        await vi.waitFor(() => expect(requests).toHaveLength(1));
+        expect(engine).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.objectContaining({
+            operation: 'prepare',
+            visionOnly: true,
+            background: true,
+            context: '',
+          }),
+          expect.anything(),
+        );
+        expect(requests[0]).toContain('Plan a walking trip');
+        if (!fail) expect(requests[0]).toContain('walking trips');
+        expect(configurations[0]!.instructions).toContain(
+          'Native scripts and semantic UI extraction are unavailable',
+        );
+        expect(configurations[0]!.instructions).not.toContain(
+          'Follow the native Mac operating instructions',
+        );
+        if (fail)
+          expect(requests[0]).toContain('Native scripts are historical references only');
+      } finally {
+        await controller.invoke('threads.cancel', { threadId });
+        await controller.shutdown();
+        engine.mockRestore();
+        warn.mockRestore();
+      }
+    },
+  );
+
   it('connects while memory prepares, keeps the enriched request, and finalizes streamed text in place', async () => {
     const memory = Promise.withResolvers<{ prompt: string }>();
     const engine = vi

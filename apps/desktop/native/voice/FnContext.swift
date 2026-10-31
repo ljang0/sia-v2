@@ -15,6 +15,12 @@ enum FnContext {
     static func protectedLabel(_ label: String) -> Bool {
         ["secure", "password", "sign in", "signin", "log in", "login", "authenticate", "authentication", "credential", "one-time", "verification code", "passkey", "api key", "token"].contains(where: label.lowercased().contains)
     }
+    static func activationApp() -> [String: String]? {
+        guard let app = NSWorkspace.shared.frontmostApplication, let bundle = app.bundleIdentifier else { return nil }
+        let name = app.localizedName ?? bundle
+        guard !blockedIdentity(name + " " + bundle) else { return nil }
+        return ["app": bounded(name, 160), "bundleID": bounded(bundle, 200)]
+    }
     static func capture() -> [String: String]? {
         guard AXIsProcessTrusted(), let app = NSWorkspace.shared.frontmostApplication,
               let bundle = app.bundleIdentifier else { return nil }

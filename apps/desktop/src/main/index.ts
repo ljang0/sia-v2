@@ -529,7 +529,9 @@ async function performApplicationCreation(): Promise<void> {
           return { harnesses: [], previewHarnesses: [] };
         })
       : { harnesses: [], previewHarnesses: [] };
+    const visionOnly = true;
     activeController = new DesktopController({
+      visionOnly,
       previewHarnesses,
       labHarnesses: labHarnesses.map(({ id, name, disclosure, models }) => ({
         id,
@@ -699,6 +701,7 @@ async function performApplicationCreation(): Promise<void> {
     rendererLoad = loadRenderer(window, rendererDevUrl);
     rendererLoad.catch(() => undefined);
     const actionBackend = new DesktopActionBackend({
+      visionOnly,
       workspaceFileMove: workspaceFileMover(
         app.isPackaged
           ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
@@ -800,6 +803,7 @@ async function performApplicationCreation(): Promise<void> {
       });
     }
     activeRuntime = new RuntimeCoordinator(gateway, {
+      visionOnly,
       ...(codexCommand ? { codexCommand } : {}),
       macContext: () => browserWindows.macContext(),
       metaTransport: cloud,
