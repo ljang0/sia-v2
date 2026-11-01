@@ -1,261 +1,78 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.109 is the latest
-installed internal build; it exited during signed acceptance and remains stopped. Its clean source passed the full local pilot gate, and signing
-and packaged-runtime verification passed. The real file-copy workflow remains incomplete.
+Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.110
+survived the previous crash and created a verified copy, but did not finish rename, relocation
+or close/reopen. Opening the copy in TextEdit changed foreground focus. QA is stopped.
 Nothing new was published; the last published Mac pilot is alpha.24.
 
-## Latest signed embedded-host attempt
+## Current signed candidate
 
-Alpha.109 was packaged from `7c913b0911f6781f4464fed848cfd510e03003c6` with no source diff.
-Installed ASAR SHA-256: `1aafdd9193c9427d12e9bca96ab50656f02cbb11168697e64b00fd110828d735`.
-Developer ID signing, packaged-runtime verification and the full pilot passed (same counts below).
-Private evidence, including the crash report and system log, is in `alpha109-embedded-focus`.
+| Identity                   | Value                                                                                                                        |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| Version                    | `0.1.0-alpha.110`                                                                                                            |
+| Source                     | `5a58dfff600a6886e35e59a27f1e57d026944f27`, no source diff                                                                   |
+| Installed ASAR SHA-256     | `127b09f4888a9531f73f49d47b072ec0e651205f920dc642b6a04bd57baacc70`                                                           |
+| Private evidence directory | `alpha110-main-thread-rollback`                                                                                              |
+| Package                    | Developer ID signed arm64; packaged-runtime verification passed; not notarized                                               |
+| Local pilot gate           | 1,996 desktop (22 skipped), 46 Electron (5 skipped), 40 renderer, 72 phone-browser; native/shared/build/static checks passed |
 
-The signed repeat captured Finder, dismissed its old panel with Escape, then began Go to Folder.
-At 21:55:21 UTC the QA process exited with SIGTRAP. The crash report states “Must only be used
-from the main thread”; the faulting stack identifies `raise_focused_window_of_pid` called by
-`key_focus_guard::restore_front_if_raised` during lease cleanup. System logs show Finder became
-frontmost and Sia regained focus immediately before the off-thread window-raise assertion.
-No copy was created, and the original hash is unchanged. This is a failed candidate, not a CUA
-observation timeout or a passed focus-preservation check. The app remains stopped.
+The private directory retains the package/install receipts, logs, exact per-turn trajectory,
+screenshots, original/copy hashes and result. CI is a separate gate; local results do not establish
+that the latest remote commit passed.
 
-Alpha.110 source shares the existing bounded self-process main-queue dispatcher between menu
-focus and rollback operations. Queued work is cancelled on timeout to avoid a delayed focus change;
-remote-process AX calls retain their original thread. Native regression checks and the full local
-pilot passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus
-native/shared/build/static checks. A new signed repeat remains required.
+## Signed workflow result
 
-## Latest signed menu-focus attempt
+1. The controlled regression reset the visible Finder Go to Folder panel and reopened it once.
+   Unlike alpha.109, the call returned and the app remained alive. Return navigated to the
+   iCloud TextEdit folder. A right-click selected the file but exposed no visible context menu.
+2. After an operator continuation prompt, Cmd+D created **Untitled 8 copy.rtf**. Independent
+   filesystem inspection found both files at 1,874 bytes with identical SHA-256:
+   `bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`.
+   Return did not visibly start filename editing, so the model stopped before typing.
+3. After another continuation, Cmd+O opened the copy in TextEdit. Initial inventory marked no
+   permitted app active; the later inventory marked TextEdit active. Its next input was refused
+   before dispatch. No requested local destination, rename, close or reopen was completed.
 
-Alpha.108 was packaged from `6babb61ef9ecd66a3b9470e17bad73667a0a42bc` with no source diff.
-Installed ASAR SHA-256: `d20584729ecb7d3f28701eef865de5bf6af48d00f145f43f4724306cf0870f58`.
-Developer ID signing and packaged-runtime verification passed. The full local pilot passed:
-1,996 desktop (22 skipped), 46 Electron (5 skipped), 40 renderer and 72 phone-browser tests,
-plus native/shared/build/static checks. Private evidence is in `alpha108-menu-focus`.
+The original and copy remain in the TextEdit iCloud Documents folder. Do not duplicate the copy
+again or overwrite either. The requested `Sia-Arena-handoff-checklist-alpha110.rtf` does not exist.
+The operator inspected and cancelled Finder’s File menu between turns; no operator file write
+or target focus rescue occurred. Continuation prompts make this a controlled regression, not
+unassisted acceptance. Clipboard preservation and uninterrupted foreground preservation were not
+independently sampled. QA was quit through CUA after the final pause.
 
-The signed repeat dismissed the leftover Go to Folder panel with Escape, then sent Cmd+Shift+G.
-That action returned `background_focus_changed` and paused before path input. A separate read-only
-follow-up confirmed Finder was active and the panel was visibly open. The targeted focus guard
-now covers menu dispatch, but it did not preserve the foreground on this host. The checklist copy
-was not created; close/reopen remains undone. The original SHA-256 remains
-`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`.
-No target-app rescue or foreground fallback was used. The prompt supplied the panel-reset step,
-so this was a controlled regression repeat, not unassisted acceptance. QA was quit afterward.
-No independent clipboard sample was taken. Do not count this as a passed background workflow.
+## Current correction
 
-## Embedded-host focus protection under test
+Alpha.110 fixed self-process AXRaise on a Rust worker thread by sharing the existing bounded
+AppKit main-queue dispatcher with focus rollback. Alpha.109’s signed crash report identified
+that call and the assertion “Must only be used from the main thread.” The signed repeat above
+passed that crash regression; it does not establish completion of the file task.
 
-Source inspection found that `key_focus_guard::protect` returned no lease when its own process
-was frontmost. Sia embeds this runtime in its UI process. Alpha.109 source retains rollback and
-the bounded post-action watcher for that case, without tapping the host’s own event stream.
-The existing foreign-panel, active-target, intentional-activation and hardware-input checks remain.
-Native regression cases cover the embedded host and preserve external-app tap requirements.
-The full local pilot passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests,
-plus native/shared/build/static checks. Signed verification failed with the main-thread assertion described above.
+Alpha.111 source also gives menu-equivalent dispatch the existing bounded window-change observer.
+That route previously returned before the observer was armed, leaving cross-app opens unguarded.
+The targeted guard remains for the source app. Crash recovery now asks the person to check the
+last action, instead of claiming retry is safe. All local pilot stages passed with the counts
+above. The first Electron run caught an outdated recovery-message assertion; after correcting
+it, the complete Electron, renderer and phone stages passed. A signed repeat remains pending.
 
-An operator CUA comparison on alpha.108 raised TextEdit and opened/closed its About dialog, but
-Sia’s refreshed inventories still marked no permitted app active (Sia itself is excluded).
-That setup was inconclusive; no external-app foreground comparison or file task ran. The operator
-changed no document content. These attempts are retained in the private trajectory.
+## Other retained evidence
 
-## Resolved Finder observation regression
+- **Finder observation:** signed alpha.107 captured Applications windows containing openable
+  1Password filenames. Credential controls still remain protected. The narrow filename-classifier
+  fix passed; it did not complete the copy task.
+- **Typing and Stop:** alpha.95 wrote the 1,469-character checklist in 64.690 seconds. Alpha.96
+  stopped at 485 characters, remained unchanged nearly three minutes, then completed without
+  duplication. TextEdit autosaved the draft to iCloud; local Save/close/reopen was not verified.
+- **Responsiveness:** alpha.95 CUA composer round trips had median 649.5 ms and worst 1,205 ms
+  across ten samples. Alpha.96 Stop took 1,233 ms. These limited samples are not end-to-end
+  performance or concurrency acceptance.
+- **Reviewer brief:** alpha.85 saved and closed a 444-word, 3,303-byte brief in 74.277 seconds.
+  Reopen failed. SHA-256: `b24e378ad6d7822456a7cf973bd34e81aa29e376722d98696ae320710ab7a05c`.
+  Preserve that file. Earlier semantic setters and operator-prepared menus do not validate
+  vision-only acceptance.
 
-Signed alpha.107 was packaged from `aeb75f49f6e930329401e695eea5f1a9f6ecb60b` with no source diff.
-Its installed ASAR SHA-256 is `52f81dca22dc958de6add8058f37670b8ca1f38b34266ccbccf2b3a687cadcda`.
-Signing and packaged-runtime verification passed; private evidence is in `alpha107-finder-file-labels`.
-The read-only signed repeat captured both Finder Applications windows and TextEdit Untitled 8.
-Independent inspection of the returned image confirmed the Applications listing including 1Password.
-No target input, clipboard operation or foreground fallback occurred in this turn. An unrelated
-memory-vault call lacked a note selection; that failure is retained in the trace. The original
-checklist hash remains unchanged. QA was quit after verification. This resolves the observation
-regression, not the incomplete copy/reopen workflow.
-
-## Background menu focus regression
-
-A subsequent signed alpha.107 file-copy attempt at 21:17 UTC opened Finder’s Go to Folder panel,
-then paused before path input because Finder had become active. No copy was created; the original
-hash is unchanged. No operator focus rescue was used, and QA was quit after the pause. Private
-per-turn evidence is in `alpha107-finder-file-labels/background-copy-repeat`.
-
-The native hotkey menu-equivalent path returned before the ordinary key-event focus guard.
-Alpha.108 source wraps the shared background menu dispatch in that existing targeted guard,
-including its post-dispatch settle period. The full local pilot gate passed: 1,996 desktop,
-46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks.
-The signed repeat above failed focus preservation; copy/reopen acceptance remains open.
-
-## Prior capture diagnostic
-
-Signed arm64 alpha.106 was packaged from `adcbcc5e3f73b7717464c36c71386c98ad08474f` with no source diff.
-Installed ASAR SHA-256 is `78bd6b04688c605a458f15ac5b0d2bc332c2fee9c80c840691734467ef8e3e2b`.
-Signing and packaged-runtime checks passed. The full local pilot passed as recorded below.
-Private evidence is in `alpha106-capture-diagnostics`.
-
-A read-only turn captured the Finder TextEdit folder and TextEdit document, but refused Finder
-Applications. No native capture diagnostic was logged. After QA quit, operator CUA inspection of
-Finder’s Applications listing found 1Password and Passwords filename fields. Source inspection shows
-these can trigger the authentication-label heuristic; the image is withheld and mislabeled as a
-capture failure. Alpha.107 source distinguishes an openable Finder filename from a credential field
-and returns an explicit protected-window result for genuine protection. Its full local pilot passed: 1,996 desktop (22 skipped), 46 Electron (5 skipped), 40 renderer
-and 72 browser tests, plus native/shared/build/static checks. The signed capture repeat above passed. The original copy workflow remains incomplete.
-
-## Prior real document attempt
-
-| Identity               | Value                                                              |
-| ---------------------- | ------------------------------------------------------------------ |
-| Version                | `0.1.0-alpha.105`                                                  |
-| Source commit          | `dd988b9e03a4a0ed34e1c7a91d68bc581f2e7be9`                         |
-| Source diff            | Empty                                                              |
-| Installed ASAR SHA-256 | `eca06079de4f92184025977aa871e6dac21e41d97ebdeea49b06b59e03e22618` |
-| Private evidence       | `alpha105-clean-popovers`                                          |
-| Thread                 | `c0ea6770-bc21-4448-8bc3-8a6b51860150`                             |
-
-The task requested a local handoff copy of the actual autosaved checklist, followed by close/reopen.
-TextEdit captured; the Finder Applications window refused capture. An operator-suggested Inbox
-window captured after the model refreshed its per-turn inventory. Go to Folder opened, but typing
-paused because Finder had become active. The operator activated the existing QA app through its
-authorized LaunchServices command and clicked Continue. Background path typing then reached the
-source folder. Duplicate produced no visible copy; an operator-suggested menu recovery also exposed
-no usable Duplicate command. No operator Finder/TextEdit input occurred, but the coaching and focus
-restoration prevent this from counting as unassisted acceptance.
-
-Filesystem verification found the original unchanged at SHA-256
-`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`, with no requested alpha.105 output.
-The action trace contains no clipboard operation; an independent clipboard hash was not sampled.
-QA was quit before automated validation. Alpha.106 source fixes missing bounded capture diagnostics
-when the native driver returns an error code; this does not change capture or input authority.
-Its full local `pnpm test:pilot` passed: 1,983 desktop (22 skipped), 46 Electron (5 skipped),
-40 renderer and 72 Chromium/WebKit phone tests, plus native/shared/build/static checks.
-
-A two-second `/usr/bin/caffeinate -d` probe also exited 1 with “Failed to create
-PreventUserIdleDisplaySleep assertion,” and no assertion appeared in `pmset`. Thus the display-awake
-failure reproduces outside Electron/Sia. Its host cause remains unresolved; this is not a successful
-physical sleep/lock test. The private `host-awake-check.json` records the check.
-
-## Latest capture diagnostics
-
-Alpha.97 captured the document-title popover. The ordered popup stack retains both a popover and
-its menu, with composition and stale-image regressions. The real destination menu still refuses
-capture: its AX ancestry belongs to TextEdit, but its pixels belong to Apple's shared
-DocumentPopoverViewService. Exact service-path matching alone cannot establish ownership.
-
-Signed alpha.100–104 diagnostics found a self-responsible service PID, no raw AX menu window ID,
-and a WindowServer parent chain ending inside the service. ScreenCaptureKit's child-window option
-was already enabled; explicitly enabling it still omitted the menu. Temporary ownership queries
-and private image-dump code were removed from alpha.105 source. Unknown ownership stays refused.
-These attempts did not name, save, close or reopen the checklist. No operator TextEdit input occurred.
-
-| Prior capture diagnostic     | Value                                                              |
-| ---------------------------- | ------------------------------------------------------------------ |
-| Version                      | `0.1.0-alpha.104`                                                  |
-| Source base                  | `202635071e23629748d958215b1ac2e63ba90251`                         |
-| Packaged source diff SHA-256 | `56fbf34a7f83628aa0259b2e494d6b09220c9dfb63d5a22bcc272454b150e909` |
-| Installed ASAR SHA-256       | `92a72135924e1952c1a8b0182300864e693876be4c073bb531afd61ad7409d12` |
-| Private evidence             | `alpha104-native-child-capture`                                    |
-
-Each internal diagnostic passed its native and signed-package checks. Those checks do not replace
-full pilot validation or real-work acceptance. The app is stopped; private folders preserve the
-exact source patches, receipts, logs, prompts, trajectories and outcomes. Model-facing capture
-refusals now explain that a fresh screenshot is unavailable and invalidate earlier image authority.
-
-Alpha.105 source passed `pnpm test:pilot`, including `pnpm check`: 1,981 desktop tests (22 skipped),
-46 Electron tests (5 skipped), 40 renderer tests, 72 Chromium/WebKit phone tests, and
-native/shared/build/static checks. QA remained closed throughout. The private
-`alpha105-popup-capture-source` folder preserves this source checkpoint and full validation log.
-
-## Verified typing, Stop and recovery baseline
-
-| Identity                     | Value                                                              |
-| ---------------------------- | ------------------------------------------------------------------ |
-| Version                      | `0.1.0-alpha.96`                                                   |
-| Source base                  | `2591a9a943ea6766492b868e6ee699a6c88da383`                         |
-| Packaged source diff SHA-256 | `51d0fdc03caf8bb139dbaefeb97f9723dca8a72ade3a86852a41de4bdda0d021` |
-| Installed ASAR SHA-256       | `7e1bd3333fc94b8078615d00b9b1f92dc6f383b3792de1344cea6ee79c557fd3` |
-| Private evidence             | `alpha96-cancellable-typing`                                       |
-| Thread                       | `e4ecb078-4ed1-4713-9419-fa4d955915cb`                             |
-| Stop turn                    | `cda29873-91d3-488c-b163-5fd36d45db84`                             |
-| Recovery turn                | `f023b035-f804-4520-80f1-f4b82508ddd2`                             |
-
-Developer ID signing and packaged-runtime verification passed. Alpha.96 passed the full
-`pnpm test:pilot` gate, including `pnpm check`: 1,976 desktop tests (22 skipped), 46 Electron tests
-(5 skipped), 40 renderer tests, 72 Chromium/WebKit phone tests, and native/shared/build/static checks.
-The artifact’s `pilot.log` captures the running QA app; `full-pilot.log` records automated validation.
-
-Stop was clicked during native entry at 18:50:22.411 UTC. Sia reported cancellation, with the CUA click
-and UI readback taking 1,233 ms. Independent target observations at 18:53:01 and 18:53:10 found the same
-485-character partial checklist. That establishes stopped input, not a precise key-event latency.
-The follow-up inspected screenshots and completed the same document in 78.467 seconds. Independent
-comparison found all 1,469 characters without duplication; only the requested terminal newline was
-omitted. The document remains open. No operator TextEdit input or foreground fallback
-was used. The earlier Stop attempt is explicitly inconclusive: CUA screenshot capture stalled, and
-typing completed before Stop could be pressed.
-
-The private record preserves prompts, trajectories/images, two stable partial-text observations,
-recovered-text comparison, timings, exact source patch, signing/install receipts and full logs.
-Independent operator accessibility reads verified the output; they were not sent to the Sia model
-or used to control TextEdit. QA was quit before automated validation. Only evidence documentation
-changes after packaging are intended.
-
-## Autosave correction
-
-Independent filesystem verification after the alpha.105 source checkpoint found TextEdit had
-persisted `Untitled 8.rtf` automatically in its default iCloud Documents folder. Its 1,469 characters
-exactly match the independently observed document. The 1,874-byte RTF has SHA-256
-`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`;
-creation was 18:50:28 UTC and last modification 18:54:59 UTC on November 1. Thus earlier descriptions
-of the draft as **unsaved were incorrect**. The app's visible state and assistant's claim did not
-prove filesystem absence. This does not establish the requested local filename or close/reopen
-acceptance. The original is preserved; `alpha105-popup-capture-source/autosave-correction.json`
-records the independent check and corrects the alpha.96 private result.
-
-## Defects reproduced before the fix
-
-On the restored alpha.88 baseline, Sia created a useful Arena handoff checklist and typed its full
-1,470-character payload into the ordinary TextEdit editor. The host timed out at 60 seconds; a fresh
-image showed the completed text. Save opened, but its filename field did not accept the requested
-name. The requested save/reopen workflow failed; the open draft and observations are preserved in
-`alpha88-document-boundary`.
-This isolates ordinary editor delivery from the unresolved Open/Save dialog problem.
-
-Alpha.95 increased native typing's deadline to 120 seconds, covering the driver's 100-second synthesis
-budget plus focus and result delivery. Other calls retain 60 seconds. It completed the checklist in
-64.690 seconds with a normal native reply and fresh screenshot. The model omitted the terminal
-newline. Ten composer edits/readbacks during typing measured median 649.5 ms and worst 1,205 ms;
-these are CUA round trips, not isolated UI latency or concurrent-work acceptance.
-
-Its Stop test failed: the UI reported cancellation while the native blocking loop continued to the
-full checklist. Alpha.96 adds cooperative cancellation between complete characters and retains the
-process mutation lease in the writer until exit. Native regression tests reproduce cancellation
-between two characters and prevent the second write. Host regressions cover long typing without
-replay, bounded deadlines, caller abort and queue recovery.
-
-| alpha.95 identity            | Value                                                              |
-| ---------------------------- | ------------------------------------------------------------------ |
-| Source base                  | `2591a9a943ea6766492b868e6ee699a6c88da383`                         |
-| Packaged source diff SHA-256 | `2c490b1cd29ac2a3d2db6c35366e9274d8eaf3ac01608c0c953480ae4c3f0deb` |
-| ASAR SHA-256                 | `356893c8dd9c7832984f8a4fa03f1a24cf22ab96ecc7b58dd9c7bdf14e5c6188` |
-| Private evidence             | `alpha95-typing-deadline`                                          |
-
-Alpha.95 passed the full pilot gate: 1,976 desktop tests (22 skipped), 46 Electron tests (5 skipped),
-40 renderer tests, 72 Chromium/WebKit phone tests, and native/shared/build/static checks. That run
-predates the native cancellation change and cannot stand in for alpha.96 validation.
-
-## Preserved evidence and limits
-
-Alpha.85 saved and closed the real reviewer brief without operator target input in 74.277 seconds.
-The 3,303-byte, 444-word file remains unchanged, SHA-256
-`b24e378ad6d7822456a7cf973bd34e81aa29e376722d98696ae320710ab7a05c`.
-Reopening stopped at the standalone Open dialog. Alpha.88 fixed screenshot-scale focus validation
-and passed the full pilot gate; [runtime CI passed](https://github.com/ljang0/sia-v2/actions/runs/41330418586).
-
-Subsequent signed diagnostics failed to type into that dialog. They found matching TextEdit field
-and window process IDs and confirmed the signed host had Accessibility and event-posting grants.
-Both public PID events and the earlier private route experiment failed. Temporary probes and failed
-transports were removed. Do not treat these results as evidence of missing permission, request
-another grant or count them as workflow passes. [The previous detailed record](https://github.com/ljang0/sia-v2/blob/2591a9a943ea6766492b868e6ee699a6c88da383/docs/public-release.md)
-retains exact alpha.85–94 identities, transient test failures and interventions. Earlier semantic
-text insertion and operator-prepared menus do not validate vision-only acceptance. Progress across
-versions is not a complete workflow pass.
+[The previous detailed record](https://github.com/ljang0/sia-v2/blob/5a58dfff600a6886e35e59a27f1e57d026944f27/docs/public-release.md)
+retains exact older artifact identities, failed diagnostics and interventions. Progress across
+versions does not constitute one complete workflow pass.
 
 ## Last notarized universal artifact
 

@@ -75,7 +75,7 @@ describe('plain failure banner', () => {
 describe('interrupted task banner', () => {
   it('keeps the reason beside Continue task and shows it once', () => {
     const reason =
-      'The task was interrupted when Sia closed. Completed work is preserved, and it is safe to retry.';
+      'The task was interrupted when Sia closed. Check the last action before continuing; it may have completed.';
     render(
       <Conversation
         thread={{

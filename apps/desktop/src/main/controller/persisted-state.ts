@@ -292,7 +292,7 @@ export function recoverPersistedState(state: PersistedState): PersistedState {
       sequence: sequence + 1,
       kind: 'error',
       title: 'Task was interrupted',
-      text: 'The task was interrupted when Sia closed. Completed work is preserved, and it is safe to retry.',
+      text: 'The task was interrupted when Sia closed. Check the last action before continuing; it may have completed.',
       status: 'failed',
       timestamp: new Date().toISOString(),
     });

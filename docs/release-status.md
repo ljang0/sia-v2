@@ -1,19 +1,16 @@
 # Release status
 
-Updated November 1, 2026. **Distribution is not ready.** Installed internal alpha.109 exited
-with SIGTRAP during the signed background file-copy repeat and remains stopped. Signing,
-packaged-runtime verification and the full local pilot passed: 1,996 desktop, 46 Electron,
-40 renderer and 72 browser tests. The crash stack identifies self-process AX window raising on
-a worker thread during focus rollback. No copy was created, and the original remains unchanged.
-Alpha.110 source routes those own-process mutations through the existing bounded main-queue
-mechanism shared with menu focus. Native regression checks and the full local pilot passed
-with the same counts; signed verification is next.
-See the [exact artifact and failure record](./public-release.md).
+Updated November 1, 2026. **Distribution is not ready.** Signed internal alpha.110 passed the
+previous crash regression and created a byte-identical checklist copy. Rename and relocation
+remain incomplete. Opening the copy activated TextEdit, so the next background input paused;
+close/reopen remains unverified. QA is stopped. The full local pilot passed: 1,996 desktop,
+46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks.
 
-Signed alpha.107 resolved the Finder observation regression: Applications screenshots now work
-when openable filenames include 1Password, while genuine credential controls remain protected.
-Universal alpha.60 passed distribution-artifact verification and failed its real native task.
-The last published Mac pilot is alpha.24. Nothing new has been published.
+Alpha.111 source adds the existing cross-app window observer to menu-equivalent dispatch and
+corrects the crash-recovery retry wording. All local pilot stages passed with the same counts;
+a signed repeat remains pending.
+See the [exact artifact and intervention record](./public-release.md). The last published Mac
+pilot remains alpha.24. Nothing new has been published.
 
 The owner selected **Mac first; iPhone follows** and is the pilot support/incident owner.
 The [Arena proposal](./arena-proposal.md) offers a bounded technical review and invited pilot;
@@ -65,55 +62,18 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 
 | Area | Verified | Still required |
 | --- | --- | --- |
-| Automated verification | The alpha.110 source pilot gate passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
-| Native images and coordinates | Alpha.85 saved and closed the real 444-word brief. Alpha.97 captured the title popover. Later diagnostics isolated an unproven shared-service destination menu; it remains refused. | Repeat unassisted menu opening/selection and complete useful tasks. |
+| Automated verification | All alpha.111 local pilot stages passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
+| Native images and coordinates | Alpha.107 resolved Finder filename observation. Alpha.110 opened Go to Folder and created a verified duplicate. | Complete rename, relocation and close/reopen; preserve foreground when opening another app. |
 | Native shortcuts and typing | Alpha.95 completed a 1,469-character checklist in 64.690 seconds without a host timeout. Alpha.96 stopped at 485 characters and resumed to the full checklist without duplication. | Repeatable dialog filename input and Save/close/reopen with complete file contents. |
 | Browser work | Alpha.59 delivered restricted background clicks/scrolls; separate operator-typed notes survived. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
 | Concurrency and performance | Alpha.95 composer CUA round trips during typing: median 649.5 ms, worst 1,205 ms (10 samples). Alpha.96 Stop UI round trip: 1,233 ms, followed by stable partial text and successful recovery. | Two completed Sia tasks, clipboard/focus preservation, end-to-end latency and broader Stop/recovery. These limited samples are not performance acceptance. |
 | Physical/fresh install | Existing-profile signed-app checks pass. | Lock/sleep/voice, first-use sign-in/permissions and a fresh account/second Mac. The keep-awake assertion still fails on this host, including with macOS’s own `caffeinate` utility. |
 
-The native fix binds Apple's Open/Save Panel service to its client, validates popup ancestry and
-geometry, and prunes clipped file-list subtrees before coordinate hit testing. Alpha.85 saved and
-closed the real 444-word reviewer brief without operator target input. Alpha.86 navigated the standalone
-Open dialog's folder menu, but could not reopen the file. Alpha.88 shares screenshot-scale/session
-transforms between clicks and focus verification in `tools/pixel_focus.rs`; its full pilot gate passed.
+The original checklist and its alpha.110 duplicate are preserved in TextEdit’s iCloud folder,
+with matching hashes. The requested local handoff filename does not exist. Do not count the
+operator-guided continuation as an unassisted workflow pass. The reviewer brief and earlier
+private evidence are also preserved; exact identities and limitations are in the artifact record.
 
-Ordinary editor typing and dialog typing now have distinct evidence. On the alpha.88 baseline,
-Sia wrote the useful checklist into a new document, but the host's 60-second deadline interrupted the
-call before it returned. The full text was present; subsequent filename entry in Save still failed.
-Alpha.95 gives native typing 120 seconds to cover the pinned driver's 100-second paced-input budget;
-other operations retain 60 seconds. The same checklist returned normally in 64.690 seconds.
-
-That trial exposed a separate Stop defect: cancelling the async call left its blocking keyboard loop
-running. Alpha.96 carries cancellation into the writer, checks between complete characters and keeps
-the process lease until it exits. The signed test stopped at 485 characters; independent observations
-nearly three minutes later found the text unchanged. A vision-only follow-up completed the same
-1,469-character checklist without duplication. The requested terminal newline was omitted. The first
-Stop attempt was inconclusive because the operator's screenshot call stalled until typing finished;
-only the repeated attempt counts. No operator TextEdit input occurred. A later filesystem check found TextEdit had automatically saved the complete draft under its
-default iCloud name. The requested local filename and close/reopen are still unverified.
-
-Save/Open filename input remains unresolved. Earlier diagnostics found matching field/window process
-IDs and confirmed the signed host's Accessibility and event-posting grants; missing permission is not
-supported by that evidence. Failed transport experiments and probes were removed. The saved reviewer
-brief remains preserved. Alpha.97–104 added capture and stale-image coverage for an ordered popover/menu
-stack, but could not prove the shared menu owner. The unsuccessful service-parent and native-child
-capture probes were removed. Model-facing screenshot refusals now use plain language and revoke
-old image authority. A clean alpha.105 run captured TextEdit but refused one Finder window. Another Finder window worked;
-Go to Folder opened, then input paused because Finder became active. After operator QA activation and
-Continue, background path typing reached the source folder. Duplicate and menu attempts produced no
-verified copy. The original hash is unchanged, and the requested local output does not exist. These
-operator-guided recovery attempts are diagnostics, not an unassisted workflow pass. Useful browser
-work and two completed simultaneous tasks remain open.
-
-See [exact artifacts and interventions](./public-release.md), [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use),
-and the [native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,
+See [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use) and the
+[native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,
 distribute or contact Arena until the remaining acceptance work and owner decisions are complete.
-
-Alpha.106 reproduced the Applications-only refusal, with no native capture-failure diagnostic.
-Independent operator inspection found 1Password and Passwords file labels. The host classifier can
-withhold that image as protected content yet report a missing screenshot. The correction
-requires Finder identity, an AXTextField whose label duplicates its filename value, and AXOpen;
-structural credential markers, titles and separate controls remain protected. The signed alpha.107 repeat captured both Applications windows and the TextEdit document,
-confirming this specific refusal is resolved. The turn contained no target input; it does not
-establish completion of the copy workflow.
