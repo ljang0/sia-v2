@@ -1,16 +1,16 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.88 is installed and
-stopped after live verification. It is not notarized or accepted for distribution. Nothing new
-was published; the last published Mac pilot is alpha.24.
+Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.92 is the latest internal
+identity diagnostic, stopped after live verification. It is not notarized or accepted for distribution.
+Nothing new was published; the last published Mac pilot is alpha.24.
 
-## Current signed candidate
+## Last full-pilot baseline
 
 Alpha.88 passed `pnpm test:pilot`: 1,971 desktop tests (22 skipped), 46 Electron tests (5 skipped),
 40 renderer tests, 72 Chromium/WebKit phone tests, and native/shared/build/static checks.
 Developer ID signing and packaged-runtime verification passed. The new native suite includes
 exact-window coordinate selection, clipping, focus geometry and screenshot-scale/session isolation.
-CI for the previous committed source `9ab265b` passed ([run 320](https://github.com/ljang0/sia-v2/actions/runs/41324521904)); the new commit still needs CI.
+CI for the committed focus/coordinate fixes `0b57e71` passed ([run 321](https://github.com/ljang0/sia-v2/actions/runs/41330418586)).
 
 | Identity                     | Value                                                              |
 | ---------------------------- | ------------------------------------------------------------------ |
@@ -29,6 +29,35 @@ images showed Search empty, no selection and Open disabled; the brief was not re
 The operator submitted the prompt and quit QA through CUA, with no TextEdit input during the turn.
 The private record preserves the prompt, trajectory/images, exact source patch, package/install
 receipts and complete check logs. Only evidence documentation changed after packaging.
+
+## Subsequent internal diagnostics
+
+These signed arm64 builds passed the native gate and packaged-runtime checks, but not a new full
+pilot gate. The private directories preserve exact source patches, package/install receipts, prompts,
+trajectory images and full logs. None is approved for distribution.
+
+| Version  | Diagnostic and observed result                                                                                                                                                                                             | Private evidence            |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| alpha.89 | Focus metadata matched the TextEdit window; no on-screen panel-service window was found. Search stayed empty.                                                                                                              | `alpha89-key-routing`       |
+| alpha.90 | Re-priming the same key window left a visible caret/focus ring but no typed filename. The workaround was removed.                                                                                                          | `alpha90-key-prime`         |
+| alpha.91 | Omitting the Chromium envelope for native text did not replace the selected query. A separate single-key probe also had no visible effect. Both are failed diagnostics, not workflow passes; the route change was removed. | `alpha91-native-key-events` |
+| alpha.92 | Field and window both reported TextEdit PID 9967. Typing again left the prior single-character query unchanged; Open stayed disabled. The probe was removed.                                                               | `alpha92-key-owner`         |
+
+Alpha.90 ran for 34.970 seconds. Alpha.91's first screenshot already contained a different search
+query than alpha.90; the cause of that intervening change is unknown. Its filename and single-key
+turns both left that query unchanged. No operator TextEdit input occurred during those turns.
+The alpha.89 first launch lost stderr during a launcher race; a second launch captured it explicitly.
+Later launches use one LaunchServices call with stdout/stderr attached. Diagnostic logging is removed
+from production source after inspection. The saved brief's hash remains unchanged. Alpha.92 also
+started with an intervening query change of unknown origin; its initial/final images are retained. The diagnostic identified no process-ID
+mismatch. Runtime source and version were restored to the committed alpha.88 baseline; only these
+evidence notes changed.
+
+After removing the probes, `pnpm check` passed, including 1,971 desktop tests (22 skipped). The first
+attempt stopped when the real Electron bare-launch fixture exited with code 1 and no output. That
+fixture then passed alone and in the full repeat without code changes. Both logs are retained; the
+transient failure is not counted as a first-pass success. No full pilot rerun is claimed for the
+diagnostic builds.
 
 ## Useful progress and interventions
 
@@ -81,6 +110,6 @@ and ten CUA navigation samples measured median 946.5 ms / worst 1,199 ms. This w
 Before distribution, complete native Save/reopen, repeatable browser restart/setup/error recovery,
 real research/document/planning deliverables, two concurrent Sia tasks, Stop/recovery, clipboard/focus
 preservation and end-to-end latency on the exact candidate. Lock/sleep/voice remain unverified;
-the keep-awake assertion fails on this host. A fresh account/second Mac is unavailable. Final
+the keep-awake assertion fails on this host with `0xe00002bd` (`kIOReturnNoMemory` in the macOS SDK). A fresh account/second Mac is unavailable. Final
 universal notarized artifacts and fresh-install acceptance are still required. The owner is the
 support/incident contact. No publication, invitations or Arena outreach is authorized by these tests.
