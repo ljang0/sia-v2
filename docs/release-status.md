@@ -1,10 +1,11 @@
 # Release status
 
-Updated November 1, 2026. **Distribution is not ready.** The current internal Mac build is
-alpha.104, stopped after a capture-only diagnostic. It is Developer ID signed for arm64, but not
-notarized or accepted for distribution. Cleaned alpha.105 source removes the unsuccessful diagnostic
-paths and passed the full local pilot gate. It is not a newly verified signed artifact. Title-popover capture and native typing/Stop/recovery have
-separate evidence; Save/reopen is still incomplete.
+Updated November 1, 2026. **Distribution is not ready.** The installed internal Mac build is
+alpha.105, stopped after a real document-copy attempt. Its clean source passed the full local pilot
+gate; Developer ID signing and packaged-runtime verification passed for arm64. It is not notarized
+or accepted for distribution. The requested local copy and reopen were not completed. Alpha.106
+source preserves bounded capture-failure diagnostics on the native error path and passed the full
+local pilot gate: 1,983 desktop, 46 Electron, 40 renderer and 72 browser tests.
 Universal alpha.60 passed distribution-artifact verification and failed its real native task.
 The last published Mac pilot is alpha.24. Nothing new has been published.
 
@@ -63,7 +64,7 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 | Native shortcuts and typing | Alpha.95 completed a 1,469-character checklist in 64.690 seconds without a host timeout. Alpha.96 stopped at 485 characters and resumed to the full checklist without duplication. | Repeatable dialog filename input and Save/close/reopen with complete file contents. |
 | Browser work | Alpha.59 delivered restricted background clicks/scrolls; separate operator-typed notes survived. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
 | Concurrency and performance | Alpha.95 composer CUA round trips during typing: median 649.5 ms, worst 1,205 ms (10 samples). Alpha.96 Stop UI round trip: 1,233 ms, followed by stable partial text and successful recovery. | Two completed Sia tasks, clipboard/focus preservation, end-to-end latency and broader Stop/recovery. These limited samples are not performance acceptance. |
-| Physical/fresh install | Existing-profile signed-app checks pass. | Lock/sleep/voice, first-use sign-in/permissions and a fresh account/second Mac. The keep-awake assertion still fails on this host. |
+| Physical/fresh install | Existing-profile signed-app checks pass. | Lock/sleep/voice, first-use sign-in/permissions and a fresh account/second Mac. The keep-awake assertion still fails on this host, including with macOS’s own `caffeinate` utility. |
 
 The native fix binds Apple's Open/Save Panel service to its client, validates popup ancestry and
 geometry, and prunes clipped file-list subtrees before coordinate hit testing. Alpha.85 saved and
@@ -92,7 +93,12 @@ supported by that evidence. Failed transport experiments and probes were removed
 brief remains preserved. Alpha.97–104 added capture and stale-image coverage for an ordered popover/menu
 stack, but could not prove the shared menu owner. The unsuccessful service-parent and native-child
 capture probes were removed. Model-facing screenshot refusals now use plain language and revoke
-old image authority. Useful browser work and two completed simultaneous tasks remain open.
+old image authority. A clean alpha.105 run captured TextEdit but refused one Finder window. Another Finder window worked;
+Go to Folder opened, then input paused because Finder became active. After operator QA activation and
+Continue, background path typing reached the source folder. Duplicate and menu attempts produced no
+verified copy. The original hash is unchanged, and the requested local output does not exist. These
+operator-guided recovery attempts are diagnostics, not an unassisted workflow pass. Useful browser
+work and two completed simultaneous tasks remain open.
 
 See [exact artifacts and interventions](./public-release.md), [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use),
 and the [native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,

@@ -39,8 +39,11 @@ export function browserGuardRefusalCode(code: string, message = ''): string | un
 function popupCaptureHint(raw: string): string | undefined {
   let reason: unknown;
   try {
-    reason = (JSON.parse(raw) as { screenshot_error?: { reason?: unknown } })?.screenshot_error
-      ?.reason;
+    const parsed = JSON.parse(raw) as {
+      reason?: unknown;
+      screenshot_error?: { reason?: unknown };
+    } | null;
+    reason = parsed?.screenshot_error?.reason ?? parsed?.reason;
   } catch {
     return;
   }
@@ -74,6 +77,11 @@ export function decodeDriverResult(
   progress: { started: number; completed: number },
 ): { value: unknown; nativeToolError: boolean } {
   if (result.errorCode) {
+    if (tool === 'get_window_state' && result.errorCode === 'px_capture_unavailable') {
+      const hint =
+        popupCaptureHint(result.structuredJson ?? result.rawJson) ?? 'capture_unavailable';
+      console.warn(`[sia:cua-capture] screenshot_missing hint=${hint}`);
+    }
     const guardCode = browserGuardRefusalCode(
       result.errorCode,
       result.structuredJson ?? result.rawJson,

@@ -1,8 +1,42 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.104 is the latest internal
-build, stopped after capture diagnostics. Cleaned alpha.105 source removes unsuccessful probes;
-it passed the full local pilot gate and has not been packaged as a new signed candidate. Nothing new was published; the last published Mac pilot is alpha.24.
+Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.105 is the latest
+installed internal build, now stopped. Its clean source passed the full local pilot gate, and signing
+and packaged-runtime verification passed. The real file-copy workflow remains incomplete.
+Nothing new was published; the last published Mac pilot is alpha.24.
+
+## Latest real document attempt
+
+| Identity               | Value                                                              |
+| ---------------------- | ------------------------------------------------------------------ |
+| Version                | `0.1.0-alpha.105`                                                  |
+| Source commit          | `dd988b9e03a4a0ed34e1c7a91d68bc581f2e7be9`                         |
+| Source diff            | Empty                                                              |
+| Installed ASAR SHA-256 | `eca06079de4f92184025977aa871e6dac21e41d97ebdeea49b06b59e03e22618` |
+| Private evidence       | `alpha105-clean-popovers`                                          |
+| Thread                 | `c0ea6770-bc21-4448-8bc3-8a6b51860150`                             |
+
+The task requested a local handoff copy of the actual autosaved checklist, followed by close/reopen.
+TextEdit captured; the Finder Applications window refused capture. An operator-suggested Inbox
+window captured after the model refreshed its per-turn inventory. Go to Folder opened, but typing
+paused because Finder had become active. The operator activated the existing QA app through its
+authorized LaunchServices command and clicked Continue. Background path typing then reached the
+source folder. Duplicate produced no visible copy; an operator-suggested menu recovery also exposed
+no usable Duplicate command. No operator Finder/TextEdit input occurred, but the coaching and focus
+restoration prevent this from counting as unassisted acceptance.
+
+Filesystem verification found the original unchanged at SHA-256
+`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`, with no requested alpha.105 output.
+The action trace contains no clipboard operation; an independent clipboard hash was not sampled.
+QA was quit before automated validation. Alpha.106 source fixes missing bounded capture diagnostics
+when the native driver returns an error code; this does not change capture or input authority.
+Its full local `pnpm test:pilot` passed: 1,983 desktop (22 skipped), 46 Electron (5 skipped),
+40 renderer and 72 Chromium/WebKit phone tests, plus native/shared/build/static checks.
+
+A two-second `/usr/bin/caffeinate -d` probe also exited 1 with “Failed to create
+PreventUserIdleDisplaySleep assertion,” and no assertion appeared in `pmset`. Thus the display-awake
+failure reproduces outside Electron/Sia. Its host cause remains unresolved; this is not a successful
+physical sleep/lock test. The private `host-awake-check.json` records the check.
 
 ## Latest capture diagnostics
 
@@ -17,7 +51,7 @@ was already enabled; explicitly enabling it still omitted the menu. Temporary ow
 and private image-dump code were removed from alpha.105 source. Unknown ownership stays refused.
 These attempts did not name, save, close or reopen the checklist. No operator TextEdit input occurred.
 
-| Latest installed diagnostic  | Value                                                              |
+| Prior capture diagnostic     | Value                                                              |
 | ---------------------------- | ------------------------------------------------------------------ |
 | Version                      | `0.1.0-alpha.104`                                                  |
 | Source base                  | `202635071e23629748d958215b1ac2e63ba90251`                         |

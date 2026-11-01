@@ -105,3 +105,36 @@ it.each([
     warn.mockRestore();
   }
 });
+
+it.each(['root', 'snapshot'] as const)(
+  'retains the bounded capture diagnostic when the driver throws a %s refusal',
+  (shape) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const refusal = {
+      code: 'px_capture_unavailable',
+      reason: 'popup scan limit exceeded: private path',
+    };
+    try {
+      expect(() =>
+        decodeDriverResult(
+          'get_window_state',
+          { include_screenshot: true },
+          {
+            errorCode: 'px_capture_unavailable',
+            rawJson: '{}',
+            structuredJson: JSON.stringify({
+              ...(shape === 'root' ? refusal : { screenshot_error: refusal }),
+              elements: [{ label: 'popup window identity is ambiguous: private menu text' }],
+            }),
+          },
+          { started: 0, completed: 0 },
+        ),
+      ).toThrow('CUA refused: px_capture_unavailable');
+      expect(warn).toHaveBeenCalledExactlyOnceWith(
+        '[sia:cua-capture] screenshot_missing hint=popup_scan_limit',
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  },
+);
