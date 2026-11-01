@@ -5,7 +5,8 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 public project documents and a real admitted model; fake-service demos are separate.
 
 **Current evidence:** signed universal alpha.60 passed package and installation verification.
-Its real TextEdit brief reached Save, then failed; parent-document recovery also failed. Alpha.59
+Its real TextEdit brief reached Save, then failed. Later signed arm64 alpha.85 saved and closed
+the brief, but reopening remains incomplete through alpha.88. Alpha.59
 browser clicks worked, but restart setup and network-error recovery prevented an itinerary.
 Alpha.57 produced checked dinner/grocery files after operator recovery. Earlier assisted-mode
 successes do not validate the vision-only default. Every selected demo needs two fresh signed runs,

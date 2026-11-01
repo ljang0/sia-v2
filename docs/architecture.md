@@ -63,19 +63,21 @@ provider-native tools for both policies; it is independent of the host's foregro
 validation remains authoritative even if a caller ignores the advertised schema.
 
 Native coordinate-targeted keys reuse `computer-input.ts`'s pixel preflight and the driver's
-existing focus-then-key operation. They require both pointer and keyboard availability, compare
+focus-then-key operation in `tools/pixel_focus.rs`. Focus readback and clicks share the
+session screenshot transform in `tools/px_frame.rs`. They require both pointer and keyboard availability, compare
 the private capture geometry again before input, and return a fresh image for effect verification.
 The canonical gateway schema owns valid argument combinations; `visual-tools.ts` only projects
 that contract. Native menu shortcuts resolve only after field focus and reuse the same process
 mutation lease. The modal-context module binds both the main document and its exact attached sheet,
 then revalidates their identities and command enablement immediately before dispatch.
 
-Capture pixels and their private geometry travel together. Native `ax/sheet_point/popup.rs`
+Capture pixels and their private geometry travel together. Native `ax/window_point/popup.rs`
 proves a remote sheet menu's ownership; `capture/popup.rs` composes only those exact window captures.
 The host's `capture-geometry.ts` retains surface identity for stale-observation checks, including
 popup replacement or disappearance. The model receives the composed image, not the ownership tree.
-Prepared-popup capture and coordinate selection were verified in alpha.83; alpha.84 verified repeated
-large-folder capture. Complete background workflows and unassisted menu recovery remain open.
+Alpha.85 saved and closed the real brief, and alpha.86 opened the standalone folder menu.
+Alpha.88 passed scaled-coordinate focus, but keyboard-only typing and complete reopen acceptance
+remain open.
 
 Vision-mode native typing sets a host-owned `keyboard_only` policy. `type_text/visual.rs` owns the
 single keyboard delivery path and never reads or sets text values. AX is used only for focus and

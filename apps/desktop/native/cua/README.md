@@ -96,14 +96,19 @@ focused-window ID for focus records and restoration. Keyboard delivery requires 
 and focused-element ancestry; missing, conflicting or sibling ancestry refuses input. Foreground
 focus readers retain raw IDs.
 
-`ax/sheet_point.rs` resolves a screenshot point when the app-level hit-test misses a remote sheet.
-It scans the freshly owned sheet for one enabled pressable control at that point, rejects ambiguous
+`ax/window_point.rs` resolves a screenshot point when the app-level hit-test has no usable target.
+It scans the freshly owned window or attached sheet for one enabled pressable or focusable control
+at that point, prunes clipped scroll content outside that point, rejects ambiguous
 or incomplete scans, and rechecks ownership and geometry before returning a retained element.
 `tools/click.rs` owns dispatch under the exact-window mutation lease. No labels or semantic targets
-reach the model. Six regressions cover point bounds, ambiguity, unreadable trees, limits and cycles.
+reach the model. Regressions cover exact-root ownership, point bounds, clipping, ambiguity, unreadable trees, limits and cycles.
+Background keyboard input requires verified focus in the exact requested window.
+`tools/pixel_focus.rs` owns focus and readback; both share the click screenshot transform in
+`tools/px_frame.rs`, including session-specific scale and zoom. Unscaled readback incorrectly
+rejected the focused Search field during alpha.87; its regression covers scale and isolation.
 Capture geometry is handled separately below; signed Save/reopen acceptance is still open.
 
-A popup inside a remote sheet is another surface. `ax/sheet_point/popup.rs` proves the menu's
+A popup inside a remote sheet is another surface. `ax/window_point/popup.rs` proves the menu's
 exact document ancestry, process identity and unique layer-101 WindowServer bounds. Remote AppKit
 menus can report the document PID while their pixels belong to a service. That service must have
 Apple's canonical Open/Save Panel executable path and macOS must identify the exact document
@@ -118,7 +123,7 @@ before returning pixels and immediately before input. Host capture geometry pres
 identity, so a moved, closed or replaced menu invalidates the previous observation. Only the
 coordinate press route may target popup points outside the parent; empty composite regions cannot
 receive input. Ownership, scaled composition, stale identity and input-boundary tests cover these
-contracts. Alpha.83 verified prepared-popup pixels and coordinate selection. Alpha.84 fixed the subsequent large-folder scan limit and verified repeated capture, but Save input still failed. Complete Save/reopen acceptance is still required; passing these
+contracts. Alpha.83 verified prepared-popup pixels and coordinate selection. Alpha.85 saved and closed the real brief. Alpha.86 opened the standalone folder menu, but reopening and Search-field typing failed. Complete Save/reopen acceptance is still required; passing these
 tests does not establish real workflow success.
 
 ## Embedded-frame snapshots

@@ -1,7 +1,7 @@
 # Release status
 
 Updated November 1, 2026. **Distribution is not ready.** The current internal Mac build is
-alpha.84 (stopped after live verification). It is Developer ID signed for arm64, but not notarized
+alpha.88 (stopped after live verification). It is Developer ID signed for arm64, but not notarized
 or accepted for distribution.
 Universal alpha.60 passed distribution-artifact verification and failed its real native task.
 The last published Mac pilot is alpha.24. Nothing new has been published.
@@ -55,8 +55,8 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 
 | Area | Verified | Still required |
 | --- | --- | --- |
-| Automated verification | Current local pilot gate passed: 1,971 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [Earlier runtime-commit CI](https://github.com/ljang0/sia-v2/actions/runs/41260487890) passed, including unsigned universal packaging; signing/notarization was skipped. | Current-commit CI and the final signed distributable. |
-| Native images and coordinates | Alpha.83 captured a prepared menu and selected a folder. Alpha.84 captured the large-folder dialog repeatedly, and its model read the image. | Repeat unassisted menu opening/selection and complete useful tasks. |
+| Automated verification | The alpha.88 local pilot gate passed: 1,971 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [Earlier runtime-commit CI](https://github.com/ljang0/sia-v2/actions/runs/41260487890) passed, including unsigned universal packaging; signing/notarization was skipped. | New-commit CI and the final signed distributable. |
+| Native images and coordinates | Alpha.85 saved and closed the real 444-word brief. Alpha.86 opened the standalone dialog folder menu and selected the parent folder without operator input. | Repeat unassisted menu opening/selection and complete useful tasks. |
 | Native shortcuts and typing | Alpha.75 selected the filename through the menu route once. Alpha.76 did not reproduce selection and stopped before typing. | Repeatable keyboard-only input, Save/close/reopen, and complete file contents. |
 | Browser work | Alpha.59 delivered restricted background clicks/scrolls; separate operator-typed notes survived. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
 | Concurrency and performance | Forty alpha.76 focus samples over 40 seconds all identified Sia. Earlier ten CUA navigation samples had median 946.5 ms and worst 1,199 ms. | Two completed Sia tasks, clipboard preservation, end-to-end latency, Stop/recovery. These limited samples are not acceptance. |
@@ -75,15 +75,26 @@ Alpha.84 avoids traversing file listings when no popup window exists, stops ance
 once the single owned popup is proven, and fixes fractional-scale edge rounding. The full pilot gate
 passed. Alpha.84 repeatedly captured the large-folder Save dialog, but its
 Save click returned an unstructured driver failure and later images still showed the dialog.
-A read-only follow-up confirmed the model could read the image. No saved file exists. Temporary
-process probes have been removed.
+A read-only follow-up confirmed the model could read the image. Temporary process probes have been removed.
+
+Alpha.85 prunes clipped scroll content outside the requested screenshot point. It saved the real
+reviewer brief (3,303 bytes, 444 words) and closed it in a 74.277-second task. Reopening stopped at
+the standalone Open dialog. Alpha.86 extended exact-root coordinate resolution to standalone
+windows and successfully opened its folder menu and selected the parent folder. Scrolling and
+Search-field typing had no visible effect, so reopening remains incomplete. Neither task received
+operator target input. Both passed native and signed-package checks; alpha.88 subsequently passed the full pilot gate. Alpha.87 adds coordinate-based focus fallback and refuses keys when focus
+cannot be verified. Its trial focused Search but refused keys: readback used unscaled image coordinates. Alpha.88
+shares the click transform with focus readback and moves that logic into `tools/pixel_focus.rs`.
+A regression covers scaled screenshots and session/window isolation. The full pilot gate passed.
+The signed alpha.88 trial passed focus verification, but keyboard-only typing still produced no
+text in Search. The brief was not reopened; two fresh images confirmed the failure.
 
 A delayed process-close race found during verification is also fixed: cancellation, timeout and
 output-limit termination preserve the first stop cause. Deterministic regressions and the final
 full pilot run passed.
 
-Keyboard-only input remains live-unverified. The existing reviewer brief is still unsaved, with its
-Save sheet open. Useful browser/background input and concurrent-work acceptance remain open.
+Keyboard-only input remains live-unverified. The reviewer brief is safely saved; the standalone
+Open dialog remains open. Useful browser/background input and concurrent-work acceptance remain open.
 
 See [exact artifacts and interventions](./public-release.md), [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use),
 and the [native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,

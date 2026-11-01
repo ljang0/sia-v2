@@ -1,108 +1,56 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** The installed internal QA app is signed
-arm64 alpha.84, stopped after live verification. It is not notarized or
-accepted for distribution. Nothing new was published; the last published Mac pilot is alpha.24.
+Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.88 is installed and
+stopped after live verification. It is not notarized or accepted for distribution. Nothing new
+was published; the last published Mac pilot is alpha.24.
 
 ## Current signed candidate
 
-Alpha.84 passed the full final-source `pnpm test:pilot` gate: 1,971 desktop tests (22 skipped),
-46 Electron tests (5 skipped), 40 renderer tests, 72 Chromium/WebKit phone tests, and the native,
-shared, build, formatting, lint, quality and type checks. Native capture includes 33 regressions;
-sheet ownership/selection includes 10. Developer ID signing and packaged-runtime verification passed.
-Current-commit CI is pending.
+Alpha.88 passed `pnpm test:pilot`: 1,971 desktop tests (22 skipped), 46 Electron tests (5 skipped),
+40 renderer tests, 72 Chromium/WebKit phone tests, and native/shared/build/static checks.
+Developer ID signing and packaged-runtime verification passed. The new native suite includes
+exact-window coordinate selection, clipping, focus geometry and screenshot-scale/session isolation.
+CI for the previous committed source `9ab265b` passed ([run 320](https://github.com/ljang0/sia-v2/actions/runs/41324521904)); the new commit still needs CI.
 
-| Identity                    | Value                                                              |
-| --------------------------- | ------------------------------------------------------------------ |
-| Version                     | `0.1.0-alpha.84`                                                   |
-| Source base                 | `908fdec59c8af9aadf0917e3bb468ec076d5e6df`                         |
-| Tracked source diff SHA-256 | `df5828da4f64e24cafd1136deef404270106726694b2c5c89b5b9b5d37dcfe62` |
-| Installed ASAR SHA-256      | `ebb84af5020f748696af17552854127faeca62f9fb0c11dfe977a9da5ca69d62` |
-| Evidence directory          | Private `alpha84-popup-scan`                                       |
-| Thread                      | `9365db14-87b1-45b8-83f8-518dcea8caee`                             |
-| Save/reopen turn            | `0ffe539e-a518-44e5-a57f-8f2f3b0a1343`                             |
-| Image-receipt diagnostic    | `807f930d-0c87-4da3-b337-b95261914509`                             |
+| Identity                     | Value                                                              |
+| ---------------------------- | ------------------------------------------------------------------ |
+| Version                      | `0.1.0-alpha.88`                                                   |
+| Source base                  | `9ab265bcce19c859c79eb47cd94ae23e5c58a18d`                         |
+| Packaged source diff SHA-256 | `5d504e505193ae14e21aea82a04c2f3e340b4fc14b8b6805a116051f7454580d` |
+| Installed ASAR SHA-256       | `1ffaec556fe77529859c132ee0d7157cde41a32780062e60e7ca80cf43e688c0` |
+| Evidence directory           | Private `alpha88-focus-scale`                                      |
+| Thread                       | `6d00bb92-0d3d-4341-9c81-c72aa11e3ff8`                             |
+| Turn                         | `5a7a3d45-bd75-47c3-8e27-a4390875a63f`                             |
 
-The real task lasted **56.396 seconds**. Capture of the large-folder Save dialog succeeded. One
-background coordinate Save click returned an unstructured driver failure and an uncertain-delivery
-result. Two later images still showed the unsaved dialog; no target file exists. The task stopped
-without closing or reopening. A separate read-only diagnosis correctly read the destination,
-clipped filename and visible Save button, explicitly confirming image receipt. Four fresh captures
-succeeded across these turns. This closes the observed large-folder capture failure in this run,
-not the document workflow or keyboard-only input gate.
+The **36.322-second** real task tried to reopen the saved reviewer brief through TextEdit's
+standalone Open dialog. Scaled-coordinate focus passed and Cmd+A was accepted through the
+background event route. Keyboard-only filename typing produced no visible text. Two subsequent
+images showed Search empty, no selection and Open disabled; the brief was not reopened.
+The operator submitted the prompt and quit QA through CUA, with no TextEdit input during the turn.
+The private record preserves the prompt, trajectory/images, exact source patch, package/install
+receipts and complete check logs. Only evidence documentation changed after packaging.
 
-No operator TextEdit input occurred during either turn. The operator submitted prompts through Sia
-and quit QA through CUA afterward. The private record preserves prompts, full trajectories, images,
-package/install receipts and check logs. A newly added test file was untracked when the packaging
-script captured the diff; `supplemental-source.json` records its exact contents/hash separately.
-All packaged runtime changes are in the tracked source diff.
+## Useful progress and interventions
 
-One intermediate check exposed a real process-cancellation race: a delayed close could let a later
-timer mark an aborted command as timed out as well. The process runner now preserves the first stop
-cause. Three deterministic delayed-close cases and the final full pilot gate pass. The failed
-intermediate log is retained rather than omitted from the evidence.
+Alpha.85 saved and closed the real reviewer brief without operator target input in a 74.277-second
+task. The 3,303-byte, 444-word file has SHA-256
+`b24e378ad6d7822456a7cf973bd34e81aa29e376722d98696ae320710ab7a05c`; that hash remains unchanged.
+Reopening stopped at the standalone Open dialog. Alpha.86 opened its folder menu and selected the
+parent folder, but scrolling and Search typing had no visible effect. Alpha.87 focused Search but
+refused keys because focus readback used unscaled coordinates; alpha.88 fixed that mismatch.
+Cross-version progress does not establish a complete workflow pass.
 
-## Native popup evidence
+| Version  | ASAR SHA-256                                                       | Private evidence       |
+| -------- | ------------------------------------------------------------------ | ---------------------- |
+| alpha.85 | `bec7b032e8a42f2dc323904fe25176092ac6efc26e23c5a95affa95e143a2634` | `alpha85-sheet-point`  |
+| alpha.86 | `2247f461345a9262e1cfd09afac393edc221439a51144f87dfdd5183622a94d8` | `alpha86-window-point` |
+| alpha.87 | `0dca491845191b9bfc49141d57002169932507e248c03fbff3fb84db571e1b4a` | `alpha87-point-focus`  |
 
-Alpha.83 captured the prepared TextEdit Save-sheet folder menu, including its extension beyond the
-parent sheet. The actual model image was independently inspected. A subsequent background
-coordinate click selected **Sia Release Verification**. Both follow-up captures refused
-`popup_scan_limit`; only the post-turn operator AX read confirmed the destination. The model
-correctly reported navigation as unverified. No text, Save, close or reopen occurred.
-
-The operator prepared the initial menu through CUA. No operator TextEdit input occurred during
-either assistant turn. These narrow diagnostics establish popup pixels and coordinate delivery,
-not unassisted menu opening, completed personal work, focus preservation or concurrency. QA was
-quit through CUA before implementation and automated checks resumed.
-
-| Identity               | Value                                                              |
-| ---------------------- | ------------------------------------------------------------------ |
-| Version                | `0.1.0-alpha.83`                                                   |
-| Source base            | `908fdec59c8af9aadf0917e3bb468ec076d5e6df`                         |
-| Installed ASAR SHA-256 | `4ea3f57e2248a22aa0960e0ee0a61283b809f306bad0c5135dc111743c5fbf32` |
-| Evidence directory     | Private `alpha83-owned-panel-menu`                                 |
-| Thread                 | `349ab9cb-94dc-4111-aa47-52f7ae43a904`                             |
-| Capture turn           | `341a2e0c-b307-458b-9945-9ff34728c220`                             |
-| Navigation turn        | `5b28f679-ba65-4a0c-874a-acd6bf8765a2`                             |
-
-The private evidence includes the exact source patch/hash, package/install receipts, full native
-check log, prompts, trajectory and images. Developer ID signature and packaged runtime checks
-passed. Alpha.84 subsequently passed the full final-source pilot suite.
-
-### Cause and verification in progress
-
-The AX menu reports the TextEdit client PID, while its pixels belong to Apple's separate Open/Save
-Panel service. Alpha.82's temporary metadata probe verified exact bounds and process responsibility;
-the probe was removed. Production ownership requires the canonical system service executable and
-an optional process-responsibility API, plus document ancestry, unique popup identity and geometry.
-An unavailable API or ambiguous identity refuses capture.
-
-Alpha.84 checks for popup windows before walking a sheet, avoids unrelated file-row traversal once
-the sole owned menu is proven, and rounds shared composition edges consistently at fractional
-scales. Native checks and the full pilot gate passed. Signed alpha.84 verified repeated capture of the
-large-folder dialog; the Save action remains blocked as recorded above. No completed-work claim
-may be inherited from the prepared alpha.83 menu diagnostic.
-
-## Regression baseline and earlier interventions
-
-Alpha.76 passed the full local pilot gate: 1,958 desktop, 46 Electron, 40 renderer and 72
-phone-browser tests, plus native/shared/build/static checks. [Runtime-commit CI](https://github.com/ljang0/sia-v2/actions/runs/41260487890)
-passed, including unsigned universal packaging; signing/notarization was skipped.
-Its ASAR is `f0acb1a3b67ac7ca1270fb454c7d3255940ae8e4f38379898cdc3a82e830f72e`.
-This is a baseline, not verification of the current popup changes.
-
-Its real reviewer-brief task failed at destination navigation. Forty frontmost samples over
-40 seconds identified Sia, but do not prove zero transient changes, clipboard preservation or
-concurrency. A separate keyboard diagnostic showed no filename selection and stopped before typing.
-The prior alpha.75 AX text insertion is excluded from strict vision-only acceptance.
-
-Alpha.77 child-window capture and alpha.78 focus preparation were removed after failing to capture
-the menu. Alpha.79 identified the separate service-owned window. Alpha.80's first menu trial was
-confounded by operator activation; its closed-menu control succeeded. Alpha.81's stable prepared-menu
-trial refused `popup_window_unmatched`. Alpha.82 isolated the client-proxy PID mismatch. These were
-internal signed diagnostics, not notarized candidates or completed work. Exact private receipts
-are retained. [Earlier detailed records](https://github.com/ljang0/sia-v2/blob/908fdec59c8af9aadf0917e3bb468ec076d5e6df/docs/public-release.md)
-retain earlier hashes and operator interventions without duplicating that history here.
+Those internal builds passed native and signed-package checks. Their private receipts retain
+exact source diffs, prompts, turn IDs, full trajectories and interventions. Alpha.88 is the first
+full-pilot baseline containing those fixes. [Earlier detailed evidence](https://github.com/ljang0/sia-v2/blob/9ab265bcce19c859c79eb47cd94ae23e5c58a18d/docs/public-release.md)
+records prepared-menu operator interventions and previous failed attempts. They are not hidden or
+counted as unassisted acceptance. Earlier semantic text insertion is excluded from vision-only acceptance.
 
 ## Last notarized universal artifact
 
