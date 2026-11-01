@@ -4,7 +4,28 @@ Updated October 31, 2026. **Distribution is not ready.** The installed internal 
 arm64 alpha.76, not notarized. The latest verified universal distribution artifact is alpha.60;
 its real task failed. Nothing new was published; the last published Mac pilot is alpha.24.
 
-## Current internal build
+## Reverted capture diagnostic
+
+Alpha.77 enabled child-window inclusion while retaining exact-window ownership and geometry checks.
+The 28 capture regressions, Developer ID signature and packaged runtime checks passed. After the
+owner requested that the agent handle launch, the exact isolated-profile command succeeded.
+
+The **22.466-second** live diagnostic made one screenshot-coordinate popup click and took one
+follow-up screenshot. Neither post-click image showed the menu. No typing, navigation, Save, close
+or reopen occurred. After the turn, operator CUA found no open menu; one operator popup click also
+produced no AX or screenshot change. This does not establish whether menu creation or capture failed.
+No operator TextEdit input occurred during the Sia turn. The experiment was removed, QA quit through
+CUA, and the signed alpha.76 app restored with its exact ASAR hash and signature verified.
+
+Private `alpha77-child-menu` retains the prompt, trace, screenshots, regression log and restoration
+receipt. Thread: `af069349-c08e-4846-a72b-2cb193b4901d`. This is failed diagnostic evidence, not
+completed real work; no experimental runtime code remains.
+
+- Source base: `fb683c2a2287cade539e9bd54cc65af31d608df0`
+- Captured diff: `6e1f038c243d8408b6cf1a0870443b661f2cf3790d72114c4682492aa6b5ca45`
+- Trial ASAR: `271fce90cf5ea585e20a38333935eb2cd3095336f100188e13afacdd81f9e8e8`
+
+## Latest fully regression-tested build
 
 | Identity               | Value                                                              |
 | ---------------------- | ------------------------------------------------------------------ |

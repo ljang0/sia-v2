@@ -67,6 +67,11 @@ A separate bounded selection diagnostic fell back to synthetic keys, showed no s
 stopped before typing. Thus keyboard-only text delivery remains live-unverified. The destination
 folder is empty. A plan-limit banner during alpha.75 did not stop that turn; quota is not its failure.
 
+Alpha.77 tested child-window inclusion after 28 capture regressions and signed-package checks passed.
+Its 22.466-second live diagnostic still showed no popup in either post-click image. Afterward, CUA
+also found no menu, and one operator popup click had no visible effect. This does not isolate capture
+from input failure. The experiment was removed and signed alpha.76 restored; evidence is retained.
+
 See [exact artifacts and interventions](./public-release.md), [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use),
 and the [native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,
 distribute or contact Arena until the remaining acceptance work and owner decisions are complete.
