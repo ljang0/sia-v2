@@ -1,12 +1,13 @@
 # Release status
 
 Updated November 1, 2026. **Distribution is not ready.** The installed internal Mac build is
-alpha.107, stopped after signed capture verification. Developer ID signing and packaged-runtime
+alpha.107, stopped after a background file-copy attempt paused when Finder became active. Developer ID signing and packaged-runtime
 verification passed for arm64; it is not notarized or accepted for distribution. Its full local
 pilot gate passed: 1,996 desktop, 46 Electron, 40 renderer and 72 browser tests. The signed repeat
 captured both Finder Applications windows and the TextEdit document. Finder filenames such as
 1Password no longer masquerade as credential controls; genuine protection remains enforced and
 reports an explicit protected-window result. The local copy and Save/reopen remain incomplete.
+Alpha.108 source adds the existing focus guard to background menu dispatch; the full local pilot gate passed with the same counts, and a signed repeat is pending.
 Universal alpha.60 passed distribution-artifact verification and failed its real native task.
 The last published Mac pilot is alpha.24. Nothing new has been published.
 

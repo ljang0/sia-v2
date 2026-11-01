@@ -17,6 +17,20 @@ memory-vault call lacked a note selection; that failure is retained in the trace
 checklist hash remains unchanged. QA was quit after verification. This resolves the observation
 regression, not the incomplete copy/reopen workflow.
 
+## Background menu focus regression
+
+A subsequent signed alpha.107 file-copy attempt at 21:17 UTC opened Finder’s Go to Folder panel,
+then paused before path input because Finder had become active. No copy was created; the original
+hash is unchanged. No operator focus rescue was used, and QA was quit after the pause. Private
+per-turn evidence is in `alpha107-finder-file-labels/background-copy-repeat`.
+
+The native hotkey menu-equivalent path returned before the ordinary key-event focus guard.
+Alpha.108 source wraps the shared background menu dispatch in that existing targeted guard,
+including its post-dispatch settle period. The full local pilot gate passed: 1,996 desktop,
+46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks.
+A signed repeat is pending; this source change does not yet establish focus preservation or
+copy/reopen acceptance.
+
 ## Prior capture diagnostic
 
 Signed arm64 alpha.106 was packaged from `adcbcc5e3f73b7717464c36c71386c98ad08474f` with no source diff.
