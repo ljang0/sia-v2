@@ -71,13 +71,18 @@ that contract. Native menu shortcuts resolve only after field focus and reuse th
 mutation lease. The modal-context module binds both the main document and its exact attached sheet,
 then revalidates their identities and command enablement immediately before dispatch.
 
+`focus_guard.rs` owns the shared background-action scope, including native menu dispatch.
+`key_focus_guard.rs` owns key-theft interception and bounded self-activation rollback. An embedded
+host retains rollback without tapping its own event stream; external apps retain the event-tap
+requirements. Real user switches and intentional foreground actions remain excluded from rollback.
+The host service independently checks foreground identity after dispatch and pauses uncertain input.
+
 Capture pixels and their private geometry travel together. Native `ax/window_point/popup.rs`
 proves a remote sheet menu's ownership; `capture/popup.rs` composes only those exact window captures.
 The host's `capture-geometry.ts` retains surface identity for stale-observation checks, including
 popup replacement or disappearance. The model receives the composed image, not the ownership tree.
-Alpha.85 saved and closed the real brief, and alpha.86 opened the standalone folder menu.
-Alpha.88 passed scaled-coordinate focus, but keyboard-only typing and complete reopen acceptance
-remain open.
+Capture, coordinate mapping and typing are verified separately from a complete file workflow;
+see the [acceptance record](./public-release.md) for exact signed artifacts and unresolved results.
 
 Vision-mode native typing sets a host-owned `keyboard_only` policy. `type_text/visual.rs` owns the
 single keyboard delivery path and never reads or sets text values. AX is used only for focus and

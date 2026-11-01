@@ -5219,6 +5219,112 @@ index 136e0c9..c0c1e77 100644
      #[test]
      fn already_key_sends_nothing() {
          let r = prime_exact_window_key(
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/key_focus_guard.rs b/libs/cua-driver/rust/crates/platform-macos/src/key_focus_guard.rs
+index 4d1fee1..d9a42aa 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/key_focus_guard.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/key_focus_guard.rs
+@@ -453,27 +453,52 @@ impl Drop for Lease {
+     }
+ }
+ 
++#[derive(Debug, PartialEq, Eq)]
++enum ProtectionMode {
++    RestoreOnly,
++    EventTap,
++}
++
++fn protection_mode(
++    target: i32,
++    front: i32,
++    holder: i32,
++    own: i32,
++    theft_available: bool,
++) -> Option<ProtectionMode> {
++    if holder != front || front == target {
++        return None;
++    }
++    if front == own {
++        // An embedded driver's host can be the user's front app. Do not tap
++        // its own event stream, but retain self-activation rollback and the
++        // bounded watcher after dispatch. Both respect real user switches.
++        return Some(ProtectionMode::RestoreOnly);
++    }
++    theft_available.then_some(ProtectionMode::EventTap)
++}
++
+ /// Guard the user's key focus while the driver acts on `target_pid` in the
+-/// background. Returns `None` (no guard) when the target is the frontmost app,
+-/// when there is no other frontmost app, or when the SPIs or the event tap are
+-/// unavailable; the action then runs exactly as before.
++/// background. The embedding host gets rollback without an event tap on
++/// itself. Other front apps also get key-theft interception when available.
+ pub fn protect(target_pid: i32) -> Option<Lease> {
+     if std::env::var_os("CUA_DRIVER_DISABLE_KEY_FOCUS_GUARD").is_some() {
+         return None;
+     }
+     let own = std::process::id() as i32;
+-    if !skylight::key_focus_theft_available() {
+-        return None;
+-    }
+     // Tap the process that holds key focus now. That is the one WindowServer
+     // tells when a menu steals it, and it may be a non-activating panel
+     // rather than the frontmost app. Only guard when it is the frontmost app:
+     // otherwise a launcher-style panel would see the calibration theft.
+     let front = crate::apps::frontmost_pid()?;
+     let holder = skylight::key_focus_pid().unwrap_or(front);
+-    if holder != front || front == target_pid || front == own {
+-        return None;
+-    }
++    let mode = protection_mode(
++        target_pid,
++        front,
++        holder,
++        own,
++        skylight::key_focus_theft_available(),
++    )?;
+     // Register first, so an idle teardown cannot remove the tap right after
+     // ensure_tap.
+     {
+@@ -493,6 +518,9 @@ pub fn protect(target_pid: i32) -> Option<Lease> {
+         above_before: target_above_front(target_pid, front),
+         epoch: crate::window_change_detector::intentional_epoch(),
+     };
++    if mode == ProtectionMode::RestoreOnly {
++        return Some(lease);
++    }
+     // Do not touch key focus here. This runs before every background action
+     // while the user may be typing, and any key event that reaches
+     // WindowServer while focus is away from their app is lost.
+@@ -806,6 +834,29 @@ fn schedule_idle_teardown() {
+ 
+ #[cfg(test)]
+ mod tests {
++    #[test]
++    fn an_embedding_host_keeps_rollback_without_tapping_itself() {
++        for theft_available in [false, true] {
++            assert_eq!(
++                super::protection_mode(42, 7, 7, 7, theft_available),
++                Some(super::ProtectionMode::RestoreOnly)
++            );
++        }
++    }
++
++    #[test]
++    fn other_apps_keep_event_tap_requirements_and_panel_exclusions() {
++        assert_eq!(
++            super::protection_mode(42, 7, 7, 99, true),
++            Some(super::ProtectionMode::EventTap)
++        );
++        assert_eq!(super::protection_mode(42, 7, 7, 99, false), None);
++        for own in [7, 99] {
++            assert_eq!(super::protection_mode(42, 7, 8, own, true), None);
++            assert_eq!(super::protection_mode(7, 7, 7, own, true), None);
++        }
++    }
++
+     use super::*;
+ 
+     const OWN: i32 = 100;
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/recording_hooks.rs b/libs/cua-driver/rust/crates/platform-macos/src/recording_hooks.rs
 index bb28e4b..1c67145 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/recording_hooks.rs

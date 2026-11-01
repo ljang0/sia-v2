@@ -23,6 +23,22 @@ No target-app rescue or foreground fallback was used. The prompt supplied the pa
 so this was a controlled regression repeat, not unassisted acceptance. QA was quit afterward.
 No independent clipboard sample was taken. Do not count this as a passed background workflow.
 
+## Embedded-host focus protection under test
+
+Source inspection found that `key_focus_guard::protect` returned no lease when its own process
+was frontmost. Sia embeds this runtime in its UI process. Alpha.109 source retains rollback and
+the bounded post-action watcher for that case, without tapping the host’s own event stream.
+The existing foreign-panel, active-target, intentional-activation and hardware-input checks remain.
+Native regression cases cover the embedded host and preserve external-app tap requirements.
+The full local pilot passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests,
+plus native/shared/build/static checks. Signed verification is pending; this does not establish
+background acceptance.
+
+An operator CUA comparison on alpha.108 raised TextEdit and opened/closed its About dialog, but
+Sia’s refreshed inventories still marked no permitted app active (Sia itself is excluded).
+That setup was inconclusive; no external-app foreground comparison or file task ran. The operator
+changed no document content. These attempts are retained in the private trajectory.
+
 ## Resolved Finder observation regression
 
 Signed alpha.107 was packaged from `aeb75f49f6e930329401e695eea5f1a9f6ecb60b` with no source diff.

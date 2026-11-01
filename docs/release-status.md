@@ -8,6 +8,9 @@ The background menu dispatch now uses the existing targeted focus guard, but Fin
 active after Go to Folder. Sia detected the focus change and paused before typing. No copy was
 created; Save/reopen remains incomplete. See the [exact artifact and failure record](./public-release.md).
 
+Alpha.109 source extends self-activation rollback to the embedding host without tapping its
+own event stream. Its full local pilot passed with the same counts; signed acceptance is pending.
+
 Signed alpha.107 resolved the Finder observation regression: Applications screenshots now work
 when openable filenames include 1Password, while genuine credential controls remain protected.
 Universal alpha.60 passed distribution-artifact verification and failed its real native task.
