@@ -146,7 +146,11 @@ A fresh assistant attempted the existing reviewer brief without procedural hints
 `(695,72)` returned `accepted_unverified` through synthetic background events in 1,932 ms.
 The post-action and recovery images showed no visible filename selection. The assistant stopped
 after 30.077 seconds without typing, saving, closing or reopening. The destination remains empty.
-No operator TextEdit input occurred; QA was quit and process exit verified afterward.
+No operator TextEdit input occurred during the assistant's turn; QA was quit and process exit
+verified afterward. After source tests completed, operator CUA invoked the Save sheet's Raise
+action to check whether inactive styling hid a selection. Its appearance stayed unchanged and
+Dock inspection timed out, so the diagnostic was inconclusive. No text, selection or save command
+was sent, and no additional acceptance is credited.
 
 Alpha.71 ASAR: `b454b42e8120760a724f8f19b8aca04ee313f9e195749454499dbe7ed2d01a31`.
 Base: `38925821d4d8a8b96bf9554fe34cb1b292b960c4`; captured diff:
