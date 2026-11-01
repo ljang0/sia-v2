@@ -1,26 +1,27 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.112
-reopened the preserved checklist copy through two input routes without a reported focus interruption.
-The handoff still fails at rename; a fresh browser planning task also remains incomplete. QA is stopped.
+Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.113
+captured and scrolled an inactive museum tab, then stopped on a browser click refusal. The handoff
+still fails at rename; the real planning task remains incomplete. QA is stopped for verification.
 Nothing new was published; the last published Mac pilot is alpha.24.
 
 ## Current signed candidate
 
 | Identity                   | Value                                                                                                                                                       |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Version                    | `0.1.0-alpha.112`                                                                                                                                           |
-| Source                     | `eed169b03fd57e7a031a03cb8504c9de70c0ebc8`, no source diff                                                                                                  |
-| Installed ASAR SHA-256     | `37c1a2d9a095f5e3c7aa767f698850433bf4c3dacdf57cd104ad8a2f5e668d13`                                                                                          |
-| Private evidence directory | `alpha112-cross-app-rollback`                                                                                                                               |
+| Version                    | `0.1.0-alpha.113`                                                                                                                                           |
+| Source                     | `675ff0ae4f8a4ce010e0bf147689cd8ae99e13a3`, no source diff                                                                                                  |
+| Installed ASAR SHA-256     | `2314aa28e892fda557d71866bfb28913615763c3148e8df8f2297521c9ec2fdb`                                                                                          |
+| Private evidence directory | `alpha113-browser-navigation`                                                                                                                               |
 | Package                    | Developer ID signed arm64; packaged-runtime verification passed; not notarized                                                                              |
-| Local pilot gate           | Full `pnpm test:pilot` passed: 1,996 desktop (22 skipped), 46 Electron (5 skipped), 40 renderer, 72 phone-browser; native/shared/build/static checks passed |
+| Local pilot gate           | All stages passed: 1,998 desktop, 46 Electron, 40 renderer, 72 phone-browser; phone suite repeated after ENOSPC |
 
 The private directory retains package/install receipts, logs, per-turn trajectories, screenshots,
-original/copy hashes and the reopen result. CI is a separate gate; local results do not establish
+startup observations and planning result. Alpha.112 reopen evidence and original/copy hashes remain
+in `alpha112-cross-app-rollback`. CI is a separate gate; local results do not establish
 that the latest remote commit passed.
 
-## Signed workflow results
+## Signed alpha.112 workflow results
 
 1. The first controlled reopen attempt closed only **Untitled 8 copy**, then clicked its already-selected
    filename in Finder. This entered filename editing; the agent stopped at an ambiguous keyboard route.
@@ -64,7 +65,27 @@ Both regressions fail on prior source and pass with the fix. All local alpha.113
 1,998 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static
 checks. The full command reached the last stage but one phone fixture failed to create its temporary
 directory with ENOSPC. After storage recovery, the complete phone suite passed without source changes.
-Signed verification is pending; this does not yet establish a completed browser workflow.
+The signed alpha.113 package and installed ASAR were verified. Startup remained on Loading Sia
+until an operator CUA Command+R reload. Disk space was low; the cause is not established. Only
+rebuildable native incremental cache and hash-verified duplicate QA backups were removed, with
+receipts retained. Chrome reconnection required selecting the titled window after the unnamed
+choice failed exact-target verification. No permission dialog was observed.
+
+A resumed turn initially selected an unrelated tab; navigation was refused before input because
+Chrome was active. An explicit recovery prompt selected the existing museum tab by its known URL.
+With FaceTime active, screenshot capture and coordinate scrolling succeeded; a navigation click
+returned `browser_action_unavailable`, and the subsequent screenshot showed no change. No plan
+was saved. This is neither Chrome-active input acceptance nor two completed simultaneous tasks.
+The start-page correction itself was not exercised because the resumed tab was already a web page.
+Trajectories, images and interventions are retained in `alpha113-browser-navigation`.
+
+Alpha.114 corrects recovery instructions that recommended a hidden assisted-only tab option. It
+uses existing prepare-only tab discovery without navigating. Two regressions also exposed lost
+browser refusal diagnostics: native action dispatch projects the message into `error.hint`, while
+Sia read only the producer envelope. The host now recognizes both, exposing only fixed diagnostic
+codes. The tests fail before the fix and pass afterward; the full pilot command passed
+2,000 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static
+checks. Signed alpha.114 verification is pending.
 
 ## Other retained evidence
 

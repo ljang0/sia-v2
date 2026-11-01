@@ -34,8 +34,8 @@ it.each([
     expect(result.data).toMatchObject({ blocker_code: code, input_not_sent: true });
 });
 
-// BrowserRefusal::to_tool_result deliberately reports a structured refusal as
-// a successful protocol response. The signed app uses this path, not errorCode.
+// BrowserRefusal is the producer envelope; action dispatch additionally projects
+// it into ActionResult.error before the SDK returns it to the host.
 it.each([
   [
     "the chosen point's browsing context could not be checked; no input was sent",
@@ -73,6 +73,36 @@ it.each([
     expect(result.data).toMatchObject({ blocker_code: code, input_not_sent: true });
     expect(result.summary).toContain('Do not repeat this click');
   }
+});
+
+it.each([
+  [
+    "the chosen point's browsing context could not be checked; no input was sent",
+    'browser_point_context_unavailable',
+  ],
+  [
+    "the link's browsing context could not be checked; no input was sent",
+    'browser_link_context_unavailable',
+  ],
+])('preserves guard diagnostics through native ActionResult projection: %s', (hint, code) => {
+  const { value } = decodeDriverResult(
+    'browser_click',
+    {},
+    {
+      rawJson: '{}',
+      structuredJson: JSON.stringify({
+        effect: 'refused',
+        error: { code: 'browser_action_unavailable', hint },
+        summary: 'private page data must not escape',
+      }),
+    },
+    { started: 0, completed: 0 },
+  );
+  const result = actionResult({ value, images: [] }, 'Input delivered');
+  expect(result.outcome).toBe('refused');
+  expect(result.reason).toBe(code);
+  expect(result.data).toMatchObject({ blocker_code: code, input_not_sent: true });
+  expect(JSON.stringify(result)).not.toContain('private page data');
 });
 
 it.each([

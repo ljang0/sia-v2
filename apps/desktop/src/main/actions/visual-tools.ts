@@ -88,7 +88,7 @@ export function visualTools(tools: readonly ToolDescriptor[]): ToolDescriptor[] 
         description: opening
           ? tool.name === 'computer_open_app'
             ? 'Open a permitted installed application. Delivery follows the selected Mac mode. Inspect its window afterward; opening does not grant input or prove document contents.'
-            : 'Open an ordinary HTTP(S) website. In background mode pass the exact granted Chromium app/window and optional task tab. prepare_only restores that connection without navigation. On screen uses the system opener; observe and verify the resulting window before input. Never use navigation to bypass a protected surface.'
+            : 'Open an ordinary HTTP(S) website. In background mode pass the exact granted Chromium app/window and optional task tab. prepare_only discovers existing tabs and restores that connection without navigation or foregrounding. Select the intended task tab from the returned choices; never replace an unrelated tab. On screen uses the system opener; observe and verify the resulting window before input. Never use navigation to bypass a protected surface.'
           : snapshot
             ? 'Capture a fresh screenshot of the exact granted window or tab. Inspect the image; no extracted text or semantic targets are provided. A failed capture grants no input.'
             : 'Send one screenshot-coordinate pointer action, literal text, or named key to the exact observed window or tab. Use its latest snapshot_id and original image coordinates. Inspect the returned image before the next action; never replay uncertain input.' +

@@ -148,6 +148,7 @@ export function looksLikeErrorCode(value: string | undefined): boolean {
 export function resultRefusal(value: unknown): ActionExecutionResult | undefined {
   const record = asRecord(value);
   const refusal =
+    findNestedString(value, 'error', ['code']) ??
     findNestedString(value, 'refusal', ['code', 'error_code', 'errorCode']) ??
     findString(value, ['refusal', 'error_code', 'errorCode']);
   const code = findString(value, ['code']);
@@ -166,7 +167,8 @@ export function resultRefusal(value: unknown): ActionExecutionResult | undefined
     'The driver refused the action.';
   const guardCode = browserGuardRefusalCode(
     reason,
-    findNestedString(value, 'refusal', ['message']),
+    findNestedString(value, 'error', ['hint']) ??
+      findNestedString(value, 'refusal', ['hint', 'message']),
   );
   return classifyFailure(new Error(guardCode ?? reason));
 }
