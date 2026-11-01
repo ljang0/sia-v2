@@ -1,29 +1,37 @@
 # Distribution acceptance record
 
-Updated October 31, 2026. **Distribution is not ready.** The installed internal QA app is signed
+Updated November 1, 2026. **Distribution is not ready.** The installed internal QA app is signed
 arm64 alpha.76, not notarized. The latest verified universal distribution artifact is alpha.60;
 its real task failed. Nothing new was published; the last published Mac pilot is alpha.24.
 
-## Reverted capture diagnostic
+## Reverted popup diagnostics
 
-Alpha.77 enabled child-window inclusion while retaining exact-window ownership and geometry checks.
-The 28 capture regressions, Developer ID signature and packaged runtime checks passed. After the
-owner requested that the agent handle launch, the exact isolated-profile command succeeded.
+Neither experiment fixed the real Save-sheet popup. Both were signed internal arm64 builds, not
+notarized candidates. The exact source and installed signed alpha.76 app were restored after each;
+ASAR identity and strict signatures were verified. No experimental runtime fallback remains.
 
-The **22.466-second** live diagnostic made one screenshot-coordinate popup click and took one
-follow-up screenshot. Neither post-click image showed the menu. No typing, navigation, Save, close
-or reopen occurred. After the turn, operator CUA found no open menu; one operator popup click also
-produced no AX or screenshot change. This does not establish whether menu creation or capture failed.
-No operator TextEdit input occurred during the Sia turn. The experiment was removed, QA quit through
-CUA, and the signed alpha.76 app restored with its exact ASAR hash and signature verified.
+| Trial    | Change and checks                                                                                           | Live result                                                                                                                         |
+| -------- | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Alpha.77 | Include child windows in exact-window capture; 28 capture regressions passed.                               | 22.466 seconds; one coordinate click and follow-up image showed no menu. Post-task operator popup click also had no visible effect. |
+| Alpha.78 | Reuse native key-window preparation and focus suppression for coordinate AX presses; 17 click tests passed. | 19.110 seconds; one coordinate click acknowledged, but no popup in image or subsequent AX read.                                     |
 
-Private `alpha77-child-menu` retains the prompt, trace, screenshots, regression log and restoration
-receipt. Thread: `af069349-c08e-4846-a72b-2cb193b4901d`. This is failed diagnostic evidence, not
-completed real work; no experimental runtime code remains.
+After alpha.78 completed, operator CUA activated TextEdit through its app menu and clicked the
+folder popup once. AX then exposed its menu, but the window screenshot still omitted it. The
+operator cancelled only that menu and quit QA. No text, navigation, Save, close or reopen occurred;
+no operator TextEdit input occurred during either assistant turn. This isolates an additional
+capture gap without establishing successful background popup creation. Twenty read-only foreground
+samples changed among Sia, FaceTime, Messages and Slack; their cause is unproven, and this run
+does not establish foreground preservation. The next investigation is
+exact ownership and capture of separate popup windows, not a semantic substitute for pixels.
 
-- Source base: `fb683c2a2287cade539e9bd54cc65af31d608df0`
-- Captured diff: `6e1f038c243d8408b6cf1a0870443b661f2cf3790d72114c4682492aa6b5ca45`
-- Trial ASAR: `271fce90cf5ea585e20a38333935eb2cd3095336f100188e13afacdd81f9e8e8`
+Private `alpha77-child-menu` and `alpha78-point-focus` retain prompts, traces, screenshots, package
+and restoration receipts, source diffs and test logs. Alpha.78 thread:
+`96a149c0-ab46-4403-b1a7-bb1678b922a7`. These diagnostics are not completed useful work.
+
+| Trial    | Source base                                | Diff SHA-256                                                       | ASAR SHA-256                                                       |
+| -------- | ------------------------------------------ | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| Alpha.77 | `fb683c2a2287cade539e9bd54cc65af31d608df0` | `6e1f038c243d8408b6cf1a0870443b661f2cf3790d72114c4682492aa6b5ca45` | `271fce90cf5ea585e20a38333935eb2cd3095336f100188e13afacdd81f9e8e8` |
+| Alpha.78 | `a24282ce34cb6302559253ae0f9dd5a55d63a6b1` | `b7dd21146dad6c5c5603ab5700b2687a6313aa3a9f22cc65a788bb5d6022f854` | `b767afadad0aaa18973cc1d417d3bc49c6ab15c9fc09ccbff8a678e69ad84439` |
 
 ## Latest fully regression-tested build
 
@@ -37,8 +45,8 @@ completed real work; no experimental runtime code remains.
 
 Developer ID signature and packaged runtime checks passed. Native checks and 51 focused host tests
 passed. The full current local pilot gate passed: 1,958 desktop, 46 Electron, 40 renderer and
-72 phone-browser tests, plus native/shared/build/static checks. [Previous-commit CI](https://github.com/ljang0/sia-v2/actions/runs/41257200842)
-passed, including unsigned universal packaging. These checks do not establish real task skill.
+72 phone-browser tests, plus native/shared/build/static checks. [Runtime-commit CI](https://github.com/ljang0/sia-v2/actions/runs/41260487890)
+passed, including unsigned universal packaging; signing/notarization was skipped. These checks do not establish real task skill.
 
 The current changes bind native menu shortcuts to the exact document/attached-sheet context after
 field focus, under one process lease. Modal commands must be enabled; disabled modal Save cannot

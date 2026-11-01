@@ -1,6 +1,6 @@
 # Release status
 
-Updated October 31, 2026. **Distribution is not ready.** The current internal Mac build is
+Updated November 1, 2026. **Distribution is not ready.** The current internal Mac build is
 alpha.76. It is Developer ID signed for arm64, but not notarized or accepted for distribution.
 Universal alpha.60 passed distribution-artifact verification and failed its real native task.
 The last published Mac pilot is alpha.24. Nothing new has been published.
@@ -54,7 +54,7 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 
 | Area | Verified | Still required |
 | --- | --- | --- |
-| Automated verification | Full current local pilot gate passes: 1,958 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. Previous commit CI passed, including unsigned universal packaging. | Run current-commit CI and verify the final distributable. |
+| Automated verification | Full current local pilot gate passes: 1,958 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [Runtime-commit CI](https://github.com/ljang0/sia-v2/actions/runs/41260487890) passed, including unsigned universal packaging; signing/notarization was skipped. | Verify the final signed distributable. |
 | Native images and coordinates | Alpha.67 delivered image-only facts. Alpha.70 visibly collapsed/re-expanded the real Save sheet with fresh background coordinates. | Capture and safely target transient menus; repeat across useful tasks. |
 | Native shortcuts and typing | Alpha.75 selected the filename through the menu route once. Alpha.76 did not reproduce selection and stopped before typing. | Repeatable keyboard-only input, Save/close/reopen, and complete file contents. |
 | Browser work | Alpha.59 delivered restricted background clicks/scrolls; separate operator-typed notes survived. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
@@ -67,10 +67,11 @@ A separate bounded selection diagnostic fell back to synthetic keys, showed no s
 stopped before typing. Thus keyboard-only text delivery remains live-unverified. The destination
 folder is empty. A plan-limit banner during alpha.75 did not stop that turn; quota is not its failure.
 
-Alpha.77 tested child-window inclusion after 28 capture regressions and signed-package checks passed.
-Its 22.466-second live diagnostic still showed no popup in either post-click image. Afterward, CUA
-also found no menu, and one operator popup click had no visible effect. This does not isolate capture
-from input failure. The experiment was removed and signed alpha.76 restored; evidence is retained.
+Alpha.77 child-window capture and alpha.78 native press preparation both failed to show the popup.
+After alpha.78 ended, operator CUA activated TextEdit and opened the folder popup: it appeared in AX
+but remained absent from the window screenshot. The operator cancelled only the menu. Investigate
+ownership/capture of separate popup windows; neither experiment is retained. Signed alpha.76 was
+restored and verified. These bounded diagnostics do not satisfy real-work or concurrency acceptance.
 
 See [exact artifacts and interventions](./public-release.md), [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use),
 and the [native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,

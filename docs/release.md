@@ -38,7 +38,9 @@ Electron Builder publication; distribution is a separate operator action. The co
 
 The release command writes a strict non-secret `sia-cloud.json` resource before signing. Production ignores process-environment API/Cognito destinations, so the bearer-token destination is covered by the application signature. It generates a deterministic license corpus from the installed pnpm store and copies Electron and Chromium's unmodified distribution licenses. It then builds a universal macOS 14+ app and DMG, signs both with Developer ID, notarizes and staples both, and verifies the app with `codesign --deep --strict` plus execute assessment and the DMG with strict signature plus open assessment. `xcrun stapler validate` must pass for both the app and DMG before distribution.
 
-The Cua SDK includes a small source patch for Chrome consent scanning. Both development and
+The Cua SDK includes a pinned downstream patch for Chrome setup, authorization, and exact-window
+input/capture. Its module boundaries and regression commands are documented in
+[`apps/desktop/native/cua/README.md`](../apps/desktop/native/cua/README.md). Both development and
 release resolve the same locally built platform packages. The build pins the upstream revision,
 compiler and patch, and packages a provenance record beside each SDK. Review
 [`native/cua/README.md`](../apps/desktop/native/cua/README.md) before updating that pin; never
