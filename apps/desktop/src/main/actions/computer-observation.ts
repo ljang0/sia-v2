@@ -344,6 +344,17 @@ export class ComputerObservation {
       findElementRecords(raw, 'window').some(observationRecordHasPrivateLinks);
     if (title) this.ctx.computer.windows.set(binding.id, { ...binding, title });
     const snapshotId = randomUUID();
+    if (visionOnly && hasProtectedControls(raw))
+      return {
+        ...refused('Protected controls appeared in this window. No content was returned.'),
+        data: {
+          control_mode: 'vision',
+          app_id: binding.appId,
+          window_id: binding.id,
+          blocker_code: 'protected_window',
+          pixel_actions_available: false,
+        },
+      };
     const pixels =
       !includeImage || privateLinks || hasProtectedControls(raw)
         ? undefined

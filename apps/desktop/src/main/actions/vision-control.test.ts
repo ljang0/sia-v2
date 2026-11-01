@@ -8,9 +8,16 @@ vi.mock('node:timers/promises', async (original) => ({
 }));
 afterEach(() => vi.restoreAllMocks());
 
-async function fixture(background = true) {
-  let capture: 'image' | 'missing' | 'throw' | 'refused-image' | 'protected' | 'private-link' =
-    'image';
+async function fixture(background = true, bundleId = 'com.apple.TextEdit') {
+  let capture:
+    | 'image'
+    | 'missing'
+    | 'throw'
+    | 'refused-image'
+    | 'protected'
+    | 'private-link'
+    | 'finder-file'
+    | 'authentication-label' = 'image';
   // Transport fixture only: these tests prove the observation/authority boundary, not visual skill.
   const png = Buffer.alloc(24);
   Buffer.from('89504e470d0a1a0a', 'hex').copy(png);
@@ -33,7 +40,7 @@ async function fixture(background = true) {
   const inputs: Array<{ tool: string; args: Record<string, unknown> }> = [];
   const cua = fakeCua(async (tool, args) => {
     if (tool === 'list_apps')
-      return { apps: [{ pid: 42, name: 'TextEdit', bundle_id: 'com.apple.TextEdit' }] };
+      return { apps: [{ pid: 42, name: 'Test app', bundle_id: bundleId }] };
     if (tool === 'list_windows')
       return { windows: [{ pid: 42, window_id: 91, title: 'Draft' }] };
     if (tool === 'get_window_state') {
@@ -54,12 +61,22 @@ async function fixture(background = true) {
           },
           elements: [
             {
-              role: capture === 'protected' ? 'AXSecureTextField' : 'AXTextArea',
+              role:
+                capture === 'protected'
+                  ? 'AXSecureTextField'
+                  : ['finder-file', 'authentication-label'].includes(capture)
+                    ? 'AXTextField'
+                    : 'AXTextArea',
               label:
                 capture === 'private-link'
                   ? 'https://example.com/?token=private-value'
-                  : 'hidden-semantic-content',
-              value: 'unseen-document-text',
+                  : capture === 'finder-file'
+                    ? 'Passwords'
+                    : capture === 'authentication-label'
+                      ? 'Account password'
+                      : 'hidden-semantic-content',
+              value: capture === 'finder-file' ? 'Passwords' : 'unseen-document-text',
+              ...(capture === 'finder-file' ? { actions: ['AXOpen'] } : {}),
               element_token: 'secret-element-token',
             },
           ],
@@ -143,7 +160,14 @@ it('requires pixels even when asked for semantic text and never exposes extracte
     expect(serialized).not.toContain(hidden);
 });
 
-it.each(['missing', 'throw', 'refused-image', 'protected', 'private-link'] as const)(
+it.each([
+  'missing',
+  'throw',
+  'refused-image',
+  'protected',
+  'private-link',
+  'authentication-label',
+] as const)(
   'revokes old authority without semantic fallback when the next image is %s',
   async (mode) => {
     const h = await fixture();
@@ -160,6 +184,8 @@ it.each(['missing', 'throw', 'refused-image', 'protected', 'private-link'] as co
         pixel_actions_available: false,
       });
     }
+    if (mode === 'authentication-label')
+      expect(failed.data).toMatchObject({ blocker_code: 'protected_window' });
     expect(failed.images).toBeUndefined();
     expect(dataRecord(failed.data).snapshot_id).toBeUndefined();
     expect((await h.act(id, { action: 'key', value: 'Return' })).outcome).toBe('stale');
@@ -171,6 +197,24 @@ it.each(['missing', 'throw', 'refused-image', 'protected', 'private-link'] as co
     ).toEqual([true, true]);
   },
 );
+
+it('captures Finder filenames while retaining protection if a credential field appears', async () => {
+  const h = await fixture(true, 'com.apple.finder');
+  h.mode('finder-file');
+  const observed = await h.snapshot();
+  expect(observed.outcome).toBe('verified');
+  expect(observed.images).toHaveLength(1);
+  expect(JSON.stringify(observed.data)).not.toContain('Passwords');
+  h.mode('authentication-label');
+  const blocked = await h.snapshot();
+  expect(blocked.data).toMatchObject({ blocker_code: 'protected_window' });
+  expect(blocked.images).toBeUndefined();
+  expect(
+    (await h.act(dataRecord(observed.data).snapshot_id, { action: 'key', value: 'Return' }))
+      .outcome,
+  ).toBe('stale');
+  expect(h.inputs).toEqual([]);
+});
 
 it.each([
   { action: 'click', element_ref: 'secret-element-token' },

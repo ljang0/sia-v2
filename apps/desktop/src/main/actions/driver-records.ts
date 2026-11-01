@@ -290,7 +290,19 @@ export function windowHasProtectedControls(
     .flatMap((key) => findRecordArray(value, key))
     .filter((record) => !isHiddenWindowStructure(record))
     .some((record) => {
-      const label = [record.role, record.subrole, record.title, record.label]
+      // Finder exposes filenames as editable text fields, including applications
+      // named Passwords. AXOpen identifies a file item, not a credential input.
+      // Only its duplicated filename label is exempt; structural credential
+      // markers, titles and other controls in the window still apply.
+      const finderFileLabel =
+        options.nativeAppBundleId?.toLowerCase() === 'com.apple.finder' &&
+        record.role === 'AXTextField' &&
+        typeof record.value === 'string' &&
+        record.label === record.value &&
+        Array.isArray(record.actions) &&
+        record.actions.includes('AXOpen');
+      const controlLabel = finderFileLabel ? undefined : record.label;
+      const label = [record.role, record.subrole, record.title, controlLabel]
         .filter((item) => typeof item === 'string')
         .join(' ');
       // Cua falls back to AXValue when TextEdit's document area has no label.
@@ -312,7 +324,7 @@ export function windowHasProtectedControls(
       // Public API links such as ZipFile.setpassword() are not password fields.
       // Editable controls retain the conservative substring check; literal
       // password labels/prose and secure roles remain protected everywhere.
-      const password = [record.title, record.label].some(
+      const password = [record.title, controlLabel].some(
         (text) =>
           typeof text === 'string' && passwordLabelIsProtected(String(record.role), text),
       );

@@ -6,6 +6,48 @@ const editorBody =
 const editorDocument = { role: 'AXTextArea', label: editorBody, value: editorBody };
 const textEdit = { nativeAppBundleId: 'com.apple.TextEdit' };
 
+const finder = { nativeAppBundleId: 'com.apple.finder' };
+const finderFile = {
+  role: 'AXTextField',
+  label: '1Password',
+  value: '1Password',
+  actions: ['AXOpen'],
+};
+
+it('does not mistake an openable Finder filename for a credential field', () => {
+  for (const name of ['1Password', 'Passwords', 'Authentication notes.txt']) {
+    const file = { ...finderFile, label: name, value: name };
+    expect(windowHasProtectedControls({ elements: [file] }, finder)).toBe(false);
+    for (const options of [{}, textEdit, { nativeAppBundleId: 'com.google.Chrome' }])
+      expect(windowHasProtectedControls({ elements: [file] }, options)).toBe(true);
+  }
+});
+
+it.each([
+  { actions: [] },
+  { actions: ['AXPress'] },
+  { value: '' },
+  { role: 'AXTextArea' },
+  { role: 'AXSecureTextField' },
+  { subrole: 'AXSecureTextField' },
+  { input_type: 'password' },
+  { autocomplete: 'one-time-code' },
+  { title: 'Account password' },
+])('retains protection for genuine or unproven Finder controls: %j', (change) => {
+  expect(windowHasProtectedControls({ elements: [{ ...finderFile, ...change }] }, finder)).toBe(
+    true,
+  );
+});
+
+it('still blocks authentication beside an ordinary Finder file item', () => {
+  expect(
+    windowHasProtectedControls(
+      { elements: [finderFile, { role: 'AXTextField', label: 'Password' }] },
+      finder,
+    ),
+  ).toBe(true);
+});
+
 it('does not turn TextEdit document prose into an authentication control after an edit', () => {
   expect(windowHasProtectedControls({ elements: [editorDocument] }, textEdit)).toBe(false);
   for (const options of [{}, { nativeAppBundleId: 'com.apple.Notes' }])

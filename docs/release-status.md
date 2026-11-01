@@ -1,11 +1,14 @@
 # Release status
 
 Updated November 1, 2026. **Distribution is not ready.** The installed internal Mac build is
-alpha.105, stopped after a real document-copy attempt. Its clean source passed the full local pilot
+alpha.106, stopped after a read-only capture diagnostic. Its source passed the full local pilot
 gate; Developer ID signing and packaged-runtime verification passed for arm64. It is not notarized
 or accepted for distribution. The requested local copy and reopen were not completed. Alpha.106
 source preserves bounded capture-failure diagnostics on the native error path and passed the full
-local pilot gate: 1,983 desktop, 46 Electron, 40 renderer and 72 browser tests.
+local pilot gate: 1,983 desktop, 46 Electron, 40 renderer and 72 browser tests. Alpha.107 source
+distinguishes Finder file labels from credential controls and reports protected-window refusals
+accurately. Its full pilot gate passed: 1,996 desktop, 46 Electron, 40 renderer and 72 browser
+tests. Exact signed verification is pending.
 Universal alpha.60 passed distribution-artifact verification and failed its real native task.
 The last published Mac pilot is alpha.24. Nothing new has been published.
 
@@ -103,3 +106,10 @@ work and two completed simultaneous tasks remain open.
 See [exact artifacts and interventions](./public-release.md), [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use),
 and the [native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,
 distribute or contact Arena until the remaining acceptance work and owner decisions are complete.
+
+Alpha.106 reproduced the Applications-only refusal, with no native capture-failure diagnostic.
+Independent operator inspection found 1Password and Passwords file labels. The host classifier can
+withhold that image as protected content yet report a missing screenshot. The proposed correction
+requires Finder identity, an AXTextField whose label duplicates its filename value, and AXOpen;
+structural credential markers, titles and separate controls remain protected. This needs signed
+verification before treating the live refusal as resolved.
