@@ -274,6 +274,79 @@ it.each(['changed', 'missing'] as const)(
   },
 );
 
+it.each(['replaced', 'closed', 'moved', 'invalid'] as const)(
+  'refuses a %s popup before sending input',
+  async (mode) => {
+    const h = await fixture();
+    const popup = {
+      window_id: 93,
+      pid: 43,
+      bounds: { x: 500, y: 300, width: 200, height: 300 },
+    };
+    const geometry = {
+      surface: {
+        window_id: 91,
+        pid: 42,
+        parent: { x: 100, y: 100, width: 800, height: 600 },
+        sheet: null,
+        popup,
+      },
+      content: { x: 0, y: 0, width: 800, height: 600 },
+      pixels_per_point: 1,
+      width: 800,
+      height: 600,
+    };
+    h.geometry(geometry);
+    const observed = await h.snapshot();
+    expect(observed.outcome).toBe('verified');
+    h.geometry({
+      ...geometry,
+      surface: {
+        ...geometry.surface,
+        popup:
+          mode === 'closed'
+            ? null
+            : mode === 'replaced'
+              ? { ...popup, window_id: 94 }
+              : mode === 'invalid'
+                ? { ...popup, pid: 0 }
+                : { ...popup, bounds: { ...popup.bounds, x: 501 } },
+      },
+    });
+    expect(
+      (await h.act(dataRecord(observed.data).snapshot_id, { action: 'click', x: 450, y: 250 }))
+        .outcome,
+    ).toBe('stale');
+    expect(h.inputs).toEqual([]);
+  },
+);
+
+it('retains the owned popup proof when dispatching a screenshot-based click', async () => {
+  const h = await fixture();
+  const popup = { window_id: 93, pid: 43, bounds: { x: 500, y: 300, width: 200, height: 300 } };
+  h.geometry({
+    surface: {
+      window_id: 91,
+      pid: 42,
+      parent: { x: 100, y: 100, width: 800, height: 600 },
+      sheet: null,
+      popup,
+    },
+    content: { x: 0, y: 0, width: 800, height: 600 },
+    pixels_per_point: 1,
+    width: 800,
+    height: 600,
+  });
+  const observed = await h.snapshot();
+  const result = await h.act(dataRecord(observed.data).snapshot_id, {
+    action: 'click',
+    x: 450,
+    y: 250,
+  });
+  expect(['refused', 'stale']).not.toContain(result.outcome);
+  expect(h.inputs[0]?.args.capture_geometry).toMatchObject({ surface: { popup } });
+});
+
 it.each([
   { value: 'Return', modifiers: [], tool: 'press_key', payload: { key: 'return' } },
   { value: 'a', modifiers: ['cmd'], tool: 'hotkey', payload: { keys: ['cmd', 'a'] } },

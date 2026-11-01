@@ -184,7 +184,7 @@ if (testNative) {
   for (const [packageName, testFilter] of [
     ['platform-macos', 'browser::consent_ui::tests'],
     ['platform-macos', 'ax::exact_target::tests'],
-    ['platform-macos', 'ax::sheet_point::tests'],
+    ['platform-macos', 'ax::sheet_point::'],
     ['platform-macos', 'capture::'],
     ['platform-macos', 'tools::px_frame::tests'],
     ['platform-macos', 'tools::get_window_state::tests'],

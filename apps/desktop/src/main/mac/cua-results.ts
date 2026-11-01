@@ -35,6 +35,37 @@ export function browserGuardRefusalCode(code: string, message = ''): string | un
   return undefined;
 }
 
+// Classify only the capture error, never AX labels, paths, or arbitrary native text.
+function popupCaptureHint(raw: string): string | undefined {
+  let reason: unknown;
+  try {
+    reason = (JSON.parse(raw) as { screenshot_error?: { reason?: unknown } })?.screenshot_error
+      ?.reason;
+  } catch {
+    return;
+  }
+  if (typeof reason !== 'string') return;
+  const stages = [
+    ['popup subtree is unreadable', 'popup_tree_unreadable'],
+    ['popup scan limit exceeded', 'popup_scan_limit'],
+    ['popup belongs to another document', 'popup_document_mismatch'],
+    ['popup process is unavailable', 'popup_process_unavailable'],
+    ['popup has no matching window', 'popup_window_unmatched'],
+    ['popup window identity is ambiguous', 'popup_window_ambiguous'],
+    ['popup has no geometry', 'popup_geometry_missing'],
+    ['invalid popup geometry', 'popup_geometry_invalid'],
+    ['sheet changed during popup lookup', 'popup_sheet_changed'],
+    ['document changed before popup capture', 'popup_document_changed'],
+    ['popup capture does not match owned menu', 'popup_capture_mismatch'],
+    ['invalid layer crop', 'popup_crop_invalid'],
+    ['layer lies outside composite', 'popup_composite_bounds'],
+    ['sample contains an unproven surface', 'capture_surface_unproven'],
+    ['invalid parameter', 'capture_backend_invalid_parameter'],
+    ['legacy parent capture frame', 'capture_backing_frame_mismatch'],
+  ] as const;
+  return stages.find(([message]) => reason.includes(message))?.[1];
+}
+
 /** Decode native envelopes without exposing content-bearing failure payloads. */
 export function decodeDriverResult(
   tool: string,
@@ -108,7 +139,7 @@ export function decodeDriverResult(
       : raw.includes('px_frame_mismatch')
         ? 'frame_mismatch'
         : raw.includes('px_capture_unavailable')
-          ? 'capture_unavailable'
+          ? (popupCaptureHint(raw) ?? 'capture_unavailable')
           : 'image_missing';
     console.warn(`[sia:cua-capture] screenshot_missing hint=${hint}`);
   }

@@ -46,8 +46,16 @@ export async function runCapturedProcess(
     let aborted = false;
     let outputLimitExceeded = false;
     let settled = false;
+    let stopped = false;
 
-    const stop = (): void => killProcess(child, options.detachedProcessGroup ?? false);
+    // Preserve the first termination cause while waiting for pipes/close. A
+    // late timer or abort must not reclassify an already cancelled process.
+    const stop = (): boolean => {
+      if (settled || stopped) return false;
+      stopped = true;
+      killProcess(child, options.detachedProcessGroup ?? false);
+      return true;
+    };
     const capture = (destination: Buffer[], value: Buffer | string): void => {
       const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
       const available = Math.max(0, options.maxOutputBytes - capturedBytes);
@@ -65,14 +73,12 @@ export async function runCapturedProcess(
     child.stderr.on('data', (chunk: Buffer) => capture(stderr, chunk));
 
     const abort = (): void => {
-      aborted = true;
-      stop();
+      if (stop()) aborted = true;
     };
     options.signal?.addEventListener('abort', abort, { once: true });
     if (options.signal?.aborted) abort();
     const timer = setTimeout(() => {
-      timedOut = true;
-      stop();
+      if (stop()) timedOut = true;
     }, options.timeoutMs);
     timer.unref();
 

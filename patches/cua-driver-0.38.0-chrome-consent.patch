@@ -2244,11 +2244,32 @@ index 09007a5..fb06ee7 100644
              Some(_) => ToolOperation::Other,
          },
          "browser_prepare" => {
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/apps/mod.rs b/libs/cua-driver/rust/crates/platform-macos/src/apps/mod.rs
+index af80ee2..dd5ddef 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/apps/mod.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/apps/mod.rs
+@@ -104,7 +104,7 @@ fn all_pids() -> Vec<i32> {
+ 
+ /// The executable path of one live pid, via `proc_pidpath`. `None` when the
+ /// process has already exited or its path is not readable.
+-fn path_of_pid(pid: i32) -> Option<String> {
++pub(crate) fn path_of_pid(pid: i32) -> Option<String> {
+     extern "C" {
+         fn proc_pidpath(pid: i32, buffer: *mut c_void, buffersize: u32) -> i32;
+     }
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
-index ca39f14..eff464c 100644
+index ca39f14..69a1b42 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
-@@ -640,20 +640,32 @@ pub fn focused_element_window_id_of_pid(pid: i32) -> Option<u32> {
+@@ -83,6 +83,7 @@ extern "C" {
+         timeout_in_seconds: f32,
+     ) -> AXError;
+     pub fn AXUIElementGetTypeID() -> CFTypeID;
++    pub fn AXUIElementGetPid(element: AXUIElementRef, pid: *mut i32) -> AXError;
+     pub fn AXIsProcessTrusted() -> bool;
+     /// `AXIsProcessTrustedWithOptions(options)` — when called with
+     /// `{kAXTrustedCheckOptionPrompt: true}` raises the system Accessibility
+@@ -640,20 +641,32 @@ pub fn focused_element_window_id_of_pid(pid: i32) -> Option<u32> {
  ///
  /// `element` must be valid, and the caller must release every returned element.
  pub unsafe fn copy_children(element: AXUIElementRef) -> Vec<AXUIElementRef> {
@@ -2284,7 +2305,7 @@ index ca39f14..eff464c 100644
          .filter_map(|i| {
              let item = *arr.get(i)?;
              if core_foundation::base::CFGetTypeID(item) == ax_type_id {
-@@ -664,7 +676,7 @@ pub unsafe fn copy_children(element: AXUIElementRef) -> Vec<AXUIElementRef> {
+@@ -664,7 +677,7 @@ pub unsafe fn copy_children(element: AXUIElementRef) -> Vec<AXUIElementRef> {
                  None
              }
          })
@@ -2329,16 +2350,18 @@ index 6ad8c6e..6fea2c3 100644
  pub mod window_scope;
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/sheet_point.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/sheet_point.rs
 new file mode 100644
-index 0000000..1ea412f
+index 0000000..307a3c3
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/sheet_point.rs
-@@ -0,0 +1,239 @@
+@@ -0,0 +1,244 @@
 +//! Coordinate delivery for an attached native sheet missed by the app hit-test.
 +//!
 +//! Open/Save panels can live in a remote view service. AX point lookup on the
 +//! application then returns nothing, although its focused sheet exposes the
 +//! control. Resolve only the caller's point, in that freshly owned sheet; never
 +//! search by label, expose a semantic target, or select another process/window.
++
++pub(crate) mod popup;
 +
 +use core_foundation::base::{CFEqual, CFRelease, CFRetain, CFTypeRef};
 +
@@ -2473,7 +2496,10 @@ index 0000000..1ea412f
 +    y: f64,
 +) -> Option<AXUIElementRef> {
 +    let sheet = focused_sheet(pid, window_id)?;
-+    let candidate = unique_bounded(sheet.clone(), |element| {
++    let root = popup::root_at_point(pid, window_id, x, y)
++        .ok()?
++        .unwrap_or_else(|| sheet.clone());
++    let candidate = unique_bounded(root, |element| {
 +        let ptr = element.as_ptr() as AXUIElementRef;
 +        Some((
 +            pressable_at(ptr, window_id, x, y),
@@ -2570,6 +2596,265 @@ index 0000000..1ea412f
 +        assert!(!contains([0.0, 0.0, 10.0, 10.0], f64::NAN, 5.0));
 +        assert!(!contains([0.0, 0.0, f64::INFINITY, 10.0], 5.0, 5.0));
 +        assert!(!contains([0.0, 0.0, -10.0, 10.0], 5.0, 5.0));
++    }
++}
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/sheet_point/popup.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/sheet_point/popup.rs
+new file mode 100644
+index 0000000..a0f9c41
+--- /dev/null
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/sheet_point/popup.rs
+@@ -0,0 +1,253 @@
++//! One visible popup under an exactly owned sheet, including remote AppKit services.
++//! AX proves ancestry/process/geometry; WindowServer supplies the capturable ID.
++use super::*;
++use crate::capture::frame::{Popup, Rect};
++use crate::windows::WindowInfo;
++
++const PANEL_SERVICE: &str = concat!(
++    "/System/Library/Frameworks/AppKit.framework/Versions/C/XPCServices/",
++    "com.apple.appkit.xpc.openAndSavePanelService.xpc/Contents/MacOS/",
++    "com.apple.appkit.xpc.openAndSavePanelService"
++);
++
++fn service_identity(path: &str, responsible_pid: i32, document_pid: i32) -> bool {
++    document_pid > 0 && path == PANEL_SERVICE && responsible_pid == document_pid
++}
++
++fn is_panel_service(pid: i32, document_pid: i32) -> bool {
++    let Some(path) = crate::apps::path_of_pid(pid) else {
++        return false;
++    };
++    if path != PANEL_SERVICE {
++        return false;
++    }
++    // Remote AX objects can report the client PID while WindowServer reports
++    // the XPC service. Bind only Apple's immutable system service to its client.
++    // This private libSystem symbol is optional: absence must refuse ownership.
++    unsafe {
++        let symbol = libc::dlsym(
++            libc::RTLD_DEFAULT,
++            b"responsibility_get_pid_responsible_for_pid\0"
++                .as_ptr()
++                .cast(),
++        );
++        if symbol.is_null() {
++            return false;
++        }
++        let responsible: unsafe extern "C" fn(i32) -> i32 = std::mem::transmute(symbol);
++        service_identity(&path, responsible(pid), document_pid)
++    }
++}
++
++fn match_window(
++    document_pid: i32,
++    menu_pid: i32,
++    bounds: Rect,
++    windows: &[WindowInfo],
++    panel_service: impl Fn(i32, i32) -> bool,
++) -> anyhow::Result<Popup> {
++    anyhow::ensure!(
++        document_pid > 0 && menu_pid > 0 && bounds.valid(),
++        "popup identity is unavailable"
++    );
++    let mut matches = windows.iter().filter(|w| {
++        w.layer == 101
++            && w.is_on_screen
++            && (w.pid == document_pid || panel_service(w.pid, document_pid))
++    });
++    let window = matches
++        .next()
++        .ok_or_else(|| anyhow::anyhow!("popup has no matching window"))?;
++    anyhow::ensure!(
++        matches.next().is_none(),
++        "popup window identity is ambiguous"
++    );
++    anyhow::ensure!(
++        (menu_pid == document_pid || menu_pid == window.pid)
++            && bounds.near(Rect::from(&window.bounds)),
++        "popup has no matching window"
++    );
++    Ok(Popup {
++        window_id: window.window_id,
++        pid: window.pid,
++        bounds,
++    })
++}
++
++unsafe fn owned_menu(pid: i32, window_id: u32) -> anyhow::Result<Option<(RetainedElement, Popup)>> {
++    let Some(sheet) = focused_sheet(pid, window_id) else {
++        return Ok(None);
++    };
++    let windows = crate::windows::on_screen_windows_any_layer();
++    // A menu on this backend has a distinct layer-101 window. Avoid traversing
++    // a potentially enormous file listing when there is no popup to capture.
++    // Full surface validation repeats this observation after capture/at dispatch.
++    if !windows.iter().any(|w| w.layer == 101 && w.is_on_screen) {
++        return Ok(None);
++    }
++    let mut stack = vec![(sheet.clone(), 0)];
++    let mut found = None;
++    let mut visited = 0;
++    while let Some((element, depth)) = stack.pop() {
++        visited += 1;
++        let ptr = element.as_ptr() as AXUIElementRef;
++        let children = copy_children_checked(ptr)
++            .ok_or_else(|| anyhow::anyhow!("popup subtree is unreadable"))?;
++        let children: Vec<_> = children.into_iter().map(|p| adopt(p)).collect();
++        anyhow::ensure!(
++            visited + stack.len() + children.len() <= MAX_NODES
++                && (depth < MAX_DEPTH || children.is_empty()),
++            "popup scan limit exceeded"
++        );
++        if copy_string_attr(ptr, "AXRole").as_deref() == Some("AXMenu")
++            && copy_bool_attr(ptr, "AXHidden") != Some(true)
++            && copy_bool_attr(ptr, "AXVisible") != Some(false)
++        {
++            let [x, y, width, height] = element_screen_rect(ptr)
++                .ok_or_else(|| anyhow::anyhow!("visible popup has no geometry"))?;
++            let bounds = Rect {
++                x,
++                y,
++                width,
++                height,
++            };
++            anyhow::ensure!(bounds.valid(), "invalid popup geometry");
++            anyhow::ensure!(
++                element_window_id(ptr) == Some(window_id),
++                "popup belongs to another document"
++            );
++            let mut menu_pid = 0;
++            anyhow::ensure!(
++                super::super::bindings::AXUIElementGetPid(ptr, &mut menu_pid) == 0,
++                "popup process is unavailable"
++            );
++            let proof = match_window(pid, menu_pid, bounds, &windows, is_panel_service)?;
++            found = Some((element.clone(), proof));
++            // match_window proves there is only one popup for this client,
++            // across all bounds, before this ancestry proof is accepted. It is
++            // therefore safe to stop without scanning unrelated file rows.
++            break;
++        }
++        stack.extend(children.into_iter().map(|child| (child, depth + 1)));
++    }
++    let current =
++        focused_sheet(pid, window_id).ok_or_else(|| anyhow::anyhow!("sheet disappeared"))?;
++    anyhow::ensure!(
++        CFEqual(current.as_ptr() as CFTypeRef, sheet.as_ptr() as CFTypeRef) != 0,
++        "sheet changed during popup lookup"
++    );
++    Ok(found)
++}
++
++pub(crate) fn read(pid: i32, window_id: u32) -> anyhow::Result<Option<Popup>> {
++    unsafe { Ok(owned_menu(pid, window_id)?.map(|(_, proof)| proof)) }
++}
++
++pub(super) unsafe fn root_at_point(
++    pid: i32,
++    window_id: u32,
++    x: f64,
++    y: f64,
++) -> anyhow::Result<Option<RetainedElement>> {
++    Ok(owned_menu(pid, window_id)?
++        .and_then(|(element, proof)| proof.bounds.contains(x, y).then_some(element)))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    fn bounds() -> Rect {
++        Rect {
++            x: 769.0,
++            y: 462.0,
++            width: 302.0,
++            height: 463.0,
++        }
++    }
++    fn window() -> WindowInfo {
++        WindowInfo {
++            window_id: 8,
++            pid: 20,
++            app_name: String::new(),
++            title: String::new(),
++            bounds: bounds().into(),
++            layer: 101,
++            z_index: 1,
++            is_on_screen: true,
++            current_space_id: None,
++            on_current_space: None,
++            space_ids: None,
++        }
++    }
++    #[test]
++    fn requires_unique_same_process_popup_with_matching_geometry() {
++        assert_eq!(
++            match_window(20, 20, bounds(), &[window()], |_, _| false)
++                .unwrap()
++                .window_id,
++            8
++        );
++        assert!(match_window(19, 19, bounds(), &[window()], |_, _| false).is_err());
++        assert!(match_window(20, 20, bounds(), &[window(), window()], |_, _| false).is_err());
++        let mut other_menu = window();
++        other_menu.window_id += 1;
++        other_menu.bounds.x += 500.0;
++        // Early ancestry lookup is safe only if another owned popup at any
++        // location is rejected, not just another exact-bounds match.
++        assert!(match_window(20, 20, bounds(), &[window(), other_menu], |_, _| false).is_err());
++        assert!(match_window(20, 20, bounds(), &[], |_, _| false).is_err());
++        for changed in 0..3 {
++            let mut wrong = window();
++            match changed {
++                0 => wrong.layer = 0,
++                1 => wrong.is_on_screen = false,
++                _ => wrong.bounds.x += 1.0,
++            }
++            assert!(match_window(20, 20, bounds(), &[wrong], |_, _| false).is_err());
++        }
++    }
++    #[test]
++    fn client_proxy_requires_the_exact_responsible_panel_service() {
++        let mut service = window();
++        service.pid = 30;
++        let owned = |pid, document| pid == 30 && document == 20;
++        assert_eq!(
++            match_window(20, 20, bounds(), &[service.clone()], owned)
++                .unwrap()
++                .pid,
++            30
++        );
++        assert_eq!(
++            match_window(20, 30, bounds(), &[service.clone()], owned)
++                .unwrap()
++                .pid,
++            30
++        );
++        assert!(match_window(21, 21, bounds(), &[service.clone()], owned).is_err());
++        assert!(match_window(20, 99, bounds(), &[service.clone()], owned).is_err());
++        assert!(match_window(20, 20, bounds(), &[service.clone()], |_, _| false).is_err());
++        assert!(match_window(20, 20, bounds(), &[window(), service.clone()], owned).is_err());
++        assert!(match_window(20, 30, bounds(), &[window(), service], owned).is_err());
++    }
++
++    #[test]
++    fn similarly_named_helpers_and_other_clients_are_not_owned() {
++        assert!(service_identity(PANEL_SERVICE, 20, 20));
++        assert!(!service_identity(PANEL_SERVICE, 21, 20));
++        assert!(!service_identity(
++            "/tmp/com.apple.appkit.xpc.openAndSavePanelService",
++            20,
++            20
++        ));
++        assert!(!service_identity(PANEL_SERVICE, -1, 20));
++        assert!(!service_identity(PANEL_SERVICE, 0, 0));
++    }
++
++    #[test]
++    fn rejects_unproven_process_and_invalid_bounds() {
++        assert!(match_window(0, 0, bounds(), &[window()], |_, _| false).is_err());
++        let mut invalid = bounds();
++        invalid.width = f64::NAN;
++        assert!(match_window(20, 20, invalid, &[window()], |_, _| false).is_err());
 +    }
 +}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
@@ -2782,7 +3067,7 @@ index 82dac61..74d90b1 100644
  
      fn captured_chinese_sheet() -> Vec<AXNode> {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/capture.rs b/libs/cua-driver/rust/crates/platform-macos/src/capture.rs
-index dff4d82..bfe85f8 100644
+index dff4d82..2ce08a0 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/capture.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/capture.rs
 @@ -3,7 +3,7 @@
@@ -2805,18 +3090,19 @@ index dff4d82..bfe85f8 100644
  //!
  //! ## Windows on another Space (CUA-1351)
  //!
-@@ -39,6 +39,10 @@
+@@ -39,6 +39,11 @@
  //! ([`screenshot_display_bytes_excluding_overlay`]); `screencapture` remains
  //! its fallback and reports that it could not exclude the overlay.
  
 +pub mod frame;
++mod popup;
 +mod stream;
 +use frame::{CapturedWindow, Geometry, Rect, Surface};
 +
  use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
  use objc2::rc::autoreleasepool;
  use std::collections::HashMap;
-@@ -208,76 +212,6 @@ impl Drop for SecureCapturePath {
+@@ -208,76 +213,6 @@ impl Drop for SecureCapturePath {
      }
  }
  
@@ -2893,7 +3179,7 @@ index dff4d82..bfe85f8 100644
  /// Hard ceiling on capture dimensions to avoid unbounded allocations.
  const MAX_CAPTURE_DIM: u32 = 16384;
  
-@@ -546,19 +480,18 @@ fn window_capture_config(
+@@ -546,19 +481,18 @@ fn window_capture_config(
          .with_width(out_w)
          .with_height(out_h)
          .with_shows_cursor(false)
@@ -2915,12 +3201,12 @@ index dff4d82..bfe85f8 100644
 +    window_id: u32,
 +    plan: &WindowCapturePlan,
 +) -> anyhow::Result<CapturedWindow> {
-+    let surface = Surface::read(window_id)?;
++    let surface = Surface::read_base(window_id)?;
 +    stream::capture(plan, surface)
  }
  
  /// Encode a ScreenCaptureKit `CGImage` as PNG after checking its geometry.
-@@ -589,21 +522,21 @@ fn cgimage_to_png(
+@@ -589,21 +523,21 @@ fn cgimage_to_png(
      cua_driver_core::image_utils::encode_rgba_to_png(&rgba, w, h)
  }
  
@@ -2947,7 +3233,7 @@ index dff4d82..bfe85f8 100644
      I: FnOnce() -> anyhow::Result<WindowCaptureIdentity>,
  {
      let bytes = capture()?;
-@@ -618,7 +551,7 @@ where
+@@ -618,7 +552,7 @@ where
  fn capture_window_from_plan_validated(
      window_id: u32,
      plan: &WindowCapturePlan,
@@ -2956,7 +3242,7 @@ index dff4d82..bfe85f8 100644
      capture_then_validate_identity(
          plan.identity,
          || capture_window_from_plan(window_id, plan),
-@@ -633,12 +566,12 @@ fn evict_window_capture_plan(window_id: u32, plan: &std::sync::Arc<WindowCapture
+@@ -633,12 +567,12 @@ fn evict_window_capture_plan(window_id: u32, plan: &std::sync::Arc<WindowCapture
  
  /// A successful capture discovered that the window mutated. Rebuild once for
  /// the observed identity; a second mutation fails closed so stale bytes can
@@ -2971,7 +3257,7 @@ index dff4d82..bfe85f8 100644
      evict_window_capture_plan(window_id, stale_plan);
      let rebuilt = build_window_capture_plan(window_id, actual_identity)?;
      {
-@@ -663,10 +596,10 @@ fn retry_after_identity_change(
+@@ -663,10 +597,10 @@ fn retry_after_identity_change(
  
  /// Native ScreenCaptureKit single-frame window capture (in-process PNG).
  ///
@@ -2984,7 +3270,7 @@ index dff4d82..bfe85f8 100644
      let identity = current_window_capture_identity(window_id)?;
      let cached = {
          let mut cache = lock_window_plan_cache();
-@@ -747,7 +680,7 @@ fn screenshot_window_bytes_sck_inner(window_id: u32) -> anyhow::Result<Vec<u8>>
+@@ -747,7 +681,7 @@ fn screenshot_window_bytes_sck_inner(window_id: u32) -> anyhow::Result<Vec<u8>>
  /// Bound the dependency's synchronous callback wrappers without permitting an
  /// unbounded number of detached workers. Ownership of the gate permit and all
  /// ScreenCaptureKit/CF objects stays on the worker until it really returns.
@@ -2993,7 +3279,7 @@ index dff4d82..bfe85f8 100644
      run_native_capture_worker(
          native_capture_gate(),
          WINDOW_CAPTURE_NATIVE_TIMEOUT,
-@@ -756,7 +689,7 @@ fn screenshot_window_bytes_sck(window_id: u32) -> anyhow::Result<Vec<u8>> {
+@@ -756,7 +690,7 @@ fn screenshot_window_bytes_sck(window_id: u32) -> anyhow::Result<Vec<u8>> {
      .map_err(|error| {
          anyhow::anyhow!(
              "ScreenCaptureKit capture failed for window {window_id}: {error:#}; \
@@ -3002,7 +3288,7 @@ index dff4d82..bfe85f8 100644
          )
      })
  }
-@@ -764,23 +697,19 @@ fn screenshot_window_bytes_sck(window_id: u32) -> anyhow::Result<Vec<u8>> {
+@@ -764,23 +698,36 @@ fn screenshot_window_bytes_sck(window_id: u32) -> anyhow::Result<Vec<u8>> {
  /// Capture a window by its `window_id` (CGWindowID).
  /// Returns raw PNG bytes or an error.
  ///
@@ -3017,6 +3303,23 @@ index dff4d82..bfe85f8 100644
 +/// Capture and geometry are one value; action callers must keep both.
 +pub fn screenshot_window_frame(window_id: u32) -> anyhow::Result<CapturedWindow> {
      refuse_without_direct_capture_consent()?;
++    let surface = Surface::read(window_id)?;
++    let parent = capture_base_frame(window_id)?;
++    let result = if let Some(menu) = &surface.popup {
++        let popup = capture_base_frame(menu.window_id)?;
++        popup::compose(parent, popup, surface.clone())?
++    } else {
++        anyhow::ensure!(
++            parent.geometry.surface == surface,
++            "capture surface changed"
++        );
++        parent
++    };
++    surface.ensure_current()?;
++    Ok(result)
++}
++
++fn capture_base_frame(window_id: u32) -> anyhow::Result<CapturedWindow> {
      let off_space = crate::windows::window_on_current_space_by_id(window_id) == Some(false);
 -    capture_window_with_space_route(
 -        window_id,
@@ -3036,7 +3339,7 @@ index dff4d82..bfe85f8 100644
  }
  
  /// Route a window capture by Space.
-@@ -789,19 +718,19 @@ pub fn screenshot_window_bytes(window_id: u32) -> anyhow::Result<Vec<u8>> {
+@@ -789,19 +736,19 @@ pub fn screenshot_window_bytes(window_id: u32) -> anyhow::Result<Vec<u8>> {
  /// SkyLight capture goes first and the public chain is the fallback. On the
  /// current Space the public chain goes first and SkyLight is the last resort.
  /// When everything fails the error keeps every backend's context.
@@ -3061,7 +3364,7 @@ index dff4d82..bfe85f8 100644
              Ok(_) => anyhow::anyhow!("SkyLight capture produced empty bytes"),
              Err(error) => error,
          };
-@@ -815,7 +744,7 @@ where
+@@ -815,7 +762,7 @@ where
      match public(window_id) {
          Ok(bytes) => Ok(bytes),
          Err(public_err) => match skylight(window_id) {
@@ -3070,7 +3373,7 @@ index dff4d82..bfe85f8 100644
              Ok(_) => Err(anyhow::anyhow!(
                  "{public_err:#}; SkyLight capture produced empty bytes"
              )),
-@@ -826,6 +755,38 @@ where
+@@ -826,6 +773,38 @@ where
      }
  }
  
@@ -3078,7 +3381,7 @@ index dff4d82..bfe85f8 100644
 +    window_id: u32,
 +    capture: impl FnOnce(u32) -> anyhow::Result<Vec<u8>>,
 +) -> anyhow::Result<CapturedWindow> {
-+    let surface = Surface::read(window_id)?;
++    let surface = Surface::read_base(window_id)?;
 +    anyhow::ensure!(
 +        surface.sheet.is_none(),
 +        "attached sheets require paired stream geometry"
@@ -3088,7 +3391,7 @@ index dff4d82..bfe85f8 100644
 +    let bounds = crate::windows::WindowBounds::from(surface.parent);
 +    let backing = frame::parent_backing_scale(window_id, &bounds, width, height)
 +        .map_err(|e| anyhow::anyhow!("legacy parent capture frame: {e:?}"))?;
-+    surface.ensure_current()?;
++    surface.ensure_base_current()?;
 +    let geometry = Geometry::from_sample(
 +        surface.clone(),
 +        width,
@@ -3109,7 +3412,7 @@ index dff4d82..bfe85f8 100644
  /// Off-Space capture through `SLSHWCaptureWindowList` (see module docs).
  fn screenshot_window_bytes_skylight(window_id: u32) -> anyhow::Result<Vec<u8>> {
      let image = crate::input::skylight::hw_capture_window(window_id).ok_or_else(|| {
-@@ -1158,7 +1119,6 @@ pub fn png_dimensions(data: &[u8]) -> anyhow::Result<(u32, u32)> {
+@@ -1158,7 +1137,6 @@ pub fn png_dimensions(data: &[u8]) -> anyhow::Result<(u32, u32)> {
  mod tests {
      use super::*;
      use std::cell::Cell;
@@ -3117,7 +3420,7 @@ index dff4d82..bfe85f8 100644
      use std::sync::Arc;
  
      /// Regression for trycua/cua#5476: with the pointer outside the window,
-@@ -1174,7 +1134,7 @@ mod tests {
+@@ -1174,7 +1152,7 @@ mod tests {
      #[test]
      fn off_space_window_uses_skylight_before_public_backends() {
          let public_calls = Cell::new(0u32);
@@ -3126,7 +3429,7 @@ index dff4d82..bfe85f8 100644
              7,
              true,
              |_| {
-@@ -1190,7 +1150,7 @@ mod tests {
+@@ -1190,7 +1168,7 @@ mod tests {
  
      #[test]
      fn off_space_skylight_failure_falls_back_to_public_backends() {
@@ -3135,7 +3438,7 @@ index dff4d82..bfe85f8 100644
              7,
              true,
              |_| Ok(b"public".to_vec()),
-@@ -1199,7 +1159,7 @@ mod tests {
+@@ -1199,7 +1177,7 @@ mod tests {
          .expect("public fallback should run");
          assert_eq!(got, b"public");
  
@@ -3144,7 +3447,7 @@ index dff4d82..bfe85f8 100644
              7,
              true,
              |_| Ok(b"public".to_vec()),
-@@ -1212,7 +1172,7 @@ mod tests {
+@@ -1212,7 +1190,7 @@ mod tests {
      #[test]
      fn on_space_window_uses_public_backends_and_skylight_last() {
          let sky_calls = Cell::new(0u32);
@@ -3153,7 +3456,7 @@ index dff4d82..bfe85f8 100644
              7,
              false,
              |_| Ok(b"public".to_vec()),
-@@ -1229,7 +1189,7 @@ mod tests {
+@@ -1229,7 +1207,7 @@ mod tests {
              "SkyLight must not run when public capture works"
          );
  
@@ -3162,7 +3465,7 @@ index dff4d82..bfe85f8 100644
              7,
              false,
              |_| anyhow::bail!("sck and shell failed"),
-@@ -1241,7 +1201,7 @@ mod tests {
+@@ -1241,7 +1219,7 @@ mod tests {
  
      #[test]
      fn space_route_errors_keep_every_backend_context() {
@@ -3171,7 +3474,7 @@ index dff4d82..bfe85f8 100644
              7,
              true,
              |_| anyhow::bail!("public denied"),
-@@ -1256,7 +1216,7 @@ mod tests {
+@@ -1256,7 +1234,7 @@ mod tests {
              "{off}"
          );
  
@@ -3180,7 +3483,7 @@ index dff4d82..bfe85f8 100644
              7,
              false,
              |_| anyhow::bail!("public denied"),
-@@ -1320,71 +1280,6 @@ mod tests {
+@@ -1320,71 +1298,6 @@ mod tests {
          assert!(err.to_string().contains("fully transparent"), "{err}");
      }
  
@@ -3254,10 +3557,10 @@ index dff4d82..bfe85f8 100644
          use std::time::{Duration, Instant};
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/capture/frame.rs b/libs/cua-driver/rust/crates/platform-macos/src/capture/frame.rs
 new file mode 100644
-index 0000000..310ba43
+index 0000000..d925d57
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/capture/frame.rs
-@@ -0,0 +1,467 @@
+@@ -0,0 +1,494 @@
 +//! Capture geometry travels with its pixels; it is never inferred from PNG size alone.
 +use crate::windows::WindowBounds;
 +use serde::{Deserialize, Serialize};
@@ -3285,7 +3588,7 @@ index 0000000..310ba43
 +            && x < self.x + self.width
 +            && y < self.y + self.height
 +    }
-+    fn union(self, other: Self) -> Self {
++    pub(crate) fn union(self, other: Self) -> Self {
 +        let x = self.x.min(other.x);
 +        let y = self.y.min(other.y);
 +        Self {
@@ -3343,14 +3646,27 @@ index 0000000..310ba43
 +    pub bounds: Rect,
 +}
 +#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
++pub struct Popup {
++    pub window_id: u32,
++    pub pid: i32,
++    pub bounds: Rect,
++}
++#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 +pub struct Surface {
 +    pub window_id: u32,
 +    pub pid: i32,
 +    pub parent: Rect,
 +    pub sheet: Option<Sheet>,
++    #[serde(default)]
++    pub popup: Option<Popup>,
 +}
 +impl Surface {
 +    pub fn read(window_id: u32) -> anyhow::Result<Self> {
++        let mut surface = Self::read_base(window_id)?;
++        surface.popup = crate::ax::sheet_point::popup::read(surface.pid, window_id)?;
++        Ok(surface)
++    }
++    pub(crate) fn read_base(window_id: u32) -> anyhow::Result<Self> {
 +        let info = crate::windows::window_info_by_id(window_id)
 +            .ok_or_else(|| anyhow::anyhow!("capture window disappeared"))?;
 +        let parent = Rect::from(&info.bounds);
@@ -3361,12 +3677,24 @@ index 0000000..310ba43
 +            pid: info.pid,
 +            parent,
 +            sheet,
++            popup: None,
 +        })
 +    }
 +    pub fn source(&self) -> Rect {
-+        self.sheet
++        let base = self
++            .sheet
 +            .as_ref()
-+            .map_or(self.parent, |s| self.parent.union(s.bounds))
++            .map_or(self.parent, |s| self.parent.union(s.bounds));
++        self.popup.as_ref().map_or(base, |p| base.union(p.bounds))
++    }
++    pub(crate) fn ensure_base_current(&self) -> anyhow::Result<()> {
++        let mut expected = self.clone();
++        expected.popup = None;
++        anyhow::ensure!(
++            Self::read_base(self.window_id)? == expected,
++            "window or sheet changed during capture"
++        );
++        Ok(())
 +    }
 +    pub fn ensure_current(&self) -> anyhow::Result<()> {
 +        anyhow::ensure!(
@@ -3612,6 +3940,7 @@ index 0000000..310ba43
 +            window_id: 7,
 +            pid: 8,
 +            parent,
++            popup: None,
 +            sheet: Some(Sheet {
 +                window_id: 9,
 +                bounds: Rect {
@@ -3704,6 +4033,7 @@ index 0000000..310ba43
 +                    pid: 2,
 +                    parent,
 +                    sheet: None,
++                    popup: None,
 +                },
 +                (520.0 * scale) as u32,
 +                (420.0 * scale) as u32,
@@ -3725,9 +4055,328 @@ index 0000000..310ba43
 +        }
 +    }
 +}
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/capture/popup.rs b/libs/cua-driver/rust/crates/platform-macos/src/capture/popup.rs
+new file mode 100644
+index 0000000..4bcf5f2
+--- /dev/null
++++ b/libs/cua-driver/rust/crates/platform-macos/src/capture/popup.rs
+@@ -0,0 +1,313 @@
++//! Compose separately captured, exactly owned surfaces in one screen coordinate frame.
++//! Every layer keeps its own completed-sample geometry. The caller revalidates the
++//! complete surface set after capture; no model-visible semantic data is involved.
++use super::frame::{CapturedWindow, Geometry, Rect, Surface};
++use image::{imageops, RgbaImage};
++
++fn place(
++    canvas: &mut RgbaImage,
++    layer: &CapturedWindow,
++    source: Rect,
++    scale: f64,
++) -> anyhow::Result<()> {
++    let g = &layer.geometry;
++    let image = image::load_from_memory(&layer.png)?.to_rgba8();
++    anyhow::ensure!(
++        image.width() == g.width && image.height() == g.height,
++        "layer pixels and geometry disagree"
++    );
++    let c = g.content;
++    let (x, y, right, bottom) = (
++        c.x.round() as u32,
++        c.y.round() as u32,
++        (c.x + c.width).round() as u32,
++        (c.y + c.height).round() as u32,
++    );
++    let w = right.saturating_sub(x);
++    let h = bottom.saturating_sub(y);
++    anyhow::ensure!(
++        c.valid()
++            && c.x >= 0.0
++            && c.y >= 0.0
++            && w > 0
++            && h > 0
++            && x.checked_add(w).is_some_and(|v| v <= image.width())
++            && y.checked_add(h).is_some_and(|v| v <= image.height()),
++        "invalid layer crop"
++    );
++    let crop = imageops::crop_imm(&image, x, y, w, h).to_image();
++    let rect = g.surface.source();
++    // Round shared edges, not origin and size independently: at fractional
++    // scales a layer ending on the union edge must end on the canvas edge.
++    let dx = ((rect.x - source.x) * scale).round() as i64;
++    let dy = ((rect.y - source.y) * scale).round() as i64;
++    let right = ((rect.x + rect.width - source.x) * scale).round() as i64;
++    let bottom = ((rect.y + rect.height - source.y) * scale).round() as i64;
++    let width = super::rounded_pixel_dim((right - dx) as f64, "popup layer width")?;
++    let height = super::rounded_pixel_dim((bottom - dy) as f64, "popup layer height")?;
++    anyhow::ensure!(
++        dx >= 0
++            && dy >= 0
++            && dx + i64::from(width) <= i64::from(canvas.width())
++            && dy + i64::from(height) <= i64::from(canvas.height()),
++        "layer lies outside composite"
++    );
++    let resized = imageops::resize(&crop, width, height, imageops::FilterType::Triangle);
++    imageops::overlay(canvas, &resized, dx, dy);
++    Ok(())
++}
++
++pub(super) fn compose(
++    parent: CapturedWindow,
++    popup: CapturedWindow,
++    surface: Surface,
++) -> anyhow::Result<CapturedWindow> {
++    let menu = surface
++        .popup
++        .as_ref()
++        .ok_or_else(|| anyhow::anyhow!("missing popup proof"))?;
++    let mut base = surface.clone();
++    base.popup = None;
++    anyhow::ensure!(
++        parent.geometry.surface == base,
++        "document changed before popup capture"
++    );
++    let actual = &popup.geometry.surface;
++    anyhow::ensure!(
++        actual.window_id == menu.window_id
++            && actual.pid == menu.pid
++            && actual.parent.near(menu.bounds)
++            && actual.sheet.is_none()
++            && actual.popup.is_none(),
++        "popup capture does not match owned menu"
++    );
++    let source = surface.source();
++    // Retain the parent sample's measured scale instead of upsampling its text.
++    let scale = parent.geometry.pixels_per_point;
++    anyhow::ensure!(
++        scale.is_finite() && scale > 0.0 && scale <= 2.01,
++        "invalid composite scale"
++    );
++    let width = super::rounded_pixel_dim(source.width * scale, "popup composite width")?;
++    let height = super::rounded_pixel_dim(source.height * scale, "popup composite height")?;
++    anyhow::ensure!(
++        u64::from(width) * u64::from(height) <= 32_000_000,
++        "popup composite is too large"
++    );
++    let mut canvas = RgbaImage::new(width, height);
++    place(&mut canvas, &parent, source, scale)?;
++    place(&mut canvas, &popup, source, scale)?;
++    let png = cua_driver_core::image_utils::encode_rgba_to_png(canvas.as_raw(), width, height)?;
++    Ok(CapturedWindow {
++        png,
++        geometry: Geometry {
++            surface,
++            content: Rect {
++                x: 0.0,
++                y: 0.0,
++                width: f64::from(width),
++                height: f64::from(height),
++            },
++            pixels_per_point: scale,
++            width,
++            height,
++        },
++    })
++}
++
++#[cfg(test)]
++mod tests {
++    use super::super::frame::Popup;
++    use super::*;
++    fn layer(id: u32, pid: i32, rect: Rect, color: [u8; 4]) -> CapturedWindow {
++        let width = rect.width as u32;
++        let height = rect.height as u32;
++        let surface = Surface {
++            window_id: id,
++            pid,
++            parent: rect,
++            sheet: None,
++            popup: None,
++        };
++        let image = RgbaImage::from_pixel(width, height, image::Rgba(color));
++        CapturedWindow {
++            png: cua_driver_core::image_utils::encode_rgba_to_png(image.as_raw(), width, height)
++                .unwrap(),
++            geometry: Geometry::from_sample(
++                surface,
++                width,
++                height,
++                rect,
++                Rect {
++                    x: 0.0,
++                    y: 0.0,
++                    ..rect
++                },
++                1.0,
++                1.0,
++            )
++            .unwrap(),
++        }
++    }
++    #[test]
++    fn pixels_and_coordinates_agree_when_popup_extends_beyond_document() {
++        let parent = Rect {
++            x: 100.0,
++            y: 200.0,
++            width: 20.0,
++            height: 20.0,
++        };
++        let menu = Rect {
++            x: 110.0,
++            y: 210.0,
++            width: 20.0,
++            height: 30.0,
++        };
++        let a = layer(1, 2, parent, [255, 0, 0, 255]);
++        let b = layer(3, 4, menu, [0, 255, 0, 255]);
++        let mut surface = a.geometry.surface.clone();
++        surface.popup = Some(Popup {
++            window_id: 3,
++            pid: 4,
++            bounds: menu,
++        });
++        let result = compose(a, b, surface).unwrap();
++        assert_eq!((result.geometry.width, result.geometry.height), (30, 40));
++        let image = image::load_from_memory(&result.png).unwrap().to_rgba8();
++        assert_eq!(image.get_pixel(5, 5).0, [255, 0, 0, 255]);
++        assert_eq!(image.get_pixel(15, 35).0, [0, 255, 0, 255]);
++        assert_eq!(image.get_pixel(5, 35).0, [0, 0, 0, 0]);
++        assert_eq!(result.geometry.to_screen(15.0, 35.0), Some((115.0, 235.0)));
++    }
++    #[test]
++    fn composes_different_sample_scales_without_changing_screen_coordinates() {
++        let parent = Rect {
++            x: 100.0,
++            y: 200.0,
++            width: 20.0,
++            height: 20.0,
++        };
++        let menu = Rect {
++            x: 110.0,
++            y: 210.0,
++            width: 20.0,
++            height: 30.0,
++        };
++        let scaled = |id, pid, rect: Rect, scale: f64, color| {
++            let width = (rect.width * scale) as u32;
++            let height = (rect.height * scale) as u32;
++            let image = RgbaImage::from_pixel(width, height, image::Rgba(color));
++            CapturedWindow {
++                png: cua_driver_core::image_utils::encode_rgba_to_png(
++                    image.as_raw(),
++                    width,
++                    height,
++                )
++                .unwrap(),
++                geometry: Geometry {
++                    surface: Surface {
++                        window_id: id,
++                        pid,
++                        parent: rect,
++                        sheet: None,
++                        popup: None,
++                    },
++                    content: Rect {
++                        x: 0.0,
++                        y: 0.0,
++                        width: width.into(),
++                        height: height.into(),
++                    },
++                    pixels_per_point: scale,
++                    width,
++                    height,
++                },
++            }
++        };
++        let a = scaled(1, 2, parent, 1.5, [255, 0, 0, 255]);
++        let b = scaled(3, 4, menu, 2.0, [0, 255, 0, 255]);
++        let mut surface = a.geometry.surface.clone();
++        surface.popup = Some(Popup {
++            window_id: 3,
++            pid: 4,
++            bounds: menu,
++        });
++        let result = compose(a, b, surface).unwrap();
++        assert_eq!((result.geometry.width, result.geometry.height), (45, 60));
++        let image = image::load_from_memory(&result.png).unwrap().to_rgba8();
++        assert_eq!(image.get_pixel(30, 45).0, [0, 255, 0, 255]);
++        assert_eq!(result.geometry.to_screen(30.0, 45.0), Some((120.0, 230.0)));
++        assert_eq!(result.geometry.to_pixels(120.0, 230.0), (30.0, 45.0));
++    }
++
++    #[test]
++    fn fractional_scale_rounds_shared_edges_without_overflow_or_gap() {
++        let parent = Rect {
++            x: 0.0,
++            y: 0.0,
++            width: 1.0,
++            height: 1.0,
++        };
++        let menu = Rect {
++            x: 1.0,
++            y: 1.0,
++            ..parent
++        };
++        let mut a = layer(1, 2, parent, [255, 0, 0, 255]);
++        a.geometry.pixels_per_point = 1.5;
++        let b = layer(3, 4, menu, [0, 255, 0, 255]);
++        let mut surface = a.geometry.surface.clone();
++        surface.popup = Some(Popup {
++            window_id: 3,
++            pid: 4,
++            bounds: menu,
++        });
++        let result = compose(a, b, surface).unwrap();
++        assert_eq!((result.geometry.width, result.geometry.height), (3, 3));
++        let image = image::load_from_memory(&result.png).unwrap().to_rgba8();
++        assert_eq!(image.get_pixel(1, 1).0, [255, 0, 0, 255]);
++        assert_eq!(image.get_pixel(2, 2).0, [0, 255, 0, 255]);
++        assert_eq!(image.get_pixel(0, 2).0, [0, 0, 0, 0]);
++    }
++
++    #[test]
++    fn fractional_content_crop_uses_its_shared_buffer_edge() {
++        let rect = Rect {
++            x: 0.0,
++            y: 0.0,
++            width: 2.0,
++            height: 2.0,
++        };
++        let mut a = layer(1, 2, rect, [255, 0, 0, 255]);
++        a.geometry.content = Rect {
++            x: 0.5,
++            y: 0.5,
++            width: 1.5,
++            height: 1.5,
++        };
++        let mut canvas = RgbaImage::new(2, 2);
++        place(&mut canvas, &a, rect, 1.0).unwrap();
++        assert!(canvas.pixels().all(|pixel| pixel.0 == [255, 0, 0, 255]));
++    }
++
++    #[test]
++    fn refuses_capture_of_another_process_or_window() {
++        let rect = Rect {
++            x: 0.0,
++            y: 0.0,
++            width: 10.0,
++            height: 10.0,
++        };
++        for (id, pid) in [(99, 4), (3, 99)] {
++            let a = layer(1, 2, rect, [255, 0, 0, 255]);
++            let b = layer(id, pid, rect, [0, 255, 0, 255]);
++            let mut surface = a.geometry.surface.clone();
++            surface.popup = Some(Popup {
++                window_id: 3,
++                pid: 4,
++                bounds: rect,
++            });
++            assert!(compose(a, b, surface).is_err());
++        }
++    }
++}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/capture/stream.rs b/libs/cua-driver/rust/crates/platform-macos/src/capture/stream.rs
 new file mode 100644
-index 0000000..338296f
+index 0000000..134f4b5
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/capture/stream.rs
 @@ -0,0 +1,156 @@
@@ -3830,7 +4479,7 @@ index 0000000..338296f
 +        info.content_scale
 +            .ok_or_else(|| anyhow::anyhow!("missing sample content scale"))?,
 +    )?;
-+    geometry.surface.ensure_current()?;
++    geometry.surface.ensure_base_current()?;
 +    Ok(CapturedWindow { png, geometry })
 +}
 +fn sample_png(sample: &CMSampleBuffer) -> anyhow::Result<(Vec<u8>, u32, u32)> {
@@ -3924,10 +4573,10 @@ index dd919c7..b302f53 100644
          use core_foundation::{base::TCFType, string::CFString};
          let attr = CFString::new("AXSelectedTextRange");
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
-index 1b34151..975f4e0 100644
+index 1b34151..6505be8 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
-@@ -2026,19 +2026,41 @@ mod tests {
+@@ -2026,19 +2026,42 @@ mod tests {
  
      #[test]
      fn capture_bound_background_route_preserves_nonzero_origin_hit() {
@@ -3953,6 +4602,7 @@ index 1b34151..975f4e0 100644
 +                    pid: 2,
 +                    parent,
 +                    sheet: None,
++                    popup: None,
 +                },
 +                1520,
 +                920,
@@ -4143,7 +4793,7 @@ index bb28e4b..1c67145 100644
      Some((window_id, point))
  }
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
-index 8503db3..280d44b 100644
+index 8503db3..5748866 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
 @@ -148,10 +148,12 @@ fn press_error_may_have_acted(err: crate::ax::bindings::AXError) -> bool {
@@ -4216,7 +4866,7 @@ index 8503db3..280d44b 100644
                          {
                              return ToolResult::error(format!(
                                  "click: window-local point ({lx:.1}, {ly:.1}) pt lies outside \
-@@ -1164,8 +1175,28 @@ impl Tool for ClickTool {
+@@ -1164,8 +1175,32 @@ impl Tool for ClickTool {
                      && modifiers.is_empty()
              }) {
                  let focus_only = action == "focus";
@@ -4231,7 +4881,11 @@ index 8503db3..280d44b 100644
 +                            screen_y,
 +                        )
 +                    };
-+                    let element = if outside_parent {
++                    let over_popup = surface
++                        .as_ref()
++                        .and_then(|s| s.popup.as_ref())
++                        .is_some_and(|p| p.bounds.contains(screen_x, screen_y));
++                    let element = if outside_parent || over_popup {
 +                        sheet_point()
 +                    } else {
 +                        element_at_screen_position(pid, screen_x, screen_y).or_else(|| {
@@ -4246,7 +4900,7 @@ index 8503db3..280d44b 100644
                          return Ok::<bool, anyhow::Error>(false);
                      };
                      // The pid-scoped hit-test can resolve an element from a
-@@ -1192,6 +1223,12 @@ impl Tool for ClickTool {
+@@ -1192,6 +1227,12 @@ impl Tool for ClickTool {
                          CFRelease(element as _);
                          return Ok(false);
                      }
@@ -4259,7 +4913,7 @@ index 8503db3..280d44b 100644
                      let delivered = if focus_only {
                          crate::input::ax_actions::focus_element(element as usize).is_ok()
                      } else {
-@@ -1236,13 +1273,32 @@ impl Tool for ClickTool {
+@@ -1236,13 +1277,32 @@ impl Tool for ClickTool {
                                  "code": "background_unavailable"
                              }));
                      }
@@ -4329,7 +4983,7 @@ index 8e8d8a2..ddaca2a 100644
                  }
                  Err(refusal) => return refusal,
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
-index 133dff9..84c52c2 100644
+index 133dff9..56c80f3 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
 @@ -101,23 +101,29 @@ fn prefetch_capture<T: Send + 'static>(
@@ -4518,7 +5172,7 @@ index 133dff9..84c52c2 100644
          use std::{cell::Cell, io::Cursor};
  
          let png = |w, h| {
-@@ -1448,21 +1458,42 @@ mod tests {
+@@ -1448,21 +1458,43 @@ mod tests {
              width: 4.0,
              height: 4.0,
          };
@@ -4530,6 +5184,7 @@ index 133dff9..84c52c2 100644
 +                pid: 8,
 +                parent,
 +                sheet: None,
++                popup: None,
 +            },
 +            4,
 +            4,
@@ -5139,7 +5794,7 @@ index e4d007f..e9c698a 100644
                  .await
                  {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
-index d24fee7..44db212 100644
+index d24fee7..f39a07b 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
 @@ -12,15 +12,15 @@
@@ -5162,7 +5817,7 @@ index d24fee7..44db212 100644
  }
  
  impl WindowPxFrame {
-@@ -28,102 +28,44 @@ impl WindowPxFrame {
+@@ -28,102 +28,52 @@ impl WindowPxFrame {
      /// local_pt_y)`. Public PID event routes use the local-point pair for
      /// `CGEventSetWindowLocation`; the SkyLight PID/window-routed click keeps
      /// the screen-point pair because WindowServer derives local coordinates.
@@ -5256,7 +5911,15 @@ index d24fee7..44db212 100644
 +                .as_ref()
 +                .is_some_and(|sheet| sheet.bounds.contains(sx, sy))
 +        {
-+            return None;
++            if !self
++                .geometry
++                .surface
++                .popup
++                .as_ref()
++                .is_some_and(|p| p.bounds.contains(sx, sy))
++            {
++                return None;
++            }
 +        }
 +        Some((sx, sy, sx - self.bounds.x, sy - self.bounds.y))
      }
@@ -5291,7 +5954,7 @@ index d24fee7..44db212 100644
  }
  
  /// The shared refusal for a pixel action whose window cannot be framed.
-@@ -206,9 +148,23 @@ pub fn error_structured(error: &PxFrameError) -> serde_json::Value {
+@@ -206,9 +156,23 @@ pub fn error_structured(error: &PxFrameError) -> serde_json::Value {
  
  /// Resolve the frame off the async path, mapping both the task error and the
  /// refusal onto a `ToolResult` the caller can return directly.
@@ -5317,7 +5980,7 @@ index d24fee7..44db212 100644
          Ok(Err(e)) => Err(refusal(&e)),
          Err(e) => Err(ToolResult::error(format!(
              "window frame lookup for window_id {window_id} failed: {e}. Not dispatching."
-@@ -221,20 +177,41 @@ mod tests {
+@@ -221,20 +185,42 @@ mod tests {
      use super::*;
  
      fn frame(scale: f64) -> WindowPxFrame {
@@ -5343,6 +6006,7 @@ index d24fee7..44db212 100644
 +                    pid: 2,
 +                    parent,
 +                    sheet: None,
++                    popup: None,
 +                },
 +                (500.0 * scale) as u32,
 +                (500.0 * scale) as u32,
@@ -5367,7 +6031,7 @@ index d24fee7..44db212 100644
          assert_eq!((sx, sy), (130.0, 620.0));
          assert_eq!((lx, ly), (30.0, 40.0));
      }
-@@ -242,57 +219,11 @@ mod tests {
+@@ -242,55 +228,38 @@ mod tests {
      #[test]
      fn resolves_2x_retina_scale() {
          // A point 60 capture px in is 30 pt in.
@@ -5377,7 +6041,7 @@ index d24fee7..44db212 100644
          assert_eq!((lx, ly), (30.0, 40.0));
      }
  
--    #[test]
+     #[test]
 -    fn backing_scale_detects_retina_capture() {
 -        let b = frame(1.0).bounds;
 -        assert_eq!(validate_capture_frame(11, &b, 1000, 1000).unwrap(), 2.0);
@@ -5394,10 +6058,29 @@ index d24fee7..44db212 100644
 -        // windows.rs defaults absent kCGWindowBounds to 0×0.
 -        let mut b = frame(1.0).bounds;
 -        b.width = 0.0;
--        assert_eq!(
++    fn popup_points_are_click_only_and_empty_composite_regions_are_refused() {
++        use crate::capture::frame::{Popup, Rect};
++        let mut f = frame(1.0);
++        f.geometry.surface.popup = Some(Popup {
++            window_id: 3,
++            pid: 4,
++            bounds: Rect {
++                x: 550.0,
++                y: 1000.0,
++                width: 200.0,
++                height: 200.0,
++            },
++        });
++        f.geometry.width = 650;
++        f.geometry.height = 620;
++        f.geometry.content.width = 650.0;
++        f.geometry.content.height = 620.0;
+         assert_eq!(
 -            validate_capture_frame(11, &b, 1000, 1000),
 -            Err(PxFrameError::WindowNotFound { window_id: 11 })
--        );
++            f.to_sheet_or_parent(600.0, 570.0),
++            Some((700.0, 1150.0, 600.0, 570.0))
+         );
 -    }
 -
 -    #[test]
@@ -5421,11 +6104,14 @@ index d24fee7..44db212 100644
 -            validate_capture_frame(55, &bounds, 1920, 960),
 -            Err(PxFrameError::FrameMismatch { .. })
 -        ));
--    }
--
++        assert!(f.to_screen(600.0, 570.0).is_none());
++        assert!(f.to_sheet_or_parent(10.0, 570.0).is_none());
++        let mut replaced = f.geometry.clone();
++        replaced.surface.popup.as_mut().unwrap().window_id = 5;
++        assert!(!f.geometry.matches(&replaced));
+     }
+ 
      /// Locks the exact regression: a stale window_id used to fall through to
-     /// "treat x,y as screen coordinates".
-     #[test]
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/right_click.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/right_click.rs
 index a16dc71..754c9e9 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/right_click.rs

@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { actionResult, classifyFailure, inputWasRefused } from '../actions/action-results.js';
 import { decodeDriverResult } from './cua-results.js';
 
@@ -72,5 +72,36 @@ it.each([
   if (code !== 'browser_action_unavailable') {
     expect(result.data).toMatchObject({ blocker_code: code, input_not_sent: true });
     expect(result.summary).toContain('Do not repeat this click');
+  }
+});
+
+it.each([
+  ['popup has no matching window', 'popup_window_unmatched'],
+  ['popup process is unavailable', 'popup_process_unavailable'],
+  ['popup scan limit exceeded', 'popup_scan_limit'],
+  ['layer lies outside composite', 'popup_composite_bounds'],
+  ['unknown private failure', 'capture_unavailable'],
+])('logs a bounded capture reason without native content: %s', (reason, hint) => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    decodeDriverResult(
+      'get_window_state',
+      { include_screenshot: true },
+      {
+        rawJson: JSON.stringify({
+          screenshot_error: {
+            code: 'px_capture_unavailable',
+            reason: `${reason}: private path`,
+          },
+          elements: [{ label: 'popup window identity is ambiguous: private menu text' }],
+        }),
+      },
+      { started: 0, completed: 0 },
+    );
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      `[sia:cua-capture] screenshot_missing hint=${hint}`,
+    );
+  } finally {
+    warn.mockRestore();
   }
 });

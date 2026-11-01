@@ -103,15 +103,23 @@ or incomplete scans, and rechecks ownership and geometry before returning a reta
 reach the model. Six regressions cover point bounds, ambiguity, unreadable trees, limits and cycles.
 Capture geometry is handled separately below; signed Save/reopen acceptance is still open.
 
-A popup inside a remote sheet is another surface. Alpha.79 found a menu belonging to Apple's
-Open/Save Panel service with exact matching AX/WindowServer bounds and document ancestry, but no
-raw AX menu window ID. The current parent/sheet capture omits it. The next implementation needs
-menu-process identity, unique geometry matching, stale-state rejection and a restricted window
-list. Apple's [explicit-window filter](<https://developer.apple.com/documentation/screencapturekit/sccontentfilter/init(display:including:)>)
-and [source rectangle](https://developer.apple.com/documentation/screencapturekit/scstreamconfiguration/sourcerect)
-provide a candidate capture mechanism; it has not been implemented or accepted. Do not include all
-windows from a process or expose menu labels as a visual fallback. Temporary probes and ineffective
-capture/press experiments are removed; private receipts preserve their results.
+A popup inside a remote sheet is another surface. `ax/sheet_point/popup.rs` proves the menu's
+exact document ancestry, process identity and unique layer-101 WindowServer bounds. Remote AppKit
+menus can report the document PID while their pixels belong to a service. That service must have
+Apple's canonical Open/Save Panel executable path and macOS must identify the exact document
+process as responsible for it. The optional private `responsibility_get_pid_responsible_for_pid`
+symbol is resolved dynamically; a missing symbol, unknown service or other client refuses ownership.
+No other windows from the process are admitted. Missing or ambiguous identity refuses capture. The module supplies geometry only; no menu text reaches the
+model.
+
+`capture/popup.rs` composes separate captures of the document/sheet and proven menu, retaining each
+completed sample's content rectangle and measured scale. The complete surface set is revalidated
+before returning pixels and immediately before input. Host capture geometry preserves popup
+identity, so a moved, closed or replaced menu invalidates the previous observation. Only the
+coordinate press route may target popup points outside the parent; empty composite regions cannot
+receive input. Ownership, scaled composition, stale identity and input-boundary tests cover these
+contracts. Alpha.83 verified prepared-popup pixels and coordinate selection. Alpha.84 fixed the subsequent large-folder scan limit and verified repeated capture, but Save input still failed. Complete Save/reopen acceptance is still required; passing these
+tests does not establish real workflow success.
 
 ## Embedded-frame snapshots
 

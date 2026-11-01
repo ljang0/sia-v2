@@ -70,6 +70,13 @@ that contract. Native menu shortcuts resolve only after field focus and reuse th
 mutation lease. The modal-context module binds both the main document and its exact attached sheet,
 then revalidates their identities and command enablement immediately before dispatch.
 
+Capture pixels and their private geometry travel together. Native `ax/sheet_point/popup.rs`
+proves a remote sheet menu's ownership; `capture/popup.rs` composes only those exact window captures.
+The host's `capture-geometry.ts` retains surface identity for stale-observation checks, including
+popup replacement or disappearance. The model receives the composed image, not the ownership tree.
+Prepared-popup capture and coordinate selection were verified in alpha.83; alpha.84 verified repeated
+large-folder capture. Complete background workflows and unassisted menu recovery remain open.
+
 Vision-mode native typing sets a host-owned `keyboard_only` policy. `type_text/visual.rs` owns the
 single keyboard delivery path and never reads or sets text values. AX is used only for focus and
 ownership checks; the model verifies the effect from the new screenshot. Legacy assisted typing

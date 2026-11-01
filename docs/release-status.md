@@ -1,7 +1,8 @@
 # Release status
 
 Updated November 1, 2026. **Distribution is not ready.** The current internal Mac build is
-alpha.76. It is Developer ID signed for arm64, but not notarized or accepted for distribution.
+alpha.84 (stopped after live verification). It is Developer ID signed for arm64, but not notarized
+or accepted for distribution.
 Universal alpha.60 passed distribution-artifact verification and failed its real native task.
 The last published Mac pilot is alpha.24. Nothing new has been published.
 
@@ -54,26 +55,35 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 
 | Area | Verified | Still required |
 | --- | --- | --- |
-| Automated verification | Full current local pilot gate passes: 1,958 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [Runtime-commit CI](https://github.com/ljang0/sia-v2/actions/runs/41260487890) passed, including unsigned universal packaging; signing/notarization was skipped. | Verify the final signed distributable. |
-| Native images and coordinates | Alpha.67 delivered image-only facts. Alpha.70 visibly collapsed/re-expanded the real Save sheet with fresh background coordinates. | Capture and safely target transient menus; repeat across useful tasks. |
+| Automated verification | Current local pilot gate passed: 1,971 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [Earlier runtime-commit CI](https://github.com/ljang0/sia-v2/actions/runs/41260487890) passed, including unsigned universal packaging; signing/notarization was skipped. | Current-commit CI and the final signed distributable. |
+| Native images and coordinates | Alpha.83 captured a prepared menu and selected a folder. Alpha.84 captured the large-folder dialog repeatedly, and its model read the image. | Repeat unassisted menu opening/selection and complete useful tasks. |
 | Native shortcuts and typing | Alpha.75 selected the filename through the menu route once. Alpha.76 did not reproduce selection and stopped before typing. | Repeatable keyboard-only input, Save/close/reopen, and complete file contents. |
 | Browser work | Alpha.59 delivered restricted background clicks/scrolls; separate operator-typed notes survived. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
 | Concurrency and performance | Forty alpha.76 focus samples over 40 seconds all identified Sia. Earlier ten CUA navigation samples had median 946.5 ms and worst 1,199 ms. | Two completed Sia tasks, clipboard preservation, end-to-end latency, Stop/recovery. These limited samples are not acceptance. |
 | Physical/fresh install | Existing-profile signed-app checks pass. | Lock/sleep/voice, first-use sign-in/permissions and a fresh account/second Mac. The keep-awake assertion still fails on this host. |
 
-Alpha.76's real reviewer-brief task failed at folder navigation without saving, closing or reopening.
-After it ended, operator CUA found an AX folder menu absent from both screenshots and cancelled it.
-A separate bounded selection diagnostic fell back to synthetic keys, showed no selection, and
-stopped before typing. Thus keyboard-only text delivery remains live-unverified. The destination
-folder is empty. A plan-limit banner during alpha.75 did not stop that turn; quota is not its failure.
+Alpha.83 independently verified a model-visible screenshot of the remote Save-sheet menu,
+including pixels outside the parent sheet. A background coordinate click selected the requested
+ancestor folder. The resulting model capture refused `popup_scan_limit`; an operator read confirmed
+the new folder only after the turn. This is progress on capture and delivery, not a completed task.
+No text, Save, close or reopen occurred, and no operator target input occurred during either turn.
 
-Alpha.77 child-window capture and alpha.78 press preparation did not fix the popup; both were removed.
-Alpha.79's read-only metadata probe found a separate layer-101 menu owned by Apple's Open/Save
-Panel service, with bounds exactly matching the menu under the document's sheet. The menu had
-proven document ancestry but no direct AX window ID. Its pixels remain absent from the screenshot.
-The next implementation must prove the service-owned menu identity and capture that exact surface;
-matching all windows from a PID is insufficient. Temporary instrumentation was removed and signed
-alpha.76 restored. Useful background input and concurrent-work acceptance remain open.
+The native fix binds Apple's exact Open/Save Panel service to the client through an optional process
+responsibility API, then matches the unique popup and AX ancestry. Missing identity fails closed.
+It composes only the proven surfaces and preserves their private geometry through input validation.
+Alpha.84 avoids traversing file listings when no popup window exists, stops ancestry lookup only
+once the single owned popup is proven, and fixes fractional-scale edge rounding. The full pilot gate
+passed. Alpha.84 repeatedly captured the large-folder Save dialog, but its
+Save click returned an unstructured driver failure and later images still showed the dialog.
+A read-only follow-up confirmed the model could read the image. No saved file exists. Temporary
+process probes have been removed.
+
+A delayed process-close race found during verification is also fixed: cancellation, timeout and
+output-limit termination preserve the first stop cause. Deterministic regressions and the final
+full pilot run passed.
+
+Keyboard-only input remains live-unverified. The existing reviewer brief is still unsaved, with its
+Save sheet open. Useful browser/background input and concurrent-work acceptance remain open.
 
 See [exact artifacts and interventions](./public-release.md), [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use),
 and the [native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,
