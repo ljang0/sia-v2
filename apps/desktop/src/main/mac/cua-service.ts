@@ -95,6 +95,10 @@ interface CuaServiceOptions extends CuaPermissionOptions {
 }
 
 const DEFAULT_CALL_TIMEOUT_MS = 60_000;
+// The pinned native type_text preflight permits 100 seconds of paced input.
+// Include time for exact-window focus and result delivery; the ordinary call
+// deadline otherwise interrupts a valid document write after it has started.
+const DEFAULT_TYPING_TIMEOUT_MS = 120_000;
 const WINDOW_INPUT_TOOLS = new Set([
   'click',
   'double_click',
@@ -141,6 +145,7 @@ export class CuaService {
   readonly #readForegroundPid: (() => Promise<number | undefined>) | undefined;
   readonly #authorization: AuthorizationBroker;
   readonly #callTimeoutMs: number;
+  readonly #typingTimeoutMs: number;
   readonly #driverFactory: CuaServiceOptions['driverFactory'];
   // Each native runtime has its own authorization host. Serialize within a lane,
   // while a stalled browser transport cannot hold up an unrelated desktop action.
@@ -157,6 +162,7 @@ export class CuaService {
       throw new Error('CUA call timeout must be a positive number.');
     }
     this.#callTimeoutMs = callTimeoutMs;
+    this.#typingTimeoutMs = options.callTimeoutMs ?? DEFAULT_TYPING_TIMEOUT_MS;
     this.#driverFactory = options.driverFactory;
     this.#permissions = new CuaPermissions(
       (tool, args, signal) =>
@@ -234,9 +240,8 @@ export class CuaService {
     lane.tail = next.promise;
     let ownsQueue = false;
     const operation = new AbortController();
-    const timeoutError = new Error(
-      `CUA tool ${tool} timed out after ${this.#callTimeoutMs} ms.`,
-    );
+    const callTimeoutMs = tool === 'type_text' ? this.#typingTimeoutMs : this.#callTimeoutMs;
+    const timeoutError = new Error(`CUA tool ${tool} timed out after ${callTimeoutMs} ms.`);
     let driver: DriverLike | undefined;
     const abortFromCaller = (): void => {
       operation.abort(signal?.reason ?? new Error('CUA action cancelled.'));
@@ -244,7 +249,7 @@ export class CuaService {
     if (signal?.aborted) abortFromCaller();
     else signal?.addEventListener('abort', abortFromCaller, { once: true });
     // Time spent waiting on the person to approve an action is not driver time.
-    let remainingMs = this.#callTimeoutMs;
+    let remainingMs = callTimeoutMs;
     let startedAt = Date.now();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const startTimer = (): void => {

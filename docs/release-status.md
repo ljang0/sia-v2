@@ -1,7 +1,7 @@
 # Release status
 
 Updated November 1, 2026. **Distribution is not ready.** The current internal Mac build is
-alpha.94, stopped after an internal public keyboard-event diagnostic. It is Developer ID signed
+alpha.96, stopped after native typing, Stop and recovery verification. It is Developer ID signed
 for arm64, but not notarized or accepted for distribution.
 Universal alpha.60 passed distribution-artifact verification and failed its real native task.
 The last published Mac pilot is alpha.24. Nothing new has been published.
@@ -32,7 +32,8 @@ it does not claim a partnership, validated ranking or completed acceptance. Rese
 ## Implemented boundaries
 
 Browser and native work have separate runtimes, queues, authorization contexts and deadlines.
-Exact-window leases and cancellation checks prevent retired calls from changing a newer turn.
+Exact-window leases and cancellation checks constrain retired calls. Native visual typing now
+checks cancellation between characters and holds its mutation lease until the blocking writer exits.
 Execution, permission setup and result decoding have distinct owners; ESLint enforces layer boundaries.
 The unwanted sidebar badge is removed.
 
@@ -46,7 +47,7 @@ module and does not import input tools. Coordinate-targeted keys reuse the same 
 operation. Native menu shortcuts resolve after field focus under the same process lease; a narrow
 context module validates the exact document and attached sheet again before dispatch.
 
-Native visual typing now requires keyboard events through `type_text/visual.rs`, without semantic
+Native visual typing requires keyboard events through `type_text/visual.rs`, without semantic
 text writes or text-value readback. The previous implicit AX insertion is excluded from vision-only
 acceptance. Failed keyboard transports and temporary probes were removed. A provider-local module
 owns dynamic-tool image forwarding, verified with image-only facts in a real model turn.
@@ -55,11 +56,11 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 
 | Area | Verified | Still required |
 | --- | --- | --- |
-| Automated verification | The alpha.88 local pilot gate passed: 1,971 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the committed focus/coordinate fixes](https://github.com/ljang0/sia-v2/actions/runs/41330418586) passed. Internal diagnostic builds are not full-pilot acceptance. | The final signed distributable and real-work acceptance. |
+| Automated verification | The alpha.96 local pilot gate passed: 1,976 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the prior committed baseline](https://github.com/ljang0/sia-v2/actions/runs/41335742477) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
 | Native images and coordinates | Alpha.85 saved and closed the real 444-word brief. Alpha.86 opened the standalone dialog folder menu and selected the parent folder without operator input. | Repeat unassisted menu opening/selection and complete useful tasks. |
-| Native shortcuts and typing | Alpha.75 selected the filename through the menu route once. Alpha.76 did not reproduce selection and stopped before typing. | Repeatable keyboard-only input, Save/close/reopen, and complete file contents. |
+| Native shortcuts and typing | Alpha.95 completed a 1,469-character checklist in 64.690 seconds without a host timeout. Alpha.96 stopped at 485 characters and resumed to the full checklist without duplication. | Repeatable dialog filename input and Save/close/reopen with complete file contents. |
 | Browser work | Alpha.59 delivered restricted background clicks/scrolls; separate operator-typed notes survived. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
-| Concurrency and performance | Forty alpha.76 focus samples over 40 seconds all identified Sia. Earlier ten CUA navigation samples had median 946.5 ms and worst 1,199 ms. | Two completed Sia tasks, clipboard preservation, end-to-end latency, Stop/recovery. These limited samples are not acceptance. |
+| Concurrency and performance | Alpha.95 composer CUA round trips during typing: median 649.5 ms, worst 1,205 ms (10 samples). Alpha.96 Stop UI round trip: 1,233 ms, followed by stable partial text and successful recovery. | Two completed Sia tasks, clipboard/focus preservation, end-to-end latency and broader Stop/recovery. These limited samples are not performance acceptance. |
 | Physical/fresh install | Existing-profile signed-app checks pass. | Lock/sleep/voice, first-use sign-in/permissions and a fresh account/second Mac. The keep-awake assertion still fails on this host. |
 
 The native fix binds Apple's Open/Save Panel service to its client, validates popup ancestry and
@@ -68,22 +69,24 @@ closed the real 444-word reviewer brief without operator target input. Alpha.86 
 Open dialog's folder menu, but could not reopen the file. Alpha.88 shares screenshot-scale/session
 transforms between clicks and focus verification in `tools/pixel_focus.rs`; its full pilot gate passed.
 
-Signed trials still fail to enter the filename in the focused Search field. Alpha.89 inspected
-routing metadata; alpha.90 re-primed the exact key window; alpha.91 tried the native event route and
-separately sent a single physical-key-code event. None reopened the brief. Failed route changes were
-removed. Alpha.92 found the field and window report the same TextEdit process; the filename still
-did not appear. It did not establish a process-ID mismatch. Alpha.93 confirmed that the signed host
-had both Accessibility trust and event-posting access; another permission prompt is not supported
-by that evidence. Alpha.94 tried public `CGEventPostToPid` for native text, with the same visible
-failure. All probes and failed transports were removed. Production runtime source remains the
-CI-verified alpha.88 baseline. These are diagnostics, not acceptance.
+Ordinary editor typing and dialog typing now have distinct evidence. On the alpha.88 baseline,
+Sia wrote the useful checklist into a new document, but the host's 60-second deadline interrupted the
+call before it returned. The full text was present; subsequent filename entry in Save still failed.
+Alpha.95 gives native typing 120 seconds to cover the pinned driver's 100-second paced-input budget;
+other operations retain 60 seconds. The same checklist returned normally in 64.690 seconds.
 
-A delayed process-close race found during verification is also fixed: cancellation, timeout and
-output-limit termination preserve the first stop cause. Deterministic regressions and the final
-full pilot run passed.
+That trial exposed a separate Stop defect: cancelling the async call left its blocking keyboard loop
+running. Alpha.96 carries cancellation into the writer, checks between complete characters and keeps
+the process lease until it exits. The signed test stopped at 485 characters; independent observations
+nearly three minutes later found the text unchanged. A vision-only follow-up completed the same
+1,469-character checklist without duplication. The requested terminal newline was omitted. The first
+Stop attempt was inconclusive because the operator's screenshot call stalled until typing finished;
+only the repeated attempt counts. No operator TextEdit input occurred. The document remains unsaved.
 
-Keyboard-only input remains live-unverified. The reviewer brief is safely saved; the standalone
-Open dialog remains open. Useful browser/background input and concurrent-work acceptance remain open.
+Save/Open filename input remains unresolved. Earlier diagnostics found matching field/window process
+IDs and confirmed the signed host's Accessibility and event-posting grants; missing permission is not
+supported by that evidence. Failed transport experiments and probes were removed. The saved reviewer
+brief remains preserved. Useful browser work and two completed simultaneous tasks remain open.
 
 See [exact artifacts and interventions](./public-release.md), [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use),
 and the [native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,

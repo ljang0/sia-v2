@@ -1,93 +1,90 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.94 is the latest internal
-keyboard-event diagnostic, stopped after live verification. It is not notarized or accepted for distribution.
-Nothing new was published; the last published Mac pilot is alpha.24.
+Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.96 is the latest internal
+build. Native typing cancellation and recovery passed a real document test; Save/reopen and concurrent
+usefulness remain incomplete. It is not notarized or accepted for distribution. Nothing new was
+published; the last published Mac pilot is alpha.24.
 
-## Last full-pilot baseline
-
-Alpha.88 passed `pnpm test:pilot`: 1,971 desktop tests (22 skipped), 46 Electron tests (5 skipped),
-40 renderer tests, 72 Chromium/WebKit phone tests, and native/shared/build/static checks.
-Developer ID signing and packaged-runtime verification passed. The new native suite includes
-exact-window coordinate selection, clipping, focus geometry and screenshot-scale/session isolation.
-CI for the committed focus/coordinate fixes `0b57e71` passed ([run 321](https://github.com/ljang0/sia-v2/actions/runs/41330418586)).
+## Current signed verification
 
 | Identity                     | Value                                                              |
 | ---------------------------- | ------------------------------------------------------------------ |
-| Version                      | `0.1.0-alpha.88`                                                   |
-| Source base                  | `9ab265bcce19c859c79eb47cd94ae23e5c58a18d`                         |
-| Packaged source diff SHA-256 | `5d504e505193ae14e21aea82a04c2f3e340b4fc14b8b6805a116051f7454580d` |
-| Installed ASAR SHA-256       | `1ffaec556fe77529859c132ee0d7157cde41a32780062e60e7ca80cf43e688c0` |
-| Evidence directory           | Private `alpha88-focus-scale`                                      |
-| Thread                       | `6d00bb92-0d3d-4341-9c81-c72aa11e3ff8`                             |
-| Turn                         | `5a7a3d45-bd75-47c3-8e27-a4390875a63f`                             |
+| Version                      | `0.1.0-alpha.96`                                                   |
+| Source base                  | `2591a9a943ea6766492b868e6ee699a6c88da383`                         |
+| Packaged source diff SHA-256 | `51d0fdc03caf8bb139dbaefeb97f9723dca8a72ade3a86852a41de4bdda0d021` |
+| Installed ASAR SHA-256       | `7e1bd3333fc94b8078615d00b9b1f92dc6f383b3792de1344cea6ee79c557fd3` |
+| Private evidence             | `alpha96-cancellable-typing`                                       |
+| Thread                       | `e4ecb078-4ed1-4713-9419-fa4d955915cb`                             |
+| Stop turn                    | `cda29873-91d3-488c-b163-5fd36d45db84`                             |
+| Recovery turn                | `f023b035-f804-4520-80f1-f4b82508ddd2`                             |
 
-The **36.322-second** real task tried to reopen the saved reviewer brief through TextEdit's
-standalone Open dialog. Scaled-coordinate focus passed and Cmd+A was accepted through the
-background event route. Keyboard-only filename typing produced no visible text. Two subsequent
-images showed Search empty, no selection and Open disabled; the brief was not reopened.
-The operator submitted the prompt and quit QA through CUA, with no TextEdit input during the turn.
-The private record preserves the prompt, trajectory/images, exact source patch, package/install
-receipts and complete check logs. Only evidence documentation changed after packaging.
+Developer ID signing and packaged-runtime verification passed. Alpha.96 passed the full
+`pnpm test:pilot` gate, including `pnpm check`: 1,976 desktop tests (22 skipped), 46 Electron tests
+(5 skipped), 40 renderer tests, 72 Chromium/WebKit phone tests, and native/shared/build/static checks.
+The artifact’s `pilot.log` captures the running QA app; `full-pilot.log` records automated validation.
 
-## Subsequent internal diagnostics
+Stop was clicked during native entry at 18:50:22.411 UTC. Sia reported cancellation, with the CUA click
+and UI readback taking 1,233 ms. Independent target observations at 18:53:01 and 18:53:10 found the same
+485-character partial checklist. That establishes stopped input, not a precise key-event latency.
+The follow-up inspected screenshots and completed the same document in 78.467 seconds. Independent
+comparison found all 1,469 characters without duplication; only the requested terminal newline was
+omitted. The document remains open and unsaved. No operator TextEdit input or foreground fallback
+was used. The earlier Stop attempt is explicitly inconclusive: CUA screenshot capture stalled, and
+typing completed before Stop could be pressed.
 
-These signed arm64 builds passed the native gate and packaged-runtime checks, but not a new full
-pilot gate. The private directories preserve exact source patches, package/install receipts, prompts,
-trajectory images and full logs. None is approved for distribution.
+The private record preserves prompts, trajectories/images, two stable partial-text observations,
+recovered-text comparison, timings, exact source patch, signing/install receipts and full logs.
+Independent operator accessibility reads verified the output; they were not sent to the Sia model
+or used to control TextEdit. QA was quit before automated validation. Only evidence documentation
+changes after packaging are intended.
 
-| Version  | Diagnostic and observed result                                                                                                                                                                                             | Private evidence            |
-| -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
-| alpha.89 | Focus metadata matched the TextEdit window; no on-screen panel-service window was found. Search stayed empty.                                                                                                              | `alpha89-key-routing`       |
-| alpha.90 | Re-priming the same key window left a visible caret/focus ring but no typed filename. The workaround was removed.                                                                                                          | `alpha90-key-prime`         |
-| alpha.91 | Omitting the Chromium envelope for native text did not replace the selected query. A separate single-key probe also had no visible effect. Both are failed diagnostics, not workflow passes; the route change was removed. | `alpha91-native-key-events` |
-| alpha.92 | Field and window both reported TextEdit PID 9967. Typing again left the prior single-character query unchanged; Open stayed disabled. The probe was removed.                                                               | `alpha92-key-owner`         |
-| alpha.93 | The signed host reported Accessibility trust and `CGPreflightPostEventAccess()` both true. Typing still left the initial query unchanged. The read-only probe was removed.                                                 | `alpha93-event-access`      |
-| alpha.94 | Public `CGEventPostToPid` for native text left the selected query unchanged and Open disabled. No file reopened; the failed route was removed.                                                                             | `alpha94-public-key-events` |
+## Defects reproduced before the fix
 
-Alpha.90 ran for 34.970 seconds. Alpha.91's first screenshot already contained a different search
-query than alpha.90; the cause of that intervening change is unknown. Its filename and single-key
-turns both left that query unchanged. No operator TextEdit input occurred during those turns.
-The alpha.89 first launch lost stderr during a launcher race; a second launch captured it explicitly.
-Later launches use one LaunchServices call with stdout/stderr attached. Diagnostic logging is removed
-from production source after inspection. The saved brief's hash remains unchanged. Alpha.92 also
-started with an intervening query change of unknown origin; its initial/final images are retained. The diagnostic identified no process-ID
-mismatch. Alpha.93 confirmed existing event-posting access, so no permission reset or new grant was
-requested. Alpha.94 used the public PID event API, distinct from alpha.91's private PID route without
-the Chromium envelope. Neither changed the selected query. The operator provided no TextEdit input
-during these turns. Runtime source and version were restored to the committed alpha.88 baseline.
-The current changes contain evidence updates and a shorter, vision-only manual acceptance guide;
-legacy assisted recipes remain available through a pinned history link.
+On the restored alpha.88 baseline, Sia created a useful Arena handoff checklist and typed its full
+1,470-character payload into the ordinary TextEdit editor. The host timed out at 60 seconds; a fresh
+image showed the completed text. Save opened, but its filename field did not accept the requested
+name. The real workflow failed, with the unsaved draft preserved in `alpha88-document-boundary`.
+This isolates ordinary editor delivery from the unresolved Open/Save dialog problem.
 
-After removing the alpha.92 probe, `pnpm check` passed, including 1,971 desktop tests (22 skipped). The first
-attempt stopped when the real Electron bare-launch fixture exited with code 1 and no output. That
-fixture then passed alone and in the full repeat without code changes. Both logs are retained; the
-transient failure is not counted as a first-pass success. No full pilot rerun is claimed for the
-diagnostic builds. After removing the alpha.93/94 experiments and simplifying the manual guide, a
-fresh `pnpm check` passed on its first attempt with the same 1,971 desktop tests (22 skipped), plus
-native/shared/build/format/lint/quality/type checks. Its full log is retained with alpha.94 evidence.
+Alpha.95 increased native typing's deadline to 120 seconds, covering the driver's 100-second synthesis
+budget plus focus and result delivery. Other calls retain 60 seconds. It completed the checklist in
+64.690 seconds with a normal native reply and fresh screenshot. The model omitted the terminal
+newline. Ten composer edits/readbacks during typing measured median 649.5 ms and worst 1,205 ms;
+these are CUA round trips, not isolated UI latency or concurrent-work acceptance.
 
-## Useful progress and interventions
+Its Stop test failed: the UI reported cancellation while the native blocking loop continued to the
+full checklist. Alpha.96 adds cooperative cancellation between complete characters and retains the
+process mutation lease in the writer until exit. Native regression tests reproduce cancellation
+between two characters and prevent the second write. Host regressions cover long typing without
+replay, bounded deadlines, caller abort and queue recovery.
 
-Alpha.85 saved and closed the real reviewer brief without operator target input in a 74.277-second
-task. The 3,303-byte, 444-word file has SHA-256
-`b24e378ad6d7822456a7cf973bd34e81aa29e376722d98696ae320710ab7a05c`; that hash remains unchanged.
-Reopening stopped at the standalone Open dialog. Alpha.86 opened its folder menu and selected the
-parent folder, but scrolling and Search typing had no visible effect. Alpha.87 focused Search but
-refused keys because focus readback used unscaled coordinates; alpha.88 fixed that mismatch.
-Cross-version progress does not establish a complete workflow pass.
+| alpha.95 identity            | Value                                                              |
+| ---------------------------- | ------------------------------------------------------------------ |
+| Source base                  | `2591a9a943ea6766492b868e6ee699a6c88da383`                         |
+| Packaged source diff SHA-256 | `2c490b1cd29ac2a3d2db6c35366e9274d8eaf3ac01608c0c953480ae4c3f0deb` |
+| ASAR SHA-256                 | `356893c8dd9c7832984f8a4fa03f1a24cf22ab96ecc7b58dd9c7bdf14e5c6188` |
+| Private evidence             | `alpha95-typing-deadline`                                          |
 
-| Version  | ASAR SHA-256                                                       | Private evidence       |
-| -------- | ------------------------------------------------------------------ | ---------------------- |
-| alpha.85 | `bec7b032e8a42f2dc323904fe25176092ac6efc26e23c5a95affa95e143a2634` | `alpha85-sheet-point`  |
-| alpha.86 | `2247f461345a9262e1cfd09afac393edc221439a51144f87dfdd5183622a94d8` | `alpha86-window-point` |
-| alpha.87 | `0dca491845191b9bfc49141d57002169932507e248c03fbff3fb84db571e1b4a` | `alpha87-point-focus`  |
+Alpha.95 passed the full pilot gate: 1,976 desktop tests (22 skipped), 46 Electron tests (5 skipped),
+40 renderer tests, 72 Chromium/WebKit phone tests, and native/shared/build/static checks. That run
+predates the native cancellation change and cannot stand in for alpha.96 validation.
 
-Those internal builds passed native and signed-package checks. Their private receipts retain
-exact source diffs, prompts, turn IDs, full trajectories and interventions. Alpha.88 is the first
-full-pilot baseline containing those fixes. [Earlier detailed evidence](https://github.com/ljang0/sia-v2/blob/9ab265bcce19c859c79eb47cd94ae23e5c58a18d/docs/public-release.md)
-records prepared-menu operator interventions and previous failed attempts. They are not hidden or
-counted as unassisted acceptance. Earlier semantic text insertion is excluded from vision-only acceptance.
+## Preserved evidence and limits
+
+Alpha.85 saved and closed the real reviewer brief without operator target input in 74.277 seconds.
+The 3,303-byte, 444-word file remains unchanged, SHA-256
+`b24e378ad6d7822456a7cf973bd34e81aa29e376722d98696ae320710ab7a05c`.
+Reopening stopped at the standalone Open dialog. Alpha.88 fixed screenshot-scale focus validation
+and passed the full pilot gate; [runtime CI passed](https://github.com/ljang0/sia-v2/actions/runs/41330418586).
+
+Subsequent signed diagnostics failed to type into that dialog. They found matching TextEdit field
+and window process IDs and confirmed the signed host had Accessibility and event-posting grants.
+Both public PID events and the earlier private route experiment failed. Temporary probes and failed
+transports were removed. Do not treat these results as evidence of missing permission, request
+another grant or count them as workflow passes. [The previous detailed record](https://github.com/ljang0/sia-v2/blob/2591a9a943ea6766492b868e6ee699a6c88da383/docs/public-release.md)
+retains exact alpha.85–94 identities, transient test failures and interventions. Earlier semantic
+text insertion and operator-prepared menus do not validate vision-only acceptance. Progress across
+versions is not a complete workflow pass.
 
 ## Last notarized universal artifact
 
@@ -116,7 +113,7 @@ the approved Chrome prompt visible. No itinerary was saved. Separately typed ope
 and ten CUA navigation samples measured median 946.5 ms / worst 1,199 ms. This was not a second Sia task.
 
 Before distribution, complete native Save/reopen, repeatable browser restart/setup/error recovery,
-real research/document/planning deliverables, two concurrent Sia tasks, Stop/recovery, clipboard/focus
+real research/document/planning deliverables, two concurrent Sia tasks, broader Stop/recovery, clipboard/focus
 preservation and end-to-end latency on the exact candidate. Lock/sleep/voice remain unverified;
 the keep-awake assertion fails on this host with `0xe00002bd` (`kIOReturnNoMemory` in the macOS SDK). A fresh account/second Mac is unavailable. Final
 universal notarized artifacts and fresh-install acceptance are still required. The owner is the

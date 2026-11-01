@@ -1512,35 +1512,84 @@ describe('CuaService call boundaries', () => {
     expect(driverFactory).toHaveBeenCalledTimes(2);
   });
 
-  it('always propagates a caller abort signal to the native driver', async () => {
-    let nativeSignal: AbortSignal | undefined;
-    const driver = {
-      callTool: vi.fn(
-        async (_name: string, _argumentsJson: string, options?: { signal: AbortSignal }) => {
-          nativeSignal = options?.signal;
-          return await new Promise<never>(() => undefined);
-        },
-      ),
-      shutdown: vi.fn(async () => undefined),
-    };
-    const service = new CuaService(authorization(), {
-      driverFactory: () => driver,
+  it('lets paced native typing finish beyond the ordinary one-minute deadline without replay', async () => {
+    vi.useFakeTimers();
+    const driver = successfulDriver({ delivered: true });
+    driver.callTool.mockImplementationOnce(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 75_000));
+      return { rawJson: '{"delivered":true}' };
     });
-    const abort = new AbortController();
-    const call = service.call(
-      'browser_click',
-      { selector: '#save' },
+    const service = new CuaService(authorization(), { driverFactory: () => driver });
+    const typing = service.call(
+      'type_text',
+      { text: 'A document', keyboard_only: true },
       directContext,
-      abort.signal,
     );
-    await vi.waitFor(() => expect(nativeSignal).toBeDefined());
-    const abortExpectation = expect(call).rejects.toThrow('Turn cancelled.');
-
-    abort.abort(new Error('Turn cancelled.'));
-
-    await abortExpectation;
-    expect(nativeSignal?.aborted).toBe(true);
+    const result = expect(typing).resolves.toEqual({ delivered: true });
+    await vi.advanceTimersByTimeAsync(75_000);
+    await result;
+    expect(driver.callTool).toHaveBeenCalledOnce();
+    expect(driver.shutdown).not.toHaveBeenCalled();
   });
+
+  it.each([
+    { tool: 'type_text', override: undefined, deadline: 120_000 },
+    { tool: 'click', override: undefined, deadline: 60_000 },
+    { tool: 'type_text', override: 25, deadline: 25 },
+  ])(
+    'bounds $tool at $deadline ms and releases its queue',
+    async ({ tool, override, deadline }) => {
+      vi.useFakeTimers();
+      const driver = successfulDriver({});
+      driver.callTool.mockImplementationOnce(async () => new Promise<never>(() => undefined));
+      const replacement = successfulDriver({ recovered: true });
+      const factory = vi.fn().mockReturnValueOnce(driver).mockReturnValueOnce(replacement);
+      const service = new CuaService(authorization(), {
+        driverFactory: factory,
+        ...(override === undefined ? {} : { callTimeoutMs: override }),
+      });
+      const call = service.call(tool, {}, directContext);
+      const result = expect(call).rejects.toThrow(`timed out after ${deadline} ms`);
+      await vi.advanceTimersByTimeAsync(deadline - 1);
+      const signal = driver.callTool.mock.calls[0]?.[2]?.signal;
+      expect(signal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await result;
+      expect(signal?.aborted).toBe(true);
+      await expect(service.call('get_window_state', {}, directContext)).resolves.toEqual({
+        recovered: true,
+      });
+      expect(factory).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each(['browser_click', 'type_text'])(
+    'always propagates caller abort to $0',
+    async (tool) => {
+      let nativeSignal: AbortSignal | undefined;
+      const driver = {
+        callTool: vi.fn(
+          async (_name: string, _argumentsJson: string, options?: { signal: AbortSignal }) => {
+            nativeSignal = options?.signal;
+            return await new Promise<never>(() => undefined);
+          },
+        ),
+        shutdown: vi.fn(async () => undefined),
+      };
+      const service = new CuaService(authorization(), {
+        driverFactory: () => driver,
+      });
+      const abort = new AbortController();
+      const call = service.call(tool, {}, directContext, abort.signal);
+      await vi.waitFor(() => expect(nativeSignal).toBeDefined());
+      const abortExpectation = expect(call).rejects.toThrow('Turn cancelled.');
+
+      abort.abort(new Error('Turn cancelled.'));
+
+      await abortExpectation;
+      expect(nativeSignal?.aborted).toBe(true);
+    },
+  );
 });
 
 describe('independent browser and desktop work', () => {

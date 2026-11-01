@@ -4693,6 +4693,81 @@ index dd919c7..b302f53 100644
      if !value.is_null() {
          use core_foundation::{base::TCFType, string::CFString};
          let attr = CFString::new("AXSelectedTextRange");
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/keyboard.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/keyboard.rs
+index ad64bdf..5a9faa7 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/input/keyboard.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/input/keyboard.rs
+@@ -121,10 +121,22 @@ pub fn type_text(pid: i32, text: &str) -> anyhow::Result<()> {
+ /// Type a string character-by-character with an extra `inter_char_delay_ms`
+ /// pause after each character (on top of the internal down/up key gap).
+ pub fn type_text_with_delay(pid: i32, text: &str, inter_char_delay_ms: u64) -> anyhow::Result<()> {
++    type_text_with_delay_checked(pid, text, inter_char_delay_ms, || Ok(()))
++}
++
++/// Check cancellation between complete characters, never between key-down/up
++/// or a physical character's modifier transitions.
++pub(crate) fn type_text_with_delay_checked(
++    pid: i32,
++    text: &str,
++    inter_char_delay_ms: u64,
++    before_character: impl Fn() -> anyhow::Result<()>,
++) -> anyhow::Result<()> {
+     let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+         .map_err(|_| anyhow::anyhow!("CGEventSource::new failed"))?;
+ 
+     for ch in text.chars() {
++        before_character()?;
+         let (down, up) = char_key_events(&source, ch)?;
+         post_keyboard_event(pid, &down);
+         key_gap_sleep();
+@@ -392,11 +404,22 @@ fn release_pid_modifiers(
+ /// queue. This is the desktop-scope counterpart to PID-routed `type_text` and
+ /// mirrors computer-server's frontmost pynput typing behavior.
+ pub fn type_text_global(text: &str, inter_char_delay_ms: u64) -> anyhow::Result<()> {
++    type_text_global_checked(text, inter_char_delay_ms, || Ok(()))
++}
++
++/// Check cancellation between complete characters, never between key-down/up
++/// or a physical character's modifier transitions.
++pub(crate) fn type_text_global_checked(
++    text: &str,
++    inter_char_delay_ms: u64,
++    before_character: impl Fn() -> anyhow::Result<()>,
++) -> anyhow::Result<()> {
+     use core_graphics::event::CGEventTapLocation;
+ 
+     let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+         .map_err(|_| anyhow::anyhow!("CGEventSource::new failed"))?;
+     for ch in text.chars() {
++        before_character()?;
+         let (down, up) = char_key_events(&source, ch)?;
+         down.post(CGEventTapLocation::HID);
+         key_gap_sleep();
+@@ -415,6 +438,16 @@ pub fn type_text_global(text: &str, inter_char_delay_ms: u64) -> anyhow::Result<
+ /// payload carried by keycode 0, so the ordinary text synthesis path cannot be
+ /// used for them.
+ pub fn type_text_physical_global(text: &str, inter_char_delay_ms: u64) -> anyhow::Result<()> {
++    type_text_physical_global_checked(text, inter_char_delay_ms, || Ok(()))
++}
++
++/// Check cancellation between complete characters, never between key-down/up
++/// or a physical character's modifier transitions.
++pub(crate) fn type_text_physical_global_checked(
++    text: &str,
++    inter_char_delay_ms: u64,
++    before_character: impl Fn() -> anyhow::Result<()>,
++) -> anyhow::Result<()> {
+     use core_graphics::event::CGEventTapLocation;
+ 
+     // Validate the complete payload before posting its first event. A string
+@@ -424,6 +457,7 @@ pub fn type_text_physical_global(text: &str, inter_char_delay_ms: u64) -> anyhow
+         .map(physical_text_events)
+         .collect::<anyhow::Result<Vec<_>>>()?;
+     for events in event_groups {
++        before_character()?;
+         let native_events = events
+             .iter()
+             .map(|event| create_bare_keyboard_event(event.key_code, event.key_down))
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
 index 1b34151..6505be8 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
@@ -6823,19 +6898,20 @@ index aa7a814..f4c462c 100644
                          screen_x: sx,
                          screen_y: sy,
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs
-index acbc73b..483f98f 100644
+index acbc73b..ffe89bb 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs
-@@ -21,6 +21,8 @@
+@@ -21,6 +21,9 @@
  //! Use `type_text_chars` when you explicitly need per-character pacing
  //! (e.g., to trigger live-search debounce handlers).
  
++mod cancellation;
 +mod visual;
 +
  use async_trait::async_trait;
  use cua_driver_contract::TypeTextInput;
  use cua_driver_core::{
-@@ -64,6 +66,8 @@ fn def() -> &'static ToolDef {
+@@ -64,6 +67,8 @@ fn def() -> &'static ToolDef {
              "type": "object",
              "required": ["text"],
              "properties": {
@@ -6844,7 +6920,7 @@ index acbc73b..483f98f 100644
                  "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it." },
                  "pid":  { "type": "integer", "description": "Target process ID." },
                  "text": { "type": "string",  "description": "Text to insert." },
-@@ -209,6 +213,15 @@ impl Tool for TypeTextTool {
+@@ -209,6 +214,15 @@ impl Tool for TypeTextTool {
              );
          }
  
@@ -6860,7 +6936,7 @@ index acbc73b..483f98f 100644
          let element_guard = element_guard.zip(element_index);
  
          // ── Exact-target background gate (macOS background input v1) ──
-@@ -259,6 +272,7 @@ impl Tool for TypeTextTool {
+@@ -259,6 +273,7 @@ impl Tool for TypeTextTool {
                  args.opt_str("_session_id"),
                  from_zoom,
                  _mutation_lease.as_ref(),
@@ -6868,7 +6944,7 @@ index acbc73b..483f98f 100644
              )
              .await
              {
-@@ -363,7 +377,11 @@ impl Tool for TypeTextTool {
+@@ -363,10 +378,18 @@ impl Tool for TypeTextTool {
          let result = focus_guard::with_focus_suppressed(
              Some(pid),
              prior_front,
@@ -6879,25 +6955,36 @@ index acbc73b..483f98f 100644
 +                "type_text.AXSelectedText"
 +            },
              || async move {
-                 tokio::task::spawn_blocking(move || {
+-                tokio::task::spawn_blocking(move || {
++                cancellation::run(move |cancellation| {
++                    // Dropping the async wait cancels the writer, but only the
++                    // writer may release its lease after the final key-up.
++                    let _mutation_lease = _mutation_lease;
                      let _native_guard = native_guard;
-@@ -375,6 +393,7 @@ impl Tool for TypeTextTool {
++                    cancellation.check()?;
+                     type_text_blocking(
+                         pid,
+                         &text_clone,
+@@ -374,7 +397,9 @@ impl Tool for TypeTextTool {
+                         delay_ms,
                          is_terminal_target,
                          KeyboardRoute {
++                            cancellation: Some(cancellation),
                              delivery_mode,
 +                            keyboard_only,
                              window_id,
                              keyboard_policy: blocking_policy,
                              explicit_target: element_ptr.is_some() || used_pixel_focus,
-@@ -1302,6 +1321,7 @@ fn await_typed_delivery(
+@@ -1302,6 +1327,8 @@ fn await_typed_delivery(
  /// How `type_text_blocking` may deliver: the requested mode, the addressed
  /// window, and the background keyboard policy decided for it.
  struct KeyboardRoute {
++    cancellation: Option<cancellation::Checkpoint>,
 +    keyboard_only: bool,
      delivery_mode: super::DeliveryMode,
      window_id: Option<u32>,
      keyboard_policy: BackgroundKeyboardPolicy,
-@@ -1374,7 +1394,11 @@ fn type_text_in_key_window(
+@@ -1374,7 +1401,12 @@ fn type_text_in_key_window(
      is_terminal_target: bool,
      route: KeyboardRoute,
  ) -> anyhow::Result<TypeTextDelivery> {
@@ -6905,40 +6992,132 @@ index acbc73b..483f98f 100644
 +        return visual::type_text(pid, text, delay_ms, &route);
 +    }
      let KeyboardRoute {
++        cancellation: _,
 +        keyboard_only: _,
          delivery_mode,
          window_id,
          keyboard_policy,
-@@ -1915,6 +1939,7 @@ mod tests {
+@@ -1915,6 +1947,8 @@ mod tests {
              0,
              /*is_terminal_target=*/ true,
              KeyboardRoute {
++                cancellation: None,
 +                keyboard_only: false,
                  delivery_mode: super::super::DeliveryMode::Background,
                  window_id: Some(7),
                  keyboard_policy: BackgroundKeyboardPolicy::SemanticOnly(refusal.clone()),
-@@ -1939,6 +1964,7 @@ mod tests {
+@@ -1939,6 +1973,8 @@ mod tests {
              0,
              /*is_terminal_target=*/ false,
              KeyboardRoute {
++                cancellation: None,
 +                keyboard_only: false,
                  delivery_mode: super::super::DeliveryMode::Background,
                  window_id: Some(7),
                  keyboard_policy: BackgroundKeyboardPolicy::Allowed,
-@@ -1983,6 +2009,7 @@ mod tests {
+@@ -1983,6 +2019,8 @@ mod tests {
              0,
              /*is_terminal_target=*/ true,
              KeyboardRoute {
++                cancellation: None,
 +                keyboard_only: false,
                  delivery_mode: super::super::DeliveryMode::Background,
                  window_id: None,
                  keyboard_policy: BackgroundKeyboardPolicy::Allowed,
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text/cancellation.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text/cancellation.rs
+new file mode 100644
+index 0000000..0d93d73
+--- /dev/null
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text/cancellation.rs
+@@ -0,0 +1,82 @@
++//! Cancels a blocking visual-text writer when its async operation is dropped.
++//! The writer keeps its mutation lease until it observes cancellation and exits.
++
++use std::sync::{
++    atomic::{AtomicBool, Ordering},
++    Arc,
++};
++
++pub(super) struct Checkpoint(Arc<AtomicBool>);
++
++impl Checkpoint {
++    pub(super) fn check(&self) -> anyhow::Result<()> {
++        anyhow::ensure!(
++            !self.0.load(Ordering::Acquire),
++            "Native text entry cancelled."
++        );
++        Ok(())
++    }
++}
++
++struct CancelOnDrop(Arc<AtomicBool>);
++
++impl Drop for CancelOnDrop {
++    fn drop(&mut self) {
++        self.0.store(true, Ordering::Release);
++    }
++}
++
++pub(super) async fn run<T: Send + 'static>(
++    work: impl FnOnce(Checkpoint) -> T + Send + 'static,
++) -> Result<T, tokio::task::JoinError> {
++    let cancelled = Arc::new(AtomicBool::new(false));
++    let _cancel_on_drop = CancelOnDrop(cancelled.clone());
++    tokio::task::spawn_blocking(move || work(Checkpoint(cancelled))).await
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use std::sync::{mpsc, Mutex};
++    use std::time::Duration;
++
++    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
++    async fn cancelling_the_async_wait_stops_the_inflight_writer() {
++        let written = Arc::new(Mutex::new(Vec::new()));
++        let output = written.clone();
++        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
++        let (resume_tx, resume_rx) = mpsc::channel();
++        let (finished_tx, finished_rx) = tokio::sync::oneshot::channel();
++        let task = tokio::spawn(run(move |checkpoint| {
++            let result = (|| -> anyhow::Result<()> {
++                checkpoint.check()?;
++                output.lock().unwrap().push('a');
++                started_tx.send(()).unwrap();
++                resume_rx.recv_timeout(Duration::from_secs(2)).unwrap();
++                checkpoint.check()?;
++                output.lock().unwrap().push('b');
++                Ok(())
++            })();
++            finished_tx.send(result.is_err()).unwrap();
++        }));
++        started_rx.await.unwrap();
++        task.abort();
++        assert!(task.await.unwrap_err().is_cancelled());
++        resume_tx.send(()).unwrap();
++        assert!(finished_rx.await.unwrap());
++        assert_eq!(*written.lock().unwrap(), vec!['a']);
++    }
++
++    #[tokio::test]
++    async fn completed_writer_is_not_cancelled_while_running() {
++        let result = run(|checkpoint| {
++            checkpoint.check()?;
++            checkpoint.check()?;
++            Ok::<_, anyhow::Error>("complete")
++        })
++        .await
++        .unwrap()
++        .unwrap();
++        assert_eq!(result, "complete");
++    }
++}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text/visual.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text/visual.rs
 new file mode 100644
-index 0000000..0747d0e
+index 0000000..e09486c
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text/visual.rs
-@@ -0,0 +1,142 @@
+@@ -0,0 +1,150 @@
 +//! Keyboard-only native text delivery for vision sessions.
 +//! AX may prove focus/ownership, but this module never reads or sets text values.
 +//! Exactly one event sequence is posted; screenshots establish the effect.
@@ -7018,17 +7197,24 @@ index 0000000..0747d0e
 +            super::no_focused_text_input_refusal(false),
 +        ));
 +    }
++    let check = || {
++        route
++            .cancellation
++            .as_ref()
++            .map_or(Ok(()), |checkpoint| checkpoint.check())
++    };
++    check()?;
 +    let foreground = route.delivery_mode.is_foreground();
 +    if foreground {
 +        crate::input::skylight::with_foreground_hid_activation(pid, window, || {
 +            if physical {
-+                crate::input::keyboard::type_text_physical_global(text, delay_ms)
++                crate::input::keyboard::type_text_physical_global_checked(text, delay_ms, check)
 +            } else {
-+                crate::input::keyboard::type_text_global(text, delay_ms)
++                crate::input::keyboard::type_text_global_checked(text, delay_ms, check)
 +            }
 +        })?;
 +    } else {
-+        crate::input::keyboard::type_text_with_delay(pid, text, delay_ms)?;
++        crate::input::keyboard::type_text_with_delay_checked(pid, text, delay_ms, check)?;
 +    }
 +    Ok(TypeTextDelivery::Typed(TypeTextOutcome {
 +        detail: " via keyboard events; verify from the fresh screenshot".into(),
@@ -7048,6 +7234,7 @@ index 0000000..0747d0e
 +    use cua_driver_core::background_input::BackgroundRefusal;
 +    fn route() -> KeyboardRoute {
 +        KeyboardRoute {
++            cancellation: None,
 +            keyboard_only: true,
 +            delivery_mode: super::super::super::DeliveryMode::Background,
 +            window_id: Some(7),

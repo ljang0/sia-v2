@@ -191,13 +191,13 @@ correct answer in chat or file-tool write does not prove this native workflow.
 During diagnosis, these smaller checks help isolate failures. They are not substitutes for useful
 work or the repeated concurrent-work gate.
 
-| Diagnostic                         | Required observation                                                                                                                             |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Coordinate click in a native field | The intended field visibly gains focus; no sibling window or approval card receives input.                                                       |
-| Type Unicode and use a shortcut    | The exact text and selection change appear in a fresh image; preserve untouched document contents.                                               |
-| Use an Open/Save dialog or menu    | The model reads the actual visible panel and operates it by coordinates/keys. Save and reopen the designated file; preserve unrelated documents. |
-| Navigate a public browser page     | Verify the destination and useful page content visually. Existing tabs survive; no DOM/read-links helper substitutes for visual navigation.      |
-| Cancel during a multi-step task    | New input stops, late work cannot mutate the target, and a subsequent task starts normally.                                                      |
+| Diagnostic                         | Required observation                                                                                                                                                                            |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Coordinate click in a native field | The intended field visibly gains focus; no sibling window or approval card receives input.                                                                                                      |
+| Type Unicode and use a shortcut    | The exact text and selection change appear in a fresh image; preserve untouched document contents.                                                                                              |
+| Use an Open/Save dialog or menu    | The model reads the actual visible panel and operates it by coordinates/keys. Save and reopen the designated file; preserve unrelated documents.                                                |
+| Navigate a public browser page     | Verify the destination and useful page content visually. Existing tabs survive; no DOM/read-links helper substitutes for visual navigation.                                                     |
+| Cancel during a multi-step task    | During a long native write, Stop leaves partial text unchanged on delayed observations; resume completes the same document without duplication. Also verify queued cancellation sends no input. |
 
 Reject input from stale screenshot geometry, a moved/replaced target or an unproven window. A fresh
 observation can establish a new target; never replay an unverified write merely to test delivery.

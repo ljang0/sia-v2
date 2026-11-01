@@ -126,6 +126,18 @@ receive input. Ownership, scaled composition, stale identity and input-boundary 
 contracts. Alpha.83 verified prepared-popup pixels and coordinate selection. Alpha.85 saved and closed the real brief. Alpha.86 opened the standalone folder menu, but reopening and Search-field typing failed. Complete Save/reopen acceptance is still required; passing these
 tests does not establish real workflow success.
 
+## Interruptible visual typing
+
+`tools/type_text/cancellation.rs` connects async cancellation to the blocking keyboard writer.
+Dropping the async wait sets a cancellation flag; the writer checks it between complete characters,
+after releasing each character's key and modifiers. The worker owns the process mutation lease
+until it exits, so a cancelled task cannot release that lease while its input loop continues.
+`input/keyboard.rs` supplies checked event loops; `type_text/visual.rs` uses them for background,
+foreground Unicode and foreground physical input. Legacy callers retain their existing wrappers.
+A deterministic native regression cancels a writer between two characters and verifies that the
+second is never written. Signed alpha.96 also stopped a real checklist mid-entry and resumed it
+without duplicated text. This does not validate Save/Open filename input or concurrent usefulness.
+
 ## Embedded-frame snapshots
 
 The pinned driver also contains the renderer-local AX identity collision reported in

@@ -664,9 +664,15 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   authorization context and timeout clock are isolated; retired callbacks and late approvals fail
   closed. Target leases still serialize competing work on the same physical window.
   Each driver's execution deadline starts after it owns its lane's queue; waiting for an
-  earlier call or the person's approval does not consume that execution budget. Caller cancellation
+  earlier call or the person's approval does not consume that execution budget. Native `type_text`
+  has a 120-second deadline to cover the pinned driver's 100-second paced-input budget plus focus
+  and result delivery; other calls retain 60 seconds. This avoids timing out an admitted document
+  write midway through delivery. Explicit host timeout overrides apply to both. Caller cancellation
   remains available throughout queueing and execution. Cancelled waiters return promptly
   without overtaking the active call; late initialization cannot replace a recovered driver.
+  Native visual typing carries cancellation into its blocking worker. It checks between complete
+  characters, releases each pressed key/modifier, and retains the process mutation lease until the
+  worker exits; cancelling the async wait alone must not leave an input loop running.
   An expired implicit SDK session renews once for unscoped read-only app/window inventory. Named
   sessions, permission refusals and writes are never replayed by that recovery path.
   **Pause and tell me** is the default fallback. RuntimeCoordinator pins `backgroundOnly` in the
