@@ -2761,35 +2761,37 @@ index 0000000..c22108d
 +}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup.rs
 new file mode 100644
-index 0000000..b39fb5c
+index 0000000..880eafd
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup.rs
-@@ -0,0 +1,253 @@
-+//! One visible popup under an exactly owned window or sheet, including remote AppKit services.
+@@ -0,0 +1,278 @@
++//! An owned popover and its menu, or one menu under an exact window or sheet.
 +//! AX proves ancestry/process/geometry; WindowServer supplies the capturable ID.
++mod popover;
++
 +use super::*;
 +use crate::capture::frame::{Popup, Rect};
 +use crate::windows::WindowInfo;
 +
-+const PANEL_SERVICE: &str = concat!(
++const OPEN_SAVE_PANEL_SERVICE: &str = concat!(
 +    "/System/Library/Frameworks/AppKit.framework/Versions/C/XPCServices/",
 +    "com.apple.appkit.xpc.openAndSavePanelService.xpc/Contents/MacOS/",
 +    "com.apple.appkit.xpc.openAndSavePanelService"
 +);
 +
 +fn service_identity(path: &str, responsible_pid: i32, document_pid: i32) -> bool {
-+    document_pid > 0 && path == PANEL_SERVICE && responsible_pid == document_pid
++    document_pid > 0 && path == OPEN_SAVE_PANEL_SERVICE && responsible_pid == document_pid
 +}
 +
-+fn is_panel_service(pid: i32, document_pid: i32) -> bool {
++fn is_document_service(pid: i32, document_pid: i32) -> bool {
 +    let Some(path) = crate::apps::path_of_pid(pid) else {
 +        return false;
 +    };
-+    if path != PANEL_SERVICE {
++    if path != OPEN_SAVE_PANEL_SERVICE {
 +        return false;
 +    }
 +    // Remote AX objects can report the client PID while WindowServer reports
-+    // the XPC service. Bind only Apple's immutable system service to its client.
++    // the XPC service. Bind only the exact Apple document service to its responsible client.
 +    // This private libSystem symbol is optional: absence must refuse ownership.
 +    unsafe {
 +        let symbol = libc::dlsym(
@@ -2811,7 +2813,7 @@ index 0000000..b39fb5c
 +    menu_pid: i32,
 +    bounds: Rect,
 +    windows: &[WindowInfo],
-+    panel_service: impl Fn(i32, i32) -> bool,
++    document_service: impl Fn(i32, i32) -> bool,
 +) -> anyhow::Result<Popup> {
 +    anyhow::ensure!(
 +        document_pid > 0 && menu_pid > 0 && bounds.valid(),
@@ -2820,7 +2822,7 @@ index 0000000..b39fb5c
 +    let mut matches = windows.iter().filter(|w| {
 +        w.layer == 101
 +            && w.is_on_screen
-+            && (w.pid == document_pid || panel_service(w.pid, document_pid))
++            && (w.pid == document_pid || document_service(w.pid, document_pid))
 +    });
 +    let window = matches
 +        .next()
@@ -2841,19 +2843,34 @@ index 0000000..b39fb5c
 +    })
 +}
 +
-+unsafe fn owned_menu(pid: i32, window_id: u32) -> anyhow::Result<Option<(RetainedElement, Popup)>> {
++unsafe fn owned_popups(pid: i32, window_id: u32) -> anyhow::Result<Vec<(RetainedElement, Popup)>> {
 +    let Some(sheet) = focused_root(pid, window_id) else {
-+        return Ok(None);
++        return Ok(Vec::new());
 +    };
 +    let windows = crate::windows::on_screen_windows_any_layer();
++    let mut found: Vec<_> = popover::read(pid, window_id, &windows)?
++        .into_iter()
++        .collect();
++    let root = found
++        .first()
++        .map_or_else(|| sheet.clone(), |(element, _)| element.clone());
++    // A popover can own an open menu. Keep both surfaces, in paint order;
++    // its backing window must not be mistaken for a second menu candidate.
++    let windows: Vec<_> = windows
++        .into_iter()
++        .filter(|w| {
++            !found
++                .iter()
++                .any(|(_, proof)| proof.window_id == w.window_id)
++        })
++        .collect();
 +    // A menu on this backend has a distinct layer-101 window. Avoid traversing
 +    // a potentially enormous file listing when there is no popup to capture.
 +    // Full surface validation repeats this observation after capture/at dispatch.
 +    if !windows.iter().any(|w| w.layer == 101 && w.is_on_screen) {
-+        return Ok(None);
++        return Ok(found);
 +    }
-+    let mut stack = vec![(sheet.clone(), 0)];
-+    let mut found = None;
++    let mut stack = vec![(root, 0)];
 +    let mut visited = 0;
 +    while let Some((element, depth)) = stack.pop() {
 +        visited += 1;
@@ -2888,8 +2905,8 @@ index 0000000..b39fb5c
 +                super::super::bindings::AXUIElementGetPid(ptr, &mut menu_pid) == 0,
 +                "popup process is unavailable"
 +            );
-+            let proof = match_window(pid, menu_pid, bounds, &windows, is_panel_service)?;
-+            found = Some((element.clone(), proof));
++            let proof = match_window(pid, menu_pid, bounds, &windows, is_document_service)?;
++            found.push((element.clone(), proof));
 +            // match_window proves there is only one popup for this client,
 +            // across all bounds, before this ancestry proof is accepted. It is
 +            // therefore safe to stop without scanning unrelated file rows.
@@ -2906,8 +2923,13 @@ index 0000000..b39fb5c
 +    Ok(found)
 +}
 +
-+pub(crate) fn read(pid: i32, window_id: u32) -> anyhow::Result<Option<Popup>> {
-+    unsafe { Ok(owned_menu(pid, window_id)?.map(|(_, proof)| proof)) }
++pub(crate) fn read(pid: i32, window_id: u32) -> anyhow::Result<Vec<Popup>> {
++    unsafe {
++        Ok(owned_popups(pid, window_id)?
++            .into_iter()
++            .map(|(_, proof)| proof)
++            .collect())
++    }
 +}
 +
 +pub(super) unsafe fn root_at_point(
@@ -2916,14 +2938,16 @@ index 0000000..b39fb5c
 +    x: f64,
 +    y: f64,
 +) -> anyhow::Result<Option<RetainedElement>> {
-+    Ok(owned_menu(pid, window_id)?
-+        .and_then(|(element, proof)| proof.bounds.contains(x, y).then_some(element)))
++    Ok(owned_popups(pid, window_id)?
++        .into_iter()
++        .rev()
++        .find_map(|(element, proof)| proof.bounds.contains(x, y).then_some(element)))
 +}
 +
 +#[cfg(test)]
 +mod tests {
 +    use super::*;
-+    fn bounds() -> Rect {
++    pub(super) fn bounds() -> Rect {
 +        Rect {
 +            x: 769.0,
 +            y: 462.0,
@@ -2931,7 +2955,7 @@ index 0000000..b39fb5c
 +            height: 463.0,
 +        }
 +    }
-+    fn window() -> WindowInfo {
++    pub(super) fn window() -> WindowInfo {
 +        WindowInfo {
 +            window_id: 8,
 +            pid: 20,
@@ -2999,15 +3023,16 @@ index 0000000..b39fb5c
 +
 +    #[test]
 +    fn similarly_named_helpers_and_other_clients_are_not_owned() {
-+        assert!(service_identity(PANEL_SERVICE, 20, 20));
-+        assert!(!service_identity(PANEL_SERVICE, 21, 20));
++        assert!(service_identity(OPEN_SAVE_PANEL_SERVICE, 20, 20));
++        assert!(!service_identity(OPEN_SAVE_PANEL_SERVICE, 20, 21));
++        assert!(!service_identity(OPEN_SAVE_PANEL_SERVICE, 21, 20));
 +        assert!(!service_identity(
 +            "/tmp/com.apple.appkit.xpc.openAndSavePanelService",
 +            20,
 +            20
 +        ));
-+        assert!(!service_identity(PANEL_SERVICE, -1, 20));
-+        assert!(!service_identity(PANEL_SERVICE, 0, 0));
++        assert!(!service_identity(OPEN_SAVE_PANEL_SERVICE, -1, 20));
++        assert!(!service_identity(OPEN_SAVE_PANEL_SERVICE, 0, 0));
 +    }
 +
 +    #[test]
@@ -3016,6 +3041,164 @@ index 0000000..b39fb5c
 +        let mut invalid = bounds();
 +        invalid.width = f64::NAN;
 +        assert!(match_window(20, 20, invalid, &[window()], |_, _| false).is_err());
++    }
++}
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup/popover.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup/popover.rs
+new file mode 100644
+index 0000000..f8ba6b1
+--- /dev/null
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup/popover.rs
+@@ -0,0 +1,152 @@
++//! A focused AppKit popover belongs to its document only through fresh AX ancestry.
++//! Its separate WindowServer surface is matched by exact process and geometry.
++use super::*;
++
++unsafe fn focused_popover(pid: i32, window_id: u32) -> anyhow::Result<Option<RetainedElement>> {
++    let Some(focused) = crate::ax::bindings::focused_element_of_pid(pid) else {
++        return Ok(None);
++    };
++    let mut current = adopt(focused);
++    let mut popover = None;
++    for _ in 0..MAX_DEPTH {
++        let ptr = current.as_ptr() as AXUIElementRef;
++        match copy_string_attr(ptr, "AXRole").as_deref() {
++            Some("AXPopover") => {
++                anyhow::ensure!(popover.is_none(), "nested popover identity is ambiguous");
++                if copy_bool_attr(ptr, "AXHidden") == Some(true)
++                    || copy_bool_attr(ptr, "AXVisible") == Some(false)
++                {
++                    return Ok(None);
++                }
++                popover = Some(current.clone());
++            }
++            Some("AXWindow" | "AXSheet") => {
++                return Ok(if owning_window_id(ptr) == Some(window_id) {
++                    popover
++                } else {
++                    None
++                });
++            }
++            Some("AXApplication") | None => break,
++            _ => {}
++        }
++        let Some(parent) = copy_element_attr(ptr, "AXParent") else {
++            break;
++        };
++        current = adopt(parent);
++    }
++    anyhow::ensure!(popover.is_none(), "popover document ancestry is unproven");
++    Ok(None)
++}
++
++fn match_owned_geometry(
++    pid: i32,
++    document: u32,
++    bounds: Rect,
++    windows: &[WindowInfo],
++) -> anyhow::Result<Popup> {
++    anyhow::ensure!(pid > 0 && bounds.valid(), "popover geometry is unavailable");
++    // Popovers are not necessarily menu-level windows. An AX-owned popover
++    // still needs one separate, visible same-process surface with exact bounds.
++    let mut candidates = windows.iter().filter(|w| {
++        w.pid == pid
++            && w.window_id != document
++            && w.is_on_screen
++            && bounds.near(Rect::from(&w.bounds))
++    });
++    let window = candidates
++        .next()
++        .ok_or_else(|| anyhow::anyhow!("popover has no matching window"))?;
++    anyhow::ensure!(
++        candidates.next().is_none(),
++        "popover window identity is ambiguous"
++    );
++    Ok(Popup {
++        window_id: window.window_id,
++        pid,
++        bounds,
++    })
++}
++
++pub(super) unsafe fn read(
++    pid: i32,
++    window_id: u32,
++    windows: &[WindowInfo],
++) -> anyhow::Result<Option<(RetainedElement, Popup)>> {
++    let Some(element) = focused_popover(pid, window_id)? else {
++        return Ok(None);
++    };
++    let ptr = element.as_ptr() as AXUIElementRef;
++    let mut element_pid = 0;
++    anyhow::ensure!(
++        crate::ax::bindings::AXUIElementGetPid(ptr, &mut element_pid) == 0 && element_pid == pid,
++        "popover process does not match its document"
++    );
++    let [x, y, width, height] = element_screen_rect(ptr)
++        .ok_or_else(|| anyhow::anyhow!("popover geometry is unreadable"))?;
++    let proof = match_owned_geometry(
++        pid,
++        window_id,
++        Rect {
++            x,
++            y,
++            width,
++            height,
++        },
++        windows,
++    )?;
++    // Repeat the ancestry observation before returning a retained surface.
++    let current =
++        focused_popover(pid, window_id)?.ok_or_else(|| anyhow::anyhow!("popover disappeared"))?;
++    anyhow::ensure!(
++        CFEqual(current.as_ptr() as CFTypeRef, element.as_ptr() as CFTypeRef) != 0,
++        "popover changed during lookup"
++    );
++    Ok(Some((element, proof)))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[test]
++    fn matches_only_one_visible_owned_surface_without_assuming_menu_level() {
++        for level in [0, 3, 101] {
++            let mut surface = super::super::tests::window();
++            surface.layer = level;
++            let bounds = super::super::tests::bounds();
++            assert_eq!(
++                match_owned_geometry(20, 7, bounds, &[surface.clone()])
++                    .unwrap()
++                    .window_id,
++                8
++            );
++            assert!(match_owned_geometry(21, 7, bounds, &[surface.clone()]).is_err());
++            assert!(match_owned_geometry(20, 8, bounds, &[surface.clone()]).is_err());
++            assert!(
++                match_owned_geometry(20, 7, bounds, &[surface.clone(), surface.clone()]).is_err()
++            );
++            surface.is_on_screen = false;
++            assert!(match_owned_geometry(20, 7, bounds, &[surface]).is_err());
++        }
++    }
++
++    #[test]
++    fn rejects_moved_or_invalid_surfaces_and_ignores_other_document_bounds() {
++        let surface = super::super::tests::window();
++        let bounds = super::super::tests::bounds();
++        let mut other = surface.clone();
++        other.window_id = 9;
++        other.bounds.x += 100.0;
++        assert!(match_owned_geometry(20, 7, bounds, &[other.clone()]).is_err());
++        assert_eq!(
++            match_owned_geometry(20, 7, bounds, &[other, surface])
++                .unwrap()
++                .window_id,
++            8
++        );
++        let mut invalid = bounds;
++        invalid.width = f64::NAN;
++        assert!(match_owned_geometry(20, 7, invalid, &[]).is_err());
 +    }
 +}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
@@ -3188,7 +3371,7 @@ index 82dac61..74d90b1 100644
  
      fn captured_chinese_sheet() -> Vec<AXNode> {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/capture.rs b/libs/cua-driver/rust/crates/platform-macos/src/capture.rs
-index dff4d82..2ce08a0 100644
+index dff4d82..c9d2bef 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/capture.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/capture.rs
 @@ -3,7 +3,7 @@
@@ -3409,7 +3592,7 @@ index dff4d82..2ce08a0 100644
          )
      })
  }
-@@ -764,23 +698,36 @@ fn screenshot_window_bytes_sck(window_id: u32) -> anyhow::Result<Vec<u8>> {
+@@ -764,23 +698,40 @@ fn screenshot_window_bytes_sck(window_id: u32) -> anyhow::Result<Vec<u8>> {
  /// Capture a window by its `window_id` (CGWindowID).
  /// Returns raw PNG bytes or an error.
  ///
@@ -3426,9 +3609,13 @@ index dff4d82..2ce08a0 100644
      refuse_without_direct_capture_consent()?;
 +    let surface = Surface::read(window_id)?;
 +    let parent = capture_base_frame(window_id)?;
-+    let result = if let Some(menu) = &surface.popup {
-+        let popup = capture_base_frame(menu.window_id)?;
-+        popup::compose(parent, popup, surface.clone())?
++    let result = if !surface.popups.is_empty() {
++        let popups = surface
++            .popups
++            .iter()
++            .map(|p| capture_base_frame(p.window_id))
++            .collect::<anyhow::Result<Vec<_>>>()?;
++        popup::compose(parent, popups, surface.clone())?
 +    } else {
 +        anyhow::ensure!(
 +            parent.geometry.surface == surface,
@@ -3460,7 +3647,7 @@ index dff4d82..2ce08a0 100644
  }
  
  /// Route a window capture by Space.
-@@ -789,19 +736,19 @@ pub fn screenshot_window_bytes(window_id: u32) -> anyhow::Result<Vec<u8>> {
+@@ -789,19 +740,19 @@ pub fn screenshot_window_bytes(window_id: u32) -> anyhow::Result<Vec<u8>> {
  /// SkyLight capture goes first and the public chain is the fallback. On the
  /// current Space the public chain goes first and SkyLight is the last resort.
  /// When everything fails the error keeps every backend's context.
@@ -3485,7 +3672,7 @@ index dff4d82..2ce08a0 100644
              Ok(_) => anyhow::anyhow!("SkyLight capture produced empty bytes"),
              Err(error) => error,
          };
-@@ -815,7 +762,7 @@ where
+@@ -815,7 +766,7 @@ where
      match public(window_id) {
          Ok(bytes) => Ok(bytes),
          Err(public_err) => match skylight(window_id) {
@@ -3494,7 +3681,7 @@ index dff4d82..2ce08a0 100644
              Ok(_) => Err(anyhow::anyhow!(
                  "{public_err:#}; SkyLight capture produced empty bytes"
              )),
-@@ -826,6 +773,38 @@ where
+@@ -826,6 +777,38 @@ where
      }
  }
  
@@ -3533,7 +3720,7 @@ index dff4d82..2ce08a0 100644
  /// Off-Space capture through `SLSHWCaptureWindowList` (see module docs).
  fn screenshot_window_bytes_skylight(window_id: u32) -> anyhow::Result<Vec<u8>> {
      let image = crate::input::skylight::hw_capture_window(window_id).ok_or_else(|| {
-@@ -1158,7 +1137,6 @@ pub fn png_dimensions(data: &[u8]) -> anyhow::Result<(u32, u32)> {
+@@ -1158,7 +1141,6 @@ pub fn png_dimensions(data: &[u8]) -> anyhow::Result<(u32, u32)> {
  mod tests {
      use super::*;
      use std::cell::Cell;
@@ -3541,7 +3728,7 @@ index dff4d82..2ce08a0 100644
      use std::sync::Arc;
  
      /// Regression for trycua/cua#5476: with the pointer outside the window,
-@@ -1174,7 +1152,7 @@ mod tests {
+@@ -1174,7 +1156,7 @@ mod tests {
      #[test]
      fn off_space_window_uses_skylight_before_public_backends() {
          let public_calls = Cell::new(0u32);
@@ -3550,7 +3737,7 @@ index dff4d82..2ce08a0 100644
              7,
              true,
              |_| {
-@@ -1190,7 +1168,7 @@ mod tests {
+@@ -1190,7 +1172,7 @@ mod tests {
  
      #[test]
      fn off_space_skylight_failure_falls_back_to_public_backends() {
@@ -3559,7 +3746,7 @@ index dff4d82..2ce08a0 100644
              7,
              true,
              |_| Ok(b"public".to_vec()),
-@@ -1199,7 +1177,7 @@ mod tests {
+@@ -1199,7 +1181,7 @@ mod tests {
          .expect("public fallback should run");
          assert_eq!(got, b"public");
  
@@ -3568,7 +3755,7 @@ index dff4d82..2ce08a0 100644
              7,
              true,
              |_| Ok(b"public".to_vec()),
-@@ -1212,7 +1190,7 @@ mod tests {
+@@ -1212,7 +1194,7 @@ mod tests {
      #[test]
      fn on_space_window_uses_public_backends_and_skylight_last() {
          let sky_calls = Cell::new(0u32);
@@ -3577,7 +3764,7 @@ index dff4d82..2ce08a0 100644
              7,
              false,
              |_| Ok(b"public".to_vec()),
-@@ -1229,7 +1207,7 @@ mod tests {
+@@ -1229,7 +1211,7 @@ mod tests {
              "SkyLight must not run when public capture works"
          );
  
@@ -3586,7 +3773,7 @@ index dff4d82..2ce08a0 100644
              7,
              false,
              |_| anyhow::bail!("sck and shell failed"),
-@@ -1241,7 +1219,7 @@ mod tests {
+@@ -1241,7 +1223,7 @@ mod tests {
  
      #[test]
      fn space_route_errors_keep_every_backend_context() {
@@ -3595,7 +3782,7 @@ index dff4d82..2ce08a0 100644
              7,
              true,
              |_| anyhow::bail!("public denied"),
-@@ -1256,7 +1234,7 @@ mod tests {
+@@ -1256,7 +1238,7 @@ mod tests {
              "{off}"
          );
  
@@ -3604,7 +3791,7 @@ index dff4d82..2ce08a0 100644
              7,
              false,
              |_| anyhow::bail!("public denied"),
-@@ -1320,71 +1298,6 @@ mod tests {
+@@ -1320,71 +1302,6 @@ mod tests {
          assert!(err.to_string().contains("fully transparent"), "{err}");
      }
  
@@ -3678,10 +3865,10 @@ index dff4d82..2ce08a0 100644
          use std::time::{Duration, Instant};
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/capture/frame.rs b/libs/cua-driver/rust/crates/platform-macos/src/capture/frame.rs
 new file mode 100644
-index 0000000..f76ab71
+index 0000000..75d1802
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/capture/frame.rs
-@@ -0,0 +1,494 @@
+@@ -0,0 +1,496 @@
 +//! Capture geometry travels with its pixels; it is never inferred from PNG size alone.
 +use crate::windows::WindowBounds;
 +use serde::{Deserialize, Serialize};
@@ -3779,12 +3966,12 @@ index 0000000..f76ab71
 +    pub parent: Rect,
 +    pub sheet: Option<Sheet>,
 +    #[serde(default)]
-+    pub popup: Option<Popup>,
++    pub popups: Vec<Popup>,
 +}
 +impl Surface {
 +    pub fn read(window_id: u32) -> anyhow::Result<Self> {
 +        let mut surface = Self::read_base(window_id)?;
-+        surface.popup = crate::ax::window_point::popup::read(surface.pid, window_id)?;
++        surface.popups = crate::ax::window_point::popup::read(surface.pid, window_id)?;
 +        Ok(surface)
 +    }
 +    pub(crate) fn read_base(window_id: u32) -> anyhow::Result<Self> {
@@ -3798,7 +3985,7 @@ index 0000000..f76ab71
 +            pid: info.pid,
 +            parent,
 +            sheet,
-+            popup: None,
++            popups: Vec::new(),
 +        })
 +    }
 +    pub fn source(&self) -> Rect {
@@ -3806,11 +3993,13 @@ index 0000000..f76ab71
 +            .sheet
 +            .as_ref()
 +            .map_or(self.parent, |s| self.parent.union(s.bounds));
-+        self.popup.as_ref().map_or(base, |p| base.union(p.bounds))
++        self.popups
++            .iter()
++            .fold(base, |base, p| base.union(p.bounds))
 +    }
 +    pub(crate) fn ensure_base_current(&self) -> anyhow::Result<()> {
 +        let mut expected = self.clone();
-+        expected.popup = None;
++        expected.popups.clear();
 +        anyhow::ensure!(
 +            Self::read_base(self.window_id)? == expected,
 +            "window or sheet changed during capture"
@@ -4061,7 +4250,7 @@ index 0000000..f76ab71
 +            window_id: 7,
 +            pid: 8,
 +            parent,
-+            popup: None,
++            popups: Vec::new(),
 +            sheet: Some(Sheet {
 +                window_id: 9,
 +                bounds: Rect {
@@ -4154,7 +4343,7 @@ index 0000000..f76ab71
 +                    pid: 2,
 +                    parent,
 +                    sheet: None,
-+                    popup: None,
++                    popups: Vec::new(),
 +                },
 +                (520.0 * scale) as u32,
 +                (420.0 * scale) as u32,
@@ -4178,10 +4367,10 @@ index 0000000..f76ab71
 +}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/capture/popup.rs b/libs/cua-driver/rust/crates/platform-macos/src/capture/popup.rs
 new file mode 100644
-index 0000000..4bcf5f2
+index 0000000..85f944b
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/capture/popup.rs
-@@ -0,0 +1,313 @@
+@@ -0,0 +1,371 @@
 +//! Compose separately captured, exactly owned surfaces in one screen coordinate frame.
 +//! Every layer keeps its own completed-sample geometry. The caller revalidates the
 +//! complete surface set after capture; no model-visible semantic data is involved.
@@ -4243,28 +4432,32 @@ index 0000000..4bcf5f2
 +
 +pub(super) fn compose(
 +    parent: CapturedWindow,
-+    popup: CapturedWindow,
++    popups: Vec<CapturedWindow>,
 +    surface: Surface,
 +) -> anyhow::Result<CapturedWindow> {
-+    let menu = surface
-+        .popup
-+        .as_ref()
-+        .ok_or_else(|| anyhow::anyhow!("missing popup proof"))?;
++    anyhow::ensure!(
++        !surface.popups.is_empty()
++            && surface.popups.len() <= 2
++            && surface.popups.len() == popups.len(),
++        "invalid popup surface count"
++    );
 +    let mut base = surface.clone();
-+    base.popup = None;
++    base.popups.clear();
 +    anyhow::ensure!(
 +        parent.geometry.surface == base,
 +        "document changed before popup capture"
 +    );
-+    let actual = &popup.geometry.surface;
-+    anyhow::ensure!(
-+        actual.window_id == menu.window_id
-+            && actual.pid == menu.pid
-+            && actual.parent.near(menu.bounds)
-+            && actual.sheet.is_none()
-+            && actual.popup.is_none(),
-+        "popup capture does not match owned menu"
-+    );
++    for (proof, layer) in surface.popups.iter().zip(&popups) {
++        let actual = &layer.geometry.surface;
++        anyhow::ensure!(
++            actual.window_id == proof.window_id
++                && actual.pid == proof.pid
++                && actual.parent.near(proof.bounds)
++                && actual.sheet.is_none()
++                && actual.popups.is_empty(),
++            "popup capture does not match its owned surface"
++        );
++    }
 +    let source = surface.source();
 +    // Retain the parent sample's measured scale instead of upsampling its text.
 +    let scale = parent.geometry.pixels_per_point;
@@ -4280,7 +4473,9 @@ index 0000000..4bcf5f2
 +    );
 +    let mut canvas = RgbaImage::new(width, height);
 +    place(&mut canvas, &parent, source, scale)?;
-+    place(&mut canvas, &popup, source, scale)?;
++    for layer in &popups {
++        place(&mut canvas, layer, source, scale)?;
++    }
 +    let png = cua_driver_core::image_utils::encode_rgba_to_png(canvas.as_raw(), width, height)?;
 +    Ok(CapturedWindow {
 +        png,
@@ -4311,7 +4506,7 @@ index 0000000..4bcf5f2
 +            pid,
 +            parent: rect,
 +            sheet: None,
-+            popup: None,
++            popups: Vec::new(),
 +        };
 +        let image = RgbaImage::from_pixel(width, height, image::Rgba(color));
 +        CapturedWindow {
@@ -4350,12 +4545,12 @@ index 0000000..4bcf5f2
 +        let a = layer(1, 2, parent, [255, 0, 0, 255]);
 +        let b = layer(3, 4, menu, [0, 255, 0, 255]);
 +        let mut surface = a.geometry.surface.clone();
-+        surface.popup = Some(Popup {
++        surface.popups = vec![Popup {
 +            window_id: 3,
 +            pid: 4,
 +            bounds: menu,
-+        });
-+        let result = compose(a, b, surface).unwrap();
++        }];
++        let result = compose(a, vec![b], surface).unwrap();
 +        assert_eq!((result.geometry.width, result.geometry.height), (30, 40));
 +        let image = image::load_from_memory(&result.png).unwrap().to_rgba8();
 +        assert_eq!(image.get_pixel(5, 5).0, [255, 0, 0, 255]);
@@ -4363,6 +4558,58 @@ index 0000000..4bcf5f2
 +        assert_eq!(image.get_pixel(5, 35).0, [0, 0, 0, 0]);
 +        assert_eq!(result.geometry.to_screen(15.0, 35.0), Some((115.0, 235.0)));
 +    }
++    #[test]
++    fn preserves_a_popover_under_its_menu_and_paints_the_menu_last() {
++        let parent = Rect {
++            x: 0.0,
++            y: 0.0,
++            width: 30.0,
++            height: 30.0,
++        };
++        let popover = Rect {
++            x: 10.0,
++            y: 5.0,
++            width: 20.0,
++            height: 20.0,
++        };
++        let menu = Rect {
++            x: 15.0,
++            y: 10.0,
++            width: 20.0,
++            height: 30.0,
++        };
++        let a = layer(1, 2, parent, [255, 0, 0, 255]);
++        let b = layer(3, 2, popover, [0, 255, 0, 255]);
++        let c = layer(4, 2, menu, [0, 0, 255, 255]);
++        let mut surface = a.geometry.surface.clone();
++        surface.popups = vec![
++            Popup {
++                window_id: 3,
++                pid: 2,
++                bounds: popover,
++            },
++            Popup {
++                window_id: 4,
++                pid: 2,
++                bounds: menu,
++            },
++        ];
++        let result = compose(a, vec![b, c], surface).unwrap();
++        assert_eq!((result.geometry.width, result.geometry.height), (35, 40));
++        let pixels = image::load_from_memory(&result.png).unwrap().to_rgba8();
++        assert_eq!(pixels.get_pixel(2, 2).0, [255, 0, 0, 255]);
++        assert_eq!(pixels.get_pixel(12, 7).0, [0, 255, 0, 255]);
++        assert_eq!(pixels.get_pixel(20, 15).0, [0, 0, 255, 255]);
++        assert_eq!(pixels.get_pixel(32, 35).0, [0, 0, 255, 255]);
++        assert_eq!(pixels.get_pixel(2, 35).0, [0, 0, 0, 0]);
++        let mut changed = result.geometry.clone();
++        changed.surface.popups[1].window_id = 5;
++        assert!(!result.geometry.matches(&changed));
++        changed = result.geometry.clone();
++        changed.surface.popups.reverse();
++        assert!(!result.geometry.matches(&changed));
++    }
++
 +    #[test]
 +    fn composes_different_sample_scales_without_changing_screen_coordinates() {
 +        let parent = Rect {
@@ -4394,7 +4641,7 @@ index 0000000..4bcf5f2
 +                        pid,
 +                        parent: rect,
 +                        sheet: None,
-+                        popup: None,
++                        popups: Vec::new(),
 +                    },
 +                    content: Rect {
 +                        x: 0.0,
@@ -4411,12 +4658,12 @@ index 0000000..4bcf5f2
 +        let a = scaled(1, 2, parent, 1.5, [255, 0, 0, 255]);
 +        let b = scaled(3, 4, menu, 2.0, [0, 255, 0, 255]);
 +        let mut surface = a.geometry.surface.clone();
-+        surface.popup = Some(Popup {
++        surface.popups = vec![Popup {
 +            window_id: 3,
 +            pid: 4,
 +            bounds: menu,
-+        });
-+        let result = compose(a, b, surface).unwrap();
++        }];
++        let result = compose(a, vec![b], surface).unwrap();
 +        assert_eq!((result.geometry.width, result.geometry.height), (45, 60));
 +        let image = image::load_from_memory(&result.png).unwrap().to_rgba8();
 +        assert_eq!(image.get_pixel(30, 45).0, [0, 255, 0, 255]);
@@ -4441,12 +4688,12 @@ index 0000000..4bcf5f2
 +        a.geometry.pixels_per_point = 1.5;
 +        let b = layer(3, 4, menu, [0, 255, 0, 255]);
 +        let mut surface = a.geometry.surface.clone();
-+        surface.popup = Some(Popup {
++        surface.popups = vec![Popup {
 +            window_id: 3,
 +            pid: 4,
 +            bounds: menu,
-+        });
-+        let result = compose(a, b, surface).unwrap();
++        }];
++        let result = compose(a, vec![b], surface).unwrap();
 +        assert_eq!((result.geometry.width, result.geometry.height), (3, 3));
 +        let image = image::load_from_memory(&result.png).unwrap().to_rgba8();
 +        assert_eq!(image.get_pixel(1, 1).0, [255, 0, 0, 255]);
@@ -4486,12 +4733,12 @@ index 0000000..4bcf5f2
 +            let a = layer(1, 2, rect, [255, 0, 0, 255]);
 +            let b = layer(id, pid, rect, [0, 255, 0, 255]);
 +            let mut surface = a.geometry.surface.clone();
-+            surface.popup = Some(Popup {
++            surface.popups = vec![Popup {
 +                window_id: 3,
 +                pid: 4,
 +                bounds: rect,
-+            });
-+            assert!(compose(a, b, surface).is_err());
++            }];
++            assert!(compose(a, vec![b], surface).is_err());
 +        }
 +    }
 +}
@@ -4769,7 +5016,7 @@ index ad64bdf..5a9faa7 100644
              .iter()
              .map(|event| create_bare_keyboard_event(event.key_code, event.key_down))
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
-index 1b34151..6505be8 100644
+index 1b34151..2125660 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
 @@ -2026,19 +2026,42 @@ mod tests {
@@ -4798,7 +5045,7 @@ index 1b34151..6505be8 100644
 +                    pid: 2,
 +                    parent,
 +                    sheet: None,
-+                    popup: None,
++                    popups: Vec::new(),
 +                },
 +                1520,
 +                920,
@@ -4989,7 +5236,7 @@ index bb28e4b..1c67145 100644
      Some((window_id, point))
  }
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
-index 8503db3..c84f9e1 100644
+index 8503db3..c035669 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
 @@ -148,10 +148,12 @@ fn press_error_may_have_acted(err: crate::ax::bindings::AXError) -> bool {
@@ -5091,13 +5338,14 @@ index 8503db3..c84f9e1 100644
                          {
                              return ToolResult::error(format!(
                                  "click: window-local point ({lx:.1}, {ly:.1}) pt lies outside \
-@@ -1164,33 +1166,49 @@ impl Tool for ClickTool {
+@@ -1164,33 +1166,50 @@ impl Tool for ClickTool {
                      && modifiers.is_empty()
              }) {
                  let focus_only = action == "focus";
 +                let surface = dispatch_surface.clone();
                  let ax_result = tokio::task::spawn_blocking(move || unsafe {
 -                    let Some(element) = element_at_screen_position(pid, screen_x, screen_y) else {
+-                        return Ok::<bool, anyhow::Error>(false);
 +                    let window_point = || {
 +                        crate::ax::window_point::element_at_point(
 +                            pid,
@@ -5106,11 +5354,34 @@ index 8503db3..c84f9e1 100644
 +                            screen_y,
 +                            focus_only,
 +                        )
-+                    };
-+                    let over_popup = surface
-+                        .as_ref()
-+                        .and_then(|s| s.popup.as_ref())
-+                        .is_some_and(|p| p.bounds.contains(screen_x, screen_y));
+                     };
+-                    // The pid-scoped hit-test can resolve an element from a
+-                    // same-process sibling overlapping the requested point.
+-                    // Require proven ancestry in the requested window before
+-                    // acting; otherwise fall through to the routed pixel path
+-                    // (already gated for this exact window).
+-                    if crate::ax::exact_target::element_window_id(element) != Some(hit_test_wid) {
+-                        CFRelease(element as _);
+-                        return Ok(false);
+-                    }
+-                    // An element that does not advertise AXPress can still
+-                    // accept it as a no-op. On a toolkit that drops routed
+-                    // mouse events (LibreOffice's Calc cells) that no-op used
+-                    // to come back as a pressed click; fall through so the
+-                    // pixel route refuses instead.
+-                    if !focus_only
+-                        && !crate::ax::bindings::copy_action_names(element)
++                    let over_popup = surface.as_ref().is_some_and(|s| {
++                        s.popups
+                             .iter()
+-                            .any(|action| action == "AXPress")
+-                        && crate::input::pointer_toolkit::detect(pid)
+-                            == Some(crate::input::pointer_toolkit::PointerReadingToolkit::Vcl)
+-                    {
+-                        CFRelease(element as _);
+-                        return Ok(false);
++                            .any(|p| p.bounds.contains(screen_x, screen_y))
++                    });
 +                    let element = if outside_parent || over_popup {
 +                        window_point()
 +                    } else {
@@ -5132,31 +5403,8 @@ index 8503db3..c84f9e1 100644
 +                            .or_else(window_point)
 +                    };
 +                    let Some(element) = element else {
-                         return Ok::<bool, anyhow::Error>(false);
-                     };
--                    // The pid-scoped hit-test can resolve an element from a
--                    // same-process sibling overlapping the requested point.
--                    // Require proven ancestry in the requested window before
--                    // acting; otherwise fall through to the routed pixel path
--                    // (already gated for this exact window).
--                    if crate::ax::exact_target::element_window_id(element) != Some(hit_test_wid) {
--                        CFRelease(element as _);
--                        return Ok(false);
--                    }
--                    // An element that does not advertise AXPress can still
--                    // accept it as a no-op. On a toolkit that drops routed
--                    // mouse events (LibreOffice's Calc cells) that no-op used
--                    // to come back as a pressed click; fall through so the
--                    // pixel route refuses instead.
--                    if !focus_only
--                        && !crate::ax::bindings::copy_action_names(element)
--                            .iter()
--                            .any(|action| action == "AXPress")
--                        && crate::input::pointer_toolkit::detect(pid)
--                            == Some(crate::input::pointer_toolkit::PointerReadingToolkit::Vcl)
--                    {
--                        CFRelease(element as _);
--                        return Ok(false);
++                        return Ok::<bool, anyhow::Error>(false);
++                    };
 +                    if let Some(surface) = surface {
 +                        if let Err(error) = surface.ensure_current() {
 +                            CFRelease(element as _);
@@ -5165,7 +5413,7 @@ index 8503db3..c84f9e1 100644
                      }
                      let delivered = if focus_only {
                          crate::input::ax_actions::focus_element(element as usize).is_ok()
-@@ -1236,13 +1254,32 @@ impl Tool for ClickTool {
+@@ -1236,13 +1255,32 @@ impl Tool for ClickTool {
                                  "code": "background_unavailable"
                              }));
                      }
@@ -5235,7 +5483,7 @@ index 8e8d8a2..ddaca2a 100644
                  }
                  Err(refusal) => return refusal,
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
-index 133dff9..56c80f3 100644
+index 133dff9..dceb43f 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
 @@ -101,23 +101,29 @@ fn prefetch_capture<T: Send + 'static>(
@@ -5436,7 +5684,7 @@ index 133dff9..56c80f3 100644
 +                pid: 8,
 +                parent,
 +                sheet: None,
-+                popup: None,
++                popups: Vec::new(),
 +            },
 +            4,
 +            4,
@@ -6475,7 +6723,7 @@ index e4d007f..e9c698a 100644
                  .await
                  {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
-index d24fee7..bd4277d 100644
+index d24fee7..6414ea2 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
 @@ -12,15 +12,15 @@
@@ -6528,9 +6776,9 @@ index d24fee7..bd4277d 100644
 +            if !self
 +                .geometry
 +                .surface
-+                .popup
-+                .as_ref()
-+                .is_some_and(|p| p.bounds.contains(sx, sy))
++                .popups
++                .iter()
++                .any(|p| p.bounds.contains(sx, sy))
 +            {
 +                return None;
 +            }
@@ -6702,7 +6950,7 @@ index d24fee7..bd4277d 100644
 +                    pid: 2,
 +                    parent,
 +                    sheet: None,
-+                    popup: None,
++                    popups: Vec::new(),
 +                },
 +                (500.0 * scale) as u32,
 +                (500.0 * scale) as u32,
@@ -6757,7 +7005,7 @@ index d24fee7..bd4277d 100644
 +    fn popup_points_are_click_only_and_empty_composite_regions_are_refused() {
 +        use crate::capture::frame::{Popup, Rect};
 +        let mut f = frame(1.0);
-+        f.geometry.surface.popup = Some(Popup {
++        f.geometry.surface.popups = vec![Popup {
 +            window_id: 3,
 +            pid: 4,
 +            bounds: Rect {
@@ -6766,7 +7014,7 @@ index d24fee7..bd4277d 100644
 +                width: 200.0,
 +                height: 200.0,
 +            },
-+        });
++        }];
 +        f.geometry.width = 650;
 +        f.geometry.height = 620;
 +        f.geometry.content.width = 650.0;
@@ -6803,7 +7051,7 @@ index d24fee7..bd4277d 100644
 +        assert!(f.to_screen(600.0, 570.0).is_none());
 +        assert!(f.to_sheet_or_parent(10.0, 570.0).is_none());
 +        let mut replaced = f.geometry.clone();
-+        replaced.surface.popup.as_mut().unwrap().window_id = 5;
++        replaced.surface.popups[0].window_id = 5;
 +        assert!(!f.geometry.matches(&replaced));
      }
  

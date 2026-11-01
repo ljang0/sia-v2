@@ -1,6 +1,6 @@
 # Computer Use Arena: a Mac pilot with Sia
 
-Draft for Arena technical review · October 31, 2026 · Not approved for distribution
+Draft for Arena technical review · November 1, 2026 · Not approved for distribution
 
 Sia proposes a small invited pilot for evaluating agents on useful Mac tasks: researching a plan,
 preparing documents and working across desktop apps. Sia supplies the client and computer-use
@@ -60,7 +60,8 @@ acceptance; current source requires keyboard-only native typing. Isolated screen
 and shortcut successes do not establish an unattended workflow. Operator-assisted results are
 recorded separately and cannot count as completed Sia tasks.
 
-Exact-artifact workflow repeats, concurrency, Stop/recovery, clipboard, restart/expiry and physical
+A signed native typing test now passes Stop and recovery without duplicated text. Complete
+workflow repeats, concurrency, broader Stop/recovery, clipboard, restart/expiry and physical
 acceptance remain open. A fresh Mac account is currently unavailable. Background new tabs and
 Finder file drag are unsupported. Earlier assisted-mode results do not validate the visual default.
 The [release status](./release-status.md) and [artifact record](./public-release.md) are authoritative.

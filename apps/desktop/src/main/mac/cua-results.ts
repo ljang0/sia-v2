@@ -56,7 +56,7 @@ function popupCaptureHint(raw: string): string | undefined {
     ['invalid popup geometry', 'popup_geometry_invalid'],
     ['sheet changed during popup lookup', 'popup_sheet_changed'],
     ['document changed before popup capture', 'popup_document_changed'],
-    ['popup capture does not match owned menu', 'popup_capture_mismatch'],
+    ['popup capture does not match its owned surface', 'popup_capture_mismatch'],
     ['invalid layer crop', 'popup_crop_invalid'],
     ['layer lies outside composite', 'popup_composite_bounds'],
     ['sample contains an unproven surface', 'capture_surface_unproven'],

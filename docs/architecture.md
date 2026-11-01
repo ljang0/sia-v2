@@ -670,6 +670,10 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   write midway through delivery. Explicit host timeout overrides apply to both. Caller cancellation
   remains available throughout queueing and execution. Cancelled waiters return promptly
   without overtaking the active call; late initialization cannot replace a recovered driver.
+  Native capture retains an ordered, bounded list for a document-owned popover and its menu. Each
+  surface needs fresh ancestry, process and geometry proof, including the responsible client for
+  Apple's Open/Save Panel service. An unproven shared-service menu remains unavailable. Capture composes proven layers and revalidates the entire list;
+  pointer lookup uses the topmost surface at the model's coordinate. The proof stays host-only.
   Native visual typing carries cancellation into its blocking worker. It checks between complete
   characters, releases each pressed key/modifier, and retains the process mutation lease until the
   worker exits; cancelling the async wait alone must not leave an input loop running.

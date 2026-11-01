@@ -1,11 +1,41 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.96 is the latest internal
-build. Native typing cancellation and recovery passed a real document test; Save/reopen and concurrent
-usefulness remain incomplete. It is not notarized or accepted for distribution. Nothing new was
-published; the last published Mac pilot is alpha.24.
+Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.104 is the latest internal
+build, stopped after capture diagnostics. Cleaned alpha.105 source removes unsuccessful probes;
+it passed the full local pilot gate and has not been packaged as a new signed candidate. Nothing new was published; the last published Mac pilot is alpha.24.
 
-## Current signed verification
+## Latest capture diagnostics
+
+Alpha.97 captured the document-title popover. The ordered popup stack retains both a popover and
+its menu, with composition and stale-image regressions. The real destination menu still refuses
+capture: its AX ancestry belongs to TextEdit, but its pixels belong to Apple's shared
+DocumentPopoverViewService. Exact service-path matching alone cannot establish ownership.
+
+Signed alpha.100–104 diagnostics found a self-responsible service PID, no raw AX menu window ID,
+and a WindowServer parent chain ending inside the service. ScreenCaptureKit's child-window option
+was already enabled; explicitly enabling it still omitted the menu. Temporary ownership queries
+and private image-dump code were removed from alpha.105 source. Unknown ownership stays refused.
+These attempts did not name, save, close or reopen the checklist. No operator TextEdit input occurred.
+
+| Latest installed diagnostic  | Value                                                              |
+| ---------------------------- | ------------------------------------------------------------------ |
+| Version                      | `0.1.0-alpha.104`                                                  |
+| Source base                  | `202635071e23629748d958215b1ac2e63ba90251`                         |
+| Packaged source diff SHA-256 | `56fbf34a7f83628aa0259b2e494d6b09220c9dfb63d5a22bcc272454b150e909` |
+| Installed ASAR SHA-256       | `92a72135924e1952c1a8b0182300864e693876be4c073bb531afd61ad7409d12` |
+| Private evidence             | `alpha104-native-child-capture`                                    |
+
+Each internal diagnostic passed its native and signed-package checks. Those checks do not replace
+full pilot validation or real-work acceptance. The app is stopped; private folders preserve the
+exact source patches, receipts, logs, prompts, trajectories and outcomes. Model-facing capture
+refusals now explain that a fresh screenshot is unavailable and invalidate earlier image authority.
+
+Alpha.105 source passed `pnpm test:pilot`, including `pnpm check`: 1,981 desktop tests (22 skipped),
+46 Electron tests (5 skipped), 40 renderer tests, 72 Chromium/WebKit phone tests, and
+native/shared/build/static checks. QA remained closed throughout. The private
+`alpha105-popup-capture-source` folder preserves this source checkpoint and full validation log.
+
+## Verified typing, Stop and recovery baseline
 
 | Identity                     | Value                                                              |
 | ---------------------------- | ------------------------------------------------------------------ |

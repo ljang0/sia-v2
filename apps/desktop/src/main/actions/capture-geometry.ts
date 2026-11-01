@@ -7,7 +7,7 @@ export interface CaptureGeometry {
     pid: number;
     parent: Rect;
     sheet: { window_id: number; bounds: Rect } | null;
-    popup?: { window_id: number; pid: number; bounds: Rect };
+    popups: { window_id: number; pid: number; bounds: Rect }[];
   };
   content: Rect;
   pixels_per_point: number;
@@ -60,15 +60,26 @@ export function captureGeometry(value: unknown): CaptureGeometry | undefined {
     if (!raw || !bounds || !positive(raw.window_id)) return;
     sheet = { window_id: raw.window_id, bounds };
   }
-  let popup: CaptureGeometry['surface']['popup'];
-  if (s.popup != null) {
-    const raw = asRecord(s.popup),
+  const popups: CaptureGeometry['surface']['popups'] = [];
+  const rawPopups = s.popups ?? [];
+  if (!Array.isArray(rawPopups) || rawPopups.length > 2) return;
+  const ids = new Set<number>([s.window_id]);
+  for (const value of rawPopups) {
+    const raw = asRecord(value),
       bounds = rect(raw?.bounds);
-    if (!raw || !bounds || !positive(raw.window_id) || !positive(raw.pid)) return;
-    popup = { window_id: raw.window_id, pid: raw.pid, bounds };
+    if (
+      !raw ||
+      !bounds ||
+      !positive(raw.window_id) ||
+      !positive(raw.pid) ||
+      ids.has(raw.window_id)
+    )
+      return;
+    ids.add(raw.window_id);
+    popups.push({ window_id: raw.window_id, pid: raw.pid, bounds });
   }
   return {
-    surface: { window_id: s.window_id, pid: s.pid, parent, sheet, ...(popup && { popup }) },
+    surface: { window_id: s.window_id, pid: s.pid, parent, sheet, popups },
     content,
     pixels_per_point: g.pixels_per_point,
     width: g.width,

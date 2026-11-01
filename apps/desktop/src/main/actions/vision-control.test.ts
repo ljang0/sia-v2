@@ -9,7 +9,8 @@ vi.mock('node:timers/promises', async (original) => ({
 afterEach(() => vi.restoreAllMocks());
 
 async function fixture(background = true) {
-  let capture: 'image' | 'missing' | 'throw' | 'protected' | 'private-link' = 'image';
+  let capture: 'image' | 'missing' | 'throw' | 'refused-image' | 'protected' | 'private-link' =
+    'image';
   // Transport fixture only: these tests prove the observation/authority boundary, not visual skill.
   const png = Buffer.alloc(24);
   Buffer.from('89504e470d0a1a0a', 'hex').copy(png);
@@ -37,6 +38,7 @@ async function fixture(background = true) {
       return { windows: [{ pid: 42, window_id: 91, title: 'Draft' }] };
     if (tool === 'get_window_state') {
       if (capture === 'throw') throw new Error('CUA refused: px_capture_unavailable');
+      if (capture === 'refused-image') return { error_code: 'px_capture_unavailable' };
       return {
         value: {
           capture_geometry: geometry,
@@ -141,7 +143,7 @@ it('requires pixels even when asked for semantic text and never exposes extracte
     expect(serialized).not.toContain(hidden);
 });
 
-it.each(['missing', 'throw', 'protected', 'private-link'] as const)(
+it.each(['missing', 'throw', 'refused-image', 'protected', 'private-link'] as const)(
   'revokes old authority without semantic fallback when the next image is %s',
   async (mode) => {
     const h = await fixture();
@@ -150,6 +152,14 @@ it.each(['missing', 'throw', 'protected', 'private-link'] as const)(
     h.mode(mode);
     const failed = await h.snapshot();
     expect(failed.outcome).toBe('refused');
+    if (mode === 'refused-image') {
+      expect(failed.summary).not.toContain('px_capture_unavailable');
+      expect(failed.data).toMatchObject({
+        control_mode: 'vision',
+        blocker_code: 'visual_observation_unavailable',
+        pixel_actions_available: false,
+      });
+    }
     expect(failed.images).toBeUndefined();
     expect(dataRecord(failed.data).snapshot_id).toBeUndefined();
     expect((await h.act(id, { action: 'key', value: 'Return' })).outcome).toBe('stale');
@@ -274,63 +284,73 @@ it.each(['changed', 'missing'] as const)(
   },
 );
 
-it.each(['replaced', 'closed', 'moved', 'invalid'] as const)(
-  'refuses a %s popup before sending input',
-  async (mode) => {
-    const h = await fixture();
-    const popup = {
-      window_id: 93,
-      pid: 43,
-      bounds: { x: 500, y: 300, width: 200, height: 300 },
-    };
-    const geometry = {
-      surface: {
-        window_id: 91,
-        pid: 42,
-        parent: { x: 100, y: 100, width: 800, height: 600 },
-        sheet: null,
-        popup,
-      },
-      content: { x: 0, y: 0, width: 800, height: 600 },
-      pixels_per_point: 1,
-      width: 800,
-      height: 600,
-    };
-    h.geometry(geometry);
-    const observed = await h.snapshot();
-    expect(observed.outcome).toBe('verified');
-    h.geometry({
-      ...geometry,
-      surface: {
-        ...geometry.surface,
-        popup:
-          mode === 'closed'
-            ? null
-            : mode === 'replaced'
-              ? { ...popup, window_id: 94 }
-              : mode === 'invalid'
-                ? { ...popup, pid: 0 }
-                : { ...popup, bounds: { ...popup.bounds, x: 501 } },
-      },
-    });
-    expect(
-      (await h.act(dataRecord(observed.data).snapshot_id, { action: 'click', x: 450, y: 250 }))
-        .outcome,
-    ).toBe('stale');
-    expect(h.inputs).toEqual([]);
-  },
-);
+it.each([
+  'replaced',
+  'closed',
+  'moved',
+  'invalid',
+  'menu_replaced',
+  'reordered',
+  'duplicate',
+  'too_many',
+] as const)('refuses a %s popup stack before sending input', async (mode) => {
+  const h = await fixture();
+  const popup = {
+    window_id: 93,
+    pid: 43,
+    bounds: { x: 500, y: 300, width: 200, height: 300 },
+  };
+  const menu = { ...popup, window_id: 94 };
+  const geometry = {
+    surface: {
+      window_id: 91,
+      pid: 42,
+      parent: { x: 100, y: 100, width: 800, height: 600 },
+      sheet: null,
+      popups: [popup, menu],
+    },
+    content: { x: 0, y: 0, width: 800, height: 600 },
+    pixels_per_point: 1,
+    width: 800,
+    height: 600,
+  };
+  h.geometry(geometry);
+  const observed = await h.snapshot();
+  expect(observed.outcome).toBe('verified');
+  h.geometry({
+    ...geometry,
+    surface: {
+      ...geometry.surface,
+      popups: {
+        replaced: [{ ...popup, window_id: 95 }, menu],
+        closed: [popup],
+        moved: [popup, { ...menu, bounds: { ...menu.bounds, x: 501 } }],
+        invalid: [popup, { ...menu, pid: 0 }],
+        menu_replaced: [popup, { ...menu, window_id: 95 }],
+        reordered: [menu, popup],
+        duplicate: [popup, popup],
+        too_many: [popup, menu, { ...menu, window_id: 95 }],
+      }[mode],
+    },
+  });
+  expect(
+    (await h.act(dataRecord(observed.data).snapshot_id, { action: 'click', x: 450, y: 250 }))
+      .outcome,
+  ).toBe('stale');
+  expect(h.inputs).toEqual([]);
+});
 
-it('retains the owned popup proof when dispatching a screenshot-based click', async () => {
+it('retains both ordered popup proofs when dispatching a screenshot-based click', async () => {
   const h = await fixture();
   const popup = { window_id: 93, pid: 43, bounds: { x: 500, y: 300, width: 200, height: 300 } };
+  const menu = { ...popup, window_id: 94, bounds: { ...popup.bounds, y: 350 } };
   h.geometry({
     surface: {
       window_id: 91,
       pid: 42,
       parent: { x: 100, y: 100, width: 800, height: 600 },
       sheet: null,
-      popup,
+      popups: [popup, menu],
     },
     content: { x: 0, y: 0, width: 800, height: 600 },
     pixels_per_point: 1,
@@ -344,7 +364,9 @@ it('retains the owned popup proof when dispatching a screenshot-based click', as
     y: 250,
   });
   expect(['refused', 'stale']).not.toContain(result.outcome);
-  expect(h.inputs[0]?.args.capture_geometry).toMatchObject({ surface: { popup } });
+  expect(h.inputs[0]?.args.capture_geometry).toMatchObject({
+    surface: { popups: [popup, menu] },
+  });
 });
 
 it.each([

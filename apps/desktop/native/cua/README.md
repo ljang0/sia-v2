@@ -111,20 +111,35 @@ Capture geometry is handled separately below; signed Save/reopen acceptance is s
 A popup inside a remote sheet is another surface. `ax/window_point/popup.rs` proves the menu's
 exact document ancestry, process identity and unique layer-101 WindowServer bounds. Remote AppKit
 menus can report the document PID while their pixels belong to a service. That service must have
-Apple's canonical Open/Save Panel executable path and macOS must identify the exact document
-process as responsible for it. The optional private `responsibility_get_pid_responsible_for_pid`
+Apple's exact Open/Save Panel executable path, and macOS must identify the exact document process
+as responsible for it. The optional private `responsibility_get_pid_responsible_for_pid`
 symbol is resolved dynamically; a missing symbol, unknown service or other client refuses ownership.
 No other windows from the process are admitted. Missing or ambiguous identity refuses capture. The module supplies geometry only; no menu text reaches the
 model.
 
-`capture/popup.rs` composes separate captures of the document/sheet and proven menu, retaining each
-completed sample's content rectangle and measured scale. The complete surface set is revalidated
-before returning pixels and immediately before input. Host capture geometry preserves popup
-identity, so a moved, closed or replaced menu invalidates the previous observation. Only the
-coordinate press route may target popup points outside the parent; empty composite regions cannot
-receive input. Ownership, scaled composition, stale identity and input-boundary tests cover these
-contracts. Alpha.83 verified prepared-popup pixels and coordinate selection. Alpha.85 saved and closed the real brief. Alpha.86 opened the standalone folder menu, but reopening and Search-field typing failed. Complete Save/reopen acceptance is still required; passing these
-tests does not establish real workflow success.
+`ax/window_point/popup/popover.rs` follows bounded, fresh focus ancestry to prove a document-owned
+`AXPopover`, then requires one visible same-process backing window with matching bounds. It does not
+search by title or read text. The menu resolver starts inside that proven popover when one exists;
+its backing window is excluded from menu candidates. A service-owned menu still needs the exact
+client/service proof above. Unknown or ambiguous ownership refuses capture.
+
+`capture/popup.rs` composes the document with an ordered list of at most two additional surfaces:
+one popover and its menu, or one menu alone. Each layer retains its completed sample's content
+rectangle and measured scale. Both layers must appear in the resulting image, with the menu on top;
+returning only the popover falsely suggests its destination control did nothing. The complete list
+is revalidated after capture and before input. Moving, closing, replacing or reordering either
+surface invalidates the observation. Pointer lookup selects the topmost proven surface at the
+model's point; empty composite regions cannot receive input. The list stays in host-only geometry.
+
+Regression tests cover ownership, ambiguity, compositing order, distinct sample scales, stale
+identity and input boundaries. Alpha.97 captured the title popover but omitted its opened menu;
+alpha.98 refused that menu's unmatched service owner. Alpha.99 identified matching bounds and
+Apple's DocumentPopoverViewService owner. Signed alpha.100–104 diagnostics established that this
+shared service is self-responsible, its menu exposes no raw AX window ID, and its WindowServer parent
+chain ends inside the service. Native child-window capture also omits the menu. Those unsuccessful
+ownership probes and capture dumps were removed; the menu still refuses capture. These diagnostics
+do not establish Save/reopen acceptance.
+Complete useful workflows still need to pass on the exact signed candidate.
 
 ## Interruptible visual typing
 

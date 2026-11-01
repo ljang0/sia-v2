@@ -188,6 +188,8 @@ export class ComputerObservation {
       raw = await capture(false);
     }
     let refusalResult = resultRefusal(raw);
+    if (visionOnly && /\bpx_capture_unavailable\b/.test(refusalResult?.summary ?? ''))
+      return this.#missingVisualObservation(binding);
     if (refusalResult) return refusalResult;
     if (
       this.ctx.macBrowserAccess() &&
@@ -601,7 +603,7 @@ export class ComputerObservation {
   #missingVisualObservation(binding: ComputerWindowBinding): ActionExecutionResult {
     return {
       ...refused(
-        'A safe current screenshot is unavailable. No visual input capability was created.',
+        'A fresh screenshot of this window is unavailable. Capture a new image before continuing.',
       ),
       data: {
         control_mode: 'vision',

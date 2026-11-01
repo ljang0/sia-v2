@@ -1,8 +1,10 @@
 # Release status
 
 Updated November 1, 2026. **Distribution is not ready.** The current internal Mac build is
-alpha.96, stopped after native typing, Stop and recovery verification. It is Developer ID signed
-for arm64, but not notarized or accepted for distribution.
+alpha.104, stopped after a capture-only diagnostic. It is Developer ID signed for arm64, but not
+notarized or accepted for distribution. Cleaned alpha.105 source removes the unsuccessful diagnostic
+paths and passed the full local pilot gate. It is not a newly verified signed artifact. Title-popover capture and native typing/Stop/recovery have
+separate evidence; Save/reopen is still incomplete.
 Universal alpha.60 passed distribution-artifact verification and failed its real native task.
 The last published Mac pilot is alpha.24. Nothing new has been published.
 
@@ -56,8 +58,8 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 
 | Area | Verified | Still required |
 | --- | --- | --- |
-| Automated verification | The alpha.96 local pilot gate passed: 1,976 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the prior committed baseline](https://github.com/ljang0/sia-v2/actions/runs/41335742477) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
-| Native images and coordinates | Alpha.85 saved and closed the real 444-word brief. Alpha.86 opened the standalone dialog folder menu and selected the parent folder without operator input. | Repeat unassisted menu opening/selection and complete useful tasks. |
+| Automated verification | The alpha.105 source pilot gate passed: 1,981 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
+| Native images and coordinates | Alpha.85 saved and closed the real 444-word brief. Alpha.97 captured the title popover. Later diagnostics isolated an unproven shared-service destination menu; it remains refused. | Repeat unassisted menu opening/selection and complete useful tasks. |
 | Native shortcuts and typing | Alpha.95 completed a 1,469-character checklist in 64.690 seconds without a host timeout. Alpha.96 stopped at 485 characters and resumed to the full checklist without duplication. | Repeatable dialog filename input and Save/close/reopen with complete file contents. |
 | Browser work | Alpha.59 delivered restricted background clicks/scrolls; separate operator-typed notes survived. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
 | Concurrency and performance | Alpha.95 composer CUA round trips during typing: median 649.5 ms, worst 1,205 ms (10 samples). Alpha.96 Stop UI round trip: 1,233 ms, followed by stable partial text and successful recovery. | Two completed Sia tasks, clipboard/focus preservation, end-to-end latency and broader Stop/recovery. These limited samples are not performance acceptance. |
@@ -86,7 +88,10 @@ only the repeated attempt counts. No operator TextEdit input occurred. The docum
 Save/Open filename input remains unresolved. Earlier diagnostics found matching field/window process
 IDs and confirmed the signed host's Accessibility and event-posting grants; missing permission is not
 supported by that evidence. Failed transport experiments and probes were removed. The saved reviewer
-brief remains preserved. Useful browser work and two completed simultaneous tasks remain open.
+brief remains preserved. Alpha.97–104 added capture and stale-image coverage for an ordered popover/menu
+stack, but could not prove the shared menu owner. The unsuccessful service-parent and native-child
+capture probes were removed. Model-facing screenshot refusals now use plain language and revoke
+old image authority. Useful browser work and two completed simultaneous tasks remain open.
 
 See [exact artifacts and interventions](./public-release.md), [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use),
 and the [native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,
