@@ -1,7 +1,7 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.92 is the latest internal
-identity diagnostic, stopped after live verification. It is not notarized or accepted for distribution.
+Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.94 is the latest internal
+keyboard-event diagnostic, stopped after live verification. It is not notarized or accepted for distribution.
 Nothing new was published; the last published Mac pilot is alpha.24.
 
 ## Last full-pilot baseline
@@ -42,6 +42,8 @@ trajectory images and full logs. None is approved for distribution.
 | alpha.90 | Re-priming the same key window left a visible caret/focus ring but no typed filename. The workaround was removed.                                                                                                          | `alpha90-key-prime`         |
 | alpha.91 | Omitting the Chromium envelope for native text did not replace the selected query. A separate single-key probe also had no visible effect. Both are failed diagnostics, not workflow passes; the route change was removed. | `alpha91-native-key-events` |
 | alpha.92 | Field and window both reported TextEdit PID 9967. Typing again left the prior single-character query unchanged; Open stayed disabled. The probe was removed.                                                               | `alpha92-key-owner`         |
+| alpha.93 | The signed host reported Accessibility trust and `CGPreflightPostEventAccess()` both true. Typing still left the initial query unchanged. The read-only probe was removed.                                                 | `alpha93-event-access`      |
+| alpha.94 | Public `CGEventPostToPid` for native text left the selected query unchanged and Open disabled. No file reopened; the failed route was removed.                                                                             | `alpha94-public-key-events` |
 
 Alpha.90 ran for 34.970 seconds. Alpha.91's first screenshot already contained a different search
 query than alpha.90; the cause of that intervening change is unknown. Its filename and single-key
@@ -50,14 +52,20 @@ The alpha.89 first launch lost stderr during a launcher race; a second launch ca
 Later launches use one LaunchServices call with stdout/stderr attached. Diagnostic logging is removed
 from production source after inspection. The saved brief's hash remains unchanged. Alpha.92 also
 started with an intervening query change of unknown origin; its initial/final images are retained. The diagnostic identified no process-ID
-mismatch. Runtime source and version were restored to the committed alpha.88 baseline; only these
-evidence notes changed.
+mismatch. Alpha.93 confirmed existing event-posting access, so no permission reset or new grant was
+requested. Alpha.94 used the public PID event API, distinct from alpha.91's private PID route without
+the Chromium envelope. Neither changed the selected query. The operator provided no TextEdit input
+during these turns. Runtime source and version were restored to the committed alpha.88 baseline.
+The current changes contain evidence updates and a shorter, vision-only manual acceptance guide;
+legacy assisted recipes remain available through a pinned history link.
 
-After removing the probes, `pnpm check` passed, including 1,971 desktop tests (22 skipped). The first
+After removing the alpha.92 probe, `pnpm check` passed, including 1,971 desktop tests (22 skipped). The first
 attempt stopped when the real Electron bare-launch fixture exited with code 1 and no output. That
 fixture then passed alone and in the full repeat without code changes. Both logs are retained; the
 transient failure is not counted as a first-pass success. No full pilot rerun is claimed for the
-diagnostic builds.
+diagnostic builds. After removing the alpha.93/94 experiments and simplifying the manual guide, a
+fresh `pnpm check` passed on its first attempt with the same 1,971 desktop tests (22 skipped), plus
+native/shared/build/format/lint/quality/type checks. Its full log is retained with alpha.94 evidence.
 
 ## Useful progress and interventions
 

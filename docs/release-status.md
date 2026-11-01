@@ -1,7 +1,7 @@
 # Release status
 
 Updated November 1, 2026. **Distribution is not ready.** The current internal Mac build is
-alpha.92, stopped after an internal focused-field identity diagnostic. It is Developer ID signed
+alpha.94, stopped after an internal public keyboard-event diagnostic. It is Developer ID signed
 for arm64, but not notarized or accepted for distribution.
 Universal alpha.60 passed distribution-artifact verification and failed its real native task.
 The last published Mac pilot is alpha.24. Nothing new has been published.
@@ -72,8 +72,11 @@ Signed trials still fail to enter the filename in the focused Search field. Alph
 routing metadata; alpha.90 re-primed the exact key window; alpha.91 tried the native event route and
 separately sent a single physical-key-code event. None reopened the brief. Failed route changes were
 removed. Alpha.92 found the field and window report the same TextEdit process; the filename still
-did not appear. It did not establish a process-ID mismatch. Its probe was removed. Production runtime source
-remains the CI-verified alpha.88 baseline. These are diagnostics, not acceptance.
+did not appear. It did not establish a process-ID mismatch. Alpha.93 confirmed that the signed host
+had both Accessibility trust and event-posting access; another permission prompt is not supported
+by that evidence. Alpha.94 tried public `CGEventPostToPid` for native text, with the same visible
+failure. All probes and failed transports were removed. Production runtime source remains the
+CI-verified alpha.88 baseline. These are diagnostics, not acceptance.
 
 A delayed process-close race found during verification is also fixed: cancellation, timeout and
 output-limit termination preserve the first stop cause. Deterministic regressions and the final
