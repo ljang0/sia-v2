@@ -4,6 +4,26 @@ Updated November 1, 2026. **Distribution is not ready.** The installed internal 
 arm64 alpha.76, not notarized. The latest verified universal distribution artifact is alpha.60;
 its real task failed. Nothing new was published; the last published Mac pilot is alpha.24.
 
+## Current popup capture finding
+
+A read-only alpha.79 probe identified the omitted popup as a **separate layer-101 window owned by
+Apple's AppKit Open/Save Panel service**, not TextEdit. Its WindowServer bounds exactly matched the
+AX menu geometry under the proven document sheet. The menu's ancestry named the document, but its
+raw AX window ID was absent. Sia still returned an image without the prepared popup.
+
+The operator opened the popup through CUA. The first screenshot may have preceded preparation; a
+second read was refused for an expired prior-turn grant. A third read refreshed inventory and
+recorded the metadata with the menu already open. Sia sent no input. The operator then cancelled
+only the menu and quit QA. Nothing was typed, navigated, saved, closed or reopened. Six sheet
+regressions and signed-package checks passed; this is diagnostic evidence, not workflow acceptance.
+
+Private `alpha79-popup-geometry` retains all three turns, screenshots, content-free metadata,
+source diff and package/restoration receipts. Thread: `3c746ef6-8aa4-499d-b703-775bd997f45b`.
+Source base `bcc050e2de3c3975d3dd88be060a384fa91d7f88`; diff
+`4bc491d9a0f3625611a187c12954857d7a4661e456d4ba90a596170e1fb490d6`; trial ASAR
+`9a845774e1ae1802df74ac4ef4d237e3b1c680d681feced464920e035a9a574f`.
+The temporary probe was removed and signed alpha.76 restored with its exact hash and signature.
+
 ## Reverted popup diagnostics
 
 Neither experiment fixed the real Save-sheet popup. Both were signed internal arm64 builds, not

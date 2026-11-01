@@ -67,11 +67,13 @@ A separate bounded selection diagnostic fell back to synthetic keys, showed no s
 stopped before typing. Thus keyboard-only text delivery remains live-unverified. The destination
 folder is empty. A plan-limit banner during alpha.75 did not stop that turn; quota is not its failure.
 
-Alpha.77 child-window capture and alpha.78 native press preparation both failed to show the popup.
-After alpha.78 ended, operator CUA activated TextEdit and opened the folder popup: it appeared in AX
-but remained absent from the window screenshot. The operator cancelled only the menu. Investigate
-ownership/capture of separate popup windows; neither experiment is retained. Signed alpha.76 was
-restored and verified. These bounded diagnostics do not satisfy real-work or concurrency acceptance.
+Alpha.77 child-window capture and alpha.78 press preparation did not fix the popup; both were removed.
+Alpha.79's read-only metadata probe found a separate layer-101 menu owned by Apple's Open/Save
+Panel service, with bounds exactly matching the menu under the document's sheet. The menu had
+proven document ancestry but no direct AX window ID. Its pixels remain absent from the screenshot.
+The next implementation must prove the service-owned menu identity and capture that exact surface;
+matching all windows from a PID is insufficient. Temporary instrumentation was removed and signed
+alpha.76 restored. Useful background input and concurrent-work acceptance remain open.
 
 See [exact artifacts and interventions](./public-release.md), [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use),
 and the [native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,

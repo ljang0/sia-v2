@@ -91,33 +91,27 @@ existing-profile socket. The earlier unrestricted fixtures could not detect this
 
 ## Native attached sheets
 
-Native background keyboard focus uses the same proven sheet-to-document ownership as
-observation. The raw focused-window ID remains separate for focus records and restoration.
-A parent-document route requires matching window and focused-element ancestry; missing,
-conflicting or sibling ancestry remains refused. Foreground focus readers retain raw IDs.
-The sheet regression fails with the prior comparison and passes with the correction; the pilot
-gate now also runs exact-target ownership and key-focus regressions. Signed TextEdit Save/reopen
-acceptance remains required; this source correction alone does not establish a live fix.
+`ax/exact_target.rs` maps an attached sheet to its canonical document while retaining the raw
+focused-window ID for focus records and restoration. Keyboard delivery requires matching document
+and focused-element ancestry; missing, conflicting or sibling ancestry refuses input. Foreground
+focus readers retain raw IDs.
 
-Signed alpha.64 diagnostics reproduced a separate point-lookup defect: the application hit-test
-returned no element, while the focused sheet contained exactly one pressable control at that
-point, with proven document ancestry. `ax/sheet_point.rs` owns the candidate correction; the click
-dispatcher only calls it after a missing application hit-test for a single unmodified left click.
-It scans the freshly owned sheet, requires a unique enabled control containing the point, refuses
-ambiguous or incomplete scans, and rechecks the sheet and control before returning a retained
-element. No labels or semantic targets reach the model. The model still chooses image coordinates.
-The six regression cases cover point bounds, ambiguity, unreadable subtrees, depth/node limits and
-cycles. Signed internal alpha.65 expanded the panel through this route. Collapse remained
-ineffective: the expanded screenshot scales the document inside unchanged output dimensions,
-so capture-to-input mapping needs investigation. Save/reopen acceptance remains open.
+`ax/sheet_point.rs` resolves a screenshot point when the app-level hit-test misses a remote sheet.
+It scans the freshly owned sheet for one enabled pressable control at that point, rejects ambiguous
+or incomplete scans, and rechecks ownership and geometry before returning a retained element.
+`tools/click.rs` owns dispatch under the exact-window mutation lease. No labels or semantic targets
+reach the model. Six regressions cover point bounds, ambiguity, unreadable trees, limits and cycles.
+Capture geometry is handled separately below; signed Save/reopen acceptance is still open.
 
-The ownership resolver (`ax/exact_target.rs`), keyboard focus (`input/skylight.rs`), point resolution
-(`ax/sheet_point.rs`) and dispatch (`tools/click.rs`) remain separate responsibilities. Failed
-alpha.62/63 menu-bypass and keyboard-transport experiments and alpha.61/64 diagnostic logging are
-excluded from the source patch; private receipts preserve what was actually tested.
-
-These transport regressions do not prove visual task completion or background reliability in the
-signed app. See `docs/release-status.md` for the uncompleted default cutover and live acceptance.
+A popup inside a remote sheet is another surface. Alpha.79 found a menu belonging to Apple's
+Open/Save Panel service with exact matching AX/WindowServer bounds and document ancestry, but no
+raw AX menu window ID. The current parent/sheet capture omits it. The next implementation needs
+menu-process identity, unique geometry matching, stale-state rejection and a restricted window
+list. Apple's [explicit-window filter](<https://developer.apple.com/documentation/screencapturekit/sccontentfilter/init(display:including:)>)
+and [source rectangle](https://developer.apple.com/documentation/screencapturekit/scstreamconfiguration/sourcerect)
+provide a candidate capture mechanism; it has not been implemented or accepted. Do not include all
+windows from a process or expose menu labels as a visual fallback. Temporary probes and ineffective
+capture/press experiments are removed; private receipts preserve their results.
 
 ## Embedded-frame snapshots
 
