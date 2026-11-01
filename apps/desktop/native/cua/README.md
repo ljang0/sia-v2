@@ -178,7 +178,10 @@ notices remain intact. Regenerate and review this corpus when updating Cargo.loc
 
 ## Capture geometry
 
-`capture/frame.rs` owns the window/sheet geometry and pixel-to-screen transform.
+`capture/frame.rs` owns the window/sheet geometry, capture errors, parent backing-scale validation
+and pixel-to-screen transform. Capture code does not import input tools; `tools/px_frame.rs`
+consumes these contracts and owns their tool-facing refusal messages. The backing-scale regressions
+live with the validator, while dispatch/refusal regressions remain with the tools.
 `capture/stream.rs` takes pixels and metadata from one completed ScreenCaptureKit sample;
 its small CFNumber status reader avoids the pinned dependency's failed NSNumber-to-enum cast.
 The captured content rectangle and scale must match the union of the parent and a freshly owned

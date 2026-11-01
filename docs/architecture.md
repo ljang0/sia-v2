@@ -668,7 +668,8 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   calls. It requires a fresh, unchanged, unprotected window image; background delivery checks
   both the pointer and keyboard routes. The host never automatically replays an uncertain edit.
   Vision snapshots keep a host-only capture geometry proof alongside their opaque capability.
-  Native `capture/frame.rs` owns the transform; `capture/stream.rs` pairs a completed sample's
+  Native `capture/frame.rs` owns the transform, backing-scale validator and capture errors;
+  capture does not depend on input tools. `capture/stream.rs` pairs a completed sample's
   BGRA pixels with its content rectangle and scale. Fresh sheet ancestry and bounds establish
   the source origin, including sheets wider than their parent. PNG dimensions alone cannot do this.
   The host compares geometry before sending coordinates, and the native action checks it again.

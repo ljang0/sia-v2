@@ -2782,7 +2782,7 @@ index 82dac61..74d90b1 100644
  
      fn captured_chinese_sheet() -> Vec<AXNode> {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/capture.rs b/libs/cua-driver/rust/crates/platform-macos/src/capture.rs
-index dff4d82..cca1fe2 100644
+index dff4d82..bfe85f8 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/capture.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/capture.rs
 @@ -3,7 +3,7 @@
@@ -3086,7 +3086,7 @@ index dff4d82..cca1fe2 100644
 +    let png = capture(window_id)?;
 +    let (width, height) = png_dimensions(&png)?;
 +    let bounds = crate::windows::WindowBounds::from(surface.parent);
-+    let backing = crate::tools::px_frame::validate_capture_frame(window_id, &bounds, width, height)
++    let backing = frame::parent_backing_scale(window_id, &bounds, width, height)
 +        .map_err(|e| anyhow::anyhow!("legacy parent capture frame: {e:?}"))?;
 +    surface.ensure_current()?;
 +    let geometry = Geometry::from_sample(
@@ -3254,10 +3254,10 @@ index dff4d82..cca1fe2 100644
          use std::time::{Duration, Instant};
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/capture/frame.rs b/libs/cua-driver/rust/crates/platform-macos/src/capture/frame.rs
 new file mode 100644
-index 0000000..32b091a
+index 0000000..310ba43
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/capture/frame.rs
-@@ -0,0 +1,344 @@
+@@ -0,0 +1,467 @@
 +//! Capture geometry travels with its pixels; it is never inferred from PNG size alone.
 +use crate::windows::WindowBounds;
 +use serde::{Deserialize, Serialize};
@@ -3377,6 +3377,74 @@ index 0000000..32b091a
 +    }
 +}
 +
++/// Why a window-local pixel action cannot be translated.
++#[derive(Debug, Clone, PartialEq)]
++pub enum PxFrameError {
++    /// WindowServer has no usable frame for this id: it was closed, the id is
++    /// stale or fabricated, or the record carries degenerate `0×0` bounds
++    /// (`windows.rs`'s missing-`kCGWindowBounds` default), which would make
++    /// the window origin indistinguishable from the screen origin.
++    WindowNotFound { window_id: u32 },
++    /// The current capture could not be obtained or decoded, so its pixel
++    /// coordinate system cannot be proven against the WindowServer frame.
++    CaptureUnavailable { window_id: u32, reason: String },
++    /// The capture dimensions are not a coherent 1×/2× representation of the
++    /// requested WindowServer frame. Dispatching with this transform would
++    /// recreate #2237's wrong-surface misclick.
++    FrameMismatch {
++        window_id: u32,
++        bounds_width: f64,
++        bounds_height: f64,
++        capture_width: u32,
++        capture_height: u32,
++        scale_x: f64,
++        scale_y: f64,
++    },
++}
++
++/// Validate that a raw window capture and its WindowServer bounds describe one
++/// coordinate frame, returning the physical-pixels-per-point backing scale.
++///
++/// macOS window captures are 1× or 2×. Small rounding differences are allowed,
++/// but arbitrary ratios are not: the original #2237 failure paired a parent
++/// window screenshot with panel bounds and would otherwise look like a
++/// plausible-but-wrong ~2.2× scale.
++pub fn parent_backing_scale(
++    window_id: u32,
++    bounds: &WindowBounds,
++    capture_px_w: u32,
++    capture_px_h: u32,
++) -> Result<f64, PxFrameError> {
++    if bounds.width <= 0.0 || bounds.height <= 0.0 {
++        return Err(PxFrameError::WindowNotFound { window_id });
++    }
++    let scale_x = capture_px_w as f64 / bounds.width;
++    let scale_y = capture_px_h as f64 / bounds.height;
++    let nearest = if (scale_x - 1.0).abs() <= (scale_x - 2.0).abs() {
++        1.0
++    } else {
++        2.0
++    };
++    let coherent = scale_x.is_finite()
++        && scale_y.is_finite()
++        && (scale_x - scale_y).abs() <= 0.03
++        && (scale_x - nearest).abs() <= 0.03
++        && (scale_y - nearest).abs() <= 0.03;
++    if coherent {
++        Ok(nearest)
++    } else {
++        Err(PxFrameError::FrameMismatch {
++            window_id,
++            bounds_width: bounds.width,
++            bounds_height: bounds.height,
++            capture_width: capture_px_w,
++            capture_height: capture_px_h,
++            scale_x,
++            scale_y,
++        })
++    }
++}
++
 +/// Native image coordinates. `content` is in image pixels, `source` in screen points.
 +/// This is host-only validation data, not an additional model targeting surface.
 +#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -3477,6 +3545,61 @@ index 0000000..32b091a
 +
 +#[cfg(test)]
 +mod tests {
++    fn parent_bounds() -> WindowBounds {
++        WindowBounds {
++            x: 100.0,
++            y: 580.0,
++            width: 500.0,
++            height: 500.0,
++        }
++    }
++
++    #[test]
++    fn backing_scale_detects_retina_capture() {
++        let b = parent_bounds();
++        assert_eq!(parent_backing_scale(11, &b, 1000, 1000).unwrap(), 2.0);
++    }
++
++    #[test]
++    fn backing_scale_is_one_for_point_sized_capture() {
++        let b = parent_bounds();
++        assert_eq!(parent_backing_scale(11, &b, 500, 500).unwrap(), 1.0);
++    }
++
++    #[test]
++    fn backing_scale_never_divides_by_zero_bounds() {
++        // windows.rs defaults absent kCGWindowBounds to 0×0.
++        let mut b = parent_bounds();
++        b.width = 0.0;
++        assert_eq!(
++            parent_backing_scale(11, &b, 1000, 1000),
++            Err(PxFrameError::WindowNotFound { window_id: 11 })
++        );
++    }
++
++    #[test]
++    fn capture_narrower_than_bounds_is_a_mismatch() {
++        let b = parent_bounds();
++        assert!(matches!(
++            parent_backing_scale(11, &b, 250, 250),
++            Err(PxFrameError::FrameMismatch { .. })
++        ));
++    }
++
++    #[test]
++    fn parent_capture_cannot_masquerade_as_a_panel_scale() {
++        let bounds = WindowBounds {
++            x: 72.0,
++            y: 88.0,
++            width: 880.0,
++            height: 448.0,
++        };
++        assert!(matches!(
++            parent_backing_scale(55, &bounds, 1920, 960),
++            Err(PxFrameError::FrameMismatch { .. })
++        ));
++    }
++
 +    use super::*;
 +    fn expanded() -> Geometry {
 +        let parent = Rect {
@@ -4153,10 +4276,10 @@ index 8e8d8a2..ddaca2a 100644
                  }
                  Err(refusal) => return refusal,
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
-index 133dff9..38a28c4 100644
+index 133dff9..84c52c2 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/get_window_state.rs
-@@ -101,23 +101,28 @@ fn prefetch_capture<T: Send + 'static>(
+@@ -101,23 +101,29 @@ fn prefetch_capture<T: Send + 'static>(
  
  fn verified_capture(
      window_id: u32,
@@ -4172,8 +4295,9 @@ index 133dff9..38a28c4 100644
 -            let (w, h) = crate::capture::png_dimensions(&raw)?;
 -            Ok((raw, w, h))
 +    capture: impl FnOnce() -> anyhow::Result<crate::capture::frame::CapturedWindow>,
-+) -> Result<(Vec<u8>, u32, u32, crate::capture::frame::Geometry), super::px_frame::PxFrameError> {
-+    use super::px_frame::PxFrameError;
++) -> Result<(Vec<u8>, u32, u32, crate::capture::frame::Geometry), crate::capture::frame::PxFrameError>
++{
++    use crate::capture::frame::PxFrameError;
 +    let validate = |raw: anyhow::Result<crate::capture::frame::CapturedWindow>| {
 +        (|| -> anyhow::Result<_> {
 +            let frame = raw?;
@@ -4197,7 +4321,7 @@ index 133dff9..38a28c4 100644
      };
      if let Some(raw) = prefetched {
          match validate(raw) {
-@@ -319,7 +324,7 @@ impl Tool for GetWindowStateTool {
+@@ -319,7 +325,7 @@ impl Tool for GetWindowStateTool {
          // ScreenCaptureKit and the accessibility walk use independent system
          // services, and the read otherwise pays for them one after the other.
          let prefetched_capture = prefetch_capture(should_capture, want_tree, move || {
@@ -4206,19 +4330,21 @@ index 133dff9..38a28c4 100644
          });
          let (tree_result, prepared_snapshot) = if want_tree {
              let q = query.clone();
-@@ -412,19 +417,22 @@ impl Tool for GetWindowStateTool {
+@@ -412,34 +418,37 @@ impl Tool for GetWindowStateTool {
                      u32,
                      u32,
                      crate::windows::WindowBounds,
 -                    f64,
 +                    crate::capture::frame::Geometry,
                  ),
-                 super::px_frame::PxFrameError,
+-                super::px_frame::PxFrameError,
++                crate::capture::frame::PxFrameError,
              > {
                  let bounds = crate::windows::window_bounds_by_id(window_id)
                      .filter(|b| b.width > 0.0 && b.height > 0.0)
-                     .ok_or(super::px_frame::PxFrameError::WindowNotFound { window_id })?;
+-                    .ok_or(super::px_frame::PxFrameError::WindowNotFound { window_id })?;
 -                let (raw, orig_w, orig_h, scale) = verified_capture(
++                    .ok_or(crate::capture::frame::PxFrameError::WindowNotFound { window_id })?;
 +                let (raw, orig_w, orig_h, geometry) = verified_capture(
                      window_id,
                      prefetched_raw,
@@ -4227,12 +4353,30 @@ index 133dff9..38a28c4 100644
 +                    || crate::capture::screenshot_window_frame(window_id),
                  )?;
 +                geometry.surface.ensure_current().map_err(|e| {
-+                    super::px_frame::PxFrameError::CaptureUnavailable {window_id,reason:e.to_string()}
++                    crate::capture::frame::PxFrameError::CaptureUnavailable {window_id,reason:e.to_string()}
 +                })?;
                  let png = crate::capture::resize_png_if_needed(&raw, max_dim).map_err(|e| {
-                     super::px_frame::PxFrameError::CaptureUnavailable {
+-                    super::px_frame::PxFrameError::CaptureUnavailable {
++                    crate::capture::frame::PxFrameError::CaptureUnavailable {
                          window_id,
-@@ -452,7 +460,7 @@ impl Tool for GetWindowStateTool {
+                         reason: e.to_string(),
+                     }
+                 })?;
+                 let (w, h) = crate::capture::png_dimensions(&png).map_err(|e| {
+-                    super::px_frame::PxFrameError::CaptureUnavailable {
++                    crate::capture::frame::PxFrameError::CaptureUnavailable {
+                         window_id,
+                         reason: e.to_string(),
+                     }
+                 })?;
+                 if let Some(ref path) = out_file {
+                     std::fs::write(path, &png).map_err(|e| {
+-                        super::px_frame::PxFrameError::CaptureUnavailable {
++                        crate::capture::frame::PxFrameError::CaptureUnavailable {
+                             window_id,
+                             reason: e.to_string(),
+                         }
+@@ -452,7 +461,7 @@ impl Tool for GetWindowStateTool {
                          orig_w,
                          orig_h,
                          bounds,
@@ -4241,7 +4385,7 @@ index 133dff9..38a28c4 100644
                      ))
                  } else {
                      Ok((
-@@ -463,16 +471,16 @@ impl Tool for GetWindowStateTool {
+@@ -463,16 +472,16 @@ impl Tool for GetWindowStateTool {
                          orig_w,
                          orig_h,
                          bounds,
@@ -4261,7 +4405,7 @@ index 133dff9..38a28c4 100644
                  }
                  Ok(Err(e)) => {
                      tracing::warn!(
-@@ -497,7 +505,7 @@ impl Tool for GetWindowStateTool {
+@@ -497,7 +506,7 @@ impl Tool for GetWindowStateTool {
              .and_then(|(_, fp, _, _, _, _, _, _)| fp.clone());
          let screenshot_frame = screenshot
              .as_ref()
@@ -4270,7 +4414,7 @@ index 133dff9..38a28c4 100644
  
          // Build response.
          let mut content: Vec<Content> = Vec::new();
-@@ -560,12 +568,12 @@ impl Tool for GetWindowStateTool {
+@@ -560,12 +569,12 @@ impl Tool for GetWindowStateTool {
          // A screenshot-only read adds an image but no new element rows, so it
          // refreshes the current snapshot's frame and keeps its tokens valid.
          let refreshed = match (&prepared_snapshot, screenshot_resize_scale) {
@@ -4285,7 +4429,7 @@ index 133dff9..38a28c4 100644
                      window_size,
                  )
              }
-@@ -628,7 +636,7 @@ impl Tool for GetWindowStateTool {
+@@ -628,7 +637,7 @@ impl Tool for GetWindowStateTool {
              &tree_md,
          );
          // Screenshot pixels of the delivered capture: window origin in screen
@@ -4294,7 +4438,7 @@ index 133dff9..38a28c4 100644
          let elements_json = match (screenshot_frame.as_ref(), screenshot_dims) {
              (Some((bounds, _)), Some((width, _))) if bounds.width > 0.0 => {
                  cua_driver_core::element_frame::with_screenshot_frames(
-@@ -821,14 +829,15 @@ impl Tool for GetWindowStateTool {
+@@ -821,14 +830,15 @@ impl Tool for GetWindowStateTool {
              // the structured side. Additive: keeps every existing field.
              structured["screenshot_mime_type"] = serde_json::json!("image/png");
          }
@@ -4312,7 +4456,16 @@ index 133dff9..38a28c4 100644
              structured["screenshot_frame_valid"] = serde_json::json!(true);
          }
          if let Some(error) = screenshot_frame_error {
-@@ -1448,21 +1457,42 @@ mod tests {
+@@ -1432,7 +1442,7 @@ mod tests {
+ 
+     #[test]
+     fn verified_capture_reuses_or_recovers_prefetch() {
+-        use super::super::px_frame::PxFrameError;
++        use crate::capture::frame::PxFrameError;
+         use std::{cell::Cell, io::Cursor};
+ 
+         let png = |w, h| {
+@@ -1448,21 +1458,42 @@ mod tests {
              width: 4.0,
              height: 4.0,
          };
@@ -4483,11 +4636,14 @@ index e4d007f..e9c698a 100644
                  .await
                  {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
-index d24fee7..5640fc9 100644
+index d24fee7..44db212 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
-@@ -14,13 +14,12 @@ use cua_driver_core::protocol::ToolResult;
+@@ -12,15 +12,15 @@
  
+ use cua_driver_core::protocol::ToolResult;
+ 
++use crate::capture::frame::PxFrameError;
  use crate::windows::WindowBounds;
  
 -/// A window's screen origin plus the physical-pixels-per-logical-point scale
@@ -4503,7 +4659,7 @@ index d24fee7..5640fc9 100644
  }
  
  impl WindowPxFrame {
-@@ -28,10 +27,28 @@ impl WindowPxFrame {
+@@ -28,102 +28,44 @@ impl WindowPxFrame {
      /// local_pt_y)`. Public PID event routes use the local-point pair for
      /// `CGEventSetWindowLocation`; the SkyLight PID/window-routed click keeps
      /// the screen-point pair because WindowServer derives local coordinates.
@@ -4518,7 +4674,74 @@ index d24fee7..5640fc9 100644
 +            .parent
 +            .contains(point.0, point.1)
 +            .then_some(point)
-+    }
+     }
+-}
+-
+-/// Why a window-local pixel action cannot be translated.
+-#[derive(Debug, Clone, PartialEq)]
+-pub enum PxFrameError {
+-    /// WindowServer has no usable frame for this id: it was closed, the id is
+-    /// stale or fabricated, or the record carries degenerate `0×0` bounds
+-    /// (`windows.rs`'s missing-`kCGWindowBounds` default), which would make
+-    /// the window origin indistinguishable from the screen origin.
+-    WindowNotFound { window_id: u32 },
+-    /// The current capture could not be obtained or decoded, so its pixel
+-    /// coordinate system cannot be proven against the WindowServer frame.
+-    CaptureUnavailable { window_id: u32, reason: String },
+-    /// The capture dimensions are not a coherent 1×/2× representation of the
+-    /// requested WindowServer frame. Dispatching with this transform would
+-    /// recreate #2237's wrong-surface misclick.
+-    FrameMismatch {
+-        window_id: u32,
+-        bounds_width: f64,
+-        bounds_height: f64,
+-        capture_width: u32,
+-        capture_height: u32,
+-        scale_x: f64,
+-        scale_y: f64,
+-    },
+-}
+-
+-/// Validate that a raw window capture and its WindowServer bounds describe one
+-/// coordinate frame, returning the physical-pixels-per-point backing scale.
+-///
+-/// macOS window captures are 1× or 2×. Small rounding differences are allowed,
+-/// but arbitrary ratios are not: the original #2237 failure paired a parent
+-/// window screenshot with panel bounds and would otherwise look like a
+-/// plausible-but-wrong ~2.2× scale.
+-pub fn validate_capture_frame(
+-    window_id: u32,
+-    bounds: &WindowBounds,
+-    capture_px_w: u32,
+-    capture_px_h: u32,
+-) -> Result<f64, PxFrameError> {
+-    if bounds.width <= 0.0 || bounds.height <= 0.0 {
+-        return Err(PxFrameError::WindowNotFound { window_id });
+-    }
+-    let scale_x = capture_px_w as f64 / bounds.width;
+-    let scale_y = capture_px_h as f64 / bounds.height;
+-    let nearest = if (scale_x - 1.0).abs() <= (scale_x - 2.0).abs() {
+-        1.0
+-    } else {
+-        2.0
+-    };
+-    let coherent = scale_x.is_finite()
+-        && scale_y.is_finite()
+-        && (scale_x - scale_y).abs() <= 0.03
+-        && (scale_x - nearest).abs() <= 0.03
+-        && (scale_y - nearest).abs() <= 0.03;
+-    if coherent {
+-        Ok(nearest)
+-    } else {
+-        Err(PxFrameError::FrameMismatch {
+-            window_id,
+-            bounds_width: bounds.width,
+-            bounds_height: bounds.height,
+-            capture_width: capture_px_w,
+-            capture_height: capture_px_h,
+-            scale_x,
+-            scale_y,
+-        })
 +    /// Only click's proven AXSheet delivery may use points beyond the parent.
 +    pub fn to_sheet_or_parent(&self, cx: f64, cy: f64) -> Option<(f64, f64, f64, f64)> {
 +        let (sx, sy) = self.geometry.to_screen(cx, cy)?;
@@ -4536,7 +4759,6 @@ index d24fee7..5640fc9 100644
      }
  }
  
-@@ -106,24 +123,16 @@ pub fn validate_capture_frame(
  /// Resolve `window_id`'s screen origin and capture scale. Blocking: enumerates
  /// CGWindowList and takes one window capture to measure the scale.
  pub fn resolve_window_px_frame(window_id: u32) -> Result<WindowPxFrame, PxFrameError> {
@@ -4566,7 +4788,7 @@ index d24fee7..5640fc9 100644
  }
  
  /// The shared refusal for a pixel action whose window cannot be framed.
-@@ -206,9 +215,23 @@ pub fn error_structured(error: &PxFrameError) -> serde_json::Value {
+@@ -206,9 +148,23 @@ pub fn error_structured(error: &PxFrameError) -> serde_json::Value {
  
  /// Resolve the frame off the async path, mapping both the task error and the
  /// refusal onto a `ToolResult` the caller can return directly.
@@ -4592,7 +4814,7 @@ index d24fee7..5640fc9 100644
          Ok(Err(e)) => Err(refusal(&e)),
          Err(e) => Err(ToolResult::error(format!(
              "window frame lookup for window_id {window_id} failed: {e}. Not dispatching."
-@@ -221,20 +244,41 @@ mod tests {
+@@ -221,20 +177,41 @@ mod tests {
      use super::*;
  
      fn frame(scale: f64) -> WindowPxFrame {
@@ -4642,7 +4864,7 @@ index d24fee7..5640fc9 100644
          assert_eq!((sx, sy), (130.0, 620.0));
          assert_eq!((lx, ly), (30.0, 40.0));
      }
-@@ -242,7 +286,7 @@ mod tests {
+@@ -242,57 +219,11 @@ mod tests {
      #[test]
      fn resolves_2x_retina_scale() {
          // A point 60 capture px in is 30 pt in.
@@ -4651,6 +4873,56 @@ index d24fee7..5640fc9 100644
          assert_eq!((sx, sy), (130.0, 620.0));
          assert_eq!((lx, ly), (30.0, 40.0));
      }
+ 
+-    #[test]
+-    fn backing_scale_detects_retina_capture() {
+-        let b = frame(1.0).bounds;
+-        assert_eq!(validate_capture_frame(11, &b, 1000, 1000).unwrap(), 2.0);
+-    }
+-
+-    #[test]
+-    fn backing_scale_is_one_for_point_sized_capture() {
+-        let b = frame(1.0).bounds;
+-        assert_eq!(validate_capture_frame(11, &b, 500, 500).unwrap(), 1.0);
+-    }
+-
+-    #[test]
+-    fn backing_scale_never_divides_by_zero_bounds() {
+-        // windows.rs defaults absent kCGWindowBounds to 0×0.
+-        let mut b = frame(1.0).bounds;
+-        b.width = 0.0;
+-        assert_eq!(
+-            validate_capture_frame(11, &b, 1000, 1000),
+-            Err(PxFrameError::WindowNotFound { window_id: 11 })
+-        );
+-    }
+-
+-    #[test]
+-    fn capture_narrower_than_bounds_is_a_mismatch() {
+-        let b = frame(1.0).bounds;
+-        assert!(matches!(
+-            validate_capture_frame(11, &b, 250, 250),
+-            Err(PxFrameError::FrameMismatch { .. })
+-        ));
+-    }
+-
+-    #[test]
+-    fn parent_capture_cannot_masquerade_as_a_panel_scale() {
+-        let bounds = WindowBounds {
+-            x: 72.0,
+-            y: 88.0,
+-            width: 880.0,
+-            height: 448.0,
+-        };
+-        assert!(matches!(
+-            validate_capture_frame(55, &bounds, 1920, 960),
+-            Err(PxFrameError::FrameMismatch { .. })
+-        ));
+-    }
+-
+     /// Locks the exact regression: a stale window_id used to fall through to
+     /// "treat x,y as screen coordinates".
+     #[test]
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/right_click.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/right_click.rs
 index a16dc71..754c9e9 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/right_click.rs
