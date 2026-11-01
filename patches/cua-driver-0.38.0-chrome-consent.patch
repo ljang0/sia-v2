@@ -5047,23 +5047,51 @@ index dd919c7..b302f53 100644
          use core_foundation::{base::TCFType, string::CFString};
          let attr = CFString::new("AXSelectedTextRange");
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/focus_steal.rs b/libs/cua-driver/rust/crates/platform-macos/src/focus_steal.rs
-index 682a6ff..8cc43b2 100644
+index 682a6ff..4883677 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/focus_steal.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/focus_steal.rs
-@@ -524,11 +524,11 @@ fn handle_activation(dispatcher: &Arc<Dispatcher>, note: &objc2_foundation::NSNo
- /// Re-activate `pid` if it's still running. Safe to call from any
- /// thread — Apple documents `activateWithOptions:` as thread-safe.
- fn restore_focus(pid: i32) {
--    unsafe {
-+    let _ = crate::ax::main_thread::for_process(pid, move || unsafe {
-         if let Some(app) = NSRunningApplication::runningApplicationWithProcessIdentifier(pid) {
-             let _ = app.activateWithOptions(NSApplicationActivationOptions(0));
-         }
+@@ -15,9 +15,9 @@
+ //! The preventer subscribes to
+ //! `NSWorkspace.didActivateApplicationNotification` and, when an activation
+ //! matches a registered suppression entry, immediately re-activates the
+-//! prior frontmost app on a background thread. AppKit's
+-//! `-[NSRunningApplication activateWithOptions:]` is documented thread-safe
+-//! — no main-thread hop required.
++//! prior frontmost app through the shared key-focus rollback. That routine
++//! checks WindowServer identity and recent hardware input, restores the exact
++//! key window, and marshals any self-process AppKit fallback onto its main queue.
+ //!
+ //! ## Layered design (matches PR #1521)
+ //!
+@@ -60,8 +60,7 @@ use std::sync::{Arc, Mutex, OnceLock};
+ use std::time::{Duration, Instant};
+ 
+ use objc2_app_kit::{
+-    NSApplicationActivationOptions, NSRunningApplication, NSWorkspace, NSWorkspaceApplicationKey,
+-    NSWorkspaceDidActivateApplicationNotification,
++    NSWorkspace, NSWorkspaceApplicationKey, NSWorkspaceDidActivateApplicationNotification,
+ };
+ use objc2_foundation::NSOperationQueue;
+ use uuid::Uuid;
+@@ -517,17 +516,7 @@ fn handle_activation(dispatcher: &Arc<Dispatcher>, note: &objc2_foundation::NSNo
+ 
+     let restore_pids = dispatcher.snapshot_matches(activated_pid);
+     for pid in restore_pids {
+-        restore_focus(pid);
 -    }
-+    });
+-}
+-
+-/// Re-activate `pid` if it's still running. Safe to call from any
+-/// thread — Apple documents `activateWithOptions:` as thread-safe.
+-fn restore_focus(pid: i32) {
+-    unsafe {
+-        if let Some(app) = NSRunningApplication::runningApplicationWithProcessIdentifier(pid) {
+-            let _ = app.activateWithOptions(NSApplicationActivationOptions(0));
+-        }
++        crate::key_focus_guard::revert_now(activated_pid, pid);
+     }
  }
  
- // ── Tests ────────────────────────────────────────────────────────────────────
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/keyboard.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/keyboard.rs
 index ad64bdf..5a9faa7 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/keyboard.rs
@@ -7902,3 +7930,213 @@ index 0000000..e09486c
 +        assert!(preflight("ordinary filename.txt", 30, &route(), false).is_none());
 +    }
 +}
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/window_change_detector.rs b/libs/cua-driver/rust/crates/platform-macos/src/window_change_detector.rs
+index 0e5c693..7f435e9 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/window_change_detector.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/window_change_detector.rs
+@@ -32,9 +32,9 @@
+ //! // changes.result_suffix() — append to ToolResult text.
+ //! ```
+ //!
+-//! Dropping the `Snapshot` ends the suppression lease (RAII). `detect()`
+-//! also drops the lease before returning — the lease's `Drop` is
+-//! idempotent so explicit-detect + later-drop is safe.
++//! Dropping an unused `Snapshot` ends its suppression lease (RAII).
++//! `detect()` transfers the lease to a bounded tail when it returns before
++//! the observation deadline, including when it reports an early change.
+ 
+ use std::collections::HashSet;
+ use std::sync::atomic::{AtomicU64, Ordering};
+@@ -67,8 +67,7 @@ pub struct WindowEvent {
+ ///   front before `detect()`'s poll loop observes the change, so this
+ ///   field is best-effort.
+ /// - `_lease` — the wildcard suppression lease. Dropping the snapshot
+-///   ends suppression. Held inside `Option` so `detect()` can take it
+-///   and drop early.
++///   ends suppression unless `detect()` transfers it to the bounded tail.
+ pub struct Snapshot {
+     window_ids: HashSet<u32>,
+     front_pid: Option<i32>,
+@@ -210,8 +209,8 @@ const REPORT_WINDOW: Duration = Duration::from_millis(300);
+ /// A late change older than this is not reported on a later result.
+ const LATE_REPORT_MAX_AGE: Duration = Duration::from_secs(10);
+ 
+-/// The detached remainder of the last quiet observation: its focus-steal
+-/// lease, held until the deadline, until a change shows, or until the driver
++/// The detached remainder of the last observation: its focus-steal
++/// lease, held until the deadline or until the driver
+ /// starts its next action or intentional activation ([`end_tail`]).
+ struct Tail {
+     id: u64,
+@@ -402,8 +401,8 @@ impl Snapshot {
+     /// Unset or unparsable values keep the defaults, so public callers see
+     /// no behavior change.
+     ///
+-    /// The result waits at most [`REPORT_WINDOW`] when nothing changes; the
+-    /// rest of the deadline runs detached with the wildcard suppression lease
++    /// The result waits at most [`REPORT_WINDOW`], returning sooner on a change.
++    /// The rest of the deadline runs detached with the wildcard suppression lease
+     /// still held, until the driver's next action or intentional activation
+     /// ends it ([`end_tail`]). A window that shows during that remainder is
+     /// reported on the next action's result. A shorter timeout therefore also
+@@ -447,14 +446,14 @@ impl Snapshot {
+         let started = Instant::now();
+         let report = report_window.min(bounds.timeout);
+         let mut observe = observe;
+-        let changes = match self.poll_until(started + report, bounds.poll, &mut observe) {
+-            Ok(changes) => changes,
+-            Err(quiet) => {
+-                quiet.continue_detached(started + bounds.timeout, bounds.poll, observe);
+-                Changes::no_change()
+-            }
+-        };
+-        changes.with_earlier(earlier)
++        let (changes, snapshot) = self.poll_until(started + report, bounds.poll, &mut observe);
++        let reported = changes.is_some();
++        // A new window can activate after it becomes visible. Preserve the
++        // same bounded protection for both early and late observations.
++        snapshot.continue_detached(started + bounds.timeout, bounds.poll, observe, reported);
++        changes
++            .unwrap_or_else(Changes::no_change)
++            .with_earlier(earlier)
+     }
+ 
+     /// Async wrapper around `detect()` — runs the synchronous poll
+@@ -467,7 +466,7 @@ impl Snapshot {
+         // thread does not inherit the task's batch marker.
+         let report_window = cua_driver_core::step_pacing::report_window(REPORT_WINDOW);
+         // Move the Snapshot (and its embedded lease) onto the blocking
+-        // thread; the lease's Drop runs there when detect_with returns.
++        // thread; early returns transfer its lease to the bounded tail.
+         tokio::task::spawn_blocking(move || {
+             self.detect_bounded_reporting(host_observation_bounds(), report_window, observe_host)
+         })
+@@ -495,21 +494,21 @@ impl Snapshot {
+         })
+     }
+ 
+-    /// Poll until a change shows (`Ok`, the lease is dropped) or `deadline`
+-    /// passes with none (`Err`, the snapshot and its lease handed back).
++    /// Poll until a change shows or the report deadline passes. Return the
++    /// snapshot in both cases so reporting never ends protection early.
+     fn poll_until(
+         self,
+         deadline: Instant,
+         poll_interval: Duration,
+         observe: &mut impl FnMut() -> (Vec<WindowInfo>, Option<i32>),
+-    ) -> Result<Changes, Self> {
++    ) -> (Option<Changes>, Self) {
+         loop {
+             std::thread::sleep(poll_interval);
+             if let Some(changes) = self.observe_once(observe) {
+-                return Ok(changes);
++                return (Some(changes), self);
+             }
+             if Instant::now() >= deadline {
+-                return Err(self);
++                return (None, self);
+             }
+         }
+     }
+@@ -523,6 +522,7 @@ impl Snapshot {
+         deadline: Instant,
+         poll_interval: Duration,
+         mut observe: impl FnMut() -> (Vec<WindowInfo>, Option<i32>) + Send + 'static,
++        already_reported: bool,
+     ) {
+         if Instant::now() >= deadline {
+             return;
+@@ -536,7 +536,7 @@ impl Snapshot {
+         let spawned = std::thread::Builder::new()
+             .name("cua-window-watch".into())
+             .spawn(move || {
+-                loop {
++                while !already_reported {
+                     std::thread::sleep(poll_interval);
+                     if !still_mine() {
+                         return;
+@@ -857,6 +857,8 @@ mod tests {
+     /// as it observes them.
+     #[test]
+     fn a_poll_reports_new_windows_and_foreground_changes() {
++        let _serial = lock(&TAIL_TEST_LOCK);
++        end_tail();
+         let snap = WindowChangeDetector::capture_from(HashSet::from([1]), Some(7), false, None);
+         let changes =
+             snap.detect_bounded_with(observation_bounds_from(Some("1000"), Some("1")), || {
+@@ -875,6 +877,7 @@ mod tests {
+                 .collect::<Vec<_>>(),
+             vec![2]
+         );
++        end_tail();
+     }
+ 
+     /// Regression: the snapshot must store the caller's captured front pid
+@@ -899,6 +902,59 @@ mod tests {
+     /// The tail state is process-wide; tests that touch it run one at a time.
+     static TAIL_TEST_LOCK: Mutex<()> = Mutex::new(());
+ 
++    /// A window can appear before its app sends the activation notification.
++    /// Reporting that window must not retire the protection first.
++    #[test]
++    fn an_early_window_retains_protection_without_reporting_it_twice() {
++        let _serial = lock(&TAIL_TEST_LOCK);
++        end_tail();
++        lock(&LATE).take();
++        let snap = WindowChangeDetector::capture_from(HashSet::from([1]), Some(7), false, None);
++        let changes =
++            snap.detect_bounded_with(observation_bounds_from(Some("3000"), Some("1")), || {
++                (
++                    vec![win(1, 7, "App", "Main"), win(2, 8, "Editor", "Copy")],
++                    Some(7),
++                )
++            });
++        assert_eq!(changes.new_windows.len(), 1);
++        assert!(!changes.foreground_changed);
++        assert!(
++            lock(&TAIL).is_some(),
++            "early window must retain the bounded protection"
++        );
++        std::thread::sleep(Duration::from_millis(40));
++        assert!(
++            take_late().is_none(),
++            "the reported window must not be duplicated"
++        );
++        end_tail();
++        assert!(
++            lock(&TAIL).is_none(),
++            "the next action can still retire protection"
++        );
++    }
++
++    #[test]
++    fn an_early_window_protection_expires_at_the_existing_deadline() {
++        let _serial = lock(&TAIL_TEST_LOCK);
++        end_tail();
++        let snap = WindowChangeDetector::capture_from(HashSet::from([1]), Some(7), false, None);
++        let changes = snap
++            .detect_bounded_with(observation_bounds_from(Some("80"), Some("1")), || {
++                (vec![win(2, 8, "Editor", "Copy")], Some(7))
++            });
++        assert_eq!(changes.new_windows.len(), 1);
++        let deadline = Instant::now() + Duration::from_secs(2);
++        while lock(&TAIL).is_some() && Instant::now() < deadline {
++            std::thread::sleep(Duration::from_millis(10));
++        }
++        assert!(
++            lock(&TAIL).is_none(),
++            "protection must not outlive its deadline"
++        );
++    }
++
+     /// A quiet action returns after the report window, not the whole
+     /// deadline, and the remainder keeps running detached.
+     #[test]
+@@ -982,6 +1038,7 @@ mod tests {
+             },
+         );
+         assert_eq!(changes.new_windows.len(), 1);
++        end_tail();
+     }
+ 
+     /// A deadline inside the report window behaves as before: no tail.

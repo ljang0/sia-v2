@@ -74,6 +74,9 @@ then revalidates their identities and command enablement immediately before disp
 `focus_guard.rs` owns the shared background-action scope, including native menu dispatch.
 Menu equivalents also hold the normal bounded `WindowChangeDetector` observer, covering
 commands that open a document in another app before returning to the host focus check.
+Early window detection retains that observer until its existing deadline or the next action.
+The activation observer delegates to the same exact-window rollback as the key-focus guard,
+including its check for recent hardware input.
 `key_focus_guard.rs` owns key-theft interception and bounded self-activation rollback. An embedded
 host retains rollback without tapping its own event stream; external apps retain the event-tap
 requirements. Real user switches and intentional foreground actions remain excluded from rollback.

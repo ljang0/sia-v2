@@ -195,6 +195,8 @@ if (testNative) {
     ['platform-macos', 'tools::press_key::tests'],
     ['platform-macos', 'ax::main_thread::tests'],
     ['platform-macos', 'key_focus_guard::tests'],
+    ['platform-macos', 'focus_steal::tests'],
+    ['platform-macos', 'window_change_detector::tests'],
     ['platform-macos', 'tools::invoke_menu::'],
     ['platform-macos', 'tools::menu_equivalent::tests'],
     ['platform-macos', 'tools::type_text::'],

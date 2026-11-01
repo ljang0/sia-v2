@@ -60,8 +60,13 @@ and reproduced cross-app focus loss; the menu-route repeat remains open.
 Source inspection also found that the window observer releases its focus lease immediately when
 a change arrives during the initial polling period, while its detached observation path retains
 the lease until the deadline. Its activation callback separately requests cooperative AppKit
-activation rather than the exact-window restoration used by the key-focus guard. These are the
-next investigation points, not a verified explanation or completed correction.
+activation rather than the exact-window restoration used by the key-focus guard. Alpha.112 source retains the lease for the original deadline even after an early change, avoids
+reporting that change twice, and delegates restoration to the existing exact-window rollback.
+The early-change regression failed on the prior implementation. Alpha.112 passed the full local
+`pnpm test:pilot` command: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests,
+plus native/shared/build/static checks. The initial build rejected a differently formatted patch;
+regenerating it with the canonical Git diff options resolved that mismatch. Signed verification
+is pending; this is not yet a verified correction of the live focus failure.
 
 ## Other retained evidence
 

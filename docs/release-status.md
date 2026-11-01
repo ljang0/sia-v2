@@ -9,6 +9,9 @@ retain their matching hashes; QA is stopped. All local pilot stages passed: 1,99
 The alpha.110 crash fix passed its signed regression. Alpha.111 adds the existing cross-app
 observer to menu-equivalent dispatch and corrects crash-recovery retry wording. Its signed run
 used double-click, leaving the new menu route unverified while reproducing cross-app focus loss.
+Alpha.112 source retains early-detection focus leases through their existing deadline and shares
+exact-window activation rollback. Its full local `pnpm test:pilot` run passed with the same
+counts above; signed verification is pending.
 See the [exact artifact and intervention record](./public-release.md). The last published Mac
 pilot remains alpha.24. Nothing new has been published.
 
