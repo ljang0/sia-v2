@@ -58,7 +58,7 @@ and UI readback taking 1,233 ms. Independent target observations at 18:53:01 and
 485-character partial checklist. That establishes stopped input, not a precise key-event latency.
 The follow-up inspected screenshots and completed the same document in 78.467 seconds. Independent
 comparison found all 1,469 characters without duplication; only the requested terminal newline was
-omitted. The document remains open and unsaved. No operator TextEdit input or foreground fallback
+omitted. The document remains open. No operator TextEdit input or foreground fallback
 was used. The earlier Stop attempt is explicitly inconclusive: CUA screenshot capture stalled, and
 typing completed before Stop could be pressed.
 
@@ -68,12 +68,25 @@ Independent operator accessibility reads verified the output; they were not sent
 or used to control TextEdit. QA was quit before automated validation. Only evidence documentation
 changes after packaging are intended.
 
+## Autosave correction
+
+Independent filesystem verification after the alpha.105 source checkpoint found TextEdit had
+persisted `Untitled 8.rtf` automatically in its default iCloud Documents folder. Its 1,469 characters
+exactly match the independently observed document. The 1,874-byte RTF has SHA-256
+`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`;
+creation was 18:50:28 UTC and last modification 18:54:59 UTC on November 1. Thus earlier descriptions
+of the draft as **unsaved were incorrect**. The app's visible state and assistant's claim did not
+prove filesystem absence. This does not establish the requested local filename or close/reopen
+acceptance. The original is preserved; `alpha105-popup-capture-source/autosave-correction.json`
+records the independent check and corrects the alpha.96 private result.
+
 ## Defects reproduced before the fix
 
 On the restored alpha.88 baseline, Sia created a useful Arena handoff checklist and typed its full
 1,470-character payload into the ordinary TextEdit editor. The host timed out at 60 seconds; a fresh
 image showed the completed text. Save opened, but its filename field did not accept the requested
-name. The real workflow failed, with the unsaved draft preserved in `alpha88-document-boundary`.
+name. The requested save/reopen workflow failed; the open draft and observations are preserved in
+`alpha88-document-boundary`.
 This isolates ordinary editor delivery from the unresolved Open/Save dialog problem.
 
 Alpha.95 increased native typing's deadline to 120 seconds, covering the driver's 100-second synthesis

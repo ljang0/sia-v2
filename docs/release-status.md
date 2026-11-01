@@ -83,7 +83,8 @@ the process lease until it exits. The signed test stopped at 485 characters; ind
 nearly three minutes later found the text unchanged. A vision-only follow-up completed the same
 1,469-character checklist without duplication. The requested terminal newline was omitted. The first
 Stop attempt was inconclusive because the operator's screenshot call stalled until typing finished;
-only the repeated attempt counts. No operator TextEdit input occurred. The document remains unsaved.
+only the repeated attempt counts. No operator TextEdit input occurred. A later filesystem check found TextEdit had automatically saved the complete draft under its
+default iCloud name. The requested local filename and close/reopen are still unverified.
 
 Save/Open filename input remains unresolved. Earlier diagnostics found matching field/window process
 IDs and confirmed the signed host's Accessibility and event-posting grants; missing permission is not
