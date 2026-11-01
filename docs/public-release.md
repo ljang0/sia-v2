@@ -1,9 +1,27 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.107 is the latest
+Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.108 is the latest
 installed internal build, now stopped. Its clean source passed the full local pilot gate, and signing
 and packaged-runtime verification passed. The real file-copy workflow remains incomplete.
 Nothing new was published; the last published Mac pilot is alpha.24.
+
+## Latest signed menu-focus attempt
+
+Alpha.108 was packaged from `6babb61ef9ecd66a3b9470e17bad73667a0a42bc` with no source diff.
+Installed ASAR SHA-256: `d20584729ecb7d3f28701eef865de5bf6af48d00f145f43f4724306cf0870f58`.
+Developer ID signing and packaged-runtime verification passed. The full local pilot passed:
+1,996 desktop (22 skipped), 46 Electron (5 skipped), 40 renderer and 72 phone-browser tests,
+plus native/shared/build/static checks. Private evidence is in `alpha108-menu-focus`.
+
+The signed repeat dismissed the leftover Go to Folder panel with Escape, then sent Cmd+Shift+G.
+That action returned `background_focus_changed` and paused before path input. A separate read-only
+follow-up confirmed Finder was active and the panel was visibly open. The targeted focus guard
+now covers menu dispatch, but it did not preserve the foreground on this host. The checklist copy
+was not created; close/reopen remains undone. The original SHA-256 remains
+`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`.
+No target-app rescue or foreground fallback was used. The prompt supplied the panel-reset step,
+so this was a controlled regression repeat, not unassisted acceptance. QA was quit afterward.
+No independent clipboard sample was taken. Do not count this as a passed background workflow.
 
 ## Resolved Finder observation regression
 
@@ -28,8 +46,7 @@ The native hotkey menu-equivalent path returned before the ordinary key-event fo
 Alpha.108 source wraps the shared background menu dispatch in that existing targeted guard,
 including its post-dispatch settle period. The full local pilot gate passed: 1,996 desktop,
 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks.
-A signed repeat is pending; this source change does not yet establish focus preservation or
-copy/reopen acceptance.
+The signed repeat above failed focus preservation; copy/reopen acceptance remains open.
 
 ## Prior capture diagnostic
 
@@ -46,7 +63,7 @@ capture failure. Alpha.107 source distinguishes an openable Finder filename from
 and returns an explicit protected-window result for genuine protection. Its full local pilot passed: 1,996 desktop (22 skipped), 46 Electron (5 skipped), 40 renderer
 and 72 browser tests, plus native/shared/build/static checks. The signed capture repeat above passed. The original copy workflow remains incomplete.
 
-## Latest real document attempt
+## Prior real document attempt
 
 | Identity               | Value                                                              |
 | ---------------------- | ------------------------------------------------------------------ |
