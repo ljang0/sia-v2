@@ -1,14 +1,14 @@
 # Release status
 
-Updated November 1, 2026. **Distribution is not ready.** Signed internal alpha.110 passed the
-previous crash regression and created a byte-identical checklist copy. Rename and relocation
-remain incomplete. Opening the copy activated TextEdit, so the next background input paused;
-close/reopen remains unverified. QA is stopped. The full local pilot passed: 1,996 desktop,
+Updated November 1, 2026. **Distribution is not ready.** Signed internal alpha.111 closed and
+reopened the preserved checklist copy. The reopen activated TextEdit and paused further input,
+so background focus preservation failed. Rename and relocation remain incomplete. Both files
+retain their matching hashes; QA is stopped. All local pilot stages passed: 1,996 desktop,
 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks.
 
-Alpha.111 source adds the existing cross-app window observer to menu-equivalent dispatch and
-corrects the crash-recovery retry wording. All local pilot stages passed with the same counts;
-a signed repeat remains pending.
+The alpha.110 crash fix passed its signed regression. Alpha.111 adds the existing cross-app
+observer to menu-equivalent dispatch and corrects crash-recovery retry wording. Its signed run
+used double-click, leaving the new menu route unverified while reproducing cross-app focus loss.
 See the [exact artifact and intervention record](./public-release.md). The last published Mac
 pilot remains alpha.24. Nothing new has been published.
 
@@ -63,7 +63,7 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 | Area | Verified | Still required |
 | --- | --- | --- |
 | Automated verification | All alpha.111 local pilot stages passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
-| Native images and coordinates | Alpha.107 resolved Finder filename observation. Alpha.110 opened Go to Folder and created a verified duplicate. | Complete rename, relocation and close/reopen; preserve foreground when opening another app. |
+| Native images and coordinates | Alpha.107 resolved Finder filename observation. Alpha.110 created a verified duplicate; alpha.111 closed and reopened it. | Complete rename and relocation; preserve foreground when opening another app. |
 | Native shortcuts and typing | Alpha.95 completed a 1,469-character checklist in 64.690 seconds without a host timeout. Alpha.96 stopped at 485 characters and resumed to the full checklist without duplication. | Repeatable dialog filename input and Save/close/reopen with complete file contents. |
 | Browser work | Alpha.59 delivered restricted background clicks/scrolls; separate operator-typed notes survived. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
 | Concurrency and performance | Alpha.95 composer CUA round trips during typing: median 649.5 ms, worst 1,205 ms (10 samples). Alpha.96 Stop UI round trip: 1,233 ms, followed by stable partial text and successful recovery. | Two completed Sia tasks, clipboard/focus preservation, end-to-end latency and broader Stop/recovery. These limited samples are not performance acceptance. |

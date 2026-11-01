@@ -1,18 +1,18 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.110
-survived the previous crash and created a verified copy, but did not finish rename, relocation
-or close/reopen. Opening the copy in TextEdit changed foreground focus. QA is stopped.
+Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.111
+closed and reopened the preserved checklist copy, but opening it activated TextEdit. Background
+focus preservation failed; rename and relocation remain incomplete. QA is stopped.
 Nothing new was published; the last published Mac pilot is alpha.24.
 
 ## Current signed candidate
 
 | Identity                   | Value                                                                                                                        |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Version                    | `0.1.0-alpha.110`                                                                                                            |
-| Source                     | `5a58dfff600a6886e35e59a27f1e57d026944f27`, no source diff                                                                   |
-| Installed ASAR SHA-256     | `127b09f4888a9531f73f49d47b072ec0e651205f920dc642b6a04bd57baacc70`                                                           |
-| Private evidence directory | `alpha110-main-thread-rollback`                                                                                              |
+| Version                    | `0.1.0-alpha.111`                                                                                                            |
+| Source                     | `e2e58b79636dd5c19ac3813985a153bdc5164a8c`, no source diff                                                                   |
+| Installed ASAR SHA-256     | `271534bfe67ba3b65c22bda458dbdb9f8ae9cede3494f853a752c3e74fba022f`                                                           |
+| Private evidence directory | `alpha111-cross-app-menu`                                                                                                    |
 | Package                    | Developer ID signed arm64; packaged-runtime verification passed; not notarized                                               |
 | Local pilot gate           | 1,996 desktop (22 skipped), 46 Electron (5 skipped), 40 renderer, 72 phone-browser; native/shared/build/static checks passed |
 
@@ -22,23 +22,25 @@ that the latest remote commit passed.
 
 ## Signed workflow result
 
-1. The controlled regression reset the visible Finder Go to Folder panel and reopened it once.
-   Unlike alpha.109, the call returned and the app remained alive. Return navigated to the
-   iCloud TextEdit folder. A right-click selected the file but exposed no visible context menu.
-2. After an operator continuation prompt, Cmd+D created **Untitled 8 copy.rtf**. Independent
-   filesystem inspection found both files at 1,874 bytes with identical SHA-256:
-   `bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`.
-   Return did not visibly start filename editing, so the model stopped before typing.
-3. After another continuation, Cmd+O opened the copy in TextEdit. Initial inventory marked no
-   permitted app active; the later inventory marked TextEdit active. Its next input was refused
-   before dispatch. No requested local destination, rename, close or reopen was completed.
+1. Alpha.110 had created **Untitled 8 copy.rtf** in the TextEdit iCloud Documents folder.
+   Alpha.111 captured that copy, scrolled through it, and closed only its window. A refreshed
+   inventory confirmed the window was absent.
+2. The model double-clicked the selected copy in Finder. The call returned
+   `background_focus_changed` and paused without replaying the click.
+3. A separate read-only follow-up found TextEdit active and the copy reopened. Independent
+   inspection of that screenshot showed the checklist heading through its final release-decision
+   sentence. This verifies close/reopen of the existing copy, but fails foreground preservation.
 
-The original and copy remain in the TextEdit iCloud Documents folder. Do not duplicate the copy
-again or overwrite either. The requested `Sia-Arena-handoff-checklist-alpha110.rtf` does not exist.
-The operator inspected and cancelled Finder’s File menu between turns; no operator file write
-or target focus rescue occurred. Continuation prompts make this a controlled regression, not
-unassisted acceptance. Clipboard preservation and uninterrupted foreground preservation were not
-independently sampled. QA was quit through CUA after the final pause.
+The model chose double-click, so this run did **not** exercise the new menu-equivalent observer.
+No operator target input or focus rescue occurred. The controlled prompt and read-only follow-up
+are recorded; this is not unassisted acceptance. Clipboard and uninterrupted foreground preservation
+were not independently sampled. QA was quit through CUA after verification.
+
+The original and copy remain at 1,874 bytes, with identical SHA-256:
+`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`.
+The requested `Sia-Arena-handoff-checklist-alpha111.rtf` does not exist. Preserve both existing
+files; do not duplicate again or overwrite either. Rename and relocation are still required.
+The earlier alpha.110 receipts and trajectory remain in `alpha110-main-thread-rollback`.
 
 ## Current correction
 
@@ -52,7 +54,14 @@ That route previously returned before the observer was armed, leaving cross-app 
 The targeted guard remains for the source app. Crash recovery now asks the person to check the
 last action, instead of claiming retry is safe. All local pilot stages passed with the counts
 above. The first Electron run caught an outdated recovery-message assertion; after correcting
-it, the complete Electron, renderer and phone stages passed. A signed repeat remains pending.
+it, the complete Electron, renderer and phone stages passed. The signed run above used double-click
+and reproduced cross-app focus loss; the menu-route repeat remains open.
+
+Source inspection also found that the window observer releases its focus lease immediately when
+a change arrives during the initial polling period, while its detached observation path retains
+the lease until the deadline. Its activation callback separately requests cooperative AppKit
+activation rather than the exact-window restoration used by the key-focus guard. These are the
+next investigation points, not a verified explanation or completed correction.
 
 ## Other retained evidence
 
