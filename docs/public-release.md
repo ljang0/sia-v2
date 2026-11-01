@@ -138,6 +138,31 @@ Private `alpha68-stream-geometry` and `alpha69-stream-metadata` retain receipts,
 metadata and results. Neither is a distribution candidate or completed task. Probe code was removed,
 the QA process exited, and the signed alpha.67 app was restored without launching it.
 
+Internal signed alpha.72 tested the existing PID-scoped modifier lifecycle around shortcuts,
+without changing focus, ownership or permission gates. Full local pilot checks passed, including
+11 existing native keyboard regressions newly added to the gate. A fresh assistant sent Cmd+A at
+the filename field in 2,034 ms; the post-action and recovery screenshots showed no selection.
+It stopped after 29.689 seconds without typing, saving, closing or reopening. The destination is
+empty. The modifier experiment was removed rather than retained as an unverified input path.
+
+Read-only signed alpha.73 observed the same field afterward. Three consistent diagnostic records
+showed a collapsed selection at offset 24, with the original TextEdit PID reported by the focused
+field, owned sheet and sheet's WindowServer record. The sheet had a distinct raw window ID with
+the requested document as canonical owner. The model received only the screenshot and reported
+the unchanged filename without a highlight. No computer input occurred. These observations rule
+out a merely hidden selection and provide no basis for a different-process keyboard route.
+The temporary probe was removed; signed alpha.71 was restored, its signature/hash verified, and
+left quit. Neither experiment earns Save/reopen or distribution acceptance.
+
+Private `alpha72-modifier-chord` and `alpha73-sheet-process` retain source diffs, signed package
+and installation receipts, prompts, traces, screenshots and results. Both use base
+`c05441a53cb170ac70b883011d77d896dbcc455e`.
+Alpha.72 source diff: `c6c0b4e7270ec4bfb5a50642c0aa155f876a61b5ac755771114fe7cdb9247de7`;
+ASAR: `af417e57f3bbbf630a8e7694a50d8ff040b5706dffe9120818ebb8d1b1cf90a6`.
+Alpha.73 source diff: `cabf00dc0aea42ab6373a7fe0025787af0f52365255cf4ca036e35a19ce5f074`;
+ASAR: `902319a66b2df10cd20d88cd3630b3fa6c4910b77f529695201cbfae4c6f15d9`.
+The latter is a read-only diagnostic build, not a full-pilot-tested production change.
+
 Signed internal arm64 alpha.71 extends the canonical native key action with optional screenshot
 coordinates, reusing pixel preflight and the existing focus-then-key driver operation. The full
 pilot gate passed: 1,956 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus

@@ -102,6 +102,13 @@ filename field; the driver returned `accepted_unverified`, but both subsequent s
 no visible selection. Sia stopped without typing or saving. Native Save/reopen remains blocked;
 schema admission and successful dispatch do not establish working keyboard delivery.
 
+Internal alpha.72 tested explicit PID-scoped modifier down/up events around the same shortcut.
+The full pilot gate passed, including 11 native keyboard tests now included in the gate, but the
+signed-app result was unchanged: no visible filename selection and no saved file. That experiment
+was removed. Read-only alpha.73 then confirmed a collapsed selection and the original TextEdit PID
+for the focused field and sheet; there is no evidence for redirecting keys to another process.
+The probe was removed and signed alpha.71 restored. Save/reopen and distribution remain blocked.
+
 Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
 pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
 The release requires real-source research and writing, file/document preparation, and planning
