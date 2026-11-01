@@ -76,6 +76,9 @@ then revalidates their identities and command enablement immediately before disp
 host retains rollback without tapping its own event stream; external apps retain the event-tap
 requirements. Real user switches and intentional foreground actions remain excluded from rollback.
 The host service independently checks foreground identity after dispatch and pauses uncertain input.
+Self-process AX focus and rollback mutations share `ax/main_thread.rs`: AppKit runs them on its
+main queue, with a bounded wait and cancellation of work that has not started. Remote-process AX
+calls retain their worker thread. This boundary prevents embedded-host window-ordering assertions.
 
 Capture pixels and their private geometry travel together. Native `ax/window_point/popup.rs`
 proves a remote sheet menu's ownership; `capture/popup.rs` composes only those exact window captures.

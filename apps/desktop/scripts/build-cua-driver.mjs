@@ -193,6 +193,7 @@ if (testNative) {
     ['platform-macos', 'input::keyboard::tests'],
     ['platform-macos', 'tools::hotkey::tests'],
     ['platform-macos', 'tools::press_key::tests'],
+    ['platform-macos', 'ax::main_thread::tests'],
     ['platform-macos', 'key_focus_guard::tests'],
     ['platform-macos', 'tools::invoke_menu::'],
     ['platform-macos', 'tools::menu_equivalent::tests'],

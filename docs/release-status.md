@@ -1,15 +1,14 @@
 # Release status
 
-Updated November 1, 2026. **Distribution is not ready.** The installed internal Mac build is
-alpha.108, stopped after a failed signed background file-copy repeat. Developer ID signing and
-packaged-runtime verification passed for arm64; it is not notarized or accepted for distribution.
-The full local pilot gate passed: 1,996 desktop, 46 Electron, 40 renderer and 72 browser tests.
-The background menu dispatch now uses the existing targeted focus guard, but Finder still became
-active after Go to Folder. Sia detected the focus change and paused before typing. No copy was
-created; Save/reopen remains incomplete. See the [exact artifact and failure record](./public-release.md).
-
-Alpha.109 source extends self-activation rollback to the embedding host without tapping its
-own event stream. Its full local pilot passed with the same counts; signed acceptance is pending.
+Updated November 1, 2026. **Distribution is not ready.** Installed internal alpha.109 exited
+with SIGTRAP during the signed background file-copy repeat and remains stopped. Signing,
+packaged-runtime verification and the full local pilot passed: 1,996 desktop, 46 Electron,
+40 renderer and 72 browser tests. The crash stack identifies self-process AX window raising on
+a worker thread during focus rollback. No copy was created, and the original remains unchanged.
+Alpha.110 source routes those own-process mutations through the existing bounded main-queue
+mechanism shared with menu focus. Native regression checks and the full local pilot passed
+with the same counts; signed verification is next.
+See the [exact artifact and failure record](./public-release.md).
 
 Signed alpha.107 resolved the Finder observation regression: Applications screenshots now work
 when openable filenames include 1Password, while genuine credential controls remain protected.
@@ -66,7 +65,7 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 
 | Area | Verified | Still required |
 | --- | --- | --- |
-| Automated verification | The alpha.108 source pilot gate passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
+| Automated verification | The alpha.110 source pilot gate passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
 | Native images and coordinates | Alpha.85 saved and closed the real 444-word brief. Alpha.97 captured the title popover. Later diagnostics isolated an unproven shared-service destination menu; it remains refused. | Repeat unassisted menu opening/selection and complete useful tasks. |
 | Native shortcuts and typing | Alpha.95 completed a 1,469-character checklist in 64.690 seconds without a host timeout. Alpha.96 stopped at 485 characters and resumed to the full checklist without duplication. | Repeatable dialog filename input and Save/close/reopen with complete file contents. |
 | Browser work | Alpha.59 delivered restricted background clicks/scrolls; separate operator-typed notes survived. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |

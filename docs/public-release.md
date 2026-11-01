@@ -1,9 +1,30 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.108 is the latest
-installed internal build, now stopped. Its clean source passed the full local pilot gate, and signing
+Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.109 is the latest
+installed internal build; it exited during signed acceptance and remains stopped. Its clean source passed the full local pilot gate, and signing
 and packaged-runtime verification passed. The real file-copy workflow remains incomplete.
 Nothing new was published; the last published Mac pilot is alpha.24.
+
+## Latest signed embedded-host attempt
+
+Alpha.109 was packaged from `7c913b0911f6781f4464fed848cfd510e03003c6` with no source diff.
+Installed ASAR SHA-256: `1aafdd9193c9427d12e9bca96ab50656f02cbb11168697e64b00fd110828d735`.
+Developer ID signing, packaged-runtime verification and the full pilot passed (same counts below).
+Private evidence, including the crash report and system log, is in `alpha109-embedded-focus`.
+
+The signed repeat captured Finder, dismissed its old panel with Escape, then began Go to Folder.
+At 21:55:21 UTC the QA process exited with SIGTRAP. The crash report states “Must only be used
+from the main thread”; the faulting stack identifies `raise_focused_window_of_pid` called by
+`key_focus_guard::restore_front_if_raised` during lease cleanup. System logs show Finder became
+frontmost and Sia regained focus immediately before the off-thread window-raise assertion.
+No copy was created, and the original hash is unchanged. This is a failed candidate, not a CUA
+observation timeout or a passed focus-preservation check. The app remains stopped.
+
+Alpha.110 source shares the existing bounded self-process main-queue dispatcher between menu
+focus and rollback operations. Queued work is cancelled on timeout to avoid a delayed focus change;
+remote-process AX calls retain their original thread. Native regression checks and the full local
+pilot passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus
+native/shared/build/static checks. A new signed repeat remains required.
 
 ## Latest signed menu-focus attempt
 
@@ -31,8 +52,7 @@ the bounded post-action watcher for that case, without tapping the host’s own 
 The existing foreign-panel, active-target, intentional-activation and hardware-input checks remain.
 Native regression cases cover the embedded host and preserve external-app tap requirements.
 The full local pilot passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests,
-plus native/shared/build/static checks. Signed verification is pending; this does not establish
-background acceptance.
+plus native/shared/build/static checks. Signed verification failed with the main-thread assertion described above.
 
 An operator CUA comparison on alpha.108 raised TextEdit and opened/closed its About dialog, but
 Sia’s refreshed inventories still marked no permitted app active (Sia itself is excluded).
