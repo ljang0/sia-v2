@@ -195,3 +195,18 @@ The backing-store fallback remains for parent-only windows and refuses known att
 Signed internal alpha.70 visibly collapsed and re-expanded the Save sheet with fresh-image
 background clicks. Save/reopen then stopped at the separate Cmd-Shift-G window-context guard.
 The full pilot gate passed; Save/reopen and concurrency acceptance remain open.
+
+## Native visual input
+
+`tools/invoke_menu/context.rs` binds the exact document and optional attached sheet for native
+menu key equivalents. The hotkey route resolves the requested field first and shares its existing
+per-process lease with menu dispatch. A replaced/dismissed sheet invalidates the command. Modal
+commands must already be enabled; a disabled modal Save cannot fall through to a scripted save of
+the parent document. Signed alpha.75 visibly selected the filename in the background, but Save/reopen
+failed at Go to Folder. Its text insertion used the old assisted setter and does not qualify as
+keyboard-only acceptance.
+
+`tools/type_text/visual.rs` implements host-requested keyboard-only text delivery. It retains exact
+window and focused-input checks, applies the synthesis budget before input, posts one event sequence,
+and leaves effect verification to screenshots. It neither reads text values nor uses AX setters.
+The regular native gate includes modal-context, menu-equivalent and visual-typing regressions.

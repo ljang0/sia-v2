@@ -1,154 +1,72 @@
 # Release status
 
-Updated October 31, 2026. **Distribution is not ready.** Universal alpha.60 passed signing,
-notarization and final-DMG installation verification, but its native TextEdit brief stopped at Save.
-A parent-document diagnostic also failed. Alpha.59 corrected browser clicks worked; Chrome restart
-setup and network-error recovery still failed without an itinerary. Exact-artifact uninterrupted
-workflows remain open. The last published Mac pilot is alpha.24; no new distribution is authorized.
+Updated October 31, 2026. **Distribution is not ready.** The current internal Mac build is
+alpha.76. It is Developer ID signed for arm64, but not notarized or accepted for distribution.
+Universal alpha.60 passed distribution-artifact verification and failed its real native task.
+The last published Mac pilot is alpha.24. Nothing new has been published.
 
-The owner selected **Mac first; iPhone follows**. Research sharing stays off and Codex App Server
-is the initially admitted engine. The [Arena proposal](./arena-proposal.md) describes a bounded
-technical review and invited pilot, without claiming a partnership or validated model ranking.
+The owner selected **Mac first; iPhone follows** and is the pilot support/incident owner.
+The [Arena proposal](./arena-proposal.md) offers a bounded technical review and invited pilot;
+it does not claim a partnership, validated ranking or completed acceptance. Research sharing is off.
 
-## Expanded release goal
+## Release requirements
 
-Owner requirement, October 31: the handoff code must be lean, modular and easy for an external
-reviewer to follow. Maintainability is part of release readiness: remove obsolete execution paths
-at cutover, keep state ownership and dependency direction explicit, and provide a short route from
-model request to authorized input and verified result. The [architecture walkthrough](./architecture.md#reviewing-the-computer-use-path)
-identifies the modules and boundaries. Large declarative catalogs alone are not a reason to add
-abstraction; mixed responsibilities, duplicate implementations and hidden fallback routes are.
+- Vision-only computer use is the default throughout Sia. Models receive screenshots and choose
+  coordinates, literal text and keys. DOM/AX observations, element references, OCR, semantic setters
+  and provider-native UI/shell tools cannot substitute for this route. Host access, protected-surface,
+  window identity, stale-image, cancellation and foreground checks remain enforced.
+- Useful personal work must finish on the signed candidate: real-source research and writing,
+  file/document preparation and planning, with independently verified deliverables. Smoke fixtures,
+  isolated shortcuts and operator-completed steps do not satisfy this requirement.
+- Background work must preserve the person's app and clipboard. Verify two completed simultaneous
+  Sia tasks, contention, cancellation/recovery and latency before claiming concurrent usefulness.
+- The codebase must be lean and reviewable: explicit state owners, narrow module boundaries,
+  obsolete paths removed at cutover, and an accurate [architecture walkthrough](./architecture.md#reviewing-the-computer-use-path).
+  Large declarative catalogs alone do not justify abstraction. Mixed responsibilities, duplicate
+  execution paths and hidden fallbacks do.
+- Mac setup guides the person through required access, including Chrome, and reuses existing grants.
+  macOS and Chrome consent remain the person's decisions. Expired access needs an actionable
+  recovery control, not a raw driver error. No fresh account or second Mac is currently available.
 
-Owner decision, October 31: **vision-only computer use is the default throughout Sia**, not an
-Arena-only option. This is a new implementation and acceptance requirement; alpha.56 still uses
-assisted DOM/accessibility control and does not satisfy it. The model must receive screenshots,
-choose image coordinates and use pointer/keyboard input. No implicit DOM/AX text, element refs,
-OCR or semantic setters may substitute for visual control. Host-side permission, protected-surface,
-window identity, stale-image, cancellation and background-focus checks stay enforced.
+## Implemented boundaries
 
-## Implemented boundaries and current verification
+Browser and native work have separate runtimes, queues, authorization contexts and deadlines.
+Exact-window leases and cancellation checks prevent retired calls from changing a newer turn.
+Execution, permission setup and result decoding have distinct owners; ESLint enforces layer boundaries.
+The unwanted sidebar badge is removed.
 
-The central production visual policy covers native windows, connected browsers and on-screen
-turns. Model-facing schemas provide screenshots, coordinates and keys; provider-native shell/UI
-tools, semantic targets, OCR, launcher UI extraction and native-script skill execution are disabled.
-Voice activation supplies app identity only, and persisted activation context is sanitized. Host
-checks still enforce permissions, protected surfaces, exact window/tab identity, screenshot
-freshness, cancellation and background focus. Explicit file/connector tools remain separate.
-The [architecture walkthrough](./architecture.md#reviewing-the-computer-use-path) explains ownership;
-the [native patch guide](../apps/desktop/native/cua/README.md) covers the pinned driver and regressions.
-Remaining assisted branches are internal test seams to retire after visual cutover acceptance.
+Visual policy is central across the controller, runtime and action backend. Voice activation carries
+app identity only; persisted activation context is sanitized. Explicit file/connector tools remain
+separate. Remaining assisted paths are internal compatibility/test seams to retire after cutover acceptance.
 
-Alpha.59's restricted coordinate regression failed with the original allowlist lookup and passed
-with the correction; a live Visit-menu click confirmed that fix. The artifact record retains the
-prior package, gate and intervention evidence.
+Native capture pairs pixels and metadata from one completed sample, validates fresh owned-sheet
+geometry, and keeps the coordinate proof outside model-visible data. Capture validation has its own
+module and does not import input tools. Coordinate-targeted keys reuse the same preflight and focus
+operation. Native menu shortcuts resolve after field focus under the same process lease; a narrow
+context module validates the exact document and attached sheet again before dispatch.
 
-The fresh signed outing needed Chrome reconnection, then failed after a restaurant network timeout.
-Continue and a diagnostic restart did not restore reading of the settled error page; diagnostics
-identify `Page.getFrameTree`. One setup attempt also failed to dismiss the approved Chrome prompt.
-Ten CUA navigation samples measured median 946.5 ms / worst 1,199 ms; separately typed TextEdit
-notes remained intact. These limited observations do not establish completed concurrent work,
-clipboard preservation or acceptable end-to-end performance. See the
-[artifact record](./public-release.md) for exact hashes, interventions and failures.
+Native visual typing now requires keyboard events through `type_text/visual.rs`, without semantic
+text writes or text-value readback. The previous implicit AX insertion is excluded from vision-only
+acceptance. Failed keyboard transports and temporary probes were removed. A provider-local module
+owns dynamic-tool image forwarding, verified with image-only facts in a real model turn.
 
-Alpha.60 source corrects a native focus mismatch: observation mapped an attached Save sheet to its
-parent document, while keyboard priming still compared the raw sheet ID. The correction requires
-matching window/element ownership and retains raw IDs for restoration. Thirteen key-focus
-regressions pass, including a new sheet case that failed with the old comparison. The full local
-pilot gate passed: 1,950 desktop, 249 native browser, 46 Electron, 40 renderer and 72 phone-browser
-tests, plus build/static/shared checks and 12 exact-target ownership tests. The signed universal
-artifact is installed and verified. Live Save/reopen failed: the new Save panel was AX-unresolved,
-and a recorded parent-document diagnostic returned needs_foreground. The source regression does
-not establish a live fix. Its 444-word brief was preserved by operator CUA, not saved in the
-requested workspace by Sia; all interventions are in the artifact record.
+## Current evidence and open gates
 
-Internal signed alpha.65 corrects a separately reproduced sheet point-lookup miss and visibly
-expands the Save panel. Collapse still fails after the image geometry changes; Save/reopen remains
-unverified. Point resolution has its own bounded native module with six regression cases, separate
-from ownership, focus and dispatch. Failed transport experiments and temporary diagnostics were
-removed instead of becoming compatibility paths. See the [artifact record](./public-release.md).
-
-Alpha.66's read-only capture diagnostic confirmed an 800-point attached sheet overhanging its
-586-point parent; the screenshot API supplied no frame metadata. It also exposed a separate image
-handoff failure. Codex received the PNG content item, but its Code Mode wrapper returned text and
-image URLs as a string that the model did not render. Alpha.67 source adds provider-local forwarding
-instructions and a real-provider image test: the model correctly read four screenshot facts absent
-from the prompt and tool text. Signed internal alpha.67 also passed through a fresh Sia assistant:
-one new screenshot, four correct image-only facts and correct sheet-overhang recognition, with
-zero computer inputs. The full local pilot gate passed. This verifies image handoff, not completed
-native work; expanded-sheet coordinate mapping and Save/reopen remain open.
-
-Read-only internal alpha.69 narrowed the coordinate failure: stream metadata reports
-`content_scale ≈ 0.7325` and backing scale 2, while `screen_rect` still names the parent window.
-Scale alone therefore cannot supply the captured sheet's origin. The next correction must pair
-same-frame pixels/metadata with fresh, proven sheet ownership and bounds, and reject stale geometry.
-The dependency's frame-status decoder returned null despite other metadata being available.
-Temporary probes were removed and signed alpha.67 restored; no input or task acceptance is credited.
-
-Signed internal alpha.70 replaces the size-only coordinate assumption with a shared capture
-geometry module and same-sample stream pixels/metadata. Host and native input compare the captured
-proof, reject padding and changed sheet geometry, and constrain overhanging sheet clicks to the
-owned-sheet press backend. The unproven shell window fallback is removed. The full local pilot gate
-passed: 1,952 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus shared/native and
-build/static checks. A fresh assistant visibly collapsed and re-expanded the real Save sheet using
-two background clicks, each about 1.4 seconds. The requested Save/reopen task then stopped at
-Cmd-Shift-G with `needs_foreground/window_not_key`; its output folder remains empty. This verifies
-the coordinate correction, not completed native work or distribution readiness. QA was quit before
-further source work. The failed alpha.62/.63 keyboard experiments remain excluded.
-
-Signed internal alpha.71 admits coordinate-targeted native keys through the canonical schema and
-existing pixel preflight/focus-then-key path. The full pilot gate passed (1,956 desktop tests and
-the same Electron, renderer and phone-browser counts). A fresh assistant sent Cmd+A at the visible
-filename field; the driver returned `accepted_unverified`, but both subsequent screenshots showed
-no visible selection. Sia stopped without typing or saving. Native Save/reopen remains blocked;
-schema admission and successful dispatch do not establish working keyboard delivery.
-
-Internal alpha.72 tested explicit PID-scoped modifier down/up events around the same shortcut.
-The full pilot gate passed, including 11 native keyboard tests now included in the gate, but the
-signed-app result was unchanged: no visible filename selection and no saved file. That experiment
-was removed. Read-only alpha.73 then confirmed a collapsed selection and the original TextEdit PID
-for the focused field and sheet; there is no evidence for redirecting keys to another process.
-The probe was removed and signed alpha.71 restored. Save/reopen and distribution remain blocked.
-
-Owner requirement, October 30: the app must demonstrate useful personal desktop work, not merely
-pass toy tasks. Calculator, tiny CSVs and fake-service tests are smoke checks, not proof of readiness.
-The release requires real-source research and writing, file/document preparation, and planning
-workflows with independently verified deliverables on the signed candidate. Test both background
-work while the person uses another app and two simultaneous Sia tasks. Measure responsiveness,
-task duration, cancellation and recovery; fix failures before claiming out-of-the-box usefulness.
-
-Default Mac setup must guide the person through the access needed for these workflows, including
-background Chrome access, and verify it before advertising readiness. macOS/Chrome consent still
-belongs to the person. Existing grants should be reused without repeated setup; denied, revoked
-or expired access needs an actionable recovery control rather than a raw driver error. Detailed
-scenarios and evidence requirements are in [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use).
-
-## Evidence and remaining gates
-
-| Area | Verified evidence | Still required |
+| Area | Verified | Still required |
 | --- | --- | --- |
-| Source | Alpha.67 full local pilot gate passed, including six sheet-point regressions; the opt-in real-provider image test also passed. Alpha.60 exact-source CI passed. | Latest candidate exact-source CI and successful exact-artifact real-task repeats. |
-| Signed package | Universal vision-only alpha.60 passed signing, notarization, stapling, Gatekeeper, packaged runtime and mounted-DMG installation checks. | Repeat failed real workflows after recovery fixes. |
-| Useful work | Alpha.57 saved a source-checked three-dinner plan and consolidated groceries after recovery; previews loaded. Alpha.60 typed a real reviewer brief, but Save and the parent-document diagnostic failed. | Unattended browser recovery, native Save/reopen and the sourced outing (alpha.59 stopped on network-error recovery). |
-| Background/concurrency | Alpha.59 delivered browser clicks/scrolls while separate supervisor-typed notes remained intact; ten CUA navigation samples median 946.5 ms / worst 1,199 ms. Earlier assisted-mode Stop/recovery evidence is retained in history. | Two completed Sia tasks, contention, Stop/recovery, focus and clipboard preservation on the final artifact. |
-| Setup/recovery | Alpha.59 resumed the saved request after explicit connection; relaunch still required setup and one prompt-dismissal attempt failed. | Reliable restart/expiry and prompt dismissal; clean-account setup. No fresh account or second Mac is available. |
-| Physical use | Existing grants work on the QA Mac. | Keep-awake, lock/sleep and voice. This Mac refuses Sia and independent caffeinate display-awake assertions. |
-| Cloud | October 30: 18 alarms OK, five Lambdas Active/Successful; anonymous protected requests return 401. Synthetic authenticated rating reached the report. | Recheck changed configuration before invitations. |
-| Ownership | Source rights confirmed; Lawrence Jang owns support/incidents. | Private recipient list and final release decision before invitations. |
-| iPhone | Build 31 Ready to Test internally; tests, signed archive and Apple processing passed. | Deferred from this Mac-first handoff. |
+| Automated verification | Full current local pilot gate passes: 1,958 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. Previous commit CI passed, including unsigned universal packaging. | Run current-commit CI and verify the final distributable. |
+| Native images and coordinates | Alpha.67 delivered image-only facts. Alpha.70 visibly collapsed/re-expanded the real Save sheet with fresh background coordinates. | Capture and safely target transient menus; repeat across useful tasks. |
+| Native shortcuts and typing | Alpha.75 selected the filename through the menu route once. Alpha.76 did not reproduce selection and stopped before typing. | Repeatable keyboard-only input, Save/close/reopen, and complete file contents. |
+| Browser work | Alpha.59 delivered restricted background clicks/scrolls; separate operator-typed notes survived. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
+| Concurrency and performance | Forty alpha.76 focus samples over 40 seconds all identified Sia. Earlier ten CUA navigation samples had median 946.5 ms and worst 1,199 ms. | Two completed Sia tasks, clipboard preservation, end-to-end latency, Stop/recovery. These limited samples are not acceptance. |
+| Physical/fresh install | Existing-profile signed-app checks pass. | Lock/sleep/voice, first-use sign-in/permissions and a fresh account/second Mac. The keep-awake assertion still fails on this host. |
 
-See [exact artifact evidence](./public-release.md) for hashes, timings and retained failures.
-Alpha.51 refuses known new-context link clicks before input, then explains existing-tab navigation
-from observed URLs. It does not disable the focus guard or grant control of another tab.
+Alpha.76's real reviewer-brief task failed at folder navigation without saving, closing or reopening.
+After it ended, operator CUA found an AX folder menu absent from both screenshots and cancelled it.
+A separate bounded selection diagnostic fell back to synthetic keys, showed no selection, and
+stopped before typing. Thus keyboard-only text delivery remains live-unverified. The destination
+folder is empty. A plan-limit banner during alpha.75 did not stop that turn; quota is not its failure.
 
-Default Mac setup includes Chrome with a deliberate opt-out. Choosing a window authorizes its
-explicit connection setup, including Chrome's exact prompt. Task tools cannot approve permission
-dialogs. macOS grants remain person-owned. Expiry, revocation and restart need actionable recovery.
-
-## Release decision
-
-Complete the applicable checks with the exact signed artifact, then record a go/no-go decision
-with the owner. Fake-service and simulator success do not establish live Mac acceptance.
-The iPhone companion, preview engines, public connectors and research enrollment retain separate gates.
-
-See [manual acceptance](./manual-acceptance.md), [artifact evidence](./public-release.md),
-[release operations](./release.md) and the [pilot runbook](./cmu-pilot-runbook.md).
+See [exact artifacts and interventions](./public-release.md), [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use),
+and the [native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,
+distribute or contact Arena until the remaining acceptance work and owner decisions are complete.

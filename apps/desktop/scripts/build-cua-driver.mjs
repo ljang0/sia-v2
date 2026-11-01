@@ -192,7 +192,10 @@ if (testNative) {
     ['platform-macos', 'input::keyboard::tests'],
     ['platform-macos', 'tools::hotkey::tests'],
     ['platform-macos', 'tools::press_key::tests'],
-    ['platform-macos', 'tools::invoke_menu::tests'],
+    ['platform-macos', 'tools::invoke_menu::'],
+    ['platform-macos', 'tools::menu_equivalent::tests'],
+    ['platform-macos', 'tools::type_text::'],
+    ['platform-macos', 'document_edit::tests'],
     ['cua-driver-core', 'browser::'],
   ]) {
     run(

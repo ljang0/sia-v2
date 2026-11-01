@@ -337,3 +337,31 @@ it('does not send a key when its coordinate focus route is refused', async () =>
   expect(['stale', 'refused', 'needs_foreground']).toContain(result.outcome);
   expect(h.inputs).toEqual([]);
 });
+
+it.each([true, false])(
+  'requires keyboard-only native typing when background=%s',
+  async (background) => {
+    const h = await fixture(background);
+    const first = await h.snapshot();
+    const result = await h.act(dataRecord(first.data).snapshot_id, {
+      action: 'type',
+      text: 'reviewer-brief.txt',
+      x: 25,
+      y: 30,
+    });
+    expect(h.inputs).toHaveLength(1);
+    expect(h.inputs[0]).toMatchObject({
+      tool: 'type_text',
+      args: {
+        keyboard_only: true,
+        text: 'reviewer-brief.txt',
+        x: 25,
+        y: 30,
+        delivery_mode: background ? 'background' : 'foreground',
+      },
+    });
+    expect(h.inputs[0]?.args).not.toHaveProperty('element_token');
+    expect(result.outcome).toBe('accepted_unverified');
+    expect(result.images).toHaveLength(1);
+  },
+);

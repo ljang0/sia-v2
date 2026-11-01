@@ -3887,6 +3887,42 @@ index 0000000..338296f
 +        }
 +    }
 +}
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/document_edit.rs b/libs/cua-driver/rust/crates/platform-macos/src/document_edit.rs
+index dd919c7..b302f53 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/document_edit.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/document_edit.rs
+@@ -18,7 +18,8 @@
+ use std::time::Duration;
+ 
+ use crate::ax::bindings::{
+-    copy_element_attr, copy_string_attr, AXUIElementRef, AXUIElementSetAttributeValue,
++    copy_element_attr, copy_string_attr, kAXValueCFRangeType, AXUIElementRef,
++    AXUIElementSetAttributeValue, AXValueCreate,
+ };
+ 
+ /// What the document's edited mark showed after an AX text write.
+@@ -60,12 +61,6 @@ impl DocumentEdited {
+     }
+ }
+ 
+-#[link(name = "ApplicationServices", kind = "framework")]
+-extern "C" {
+-    fn AXValueCreate(the_type: u32, value_ptr: *const std::ffi::c_void) -> *const std::ffi::c_void;
+-}
+-const AX_VALUE_CF_RANGE: u32 = 4;
+-
+ #[repr(C)]
+ struct CfRange {
+     location: isize,
+@@ -221,7 +216,7 @@ unsafe fn caret_to_end_of(element: AXUIElementRef) {
+         location: len as isize,
+         length: 0,
+     };
+-    let value = AXValueCreate(AX_VALUE_CF_RANGE, &range as *const CfRange as *const _);
++    let value = AXValueCreate(kAXValueCFRangeType, &range as *const CfRange as *const _);
+     if !value.is_null() {
+         use core_foundation::{base::TCFType, string::CFString};
+         let attr = CFString::new("AXSelectedTextRange");
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
 index 1b34151..975f4e0 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
@@ -4107,10 +4143,27 @@ index bb28e4b..1c67145 100644
      Some((window_id, point))
  }
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
-index 8503db3..2e2c314 100644
+index 8503db3..280d44b 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
-@@ -330,6 +330,7 @@ fn def() -> &'static ToolDef {
+@@ -148,10 +148,12 @@ fn press_error_may_have_acted(err: crate::ax::bindings::AXError) -> bool {
+     use crate::ax::bindings::{
+         kAXErrorActionUnsupported, kAXErrorAttributeUnsupported, kAXErrorFailure,
+     };
+-    matches!(
+-        err,
+-        kAXErrorFailure | kAXErrorAttributeUnsupported | kAXErrorActionUnsupported
+-    )
++    [
++        kAXErrorFailure,
++        kAXErrorAttributeUnsupported,
++        kAXErrorActionUnsupported,
++    ]
++    .contains(&err)
+ }
+ 
+ /// Whether a toggle's value moving from `before` to `now` is what pressing it
+@@ -330,6 +332,7 @@ fn def() -> &'static ToolDef {
              // cua_driver_core::tool_schema.)
              "required": [],
              "properties": {
@@ -4118,7 +4171,7 @@ index 8503db3..2e2c314 100644
                  "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it." },
                  "pid":           { "type": "integer", "description": "Target process ID. Optional with element_token (it carries the pid)." },
                  "window_id":     { "type": "integer", "description": "Target window ID. Omit with element_token." },
-@@ -762,7 +763,7 @@ impl Tool for ClickTool {
+@@ -762,7 +765,7 @@ impl Tool for ClickTool {
                  None
              };
              let mut selection_pixel = if let Some(screen_center) = selection_center {
@@ -4127,7 +4180,7 @@ index 8503db3..2e2c314 100644
                      .await
                      .ok()
                      .map(|frame| {
-@@ -1049,20 +1050,28 @@ impl Tool for ClickTool {
+@@ -1049,20 +1052,28 @@ impl Tool for ClickTool {
              // win_local_x/y: window-local logical-pixel coords used when the
              // Chromium recipe falls back to public PID posting. Its SkyLight
              // route uses the translated screen coordinates instead.
@@ -4163,7 +4216,7 @@ index 8503db3..2e2c314 100644
                          {
                              return ToolResult::error(format!(
                                  "click: window-local point ({lx:.1}, {ly:.1}) pt lies outside \
-@@ -1164,8 +1173,28 @@ impl Tool for ClickTool {
+@@ -1164,8 +1175,28 @@ impl Tool for ClickTool {
                      && modifiers.is_empty()
              }) {
                  let focus_only = action == "focus";
@@ -4193,7 +4246,7 @@ index 8503db3..2e2c314 100644
                          return Ok::<bool, anyhow::Error>(false);
                      };
                      // The pid-scoped hit-test can resolve an element from a
-@@ -1192,6 +1221,12 @@ impl Tool for ClickTool {
+@@ -1192,6 +1223,12 @@ impl Tool for ClickTool {
                          CFRelease(element as _);
                          return Ok(false);
                      }
@@ -4206,7 +4259,7 @@ index 8503db3..2e2c314 100644
                      let delivered = if focus_only {
                          crate::input::ax_actions::focus_element(element as usize).is_ok()
                      } else {
-@@ -1236,13 +1271,32 @@ impl Tool for ClickTool {
+@@ -1236,13 +1273,32 @@ impl Tool for ClickTool {
                                  "code": "background_unavailable"
                              }));
                      }
@@ -4514,7 +4567,7 @@ index 133dff9..84c52c2 100644
          }
          for prefetched in [Some(Err(anyhow::anyhow!("old error"))), None] {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
-index 2bf28e0..7af7ce1 100644
+index 2bf28e0..a09d2b2 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
 @@ -68,6 +68,7 @@ fn def() -> &'static ToolDef {
@@ -4525,7 +4578,95 @@ index 2bf28e0..7af7ce1 100644
                  "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it. Omit it to use the authenticated transport's implicit lifecycle session." },
                  "pid": { "type": "integer", "description": "Target process ID. Required with x, y; optional with element_token (the token carries the pid)." },
                  "keys": {
-@@ -444,10 +445,7 @@ impl Tool for HotkeyTool {
+@@ -289,68 +290,6 @@ impl Tool for HotkeyTool {
+             return error;
+         }
+ 
+-        // ── Menu key equivalents in a background app ──
+-        // Background key events reach a window's views but never its app's
+-        // menu key equivalents, so a background cmd+s to TextEdit saved
+-        // nothing while reporting "Pressed". When the combo is a menu item's
+-        // key equivalent in a native app that is not in front, run that menu
+-        // item in the background instead (verified for Save), or refuse when
+-        // macOS keeps it disabled. No key events are sent on this route.
+-        let mut key_scope: Option<crate::input::skylight::WindowKeyScope> = None;
+-        if !fg && px.is_none() {
+-            if let (Some(wid), Some(combo)) = (
+-                window_id,
+-                super::menu_equivalent::Combo::parse(&modifiers, &key),
+-            ) {
+-                let menu_item = tokio::task::spawn_blocking(move || {
+-                    let native = !super::type_text::is_browser_pid(pid)
+-                        && !crate::browser::electron_js::ElectronJs::is_electron(pid);
+-                    let in_front = apps::frontmost_pid() == Some(pid);
+-                    if native && !in_front {
+-                        super::menu_equivalent::find(pid, &combo)
+-                    } else {
+-                        None
+-                    }
+-                })
+-                .await
+-                .ok()
+-                .flatten();
+-                if let Some(item) = menu_item {
+-                    // The menu command acts on the app's key window. Make the
+-                    // addressed window key first, confirmed, or refuse: never
+-                    // act on another window (CUA-1767).
+-                    match super::acquire_key_scope(pid, Some(wid), false).await {
+-                        Ok(scope) => key_scope = scope,
+-                        Err(refusal) => return refusal,
+-                    }
+-                    if let Some(ptr) = element_ptr {
+-                        // The menu command acts on the focused element.
+-                        let focused =
+-                            tokio::task::spawn_blocking(move || focus_hotkey_element(pid, ptr))
+-                                .await;
+-                        if !matches!(focused, Ok(Ok(()))) {
+-                            return ToolResult::error(
+-                                "hotkey: the requested element did not take focus, so its menu \
+-                                 command was not run.",
+-                            );
+-                        }
+-                    }
+-                    let menu_result = super::invoke_menu::run_in_background(
+-                        pid,
+-                        wid,
+-                        item.path,
+-                        super::invoke_menu::MenuRequest::KeyEquivalent(key_display.clone()),
+-                    )
+-                    .await;
+-                    // Only unavailable background menus may fall back to keys;
+-                    // target-safety refusals must survive this route unchanged.
+-                    if !menu_allows_key_fallback(&menu_result) {
+-                        return menu_result;
+-                    }
+-                }
+-            }
+-        }
+-
+         // ── Paste must not land in browser chrome ──
+         // A background Cmd+V goes to the window's first responder. In a
+         // browser that can be the omnibox rather than the page field the
+@@ -409,13 +348,11 @@ impl Tool for HotkeyTool {
+             None
+         };
+ 
+-        // Key post: the addressed window must be the confirmed key window.
+-        if key_scope.is_none() {
+-            match super::acquire_key_scope(pid, window_id, fg).await {
+-                Ok(scope) => key_scope = scope,
+-                Err(refusal) => return refusal,
+-            }
+-        }
++        // Hold the exact key window through coordinate focus and dispatch.
++        let key_scope = match super::acquire_key_scope(pid, window_id, fg).await {
++            Ok(scope) => scope,
++            Err(refusal) => return refusal,
++        };
+ 
+         // Web-content AX nodes can acknowledge AXFocused without moving the
+         // renderer's real first responder. That makes a direct focus write an
+@@ -444,10 +381,7 @@ impl Tool for HotkeyTool {
                          guard.as_ptr() as crate::ax::bindings::AXUIElementRef,
                      )?;
                      let frame = super::px_frame::resolve_window_px_frame(wid).ok()?;
@@ -4537,7 +4678,7 @@ index 2bf28e0..7af7ce1 100644
                  })
                  .await
                  .unwrap_or(None)
-@@ -484,6 +482,7 @@ impl Tool for HotkeyTool {
+@@ -484,6 +418,7 @@ impl Tool for HotkeyTool {
                      args.opt_str("_session_id"),
                      from_zoom,
                      _mutation_lease.as_ref(),
@@ -4545,6 +4686,368 @@ index 2bf28e0..7af7ce1 100644
                  )
                  .await
                  {
+@@ -495,6 +430,62 @@ impl Tool for HotkeyTool {
+             }
+         };
+ 
++        // Resolve a native menu equivalent only AFTER the requested coordinate
++        // or element has focus, under the same exact-window mutation lease.
++        // Background key events reach a window's views but never its app's
++        // menu key equivalents, so a background cmd+s to TextEdit saved
++        // nothing while reporting "Pressed". When the combo is a menu item's
++        // key equivalent in a native app that is not in front, run that menu
++        // item in the background instead (verified for Save), or refuse when
++        // macOS keeps it disabled. No key events are sent on this route.
++        if !fg {
++            if let (Some(wid), Some(combo)) = (
++                window_id,
++                super::menu_equivalent::Combo::parse(&modifiers, &key),
++            ) {
++                if let Some(ptr) = element_ptr.filter(|_| !coordinate_focus) {
++                    // The menu command acts on the focused element.
++                    let focused =
++                        tokio::task::spawn_blocking(move || focus_hotkey_element(pid, ptr)).await;
++                    if !matches!(focused, Ok(Ok(()))) {
++                        return ToolResult::error(
++                            "hotkey: the requested element did not take focus, so its menu \
++                             command was not run.",
++                        );
++                    }
++                }
++                let menu_item = tokio::task::spawn_blocking(move || {
++                    let native = !super::type_text::is_browser_pid(pid)
++                        && !crate::browser::electron_js::ElectronJs::is_electron(pid);
++                    let in_front = apps::frontmost_pid() == Some(pid);
++                    if native && !in_front {
++                        super::menu_equivalent::find(pid, &combo)
++                    } else {
++                        None
++                    }
++                })
++                .await
++                .ok()
++                .flatten();
++                if let Some(item) = menu_item {
++                    let menu_result = super::invoke_menu::run_with_lease(
++                        _mutation_lease
++                            .as_ref()
++                            .expect("window-targeted background key holds lease"),
++                        wid,
++                        item.path,
++                        super::invoke_menu::MenuRequest::KeyEquivalent(key_display.clone()),
++                    )
++                    .await;
++                    // Only unavailable background menus may fall back to keys;
++                    // target-safety refusals must survive this route unchanged.
++                    if !menu_allows_key_fallback(&menu_result) {
++                        return menu_result;
++                    }
++                }
++            }
++        }
++
+         let _hold_key_scope = &key_scope;
+ 
+         // A focus click already moved the cursor. Otherwise place a named
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs
+index 841d8d0..4d4ac26 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs
+@@ -1,3 +1,5 @@
++mod context;
++
+ use async_trait::async_trait;
+ use core_foundation::base::{CFRelease, CFTypeRef};
+ use cua_driver_contract::InvokeMenuInput;
+@@ -587,35 +589,15 @@ unsafe fn item_is_save(item: AXUIElementRef) -> bool {
+ const ENABLE_WAIT: Duration = Duration::from_millis(600);
+ const ENABLE_POLL: Duration = Duration::from_millis(40);
+ 
+-/// AppKit resolves document menus against its key/main window, not the ID
+-/// supplied by a caller. Unknown or sibling context must fail before lookup.
+-fn require_menu_window(
+-    requested: u32,
+-    focused: Option<u32>,
+-    main: Option<u32>,
+-) -> Result<(), BackgroundPressError> {
+-    if focused == Some(requested) && main == Some(requested) {
+-        Ok(())
+-    } else {
+-        Err(BackgroundPressError::UnboundWindow {
+-            requested,
+-            focused,
+-            main,
+-        })
+-    }
+-}
+-
+ unsafe fn require_live_menu_window(
+     app: AXUIElementRef,
+     requested: u32,
+-) -> Result<(), BackgroundPressError> {
+-    let read = |name| {
+-        let window = copy_element_attr(app, name)?;
+-        let id = ax_get_window_id(window);
+-        CFRelease(window as CFTypeRef);
+-        id
+-    };
+-    require_menu_window(requested, read("AXFocusedWindow"), read("AXMainWindow"))
++) -> Result<context::MenuContext, BackgroundPressError> {
++    context::read(app, requested).map_err(|(focused, main)| BackgroundPressError::UnboundWindow {
++        requested,
++        focused,
++        main,
++    })
+ }
+ 
+ fn unbound_menu_window(
+@@ -654,10 +636,12 @@ unsafe fn invoke_path_in_background(
+         ));
+     }
+     set_messaging_timeout(app);
+-    if let Err(error) = require_live_menu_window(app, window_id) {
++    let context = require_live_menu_window(app, window_id);
++    if context.is_err() {
+         CFRelease(app as CFTypeRef);
+-        return Err(error);
++        return Err(context.unwrap_err());
+     }
++    let context = context.expect("checked");
+     let menu_bar = copy_element_attr(app, "AXMenuBar");
+     CFRelease(app as CFTypeRef);
+     let menu_bar = menu_bar.ok_or_else(|| {
+@@ -673,7 +657,8 @@ unsafe fn invoke_path_in_background(
+         // Preserve enablement priming for an already-bound document. The
+         // context check above prevents this from switching to a sibling after
+         // resolving that sibling's menu; the check below revalidates dispatch.
+-        if copy_bool_attr(target, "AXEnabled") == Some(false)
++        if !context.is_modal()
++            && copy_bool_attr(target, "AXEnabled") == Some(false)
+             && crate::input::skylight::activate_without_raise_with(pid, window_id, false)
+         {
+             let mut waited = Duration::ZERO;
+@@ -682,13 +667,15 @@ unsafe fn invoke_path_in_background(
+                 waited += ENABLE_POLL;
+             }
+         }
+-        if copy_bool_attr(target, "AXEnabled") == Some(false) {
++        if copy_bool_attr(target, "AXEnabled") != Some(true) {
+             return Err(BackgroundPressError::Disabled {
+                 message: format!(
+                     "invoke_menu: path segment {} is disabled while the app is in the background",
+                     path.len().saturating_sub(1)
+                 ),
+-                is_save,
++                // A modal panel owns command validation. Never script a Save
++                // on its parent to evade that panel's disabled command.
++                is_save: is_save && !context.is_modal(),
+             });
+         }
+         let actions = copy_action_names(target);
+@@ -708,14 +695,26 @@ unsafe fn invoke_path_in_background(
+         set_messaging_timeout(app);
+         let bound = require_live_menu_window(app, window_id);
+         CFRelease(app as CFTypeRef);
+-        bound?;
++        if bound? != context {
++            return Err(BackgroundPressError::Other(
++                "invoke_menu: menu context changed before dispatch; no action sent".into(),
++            ));
++        }
++        // Recheck enablement after context RPCs, immediately before dispatch.
++        if copy_bool_attr(target, "AXEnabled") != Some(true) {
++            return Err(BackgroundPressError::Other(
++                "invoke_menu: menu item is no longer enabled; no action sent".into(),
++            ));
++        }
+         let error = perform_action(target, action);
+         if error != kAXErrorSuccess {
+             return Err(BackgroundPressError::Other(format!(
+                 "invoke_menu: native action for the final menu item failed with AX error {error}"
+             )));
+         }
+-        Ok(PressedItem { is_save })
++        Ok(PressedItem {
++            is_save: is_save && !context.is_modal(),
++        })
+     })();
+     CFRelease(target as CFTypeRef);
+     result
+@@ -776,7 +775,18 @@ pub(super) async fn run_in_background(
+     path: Vec<String>,
+     request: MenuRequest,
+ ) -> ToolResult {
+-    let _mutation = super::acquire_background_mutation(pid).await;
++    let mutation = super::acquire_background_mutation(pid).await;
++    run_with_lease(&mutation, window_id, path, request).await
++}
++
++/// Reuse the hotkey's lease after pixel focus; never recursively lock its PID.
++pub(super) async fn run_with_lease(
++    mutation: &super::BackgroundMutationLease,
++    window_id: u32,
++    path: Vec<String>,
++    request: MenuRequest,
++) -> ToolResult {
++    let pid = mutation.pid;
+     let document = tokio::task::spawn_blocking(move || document_path_of_window(pid, window_id))
+         .await
+         .ok()
+@@ -1029,25 +1039,6 @@ impl Tool for InvokeMenuTool {
+ mod tests {
+     use super::*;
+ 
+-    #[test]
+-    fn background_menu_requires_both_exact_document_contexts() {
+-        assert!(require_menu_window(7, Some(7), Some(7)).is_ok());
+-        for (focused, main) in [
+-            (Some(8), Some(8)),
+-            (Some(7), Some(8)),
+-            (Some(8), Some(7)),
+-            (None, Some(7)),
+-            (Some(7), None),
+-            (None, None),
+-        ] {
+-            assert!(matches!(
+-                require_menu_window(7, focused, main),
+-                Err(BackgroundPressError::UnboundWindow { requested: 7, focused: f, main: m })
+-                    if f == focused && m == main
+-            ));
+-        }
+-    }
+-
+     #[test]
+     fn unbound_menu_refuses_before_dispatch_with_the_exact_target() {
+         let result = unbound_menu_window(42, 7, Some(8), None);
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu/context.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu/context.rs
+new file mode 100644
+index 0000000..db8531b
+--- /dev/null
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu/context.rs
+@@ -0,0 +1,123 @@
++//! AppKit menu commands belong to the current document or its attached sheet.
++//! Keep raw modal identity as well as ownership: replacing/dismissing a sheet
++//! during lookup must invalidate the command even when its parent is unchanged.
++
++use crate::ax::{
++    bindings::{ax_get_window_id, copy_element_attr, copy_string_attr, AXUIElementRef},
++    exact_target::owning_window_id,
++};
++use core_foundation::base::{CFRelease, CFTypeRef};
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++struct Window {
++    raw: u32,
++    owner: u32,
++    sheet: bool,
++}
++
++#[derive(Clone, Copy, Debug, PartialEq, Eq)]
++pub(super) struct MenuContext {
++    focused: Window,
++    main: Window,
++}
++
++impl MenuContext {
++    pub(super) fn is_modal(self) -> bool {
++        self.focused.sheet
++    }
++
++    fn bind(requested: u32, focused: Option<Window>, main: Option<Window>) -> Option<Self> {
++        let (focused, main) = (focused?, main?);
++        // Main must still be this exact document. Shared process identity alone
++        // is insufficient. Only a freshly owned AXSheet may differ in raw ID.
++        (main.raw == requested
++            && main.owner == requested
++            && !main.sheet
++            && focused.owner == requested
++            && (focused.raw == requested || focused.sheet))
++            .then_some(Self { focused, main })
++    }
++}
++
++unsafe fn window(app: AXUIElementRef, name: &str) -> Option<Window> {
++    let element = copy_element_attr(app, name)?;
++    let result = (|| {
++        let role = copy_string_attr(element, "AXRole")?;
++        if role != "AXWindow" && role != "AXSheet" {
++            return None;
++        }
++        Some(Window {
++            raw: ax_get_window_id(element)?,
++            owner: owning_window_id(element)?,
++            sheet: role == "AXSheet",
++        })
++    })();
++    CFRelease(element as CFTypeRef);
++    result
++}
++
++pub(super) unsafe fn read(
++    app: AXUIElementRef,
++    requested: u32,
++) -> Result<MenuContext, (Option<u32>, Option<u32>)> {
++    let focused = window(app, "AXFocusedWindow");
++    let main = window(app, "AXMainWindow");
++    MenuContext::bind(requested, focused, main).ok_or((focused.map(|w| w.raw), main.map(|w| w.raw)))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    fn document(id: u32) -> Window {
++        Window {
++            raw: id,
++            owner: id,
++            sheet: false,
++        }
++    }
++    fn sheet(raw: u32, owner: u32) -> Window {
++        Window {
++            raw,
++            owner,
++            sheet: true,
++        }
++    }
++
++    #[test]
++    fn accepts_exact_document_and_its_attached_sheet() {
++        let doc = document(7);
++        assert!(!MenuContext::bind(7, Some(doc), Some(doc))
++            .unwrap()
++            .is_modal());
++        assert!(MenuContext::bind(7, Some(sheet(9, 7)), Some(doc))
++            .unwrap()
++            .is_modal());
++    }
++
++    #[test]
++    fn rejects_siblings_unowned_sheets_and_unknown_context() {
++        let doc = Some(document(7));
++        for (focused, main) in [
++            (Some(document(8)), doc),
++            (doc, Some(document(8))),
++            (Some(sheet(9, 8)), doc),
++            (Some(sheet(9, 9)), doc),
++            (Some(document(9)), doc),
++            (doc, Some(sheet(9, 7))),
++            (None, doc),
++            (doc, None),
++            (None, None),
++        ] {
++            assert!(MenuContext::bind(7, focused, main).is_none());
++        }
++    }
++
++    #[test]
++    fn modal_replacement_or_dismissal_changes_dispatch_context() {
++        let doc = Some(document(7));
++        let before = MenuContext::bind(7, Some(sheet(9, 7)), doc).unwrap();
++        assert_ne!(Some(before), MenuContext::bind(7, Some(sheet(10, 7)), doc));
++        assert_ne!(Some(before), MenuContext::bind(7, doc, doc));
++        assert_eq!(Some(before), MenuContext::bind(7, Some(sheet(9, 7)), doc));
++    }
++}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs
 index 7b0efb0..4606db8 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs
@@ -4982,18 +5485,44 @@ index aa7a814..f4c462c 100644
                          screen_x: sx,
                          screen_y: sy,
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs
-index acbc73b..ad93ad0 100644
+index acbc73b..483f98f 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs
-@@ -64,6 +64,7 @@ fn def() -> &'static ToolDef {
+@@ -21,6 +21,8 @@
+ //! Use `type_text_chars` when you explicitly need per-character pacing
+ //! (e.g., to trigger live-search debounce handlers).
+ 
++mod visual;
++
+ use async_trait::async_trait;
+ use cua_driver_contract::TypeTextInput;
+ use cua_driver_core::{
+@@ -64,6 +66,8 @@ fn def() -> &'static ToolDef {
              "type": "object",
              "required": ["text"],
              "properties": {
++                "keyboard_only": { "type":"boolean", "description":"Host-owned visual-input policy: keyboard events only, no semantic text writes or value readback." },
 +                "capture_geometry": { "type":"object", "description":"Host-owned geometry from the exact screenshot; stale geometry refuses input." },
                  "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it." },
                  "pid":  { "type": "integer", "description": "Target process ID." },
                  "text": { "type": "string",  "description": "Text to insert." },
-@@ -259,6 +260,7 @@ impl Tool for TypeTextTool {
+@@ -209,6 +213,15 @@ impl Tool for TypeTextTool {
+             );
+         }
+ 
++        let keyboard_only = args
++            .get("keyboard_only")
++            .and_then(Value::as_bool)
++            .unwrap_or(false);
++        if keyboard_only && (element_index.is_some() || window_id.is_none()) {
++            return ToolResult::error(
++                "Visual typing requires an exact window and no semantic element target.",
++            );
++        }
+         let element_guard = element_guard.zip(element_index);
+ 
+         // ── Exact-target background gate (macOS background input v1) ──
+@@ -259,6 +272,7 @@ impl Tool for TypeTextTool {
                  args.opt_str("_session_id"),
                  from_zoom,
                  _mutation_lease.as_ref(),
@@ -5001,3 +5530,216 @@ index acbc73b..ad93ad0 100644
              )
              .await
              {
+@@ -363,7 +377,11 @@ impl Tool for TypeTextTool {
+         let result = focus_guard::with_focus_suppressed(
+             Some(pid),
+             prior_front,
+-            "type_text.AXSelectedText",
++            if keyboard_only {
++                "type_text.keyboard"
++            } else {
++                "type_text.AXSelectedText"
++            },
+             || async move {
+                 tokio::task::spawn_blocking(move || {
+                     let _native_guard = native_guard;
+@@ -375,6 +393,7 @@ impl Tool for TypeTextTool {
+                         is_terminal_target,
+                         KeyboardRoute {
+                             delivery_mode,
++                            keyboard_only,
+                             window_id,
+                             keyboard_policy: blocking_policy,
+                             explicit_target: element_ptr.is_some() || used_pixel_focus,
+@@ -1302,6 +1321,7 @@ fn await_typed_delivery(
+ /// How `type_text_blocking` may deliver: the requested mode, the addressed
+ /// window, and the background keyboard policy decided for it.
+ struct KeyboardRoute {
++    keyboard_only: bool,
+     delivery_mode: super::DeliveryMode,
+     window_id: Option<u32>,
+     keyboard_policy: BackgroundKeyboardPolicy,
+@@ -1374,7 +1394,11 @@ fn type_text_in_key_window(
+     is_terminal_target: bool,
+     route: KeyboardRoute,
+ ) -> anyhow::Result<TypeTextDelivery> {
++    if route.keyboard_only {
++        return visual::type_text(pid, text, delay_ms, &route);
++    }
+     let KeyboardRoute {
++        keyboard_only: _,
+         delivery_mode,
+         window_id,
+         keyboard_policy,
+@@ -1915,6 +1939,7 @@ mod tests {
+             0,
+             /*is_terminal_target=*/ true,
+             KeyboardRoute {
++                keyboard_only: false,
+                 delivery_mode: super::super::DeliveryMode::Background,
+                 window_id: Some(7),
+                 keyboard_policy: BackgroundKeyboardPolicy::SemanticOnly(refusal.clone()),
+@@ -1939,6 +1964,7 @@ mod tests {
+             0,
+             /*is_terminal_target=*/ false,
+             KeyboardRoute {
++                keyboard_only: false,
+                 delivery_mode: super::super::DeliveryMode::Background,
+                 window_id: Some(7),
+                 keyboard_policy: BackgroundKeyboardPolicy::Allowed,
+@@ -1983,6 +2009,7 @@ mod tests {
+             0,
+             /*is_terminal_target=*/ true,
+             KeyboardRoute {
++                keyboard_only: false,
+                 delivery_mode: super::super::DeliveryMode::Background,
+                 window_id: None,
+                 keyboard_policy: BackgroundKeyboardPolicy::Allowed,
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text/visual.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text/visual.rs
+new file mode 100644
+index 0000000..0747d0e
+--- /dev/null
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text/visual.rs
+@@ -0,0 +1,142 @@
++//! Keyboard-only native text delivery for vision sessions.
++//! AX may prove focus/ownership, but this module never reads or sets text values.
++//! Exactly one event sequence is posted; screenshots establish the effect.
++
++use super::{
++    AxAttempt, BackgroundKeyboardPolicy, KeyboardRoute, TextDeliveryRoute, TypeTextDelivery,
++    TypeTextOutcome, PATH_KEY_EVENTS, PATH_KEY_EVENTS_FG,
++};
++use crate::ax::{
++    bindings::{copy_string_attr, AXUIElementRef},
++    exact_target::focused_element_in_window,
++};
++use core_foundation::base::CFRelease;
++
++fn preflight(
++    text: &str,
++    delay_ms: u64,
++    route: &KeyboardRoute,
++    physical: bool,
++) -> Option<TypeTextDelivery> {
++    if let BackgroundKeyboardPolicy::SemanticOnly(refusal) = &route.keyboard_policy {
++        return Some(TypeTextDelivery::Refused(refusal.clone()));
++    }
++    super::synthesis_preflight(
++        if physical {
++            TextDeliveryRoute::PhysicalSynthesis
++        } else {
++            TextDeliveryRoute::UnicodeSynthesis
++        },
++        text.chars().count(),
++        delay_ms,
++    )
++    .map(|refusal| TypeTextDelivery::SynthesisRefused {
++        path: if route.delivery_mode.is_foreground() {
++            PATH_KEY_EVENTS_FG
++        } else {
++            PATH_KEY_EVENTS
++        },
++        refusal,
++        ax_attempt: AxAttempt::NotAttempted,
++    })
++}
++
++unsafe fn accepts_text(pid: i32, element: AXUIElementRef) -> bool {
++    // Role/selection existence is a host safety check, never a text observation.
++    if copy_string_attr(element, "AXRole").as_deref() == Some("AXSecureTextField") {
++        return false;
++    }
++    super::focused_accepts_text(element) || super::focused_is_editor_surface(pid, element)
++}
++
++pub(super) fn type_text(
++    pid: i32,
++    text: &str,
++    delay_ms: u64,
++    route: &KeyboardRoute,
++) -> anyhow::Result<TypeTextDelivery> {
++    let physical = crate::input::keyboard::is_screen_sharing_pid(pid);
++    if let Some(refusal) = preflight(text, delay_ms, route, physical) {
++        return Ok(refusal);
++    }
++    let window = route
++        .window_id
++        .ok_or_else(|| anyhow::anyhow!("visual typing needs an exact window"))?;
++    let allowed = unsafe {
++        match focused_element_in_window(pid, window) {
++            Some(element) => {
++                let allowed = accepts_text(pid, element);
++                CFRelease(element as _);
++                allowed
++            }
++            None => false,
++        }
++    };
++    if !allowed {
++        return Ok(TypeTextDelivery::Refused(
++            super::no_focused_text_input_refusal(false),
++        ));
++    }
++    let foreground = route.delivery_mode.is_foreground();
++    if foreground {
++        crate::input::skylight::with_foreground_hid_activation(pid, window, || {
++            if physical {
++                crate::input::keyboard::type_text_physical_global(text, delay_ms)
++            } else {
++                crate::input::keyboard::type_text_global(text, delay_ms)
++            }
++        })?;
++    } else {
++        crate::input::keyboard::type_text_with_delay(pid, text, delay_ms)?;
++    }
++    Ok(TypeTextDelivery::Typed(TypeTextOutcome {
++        detail: " via keyboard events; verify from the fresh screenshot".into(),
++        path: if foreground {
++            PATH_KEY_EVENTS_FG
++        } else {
++            PATH_KEY_EVENTS
++        },
++        verified: false,
++        delivered_chars: None,
++    }))
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use cua_driver_core::background_input::BackgroundRefusal;
++    fn route() -> KeyboardRoute {
++        KeyboardRoute {
++            keyboard_only: true,
++            delivery_mode: super::super::super::DeliveryMode::Background,
++            window_id: Some(7),
++            keyboard_policy: BackgroundKeyboardPolicy::Allowed,
++            explicit_target: false,
++            key_window_confirmed: true,
++        }
++    }
++    #[test]
++    fn refuses_semantic_only_authority_before_any_keyboard_or_ax_access() {
++        let refusal = BackgroundRefusal {
++            code: "test_ambiguous",
++            reason: "another window".into(),
++            advice: None,
++        };
++        let mut route = route();
++        route.keyboard_policy = BackgroundKeyboardPolicy::SemanticOnly(refusal.clone());
++        assert!(
++            matches!(preflight("hello", 30, &route, false), Some(TypeTextDelivery::Refused(actual)) if actual == refusal)
++        );
++    }
++    #[test]
++    fn oversized_visual_text_has_no_atomic_ax_escape_hatch() {
++        assert!(matches!(
++            preflight(&"x".repeat(100_000), 30, &route(), false),
++            Some(TypeTextDelivery::SynthesisRefused {
++                ax_attempt: AxAttempt::NotAttempted,
++                ..
++            })
++        ));
++        assert!(preflight("ordinary filename.txt", 30, &route(), false).is_none());
++    }
++}

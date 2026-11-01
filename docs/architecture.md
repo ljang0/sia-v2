@@ -66,7 +66,14 @@ Native coordinate-targeted keys reuse `computer-input.ts`'s pixel preflight and 
 existing focus-then-key operation. They require both pointer and keyboard availability, compare
 the private capture geometry again before input, and return a fresh image for effect verification.
 The canonical gateway schema owns valid argument combinations; `visual-tools.ts` only projects
-that contract. There is no separate Save-dialog action or shortcut fallback.
+that contract. Native menu shortcuts resolve only after field focus and reuse the same process
+mutation lease. The modal-context module binds both the main document and its exact attached sheet,
+then revalidates their identities and command enablement immediately before dispatch.
+
+Vision-mode native typing sets a host-owned `keyboard_only` policy. `type_text/visual.rs` owns the
+single keyboard delivery path and never reads or sets text values. AX is used only for focus and
+ownership checks; the model verifies the effect from the new screenshot. Legacy assisted typing
+remains separate and cannot become an implicit fallback for a visual action.
 
 [`codex-tool-results.ts`](../packages/runtime/src/providers/codex-tool-results.ts) owns the
 provider response encoding and image-forwarding instructions. Codex Code Mode returns dynamic-tool

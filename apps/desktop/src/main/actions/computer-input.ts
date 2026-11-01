@@ -436,7 +436,12 @@ export class ComputerInput {
         tool = 'type_text';
         // Keep focus and insertion in the same driver operation. A separate
         // foreground click restores the previous app before typing begins.
-        input = { ...base, text, ...(pixel ? { x: args.x, y: args.y } : {}) };
+        input = {
+          ...base,
+          text,
+          ...(this.ctx.options.visionOnly ? { keyboard_only: true } : {}),
+          ...(pixel ? { x: args.x, y: args.y } : {}),
+        };
         break;
       }
       case 'set': {

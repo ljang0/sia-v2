@@ -53,11 +53,12 @@ independently; count operator rescue and failed attempts rather than accepting c
 
 ## Current evidence and remaining work
 
-Signed universal alpha.60 passed signing, notarization, installation verification and the full
-local pilot gate. It typed a real 444-word reviewer brief, but Save and a parent-document recovery
-diagnostic failed. Alpha.59 background browser clicks worked; Chrome setup and restaurant
-network-error recovery still prevented an outing plan. A prior visual meal plan produced checked
-files after operator recovery. These are failure records, not unattended acceptance passes.
+Earlier artifacts passed signing, notarization and installation checks. Real-work acceptance remains
+incomplete: native document Save/reopen and browser restart/network-error recovery still fail.
+Some earlier text insertion used an accessibility setter and is excluded from strict visual
+acceptance; current source requires keyboard-only native typing. Isolated screenshot, coordinate
+and shortcut successes do not establish an unattended workflow. Operator-assisted results are
+recorded separately and cannot count as completed Sia tasks.
 
 Exact-artifact workflow repeats, concurrency, Stop/recovery, clipboard, restart/expiry and physical
 acceptance remain open. A fresh Mac account is currently unavailable. Background new tabs and
