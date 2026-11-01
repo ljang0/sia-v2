@@ -1,11 +1,23 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.106 is the latest
+Updated November 1, 2026. **Distribution is not ready.** Signed arm64 alpha.107 is the latest
 installed internal build, now stopped. Its clean source passed the full local pilot gate, and signing
 and packaged-runtime verification passed. The real file-copy workflow remains incomplete.
 Nothing new was published; the last published Mac pilot is alpha.24.
 
-## Current capture diagnostic
+## Resolved Finder observation regression
+
+Signed alpha.107 was packaged from `aeb75f49f6e930329401e695eea5f1a9f6ecb60b` with no source diff.
+Its installed ASAR SHA-256 is `52f81dca22dc958de6add8058f37670b8ca1f38b34266ccbccf2b3a687cadcda`.
+Signing and packaged-runtime verification passed; private evidence is in `alpha107-finder-file-labels`.
+The read-only signed repeat captured both Finder Applications windows and TextEdit Untitled 8.
+Independent inspection of the returned image confirmed the Applications listing including 1Password.
+No target input, clipboard operation or foreground fallback occurred in this turn. An unrelated
+memory-vault call lacked a note selection; that failure is retained in the trace. The original
+checklist hash remains unchanged. QA was quit after verification. This resolves the observation
+regression, not the incomplete copy/reopen workflow.
+
+## Prior capture diagnostic
 
 Signed arm64 alpha.106 was packaged from `adcbcc5e3f73b7717464c36c71386c98ad08474f` with no source diff.
 Installed ASAR SHA-256 is `78bd6b04688c605a458f15ac5b0d2bc332c2fee9c80c840691734467ef8e3e2b`.
@@ -18,7 +30,7 @@ Finder’s Applications listing found 1Password and Passwords filename fields. S
 these can trigger the authentication-label heuristic; the image is withheld and mislabeled as a
 capture failure. Alpha.107 source distinguishes an openable Finder filename from a credential field
 and returns an explicit protected-window result for genuine protection. Its full local pilot passed: 1,996 desktop (22 skipped), 46 Electron (5 skipped), 40 renderer
-and 72 browser tests, plus native/shared/build/static checks. An exact signed repeat is pending. The original copy workflow remains incomplete.
+and 72 browser tests, plus native/shared/build/static checks. The signed capture repeat above passed. The original copy workflow remains incomplete.
 
 ## Latest real document attempt
 

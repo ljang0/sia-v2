@@ -1,14 +1,12 @@
 # Release status
 
 Updated November 1, 2026. **Distribution is not ready.** The installed internal Mac build is
-alpha.106, stopped after a read-only capture diagnostic. Its source passed the full local pilot
-gate; Developer ID signing and packaged-runtime verification passed for arm64. It is not notarized
-or accepted for distribution. The requested local copy and reopen were not completed. Alpha.106
-source preserves bounded capture-failure diagnostics on the native error path and passed the full
-local pilot gate: 1,983 desktop, 46 Electron, 40 renderer and 72 browser tests. Alpha.107 source
-distinguishes Finder file labels from credential controls and reports protected-window refusals
-accurately. Its full pilot gate passed: 1,996 desktop, 46 Electron, 40 renderer and 72 browser
-tests. Exact signed verification is pending.
+alpha.107, stopped after signed capture verification. Developer ID signing and packaged-runtime
+verification passed for arm64; it is not notarized or accepted for distribution. Its full local
+pilot gate passed: 1,996 desktop, 46 Electron, 40 renderer and 72 browser tests. The signed repeat
+captured both Finder Applications windows and the TextEdit document. Finder filenames such as
+1Password no longer masquerade as credential controls; genuine protection remains enforced and
+reports an explicit protected-window result. The local copy and Save/reopen remain incomplete.
 Universal alpha.60 passed distribution-artifact verification and failed its real native task.
 The last published Mac pilot is alpha.24. Nothing new has been published.
 
@@ -62,7 +60,7 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 
 | Area | Verified | Still required |
 | --- | --- | --- |
-| Automated verification | The alpha.105 source pilot gate passed: 1,981 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
+| Automated verification | The alpha.107 source pilot gate passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
 | Native images and coordinates | Alpha.85 saved and closed the real 444-word brief. Alpha.97 captured the title popover. Later diagnostics isolated an unproven shared-service destination menu; it remains refused. | Repeat unassisted menu opening/selection and complete useful tasks. |
 | Native shortcuts and typing | Alpha.95 completed a 1,469-character checklist in 64.690 seconds without a host timeout. Alpha.96 stopped at 485 characters and resumed to the full checklist without duplication. | Repeatable dialog filename input and Save/close/reopen with complete file contents. |
 | Browser work | Alpha.59 delivered restricted background clicks/scrolls; separate operator-typed notes survived. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
@@ -109,7 +107,8 @@ distribute or contact Arena until the remaining acceptance work and owner decisi
 
 Alpha.106 reproduced the Applications-only refusal, with no native capture-failure diagnostic.
 Independent operator inspection found 1Password and Passwords file labels. The host classifier can
-withhold that image as protected content yet report a missing screenshot. The proposed correction
+withhold that image as protected content yet report a missing screenshot. The correction
 requires Finder identity, an AXTextField whose label duplicates its filename value, and AXOpen;
-structural credential markers, titles and separate controls remain protected. This needs signed
-verification before treating the live refusal as resolved.
+structural credential markers, titles and separate controls remain protected. The signed alpha.107 repeat captured both Applications windows and the TextEdit document,
+confirming this specific refusal is resolved. The turn contained no target input; it does not
+establish completion of the copy workflow.
