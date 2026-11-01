@@ -710,6 +710,46 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
     expect(h.call.mock.calls.filter(([name]) => name === 'browser_navigate')).toHaveLength(1);
   });
 
+  it.each(['delayed observation', 'redirect'])(
+    'can observe a chosen start tab after navigation with %s without replaying it',
+    async (scenario) => {
+      const h = harness();
+      h.state.prepared = true;
+      const target = await h.target();
+      const selection = await h.backend.invoke(h.request('computer_snapshot', target));
+      const { tab_id } = (selection.data as { tabs: { tab_id: string }[] }).tabs[0]!;
+      if (scenario === 'delayed observation')
+        h.state.afterNavigateError = 'CUA refused: browser_tab_not_found';
+      else h.state.captureUrl = 'https://visitors.example/museum';
+      const opened = await h.backend.invoke(
+        h.request('computer_open_url', {
+          ...target,
+          tab_id,
+          url: 'https://museum.example/visit/',
+        }),
+      );
+      expect(opened.outcome).toBe('accepted_unverified');
+      expect(opened.data).not.toHaveProperty('snapshot_id');
+      expect(opened.data).not.toHaveProperty('visible_text');
+      h.state.observationError = '';
+      const observed = await h.backend.invoke(
+        h.request('computer_snapshot', { ...target, tab_id }),
+      );
+      expect(observed.outcome).toBe('verified');
+      expect(observed.data).toMatchObject({
+        tab_id,
+        source_url:
+          scenario === 'redirect'
+            ? 'https://visitors.example/museum'
+            : 'https://museum.example/visit/',
+      });
+      expect(h.call.mock.calls.filter(([name]) => name === 'browser_navigate')).toHaveLength(1);
+      expect(
+        h.call.mock.calls.filter(([name, args]) => name === 'get_browser_state' && args.pid),
+      ).toHaveLength(1);
+    },
+  );
+
   it('keeps tab choices stable instead of rebinding and minting new driver ids', async () => {
     const h = harness();
     h.state.prepared = true;

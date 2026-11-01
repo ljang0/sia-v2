@@ -1,19 +1,23 @@
 # Release status
 
-Updated November 1, 2026. **Distribution is not ready.** Signed internal alpha.111 closed and
-reopened the preserved checklist copy. The reopen activated TextEdit and paused further input,
-so background focus preservation failed. Rename and relocation remain incomplete. Both files
-retain their matching hashes; QA is stopped. All local pilot stages passed: 1,996 desktop,
-46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks.
+Updated November 1, 2026. **Distribution is not ready.** Signed internal alpha.112 reopened the
+preserved checklist copy through both Command+O and double-click without a reported focus
+interruption. Independent image review confirmed the complete contents, and both file hashes
+remain unchanged. These were controlled regressions with recovery guidance, not unassisted acceptance.
 
-The alpha.110 crash fix passed its signed regression. Alpha.111 adds the existing cross-app
-observer to menu-equivalent dispatch and corrects crash-recovery retry wording. Its signed run
-used double-click, leaving the new menu route unverified while reproducing cross-app focus loss.
-Alpha.112 source retains early-detection focus leases through their existing deadline and shares
-exact-window activation rollback. Its full local `pnpm test:pilot` run passed with the same
-counts above; signed verification is pending.
-See the [exact artifact and intervention record](./public-release.md). The last published Mac
-pilot remains alpha.24. Nothing new has been published.
+The full alpha.112 local pilot command passed: 1,996 desktop, 46 Electron, 40 renderer and
+72 phone-browser tests, plus native/shared/build/static checks. The real handoff still stopped
+at TextEdit’s Name field: keyboard input did not visibly change it. Rename and relocation remain open.
+A fresh planning task overlapped native work, but Chrome needed inline reconnection and then
+stalled after navigation. Neither task completed its requested deliverable; concurrency has not passed.
+
+Alpha.113 source fixes a stale browser start-page classification after accepted navigation;
+regressions for delayed observation and redirects failed before the fix and pass afterward.
+All local pilot stages passed: 1,998 desktop, 46 Electron, 40 renderer and 72 phone-browser
+tests, plus native/shared/build/static checks. The phone suite passed on a complete repeat after
+one ENOSPC fixture-creation failure. Signed verification is pending; QA is stopped. See the
+[exact artifact and intervention record](./public-release.md). The last published Mac pilot remains
+alpha.24. Nothing new has been published.
 
 The owner selected **Mac first; iPhone follows** and is the pilot support/incident owner.
 The [Arena proposal](./arena-proposal.md) offers a bounded technical review and invited pilot;
@@ -65,10 +69,10 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 
 | Area | Verified | Still required |
 | --- | --- | --- |
-| Automated verification | All alpha.111 local pilot stages passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
-| Native images and coordinates | Alpha.107 resolved Finder filename observation. Alpha.110 created a verified duplicate; alpha.111 closed and reopened it. | Complete rename and relocation; preserve foreground when opening another app. |
+| Automated verification | The full alpha.112 local pilot command passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
+| Native images and coordinates | Alpha.107 resolved Finder filename observation. Alpha.110 created a verified duplicate; alpha.112 reopened it with both Command+O and double-click without a reported focus interruption. | Complete rename and relocation; independently sample continuous foreground preservation. |
 | Native shortcuts and typing | Alpha.95 completed a 1,469-character checklist in 64.690 seconds without a host timeout. Alpha.96 stopped at 485 characters and resumed to the full checklist without duplication. | Repeatable dialog filename input and Save/close/reopen with complete file contents. |
-| Browser work | Alpha.59 delivered restricted background clicks/scrolls; separate operator-typed notes survived. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
+| Browser work | Alpha.112 inline Chrome reconnection resumed a fresh planning task; navigation then hit stale start-page metadata. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
 | Concurrency and performance | Alpha.95 composer CUA round trips during typing: median 649.5 ms, worst 1,205 ms (10 samples). Alpha.96 Stop UI round trip: 1,233 ms, followed by stable partial text and successful recovery. | Two completed Sia tasks, clipboard/focus preservation, end-to-end latency and broader Stop/recovery. These limited samples are not performance acceptance. |
 | Physical/fresh install | Existing-profile signed-app checks pass. | Lock/sleep/voice, first-use sign-in/permissions and a fresh account/second Mac. The keep-awake assertion still fails on this host, including with macOS’s own `caffeinate` utility. |
 

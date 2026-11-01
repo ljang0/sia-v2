@@ -1,72 +1,70 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.111
-closed and reopened the preserved checklist copy, but opening it activated TextEdit. Background
-focus preservation failed; rename and relocation remain incomplete. QA is stopped.
+Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.112
+reopened the preserved checklist copy through two input routes without a reported focus interruption.
+The handoff still fails at rename; a fresh browser planning task also remains incomplete. QA is stopped.
 Nothing new was published; the last published Mac pilot is alpha.24.
 
 ## Current signed candidate
 
-| Identity                   | Value                                                                                                                        |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| Version                    | `0.1.0-alpha.111`                                                                                                            |
-| Source                     | `e2e58b79636dd5c19ac3813985a153bdc5164a8c`, no source diff                                                                   |
-| Installed ASAR SHA-256     | `271534bfe67ba3b65c22bda458dbdb9f8ae9cede3494f853a752c3e74fba022f`                                                           |
-| Private evidence directory | `alpha111-cross-app-menu`                                                                                                    |
-| Package                    | Developer ID signed arm64; packaged-runtime verification passed; not notarized                                               |
-| Local pilot gate           | 1,996 desktop (22 skipped), 46 Electron (5 skipped), 40 renderer, 72 phone-browser; native/shared/build/static checks passed |
+| Identity                   | Value                                                                                                                                                       |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Version                    | `0.1.0-alpha.112`                                                                                                                                           |
+| Source                     | `eed169b03fd57e7a031a03cb8504c9de70c0ebc8`, no source diff                                                                                                  |
+| Installed ASAR SHA-256     | `37c1a2d9a095f5e3c7aa767f698850433bf4c3dacdf57cd104ad8a2f5e668d13`                                                                                          |
+| Private evidence directory | `alpha112-cross-app-rollback`                                                                                                                               |
+| Package                    | Developer ID signed arm64; packaged-runtime verification passed; not notarized                                                                              |
+| Local pilot gate           | Full `pnpm test:pilot` passed: 1,996 desktop (22 skipped), 46 Electron (5 skipped), 40 renderer, 72 phone-browser; native/shared/build/static checks passed |
 
-The private directory retains the package/install receipts, logs, exact per-turn trajectory,
-screenshots, original/copy hashes and result. CI is a separate gate; local results do not establish
+The private directory retains package/install receipts, logs, per-turn trajectories, screenshots,
+original/copy hashes and the reopen result. CI is a separate gate; local results do not establish
 that the latest remote commit passed.
 
-## Signed workflow result
+## Signed workflow results
 
-1. Alpha.110 had created **Untitled 8 copy.rtf** in the TextEdit iCloud Documents folder.
-   Alpha.111 captured that copy, scrolled through it, and closed only its window. A refreshed
-   inventory confirmed the window was absent.
-2. The model double-clicked the selected copy in Finder. The call returned
-   `background_focus_changed` and paused without replaying the click.
-3. A separate read-only follow-up found TextEdit active and the copy reopened. Independent
-   inspection of that screenshot showed the checklist heading through its final release-decision
-   sentence. This verifies close/reopen of the existing copy, but fails foreground preservation.
+1. The first controlled reopen attempt closed only **Untitled 8 copy**, then clicked its already-selected
+   filename in Finder. This entered filename editing; the agent stopped at an ambiguous keyboard route.
+2. An explicit recovery prompt directed the agent to use visible pointer controls to exit that state
+   and select the icon. Command+O reopened the copy without a reported focus interruption.
+3. A separate prompt directed another close/reopen using an icon double-click. It also reopened the copy
+   without a reported focus interruption. Independent inspection of both result images confirmed the
+   checklist heading through its final release-decision sentence. The target appeared inactive.
+4. Continuing the actual handoff opened TextEdit’s document controls, but keyboard typing did not
+   visibly change the selected Name field. The agent stopped without committing or repeating the rename.
+5. A fresh practical planning task requested a November 7 CMU/museum/lunch itinerary for two under $100.
+   It overlapped the native turn, then encountered `browser_consent_required` and `browser_wrong_target_refused`.
+   The operator clicked the inline **Connect Chrome & continue** control. Reconnection resumed the saved
+   request, but accepted navigation was followed by repeated stale start-page tab choices. No plan was saved.
 
-The model chose double-click, so this run did **not** exercise the new menu-equivalent observer.
-No operator target input or focus rescue occurred. The controlled prompt and read-only follow-up
-are recorded; this is not unassisted acceptance. Clipboard and uninterrupted foreground preservation
-were not independently sampled. QA was quit through CUA after verification.
+No operator input was sent to Finder or TextEdit. The recovery prompts and Chrome connection click
+are interventions; these results are not unassisted acceptance. Two completed simultaneous tasks,
+continuous foreground preservation and clipboard preservation were not established. QA was quit
+through CUA before source repair and automated testing.
 
-The original and copy remain at 1,874 bytes, with identical SHA-256:
+The original and copy remain at 1,874 bytes with identical SHA-256:
 `bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`.
-The requested `Sia-Arena-handoff-checklist-alpha111.rtf` does not exist. Preserve both existing
+The requested `Sia-Arena-handoff-checklist-alpha112.rtf` does not exist. Preserve both existing
 files; do not duplicate again or overwrite either. Rename and relocation are still required.
-The earlier alpha.110 receipts and trajectory remain in `alpha110-main-thread-rollback`.
+Earlier evidence remains in `alpha110-main-thread-rollback` and `alpha111-cross-app-menu`.
 
-## Current correction
+## Current corrections
 
-Alpha.110 fixed self-process AXRaise on a Rust worker thread by sharing the existing bounded
-AppKit main-queue dispatcher with focus rollback. Alpha.109’s signed crash report identified
-that call and the assertion “Must only be used from the main thread.” The signed repeat above
-passed that crash regression; it does not establish completion of the file task.
+Alpha.110 moved self-process AppKit focus rollback onto the existing bounded main-queue dispatcher,
+fixing the signed alpha.109 crash. Alpha.111 armed the existing window observer for menu equivalents
+and corrected unsafe crash-retry wording. Alpha.112 retained early-detection focus leases through
+the existing deadline and shared exact-window rollback. The early-change regression failed on the
+prior implementation; the full pilot command and the two signed reopen paths above passed.
+The initial build rejected a differently formatted patch; canonical Git diff regeneration fixed it.
 
-Alpha.111 source also gives menu-equivalent dispatch the existing bounded window-change observer.
-That route previously returned before the observer was armed, leaving cross-app opens unguarded.
-The targeted guard remains for the source app. Crash recovery now asks the person to check the
-last action, instead of claiming retry is safe. All local pilot stages passed with the counts
-above. The first Electron run caught an outdated recovery-message assertion; after correcting
-it, the complete Electron, renderer and phone stages passed. The signed run above used double-click
-and reproduced cross-app focus loss; the menu-route repeat remains open.
-
-Source inspection also found that the window observer releases its focus lease immediately when
-a change arrives during the initial polling period, while its detached observation path retains
-the lease until the deadline. Its activation callback separately requests cooperative AppKit
-activation rather than the exact-window restoration used by the key-focus guard. Alpha.112 source retains the lease for the original deadline even after an early change, avoids
-reporting that change twice, and delegates restoration to the existing exact-window rollback.
-The early-change regression failed on the prior implementation. Alpha.112 passed the full local
-`pnpm test:pilot` command: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests,
-plus native/shared/build/static checks. The initial build rejected a differently formatted patch;
-regenerating it with the canonical Git diff options resolved that mismatch. Signed verification
-is pending; this is not yet a verified correction of the live focus failure.
+The planning failure exposed cached `navigationOnly` metadata surviving accepted navigation when
+its first observation was delayed or redirected. Subsequent screenshots returned the old chooser
+without attempting a fresh page read. Alpha.113 clears that classification after accepted navigation,
+retains the exact tab/session binding and requires the normal live-URL/screenshot checks before input.
+Both regressions fail on prior source and pass with the fix. All local alpha.113 pilot stages passed:
+1,998 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static
+checks. The full command reached the last stage but one phone fixture failed to create its temporary
+directory with ENOSPC. After storage recovery, the complete phone suite passed without source changes.
+Signed verification is pending; this does not yet establish a completed browser workflow.
 
 ## Other retained evidence
 

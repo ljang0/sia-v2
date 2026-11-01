@@ -585,6 +585,10 @@ export class MacBrowserControl {
       return stale('The browser connection changed during navigation. Do not replay it.');
     const outcome = actionResult(raw, 'Background browser navigation was accepted.');
     if (terminalWithoutVerification(outcome)) return outcome;
+    // Navigation invalidates the old start-page classification even if the first
+    // capture is delayed or redirects. Allow a fresh read of this same pinned tab;
+    // BrowserActions still checks its live URL and grants input only after capture.
+    tab.navigationOnly = false;
     this.#client(window).context.browser.bindings.set(tab.nativeId, {
       targetId: tab.targetId,
       tabId: tab.nativeId,
