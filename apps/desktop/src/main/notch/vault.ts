@@ -74,7 +74,9 @@ export class NotchVault {
   }
   #path(name: string): string {
     if (!validName.test(name))
-      throw new Error('Choose a note or skill inside this agent’s vault.');
+      throw new Error(
+        'Use an exact filename from the vault index, such as lessons.md; note titles are not filenames.',
+      );
     return join(this.ensure(), name);
   }
   read(name: string, maximumBytes = 8_000_000): VaultNote {

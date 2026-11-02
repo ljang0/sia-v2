@@ -1,4 +1,5 @@
 import type { CuaDriverLike } from '@trycua/cua-driver';
+import type { DriverResult } from './cua-results.js';
 
 // The browser attachment is a host connection, not a single model turn. An
 // implicit native session expires after five idle minutes even though the host
@@ -6,6 +7,32 @@ import type { CuaDriverLike } from '@trycua/cua-driver';
 // polling pages, reviving expired authority or switching permission mode.
 export const BROWSER_SESSION_IDLE_SECONDS = 900n;
 export const BROWSER_SESSION_SECONDS = 28_800n;
+
+export function trustedBrowserLeaseEnded(result: DriverResult): boolean {
+  if (['authorization_expired', 'authorization_revoked'].includes(result.errorCode ?? ''))
+    return true;
+  if (result.errorCode !== 'permission_denied') return false;
+  // The pinned SDK reports trusted-context expiry through permission_denied.
+  // Match only its exact refusal envelope, never arbitrary native/page text.
+  try {
+    const value = JSON.parse(result.structuredJson ?? result.rawJson) as {
+      status?: unknown;
+      refusal?: { code?: unknown; message?: unknown };
+    } | null;
+    return (
+      value?.status === 'refused' &&
+      value.refusal?.code === 'permission_denied' &&
+      typeof value.refusal.message === 'string' &&
+      [
+        'Permission denied: authorization context expired',
+        'Permission denied: authorization context idle timeout exceeded',
+        'Permission denied: authorization context has been revoked',
+      ].includes(value.refusal.message)
+    );
+  } catch {
+    return false;
+  }
+}
 
 export async function browserSessionDriver(native: CuaDriverLike) {
   const cua = await import('@trycua/cua-driver');
@@ -37,10 +64,9 @@ export async function browserSessionDriver(native: CuaDriverLike) {
       const target =
         connection && connection.label === args.session ? connection.driver : native;
       const result = await target.callTool(name, argumentsJson, options);
-      // The supported host lease reports its own expiry/revocation codes. Feed
-      // the existing connection recovery path; never silently mint a new lease.
-      return target !== native &&
-        ['authorization_expired', 'authorization_revoked'].includes(result.errorCode ?? '')
+      // Feed proved lease expiry into connection recovery. Do not reinterpret
+      // ordinary permission failures, retry the call or mint a new lease.
+      return target !== native && trustedBrowserLeaseEnded(result)
         ? { ...result, errorCode: 'session_ended' }
         : result;
     },
