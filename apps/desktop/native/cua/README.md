@@ -102,6 +102,8 @@ at that point, prunes clipped scroll content outside that point, rejects ambiguo
 or incomplete scans, and rechecks ownership and geometry before returning a retained element.
 `tools/click.rs` owns dispatch under the exact-window mutation lease. No labels or semantic targets
 reach the model. Regressions cover exact-root ownership, point bounds, clipping, ambiguity, unreadable trees, limits and cycles.
+Vision-only clicks set the host-owned `pointer_only` flag. It requires an exact window and screenshot coordinates, rejects semantic targets and actions before target resolution, and skips the AXPress delivery shortcut. The legacy assisted route retains that shortcut. Host ownership, protection, capture geometry and focus validation still run.
+
 Background keyboard input requires verified focus in the exact requested window.
 `tools/pixel_focus.rs` owns focus and readback; both share the click screenshot transform in
 `tools/px_frame.rs`, including session-specific scale and zoom. Unscaled readback incorrectly

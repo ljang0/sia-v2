@@ -24,7 +24,7 @@ Vision-only computer use is the default. The model observes screenshots and choo
 
 ElevenLabs voice is included through Sia's authenticated AWS service. The shared API key stays server-side. In **Settings → Voice**, choose **Enable voice**, select an agent for **Hold Fn to talk to Sia**, and grant microphone access when macOS asks. Hold until the screen edges glow, speak, then release to send; Escape cancels. If voice is already enabled, **Manage voices → Refresh voices** refreshes its choices.
 
-The November 2 credential outage was repaired server-side; this DMG does not need reinstalling. Authenticated speech generation and batch/realtime transcription pass with synthetic audio. Physical Fn/microphone acceptance remains open.
+The November 2 credential outage was repaired server-side; this DMG does not need reinstalling. Authenticated speech generation and batch/realtime transcription pass with synthetic audio. The installed app also refreshed its voice catalog and entered Speaking during a CUA playback check. Physical Fn/microphone acceptance remains open.
 
 ## Known limitations
 

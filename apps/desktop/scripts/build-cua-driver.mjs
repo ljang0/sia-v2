@@ -189,6 +189,7 @@ if (testNative) {
     ['platform-macos', 'tools::px_frame::'],
     ['platform-macos', 'tools::pixel_focus::'],
     ['platform-macos', 'tools::pixel_route::'],
+    ['platform-macos', 'tools::click::'],
     ['platform-macos', 'input::mouse::tests'],
     ['platform-macos', 'tools::get_window_state::tests'],
     ['platform-macos', 'input::skylight::key_prime_tests'],

@@ -504,3 +504,40 @@ it.each([true, false])(
     expect(result.images).toHaveLength(1);
   },
 );
+
+it.each([true, false])(
+  'requires pointer-only native clicks when background=%s',
+  async (background) => {
+    const h = await fixture(background);
+    for (const [button, count] of [
+      ['left', 1],
+      ['left', 2],
+      ['right', 1],
+    ] as const) {
+      const first = await h.snapshot();
+      const before = h.inputs.length;
+      const result = await h.act(dataRecord(first.data).snapshot_id, {
+        action: 'click',
+        button,
+        count,
+        x: 25,
+        y: 30,
+      });
+      expect(h.inputs.slice(before)).toEqual([
+        {
+          tool: 'click',
+          args: expect.objectContaining({
+            pointer_only: true,
+            button,
+            count,
+            x: 25,
+            y: 30,
+            delivery_mode: background ? 'background' : 'foreground',
+          }),
+        },
+      ]);
+      expect(h.inputs.at(-1)?.args).not.toHaveProperty('element_token');
+      expect(result.outcome).toBe('accepted_unverified');
+    }
+  },
+);

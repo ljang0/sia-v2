@@ -382,6 +382,7 @@ export class ComputerInput {
               delivery_mode: base.delivery_mode,
               x: args.x,
               y: args.y,
+              ...(this.ctx.options.visionOnly ? { pointer_only: true } : {}),
             }
           : base;
         if (tool === 'click') {
