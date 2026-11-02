@@ -1,25 +1,45 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.115
-completed the museum/lunch itinerary after Chrome reconnection and a content correction. The saved
-result reopens correctly. Native handoff still fails at rename; concurrency acceptance remains open.
+Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.116
+completed a native capture diagnostic but still fails the document handoff. Alpha.115 completed
+two useful planning outputs with setup and review interventions. Concurrency acceptance remains open.
 Nothing new was published; the last published Mac pilot is alpha.24.
 
 ## Current signed candidate
 
 | Identity                   | Value                                                                                                                          |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Version                    | `0.1.0-alpha.115`                                                                                                              |
-| Source                     | `c5e3509e2de9180f868bcde2c888e21c07cb0b60`, no source diff                                                                     |
-| Installed ASAR SHA-256     | `4ca15b2c5199e8dfb28ad759fdf26413467e46970a88a0bf3dfe899bea03e62e`                                                             |
-| Private evidence directory | `alpha115-scrolled-browser-point`                                                                                              |
+| Version                    | `0.1.0-alpha.116`                                                                                                              |
+| Source                     | `3d9c65db0d8aca2c5fecd0a020e3edf95dea3ce8`, no source diff                                                                     |
+| Installed ASAR SHA-256     | `28142d0f14e125cb0596222b68c944f38aaf3b9d0770dcf07360eadfd5b582bf`                                                             |
+| Private evidence directory | `alpha116-capture-diagnostics`                                                                                                 |
 | Package                    | Developer ID signed arm64; packaged-runtime verification passed; not notarized                                                 |
-| Local pilot gate           | Full pilot command passed: 2,000 desktop, 46 Electron, 48 renderer, 72 phone-browser; native/shared/build/static checks passed |
+| Local pilot gate           | Full pilot command passed: 2,003 desktop, 46 Electron, 48 renderer, 72 phone-browser; native/shared/build/static checks passed |
 
 The private directory retains package/install receipts, logs, per-turn trajectories, screenshots,
-startup observations and planning result. Alpha.112 reopen evidence and original/copy hashes remain
+native observations and result. Planning outputs remain in `alpha115-scrolled-browser-point`. Alpha.112 reopen evidence and original/copy hashes remain
 in `alpha112-cross-app-rollback`. CI is a separate gate; local results do not establish
 that the latest remote commit passed.
+
+## Signed alpha.116 native diagnosis
+
+Alpha.116 changes only bounded capture diagnostics. Turn `ffb0593b-5e6d-48e0-b5ac-11b52a468545`
+obtained a fresh checklist screenshot with `on_current_space=true` and `is_on_screen=true`.
+The previous post-unlock alpha.115 check had both flags false and refused capture. The cause of
+the intervening Space change is unknown; this is not proof of a capture correction.
+
+Resumed handoff turn `3fe00913-a5ee-46d7-9e6c-dd483baa4084` stopped before typing because selecting
+an already-selected name produced no visible change. Operator guidance clarified that case.
+Turn `6151c09a-9d42-4c55-a38e-c016561c7039` then issued one literal filename replacement;
+the accepted event left the visible Name field unchanged.
+
+A separate pointer-focus comparison, turn `6750c7e1-5722-4da3-854e-d12f7c21e9a5`, clicked the
+visible Name field. The screenshot instead showed the popover dismissed and a caret at the
+start of the document. Sia stopped before Command+A or typing. Independent screenshot review
+confirmed that result; both original/copy files remain at 1,874 bytes with the recorded hash.
+Rename, move and reopen remain incomplete. Focus/clipboard preservation was not independently
+measured. Prompts, trajectories, screenshots and checks are retained in the private evidence
+folder. QA was quit through CUA before further code work.
 
 ## Signed alpha.112 workflow results
 
