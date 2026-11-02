@@ -1,8 +1,8 @@
 # Release status
 
-Updated November 2, 2026. **A notarized alpha.119 DMG is available for the requested RA evaluation. Broad distribution and Arena acceptance remain open.**
+Updated November 2, 2026. **A notarized alpha.120 DMG is available for the requested RA evaluation. Broad distribution and Arena acceptance remain open.**
 
-The universal Mac artifact at source `2dfcf45ac78e1f6798891ca91a458c5786dd728c` passed Developer ID signing, Apple notarization, stapling, Gatekeeper and packaged-runtime checks. Its contents were installed directly from the mounted DMG into the isolated QA app. Exact identities and test receipts are in the [distribution acceptance record](./public-release.md). Alpha.119 also passes the full local pilot gate. Its native handoff stopped at Finder’s Go to Folder dialog because neither the sheet nor parent had a verified background input route. Both source documents remained unchanged.
+The universal Mac artifact at source `9c6b8d8588d0b8768608cbdb332e5883066e5383` passed Developer ID signing, Apple notarization, stapling, Gatekeeper and packaged-runtime checks. Its contents were installed directly from the mounted DMG into the isolated QA app. Exact identities and test receipts are in the [distribution acceptance record](./public-release.md). Alpha.120 includes exact top-level sheet recognition, the memory-review scheduling correction and accurate request-limit guidance. The full local pilot rerun passed; the first bare-launch failure remains recorded below. Live rename/move/reopen is still open: after manual unlock, external CUA inputs stopped taking effect before a new model task was submitted. This is not a live pass for the sheet correction.
 
 Cloud recording is selected by default in first-run setup. The notice discloses prompts, provider-reported usage, actions/results and screenshots; Continue saves the choice. Existing opt-outs and pauses remain respected. Ordinary AWS users can upload through the existing encrypted outbox and private archive. The control-function deployment completed without resource replacement. The installed app showed the default-selected notice and then **Recording** in Privacy.
 
@@ -75,7 +75,7 @@ operator-guided continuation as an unassisted workflow pass. The reviewer brief 
 private evidence are also preserved; exact identities and limitations are in the artifact record.
 
 See [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use) and the
-[native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. The owner requested a local RA evaluation DMG; alpha.119 is prepared for that limited handoff with the known limitations disclosed. Do not publish, send invitations or contact Arena without authorization. Broad distribution still requires the remaining acceptance work.
+[native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. The owner requested a local RA evaluation DMG; alpha.120 is prepared for that limited handoff with the known limitations disclosed. Do not publish, send invitations or contact Arena without authorization. Broad distribution still requires the remaining acceptance work.
 
 ## Alpha.119 candidate
 
@@ -91,9 +91,9 @@ The owner’s physical Fn attempt surfaced a personal-key error from a competing
 
 The owner subsequently confirmed “mic now works” and requested the latest DMG. Alpha.119’s checksum, Gatekeeper assessment and stapled notarization ticket were revalidated for that handoff. This is owner-reported microphone acceptance; no new independent spoken-command result or concurrency pass is claimed.
 
-## Follow-up source changes after alpha.119
+## Alpha.120 candidate
 
-Alpha.120 is being prepared for internal verification. Finder's visible Go to Folder dialog is
+Alpha.120 is signed, notarized and installed from the exact DMG for internal verification. Finder's visible Go to Folder dialog is
 a top-level `AXSheet`; the driver previously matched only `AXWindow`, rejecting an exactly
 identified sheet as unresolved. Window scoping now accepts the exact sheet and excludes sibling
 surfaces. Bounded application-child discovery supplements `AXWindows` only for the requested
@@ -101,8 +101,7 @@ ID and process. Visibility and focus requirements remain unchanged. A native reg
 before the correction; 82 AX tests pass afterward. The pilot gate now explicitly includes
 window-scope, bindings and core background-input tests. The full pilot rerun passed: 2,022 desktop,
 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus native/shared/build/static
-checks. Signing and live app acceptance remain pending; this does not establish rename/move/reopen
-or concurrent-task acceptance. The first
+checks. Signing, notarization, Gatekeeper and installation checks passed. Live app acceptance remains pending; this does not establish rename/move/reopen or concurrent-task acceptance. Remote CI run 355 was still in progress at this update. The first
 pilot run stopped in the separate real Electron bare-launch fixture (exit 1, no stderr). Its
 isolated and full-gate reruns passed; the cause remains undiagnosed. Both logs are preserved.
 
@@ -115,6 +114,6 @@ Both controller routes reproduced the defect before the fix. All 35 focused vaul
 tests pass, including restart, concurrent task edits, explicit requests and linked-marker checks.
 The full `pnpm test:pilot` passed: 2,022 desktop, 46 Electron, 48 renderer, 72 phone-browser
 and 223 cloud tests, plus native/shared/build/static checks. Private evidence is retained in
-`memory-review-source-checks/pilot-gate.log`. This source correction is not in the alpha.119 DMG.
+`memory-review-source-checks/pilot-gate.log`. This correction is included in alpha.120; no live six-hour review cycle is claimed.
 
-A generic HTTP 429 was incorrectly translated into an exhausted-plan message with the saved subscription reset time. Error formatting now distinguishes request-rate failures from explicit usage/quota failures. Bare 429 and rate-limit messages advise waiting and retrying without claiming a plan reset; explicit usage/quota errors retain their guidance, and original errors remain under Details. Five focused checks reproduced the old behavior; all 17 focused tests pass after the correction. The full `pnpm test:pilot` passed: 2,013 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus native/shared/build/static checks. Private evidence is retained in `rate-limit-source-checks/pilot-gate.log`. This change is not in the handed-off alpha.119 DMG.
+A generic HTTP 429 was incorrectly translated into an exhausted-plan message with the saved subscription reset time. Error formatting now distinguishes request-rate failures from explicit usage/quota failures. Bare 429 and rate-limit messages advise waiting and retrying without claiming a plan reset; explicit usage/quota errors retain their guidance, and original errors remain under Details. Five focused checks reproduced the old behavior; all 17 focused tests pass after the correction. The full `pnpm test:pilot` passed: 2,013 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus native/shared/build/static checks. Private evidence is retained in `rate-limit-source-checks/pilot-gate.log`. This change is included in alpha.120.

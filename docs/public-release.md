@@ -2,23 +2,29 @@
 
 ## Current RA evaluation artifact
 
-Alpha.119 is the current signed and notarized evaluation DMG. It adds strict pointer-event delivery for vision-only native clicks. It is not accepted for broad distribution or completed Arena evaluation. Nothing has been publicly published or sent to a recipient by this work.
+Alpha.120 is the current signed and notarized evaluation DMG. It includes exact top-level sheet recognition, the memory-review scheduling correction and accurate request-limit guidance, alongside pointer-only visual input. It is not accepted for broad distribution or completed Arena evaluation. Nothing has been publicly published or sent to a recipient by this work.
 
 | Identity                   | Value                                                              |
 | -------------------------- | ------------------------------------------------------------------ |
-| Version                    | `0.1.0-alpha.119`                                                  |
-| Source                     | `2dfcf45ac78e1f6798891ca91a458c5786dd728c`, clean at packaging     |
-| Universal DMG SHA-256      | `9d52730c534016df3c53869f50e673c64af1ff71677954263c695bd7d44656d7` |
-| Universal ZIP SHA-256      | `da8d31d9f1cb421763670106fe23d7b15e3e05a9295f7b05dc8b55c7fd5e2936` |
-| Installed ASAR SHA-256     | `b6975bec3bccfaa4b6242e54c7a60b54bcab7b4ce8bd637952136e033c5f0c48` |
-| Private evidence directory | `alpha119-pointer-only` under Sia Release Verification             |
-| Packaging / installation   | November 2, 2026, 15:06:19 / 15:08:26 UTC                          |
+| Version                    | `0.1.0-alpha.120`                                                  |
+| Source                     | `9c6b8d8588d0b8768608cbdb332e5883066e5383`, clean at packaging     |
+| Universal DMG SHA-256      | `499d264712cdab6b13e343a08423be2d24e4f9c1e24db14cef4a6ba40dcd74de` |
+| Universal ZIP SHA-256      | `3d48a02c36b9fe4fa0ffa34083c6d61f532ac223b1f65d3dc0bc94f3e2b664c1` |
+| Installed ASAR SHA-256     | `918e9daa0470269c217306d2c22041609a5f987c741eef6f7bd1aa84fa964469` |
+| Private evidence directory | `alpha120-sheet-scope` under Sia Release Verification              |
+| Packaging / installation   | November 2, 2026, 16:41:15 / 16:42:39 UTC                          |
 
-Developer ID signing, notarization, stapling, Gatekeeper and packaged-runtime checks passed. The app was installed from the read-only mounted DMG with ASAR comparison and signature verification. Apple silicon received live testing; Intel received static verification. The full local pilot gate passed: 2,009 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus native/shared/build/static checks. Remote CI run 350 passed for this exact source, including pilot gates and unsigned universal package verification. Earlier intermittent test failures remain recorded in [release status](./release-status.md#alpha119-candidate).
+Developer ID signing, Apple notarization, stapling, Gatekeeper and packaged-runtime checks passed. The app was installed from the read-only mounted DMG with ASAR comparison and signature verification. Live runtime verification was on Apple silicon; Intel received static verification. The DMG contains live AWS configuration without fake services, the QA profile or private credentials. Later documentation commits do not change its source identity.
 
-The fresh native handoff (`898c747f-4a3e-4697-89ec-d40264ed17a1`) stopped after 57.659 seconds. Finder’s Go to Folder sheet opened, but both it and the parent reported `ax_unresolved`; rename/move/reopen did not complete. Both original RTF hashes below remained unchanged. A five-day meal-plan task reached Chrome connection recovery and then paused on Mac sleep without saving an output. The native recovery attempt subsequently failed with HTTP 429; alpha.119 labeled it as a subscription limit, but the raw error does not establish exhausted plan quota. No successful concurrency is claimed.
+The full local pilot rerun passed: 2,022 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus native/shared/build/static checks. A native exact-sheet regression failed before the correction; all 82 AX tests pass afterward. The first pilot run failed in the separate real Electron bare-launch fixture with exit 1 and no stderr. Its isolated rerun and full-gate rerun passed; the cause remains undiagnosed and both results are retained. Remote CI run 355 for the exact packaged source was still in progress at this record's update.
 
-CUA started microphone dictation, observed **Listening**, stopped it and received **No speech was detected**. No deliberate spoken command was supplied. The physical Fn shortcut remains unverified because CUA cannot send that key. Stale external CUA screenshots/input required the window’s exposed Raise action; this intervention is not evidence of Sia background reliability. Receipts: `package.json`, `install.json`, `pilot-gate.log`, `live-acceptance.json`, extracted trajectories, `voice-listening-cua.png` and `voice-no-speech-cua.png`.
+Live native rename/move/reopen is still unverified on alpha.120. CUA initially observed Loading Sia, then Ready after reconnecting its app handle; this is not a measured application startup delay. CUA subsequently reported a locked Mac. After the owner confirmed unlock, search input partly applied and then pointer/keyboard actions stopped taking effect; Dock inspection also timed out. No new model task was submitted. The attempted search duplicated its text, so the operator stopped input to avoid duplicate task submission. Both source RTF files remained unchanged at the pre-task baseline. This operator-control failure does not establish success or failure of the new sheet route.
+
+On alpha.119, native turn `898c747f-4a3e-4697-89ec-d40264ed17a1` stopped after 57.659 seconds at Finder's Go to Folder sheet with `ax_unresolved`; no rename/move occurred. The subsequent recovery returned a generic HTTP 429, which did not prove exhausted subscription quota. Alpha.120 addresses the corresponding scope and error-label defects, but requires a successful live retry. No successful two-task concurrency is claimed.
+
+Voice and cloud transport evidence below remains from alpha.118/119. Alpha.119 CUA microphone dictation reached Listening and stopped with no speech detected. After the competing development Fn shortcut was disabled, the owner confirmed “mic now works.” Physical Fn and a complete deliberately spoken command have not been independently verified by CUA. Alpha.120 retains the managed AWS ElevenLabs route; no shared key is bundled.
+
+Private receipts: `package.json`, `install.json`, `source-checks.json`, `pilot-first-failed.log`, `launch-focused.log`, `pilot-gate.log`, `sheet-scope-before.log`, `sheet-ax-after.log`, `native-handoff-baseline.json` and `live-acceptance.json`.
 
 ## Alpha.118 recording and voice baseline
 
