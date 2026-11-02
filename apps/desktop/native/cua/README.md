@@ -224,8 +224,9 @@ The captured content rectangle and scale must match the union of the parent and 
 sheet. Before/after surface checks reject movement, resize, sheet replacement and missing ownership.
 Padding is excluded from input, and the host retains the geometry proof outside model-visible data.
 `tools/px_frame.rs` validates that proof again for input and centralizes coordinate conversion.
-Only an unmodified left click can use the existing bounded owned-sheet press backend beyond the
-parent; synthetic input, drag, scroll and cursor movement remain bounded to the parent.
+The legacy assisted route can use a bounded owned-sheet accessibility press beyond the parent.
+Vision-only clicks exclude that route: pointer delivery outside the parent requires the separate
+owned-popup proof. Other out-of-parent input is refused.
 The shell window fallback was removed: image dimensions do not prove its content transform.
 The backing-store fallback remains for parent-only windows and refuses known attached sheets.
 Signed internal alpha.70 visibly collapsed and re-expanded the Save sheet with fresh-image

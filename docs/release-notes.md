@@ -1,6 +1,8 @@
-# Sia 0.1.0-alpha.118
+# Sia 0.1.0-alpha.119
 
-RA evaluation candidate for macOS 14+, Apple silicon and Intel. The universal DMG passed Developer ID signing, notarization, stapling and Gatekeeper, and was installed directly from the DMG. Exact evidence is tracked in [release status](./release-status.md). This is an alpha, not a claim that every desktop workflow is reliable.
+Candidate for macOS 14+, Apple silicon and Intel. Packaging and exact-app acceptance are pending; the prior alpha.118 DMG remains available. Exact evidence is tracked in [release status](./release-status.md). This is an alpha, not a claim that every desktop workflow is reliable.
+
+Vision-only native clicks now require pointer-event delivery. They cannot use the driver's accessibility press shortcut, even when the requested target is a screenshot coordinate. Window ownership, protected-field and stale-image checks remain enforced. Live save/rename/reopen acceptance is still required for this correction.
 
 ## Cloud recording
 

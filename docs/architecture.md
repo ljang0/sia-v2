@@ -97,6 +97,10 @@ single keyboard delivery path and never reads or sets text values. AX is used on
 ownership checks; the model verifies the effect from the new screenshot. Legacy assisted typing
 remains separate and cannot become an implicit fallback for a visual action.
 
+Native visual clicks likewise set `pointer_only`. The driver requires an exact window and image
+coordinates, rejects semantic targets/actions before resolution, and skips accessibility press
+delivery. Host-side ownership, protected-surface and capture-geometry checks still apply.
+
 [`codex-tool-results.ts`](../packages/runtime/src/providers/codex-tool-results.ts) owns the
 provider response encoding and image-forwarding instructions. Codex Code Mode returns dynamic-tool
 text and image data URLs as newline-separated strings. The model must forward image lines to
