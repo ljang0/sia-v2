@@ -24,6 +24,8 @@ Ordinary signed-in user accounts can now upload through the existing encrypted o
 
 Vision-only computer use is the default. The model observes screenshots and chooses coordinates and keys. Background work is the default; **On my screen** is an explicit alternative.
 
+If Chrome setup cannot distinguish your window from another, resize the intended Chrome window to a different size and choose it again. Duplicate pages in another window's background tabs can also cause ambiguity. This recovery path still needs a successful live check.
+
 ## Voice
 
 ElevenLabs voice is included through Sia's authenticated AWS service. The shared API key stays server-side. In **Settings → Voice**, choose **Enable voice**, select an agent for **Hold Fn to talk to Sia**, and grant microphone access when macOS asks. Hold until the screen edges glow, speak, then release to send; Escape cancels. If voice is already enabled, **Manage voices → Refresh voices** refreshes its choices.
@@ -34,7 +36,7 @@ The November 2 credential outage was repaired server-side. Authenticated speech 
 
 - Two useful planning tasks completed on alpha.115 with setup and review interventions. Alpha.118 also saved/read/reopened a prep checklist derived from the dinner plan. Two completed simultaneous tasks have not been verified.
 - Native document Name popovers previously misdirected input. Alpha.119 stopped at Finder’s Go to Folder dialog because background input could not resolve the exact window; the original and copy stayed unchanged. Alpha.120 reached TextEdit through Finder’s parent window, but filename input did not complete reliably. Later operator inspection found unexpected pending filename text. The owner confirmed they did not type it; its origin remains unresolved. The original copy name was restored and contents verified. Rename/move acceptance remains incomplete.
-- Chrome may require reconnection after restarting Sia. The five-dinner test hit a browser timeout and required operator tab selection; its later continuation paused on sleep and foreground-app guards without saving the plan.
+- Chrome may require reconnection after restarting Sia. The five-dinner test hit a browser timeout and required operator tab selection; its later continuation paused on sleep and foreground-app guards without saving the plan. Background input pauses whenever Chrome is your active app, even if you are using a different Chrome window.
 - Off-Space native capture and keep-awake behavior remain unreliable on the release Mac. Lock/sleep recovery and a fresh macOS account have not been accepted.
 - iPhone distribution follows the Mac pilot.
 

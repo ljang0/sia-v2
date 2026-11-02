@@ -414,7 +414,7 @@ describe('DesktopController', () => {
 
     expect(snapshot.browser).toMatchObject({
       status: 'error',
-      detail: expect.stringMatching(/unique page.*close the duplicate.*retry/i),
+      detail: expect.stringMatching(/resize the window.*choose it again.*background tabs/i),
     });
     expect(snapshot.browser.detail).not.toContain('browser_binding_ambiguous');
     await controller.shutdown();

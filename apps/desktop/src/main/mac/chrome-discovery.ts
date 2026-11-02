@@ -120,7 +120,7 @@ export function browserAttachmentError(error: unknown): string {
     return 'Chrome needs a setup step that may bring its window forward. Choose Connect Chrome or a window in Settings → Connections to start it yourself. Review any Chrome permission prompt; background tasks will not switch modes automatically.';
   }
   if (message.includes('browser_binding_ambiguous')) {
-    return 'Chrome could not distinguish that window from another open window. Choose a window showing a unique page, or close the duplicate and retry.';
+    return 'Sia could not distinguish that Chrome window from another open window. Resize the window to a different size, then choose it again. Another option is to open a page that is not open in any other Chrome window, including its background tabs.';
   }
   if (message.includes('browser_reconnect_exhausted')) {
     return 'Sia could not complete the Chrome connection. If Chrome shows “Allow remote debugging?”, review that prompt, then choose your window again. Your website action has not been replayed.';
