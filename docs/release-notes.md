@@ -31,8 +31,8 @@ The November 2 credential outage was repaired server-side. Authenticated speech 
 ## Known limitations
 
 - Two useful planning tasks completed on alpha.115 with setup and review interventions. Alpha.118 also saved/read/reopened a prep checklist derived from the dinner plan. Two completed simultaneous tasks have not been verified.
-- Native document Name popovers previously misdirected input. Alpha.119 stopped at Finder’s Go to Folder dialog because background input could not resolve the exact window; the original and copy stayed unchanged. Alpha.120 adds exact-sheet recognition, but its live retry could not start because the external computer-use controls stopped responding after unlock. Rename/move acceptance remains incomplete.
-- Chrome may require reconnection after restarting Sia. The foreground-input guard can pause a background task when Chrome is active.
+- Native document Name popovers previously misdirected input. Alpha.119 stopped at Finder’s Go to Folder dialog because background input could not resolve the exact window; the original and copy stayed unchanged. Alpha.120 reached TextEdit through Finder’s parent window, but filename input did not complete reliably. Later operator inspection found unexpected pending filename text; its origin remains unresolved. The original copy name was restored and contents verified. Rename/move acceptance remains incomplete.
+- Chrome may require reconnection after restarting Sia. The five-dinner test hit a browser timeout and required operator tab selection; its later continuation paused on sleep and foreground-app guards without saving the plan.
 - Off-Space native capture and keep-awake behavior remain unreliable on the release Mac. Lock/sleep recovery and a fresh macOS account have not been accepted.
 - iPhone distribution follows the Mac pilot.
 
