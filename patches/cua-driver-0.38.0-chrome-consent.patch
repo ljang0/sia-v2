@@ -2323,7 +2323,7 @@ index af80ee2..dd5ddef 100644
          fn proc_pidpath(pid: i32, buffer: *mut c_void, buffersize: u32) -> i32;
      }
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
-index ca39f14..69a1b42 100644
+index ca39f14..f7b08b7 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
 @@ -83,6 +83,7 @@ extern "C" {
@@ -2379,6 +2379,53 @@ index ca39f14..69a1b42 100644
  }
  
  /// Copy an AX element-valued attribute. The returned element is retained and
+@@ -1004,8 +1017,10 @@ fn should_probe_off_space_window(
+ }
+ 
+ /// `AXWindows` of `pid`'s application element, plus the requested window when
+-/// `AXWindows` does not list it because it is on another Space. Returns
+-/// retained elements the caller must release.
++/// `AXWindows` does not list it: a standalone sheet can be an application child,
++/// and an off-Space window may require the bounded remote-token probe. Returns
++/// retained elements the caller must release. This changes discovery only;
++/// minimized/hidden, exact ownership and input-focus checks remain required.
+ ///
+ /// # Safety
+ ///
+@@ -1017,9 +1032,32 @@ pub unsafe fn copy_ax_windows_including(
+     window_id: u32,
+ ) -> Vec<AXUIElementRef> {
+     let mut windows = copy_ax_windows(app);
+-    let listed = windows
++    let mut listed = windows
+         .iter()
+         .any(|&window| ax_get_window_id(window) == Some(window_id));
++    if !listed {
++        let started = std::time::Instant::now();
++        AXUIElementSetMessagingTimeout(app, AX_WINDOW_IDS_TIMEOUT_SECONDS);
++        for child in copy_children(app) {
++            if !listed && started.elapsed() < REMOTE_TOKEN_PROBE_DEADLINE {
++                AXUIElementSetMessagingTimeout(child, REMOTE_TOKEN_CANDIDATE_TIMEOUT_SECONDS);
++                let role = copy_string_attr(child, "AXRole").unwrap_or_default();
++                if super::window_scope::is_window_surface_role(&role)
++                    && ax_get_window_id(child) == Some(window_id)
++                {
++                    let mut child_pid = 0;
++                    if AXUIElementGetPid(child, &mut child_pid) == kAXErrorSuccess
++                        && child_pid == pid
++                    {
++                        windows.push(child);
++                        listed = true;
++                        continue; // Transfer this retained child to the caller.
++                    }
++                }
++            }
++            CFRelease(child as CFTypeRef);
++        }
++    }
+     if should_probe_off_space_window(listed, || {
+         crate::windows::window_space_view_by_id(window_id)
+     }) {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
 index 7ccdae7..fe5ff44 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
@@ -2520,10 +2567,21 @@ index 6ad8c6e..fa55f2d 100644
  pub mod tree;
  pub mod window_scope;
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
-index 681c636..a748f2c 100644
+index 681c636..994b267 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/tree.rs
-@@ -216,6 +216,19 @@ pub(crate) fn walk_native_chrome_bounded(
+@@ -13,7 +13,9 @@
+ 
+ use super::bindings::*;
+ use super::launch::{is_still_launching, LaunchStep, LaunchWait};
+-use super::window_scope::{decide_window_scope, ScopeDecision, TopLevelCandidate, WindowScope};
++use super::window_scope::{
++    decide_window_scope, is_window_surface_role, ScopeDecision, TopLevelCandidate, WindowScope,
++};
+ use core_foundation::base::{CFEqual, CFRelease, CFRetain, CFTypeRef};
+ use cua_driver_core::walk_budget::{WalkBudget, WalkOutcome};
+ use std::time::Instant;
+@@ -216,6 +218,19 @@ pub(crate) fn walk_native_chrome_bounded(
      )
  }
  
@@ -2543,7 +2601,7 @@ index 681c636..a748f2c 100644
  /// [`walk_tree_bounded`] under a caller's [`WalkBudget`]: the walk also stops
  /// when the budget's `timeout_ms` runs out, returning the partial tree. Each
  /// AX call is bounded by the per-element messaging timeout, so the walk
-@@ -313,6 +326,15 @@ fn walk_tree_with_web_content(
+@@ -313,6 +328,15 @@ fn walk_tree_with_web_content(
  
          // Walk each top-level child at depth 0.
          for child in walk_these {
@@ -2559,6 +2617,17 @@ index 681c636..a748f2c 100644
              walk_element(
                  child,
                  0,
+@@ -402,8 +426,8 @@ unsafe fn scope_top_level(top_level: &[AXUIElementRef], pid: i32, wid: u32) -> S
+             let subrole = copy_string_attr(child, "AXSubrole");
+             let identifier = copy_string_attr(child, "AXIdentifier");
+             // Match AX window element → CGWindowID via private SPI.
+-            // Only windows carry one, so skip the round-trip elsewhere.
+-            let ax_window_id = if role == "AXWindow" {
++            // Standalone sheets can also carry their own backing window ID.
++            let ax_window_id = if is_window_surface_role(&role) {
+                 ax_get_window_id(child)
+             } else {
+                 None
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point.rs
 new file mode 100644
 index 0000000..c22108d
@@ -3372,6 +3441,102 @@ index 0000000..f8ba6b1
 +        assert!(match_owned_geometry(20, 7, invalid, &[]).is_err());
 +    }
 +}
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/window_scope.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_scope.rs
+index f23b53b..af937e2 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/ax/window_scope.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_scope.rs
+@@ -11,10 +11,16 @@
+ 
+ use crate::windows::WindowOwner;
+ 
++/// Standalone sheets (for example Finder's Go to Folder) can carry their own
++/// CGWindowID without being exposed as AXWindow.
++pub(super) fn is_window_surface_role(role: &str) -> bool {
++    matches!(role, "AXWindow" | "AXSheet")
++}
++
+ /// What the requested `window_id` turned out to be.
+ #[derive(Debug, Clone, PartialEq, Eq)]
+ pub enum WindowScope {
+-    /// A top-level AXWindow reported the requested CGWindowID.
++    /// A top-level AXWindow or AXSheet reported the requested CGWindowID.
+     Matched,
+     /// WindowServer has no record of the requested CGWindowID — closed,
+     /// stale, or fabricated.
+@@ -54,7 +60,7 @@ pub struct TopLevelCandidate {
+     /// themselves as `open-panel` / `save-panel`.
+     pub identifier: Option<String>,
+     /// `_AXUIElementGetWindow` result, when the SPI resolved one. Only read
+-    /// for `AXWindow` roles.
++    /// for `AXWindow` and `AXSheet` roles.
+     pub ax_window_id: Option<u32>,
+ }
+ 
+@@ -133,7 +139,7 @@ where
+     let matched: Vec<usize> = candidates
+         .iter()
+         .enumerate()
+-        .filter(|(_, c)| c.role == "AXWindow" && c.ax_window_id == Some(requested))
++        .filter(|(_, c)| is_window_surface_role(&c.role) && c.ax_window_id == Some(requested))
+         .map(|(i, _)| i)
+         .collect();
+ 
+@@ -161,10 +167,16 @@ where
+     // children is also what `browser/consent_ui.rs` relies on to reach a
+     // top-level `AXSheet` consent prompt.
+     let dialog_scope = matched.iter().any(|&i| candidates[i].is_dialog_like());
++    let sheet_scope = matched.iter().any(|&i| candidates[i].role == "AXSheet");
+     let walk = candidates
+         .iter()
+         .enumerate()
+         .filter(|(i, c)| {
++            if sheet_scope {
++                // A standalone sheet is its own modal surface. Other top-level
++                // sheets and the app menu cannot establish input authority for it.
++                return matched.contains(i);
++            }
+             (c.role != "AXWindow" || matched.contains(i))
+                 && !(dialog_scope && c.role == "AXMenuBar")
+         })
+@@ -218,6 +230,38 @@ mod tests {
+         assert_eq!(d.walk, vec![2], "dialog snapshot must not carry AXMenuBar");
+     }
+ 
++    #[test]
++    fn matched_top_level_sheet_walks_only_its_exact_surface() {
++        let candidates = [
++            TopLevelCandidate::new("AXMenuBar", None),
++            TopLevelCandidate::new("AXWindow", Some(11)),
++            TopLevelCandidate::new("AXSheet", Some(22)),
++            TopLevelCandidate::new("AXSheet", Some(33)),
++            TopLevelCandidate::new("AXSheet", None),
++        ];
++        let d = decide_window_scope(&candidates, 22, || WindowOwner::SamePid);
++        assert_eq!(d.scope, WindowScope::Matched);
++        assert_eq!(
++            d.walk,
++            vec![2],
++            "sheet must not inherit menus or sibling sheets"
++        );
++    }
++
++    #[test]
++    fn sheet_identity_must_match_the_requested_window() {
++        let candidates = [TopLevelCandidate::new("AXSheet", Some(22))];
++        for owner in [
++            WindowOwner::SamePid,
++            WindowOwner::Unknown,
++            panel_service_owner(),
++        ] {
++            let d = decide_window_scope(&candidates, 33, || owner);
++            assert!(!d.scope.is_matched());
++            assert!(d.walk.is_empty());
++        }
++    }
++
+     #[test]
+     fn matched_appkit_file_panel_excludes_the_application_menu_bar() {
+         let candidates = [
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
 index 82dac61..74d90b1 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs

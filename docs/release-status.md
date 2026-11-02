@@ -93,6 +93,19 @@ The owner subsequently confirmed “mic now works” and requested the latest DM
 
 ## Follow-up source changes after alpha.119
 
+Alpha.120 is being prepared for internal verification. Finder's visible Go to Folder dialog is
+a top-level `AXSheet`; the driver previously matched only `AXWindow`, rejecting an exactly
+identified sheet as unresolved. Window scoping now accepts the exact sheet and excludes sibling
+surfaces. Bounded application-child discovery supplements `AXWindows` only for the requested
+ID and process. Visibility and focus requirements remain unchanged. A native regression failed
+before the correction; 82 AX tests pass afterward. The pilot gate now explicitly includes
+window-scope, bindings and core background-input tests. The full pilot rerun passed: 2,022 desktop,
+46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus native/shared/build/static
+checks. Signing and live app acceptance remain pending; this does not establish rename/move/reopen
+or concurrent-task acceptance. The first
+pilot run stopped in the separate real Electron bare-launch fixture (exit 1, no stderr). Its
+isolated and full-gate reruns passed; the cause remains undiagnosed. Both logs are preserved.
+
 Native memory reviews could repeatedly schedule themselves because their own journal edits
 were newer than the last-review timestamp. The host now checkpoints journal and failure-note
 revisions and advances them only for review writes that replace the checkpointed revision.

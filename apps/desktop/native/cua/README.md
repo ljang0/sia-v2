@@ -91,6 +91,15 @@ existing-profile socket. The earlier unrestricted fixtures could not detect this
 
 ## Native attached sheets
 
+Finder's Go to Folder dialog can be a top-level `AXSheet` with its own CGWindowID.
+Window scoping now accepts that exact sheet ID, walking only its matched surface, without
+borrowing the application menu or another sheet. If `AXWindows` omits it, a bounded lookup
+of application children admits only the requested ID and process. Pointer and keyboard
+visibility/focus checks remain unchanged: unknown minimized/hidden state still refuses input.
+The scope regression failed before this correction; the 82 AX tests pass afterward. The pilot
+gate now also explicitly runs window-scope, binding and core background-input tests. Signed-app
+rename/move/reopen acceptance is still required.
+
 `ax/exact_target.rs` maps an attached sheet to its canonical document while retaining the raw
 focused-window ID for focus records and restoration. Keyboard delivery requires matching document
 and focused-element ancestry; missing, conflicting or sibling ancestry refuses input. Foreground

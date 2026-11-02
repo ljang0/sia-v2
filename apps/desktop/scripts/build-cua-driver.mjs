@@ -183,6 +183,8 @@ if (testNative) {
   const hostTarget = process.arch === 'arm64' ? 'aarch64-apple-darwin' : 'x86_64-apple-darwin';
   for (const [packageName, testFilter] of [
     ['platform-macos', 'browser::consent_ui::tests'],
+    ['platform-macos', 'ax::window_scope::tests'],
+    ['platform-macos', 'ax::bindings::tests'],
     ['platform-macos', 'ax::exact_target::tests'],
     ['platform-macos', 'ax::window_point::'],
     ['platform-macos', 'capture::'],
@@ -205,6 +207,7 @@ if (testNative) {
     ['platform-macos', 'tools::type_text::'],
     ['platform-macos', 'document_edit::tests'],
     ['cua-driver-core', 'browser::'],
+    ['cua-driver-core', 'background_input::tests'],
   ]) {
     run(
       'cargo',
