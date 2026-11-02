@@ -2,7 +2,35 @@
 
 ## Current RA evaluation artifact
 
-Alpha.121 is the current signed and notarized evaluation candidate. Direct Chrome setup explicitly activates Sia and waits for native foreground-process confirmation before resuming; an unconfirmed handoff leaves the request stopped. Broad distribution and Arena acceptance remain open. Nothing has been publicly published or sent to a recipient by this work.
+Alpha.122 is the current signed and notarized evaluation candidate. It permits background browser actions when a host check proves that a different browser window is in front, and rechecks that identity after input. Unknown identity fails closed. Broad distribution and Arena acceptance remain open. Nothing has been publicly published or sent to a recipient by this work.
+
+| Identity                   | Value                                                              |
+| -------------------------- | ------------------------------------------------------------------ |
+| Version                    | `0.1.0-alpha.122`                                                  |
+| Source                     | `7531ee7f3115265817e8dd56cf081672799bd8f4`, clean at packaging     |
+| Universal DMG SHA-256      | `277f22d0d950878cfee3abb751293430ffed88b04e9174910088f6ec4c38e895` |
+| Universal ZIP SHA-256      | `efde7e42893384ce9fff2cb8cc4a376ce9a8ce763b7ffc4a9c20bf237b35c474` |
+| Installed ASAR SHA-256     | `c6614fa9bd45465b474edc64d37cdc9a4405825ef65f7d79e0b3047bd7636c3c` |
+| Private evidence directory | `alpha122-browser-window` under Sia Release Verification           |
+| Packaging / installation   | November 2, 2026, 19:25:22 / 19:26:55 UTC                          |
+
+Developer ID signing, Apple notarization, stapling, Gatekeeper and packaged-runtime checks passed. Installation used the read-only mounted DMG, verified signatures and compared its ASAR. Apple silicon received runtime verification; Intel received static verification. Live AWS configuration, default recording and managed ElevenLabs remain included without bundled private credentials or the QA profile.
+
+All 202 focused checks and the full local pilot gate passed: 2,045 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. Only version metadata and release-status prose changed after the full gate; the packaged verifier checked alpha.122. Exact-source remote CI run 362 passed, including the pilot gates and unsigned universal package verification.
+
+Operator CUA created a disposable Budget Bytes window, resized it using Chrome's Window menu and successfully attached it through Sia Settings. A separate public Wikipedia window held the exact test text in two samples while background browser actions continued. Initial marker attempts failed, and final lookup could not find that tab. No final/continuous focus, editable-text or clipboard-preservation pass is claimed.
+
+Fresh meal-planning thread `52aefcd7-c7af-4367-b348-bd4e6bc79a05`, turn `f4fa9db0-9b7b-481d-ae98-7efe14906d16`, first ran from 19:36:40.584 to 19:37:04.310 UTC (**23.726 seconds**). It captured the attached viewport, then navigation was refused with `foreground_app_in_use` before input. Operator Return on Continue resumed it at 19:39:53.532. Background navigation and scrolling reached three recipe pages, with stale-image responses requiring fresh observations. At 19:44:43.898 a snapshot was refused with `authorization_host_failed`; the turn ended failed at 19:45:09.943 (**316.411 seconds** after resume). The safe diagnostic reported `callback_started=0`, `callback_completed=0`, `hint=unspecified`. Its cause remains unidentified; no renewed user permission was requested or bypassed. `alpha122-weeknight-plan.md` was not created.
+
+The household guide queued behind the browser task because it shared the working folder, then started at 19:45:09.948. A visitor guide in another workspace started at 19:45:21.180. They overlapped for **36.563 seconds** before both paused on sleep. The visitor output was saved before the pause and read back after operator recovery at 20:03:57.238. It preserved the original source and correctly reconciled the $45.32 / $50.82 / $52.32 budget scenarios and $14.68 / $9.18 / $7.68 remaining allowances. The model lacked an action for opening Sia Preview, so its turn ended failed at 20:04:19.888; the operator subsequently clicked the result attachment and verified the rendered guide. The household guide remains paused without an output. This is a useful saved artifact with interventions, not two successful concurrent workflows.
+
+`alpha122-visitor-pocket-guide.md` is 3,562 bytes, SHA-256 `6f65a670d7415946bb9c97c7d994ea1db27b4cbc886c047d9e07423e0a41ece4`. Its source retains SHA-256 `b108421b2d78aa3061e90812ae98521582c2de4aa213387474076d29d534b499`. Both native incident files and all three household source files retain their prior hashes. Private receipts retain exact thread/turn identities and content-free event summaries. CUA temporarily showed older state and reported `elementHasNoFrame`/`noWindowsAvailable` during recovery; those observations alone do not establish an application rendering defect.
+
+Private receipts: `package.json`, `install.json`, `source-checks.json`, `pilot-gate.log`, `package.log`, `install.log`, `pilot.log` and `live-acceptance.json`. The alpha.121 QA app is preserved for rollback. Native filename input remains unresolved; its earlier evidence follows.
+
+## Alpha.121 setup evidence
+
+Alpha.121 is the preceding signed and notarized evaluation candidate. Direct Chrome setup explicitly activates Sia and waits for native foreground-process confirmation before resuming; an unconfirmed handoff leaves the request stopped. Broad distribution and Arena acceptance remain open. Nothing has been publicly published or sent to a recipient by this work.
 
 | Identity                   | Value                                                              |
 | -------------------------- | ------------------------------------------------------------------ |

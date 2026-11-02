@@ -8,7 +8,7 @@ Arena's [Agent Mode](https://help.arena.ai/articles/5432423882-how-to-use-agent-
 
 ## What is available
 
-- A signed, notarized universal **alpha.121 DMG** for macOS 14+, with email sign-in, guided permission setup, task progress, Stop and feedback. The exact DMG was installed and checked on Apple silicon; Intel received static package verification. Mac first; iPhone follows.
+- A signed, notarized universal **alpha.122 DMG** for macOS 14+, with email sign-in, guided permission setup, task progress, Stop and feedback. The exact DMG was installed and checked on Apple silicon; Intel received static package verification. Mac first; iPhone follows.
 - Vision-only computer control by default: screenshots in, pointer/keyboard actions out. Explicit workspace-file and connector tools are labeled separately. macOS access remains person-approved.
 - A short [setup guide](./release-notes.md), practical [demo prompts](./demo.md), [artifact evidence](./public-release.md) and a [repository walkthrough](./architecture.md#reviewing-the-computer-use-path). The [README](../README.md) supports local UI review without AWS credentials or model spend; actual evaluation uses a real admitted model.
 
@@ -24,6 +24,6 @@ For rehearsal, use disposable inputs, fresh workspaces and fixed learning settin
 
 ## Evidence and rollout gate
 
-Source-checked outing and dinner plans were saved and reopened on alpha.115 with setup and review interventions. Alpha.118 saved/read/reopened practical prep and grocery checklists and automatically captured successful and stopped tasks in AWS. Automated pilot gates passed; those results do not establish unattended desktop reliability.
+Source-checked outing and dinner plans were saved and reopened on alpha.115 with setup and review interventions. Alpha.118 saved/read/reopened practical prep and grocery checklists and automatically captured successful and stopped tasks in AWS. Alpha.122 saved a useful visitor pocket guide, with sleep recovery and operator Preview opening. Its browser research stopped before a complete output, and two overlapping document tasks paused on sleep. Automated pilot gates and exact-source CI passed; those results do not establish unattended desktop reliability.
 
 Native document rename/move, Chrome restart/error recovery, two successful concurrent tasks, continuous focus/clipboard preservation, off-Space capture and physical lock/sleep/voice acceptance remain open. A fresh Mac/account is unavailable. The [release status](./release-status.md) is authoritative. Keep the first handoff a bounded technical evaluation until these gates pass. Lawrence Jang owns support and incidents; no invitation, public release or Arena outreach has been sent.

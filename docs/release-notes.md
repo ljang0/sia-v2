@@ -1,43 +1,42 @@
-# Sia 0.1.0-alpha.121
+# Sia 0.1.0-alpha.122
 
-Signed and notarized evaluation DMG for macOS 14+, Apple silicon and Intel. Installed directly from the DMG and checked on Apple silicon; Intel received static package verification. Exact evidence is tracked in [release status](./release-status.md). This is an alpha, not a claim that every desktop workflow is reliable.
+Signed and notarized evaluation DMG for macOS 14+, Apple silicon and Intel. The exact DMG was installed and checked on Apple silicon; Intel received static package checks. This build is for supervised RA evaluation. Broad distribution and Arena acceptance remain open; see the [evidence and known blockers](./release-status.md).
 
-This build explicitly returns Sia to the front after direct Chrome setup and verifies that handoff before resuming the saved task. If macOS does not confirm it, the request stays stopped. The successful live recovery path remains unverified; the signed-app trial reached an ambiguous Chrome-window refusal.
+## Start using Sia
 
-It also recognizes an exactly identified native sheet, such as Finder's Go to Folder dialog, without accepting sibling windows. It also prevents memory reviews from scheduling themselves and distinguishes temporary request limits from exhausted subscription quota. Vision-only native clicks retain pointer-event delivery, exact-window ownership, protected-field and stale-image checks. Live rename/move/reopen acceptance remains incomplete.
+1. Drag Sia from the DMG into Applications and open it.
+2. Sign in with your own email and review the cloud-recording notice.
+3. Connect your ChatGPT plan in **Settings → AI**. No source checkout or API key is needed.
+4. Follow **Set up Sia** and approve the macOS permissions. Choose the Chrome window Sia should use.
+5. Start with public research or a document in the agent's working folder. Ask Sia to save the result; click its result attachment to open Preview. Keep Sia open and the Mac awake.
+
+Computer use is vision-only by default: the model observes screenshots and chooses pointer and keyboard actions. Background work is the default; **On my screen** is an explicit alternative. Use Stop to end a task and review the result before relying on it.
+
+## What changed
+
+Background browser input can continue while a different Chrome window is active when Sia proves the exact window identities before and after input. If identity is unavailable or the task window is active, Sia pauses. Automated checks pass; reliable live coexistence is still under evaluation.
+
+Chrome setup returns to Sia before continuing. If the chooser cannot distinguish windows, resize the intended window to a different size and choose it again. Duplicate pages in another window's background tabs can cause ambiguity. This build successfully attached a resized public test window.
+
+This build also includes native-sheet recognition, a fix for memory reviews repeatedly scheduling themselves, and clearer guidance distinguishing temporary request limits from exhausted plan quota.
 
 ## Cloud recording
 
-After email sign-in, first-run setup selects **Save prompts, usage, and trajectories to AWS**. Review the notice, then Continue with recording on or turn it off. Recording includes eligible prompts, replies, provider-reported token usage, actions/results and task screenshots. It uses Sia's private encrypted AWS archive for evaluation and debugging; authorized administrators can inspect it. Active cloud records expire after 90 days. It is not used for model training.
+First-run setup selects **Save prompts, usage, and trajectories to AWS** and explains the choice before Continue. Eligible prompts, replies, provider-reported token usage, actions/results and task screenshots then upload automatically to Sia's encrypted private AWS archive. Authorized administrators can inspect them for evaluation and debugging. Active cloud records expire after 90 days; they are not used for model training.
 
-Settings → Privacy shows recording, queued uploads and errors, with pause/export/delete controls. Existing declines and paused recording stay off. Local-only historical records are not uploaded retroactively. Turns using Google Workspace connectors are excluded in full. Internal operator/model-tester-only accounts remain excluded.
-
-Ordinary signed-in user accounts can now upload through the existing encrypted outbox. Uploads retry until acknowledged, and repeated batches do not create duplicate records. The live AWS transport check verified exact prompt, usage and screenshot bytes, retry acknowledgement, and deletion of every object version using a disposable account. That check used synthetic data. Separately, two real tasks on the installed app automatically uploaded prompts, reported token usage and action results; the computer-use task included three actual screenshots. Independent reads verified the encrypted S3 objects and their hashes.
-
-## Getting started
-
-1. Drag Sia from the DMG into Applications and open it.
-2. Sign in with your own email and review cloud recording.
-3. Connect your ChatGPT plan in Settings → AI. A source checkout or API key is not needed.
-4. Follow **Set up Sia** and approve macOS permissions yourself. Choose the Chrome window you want Sia to use.
-5. Try a research-and-writing task with public sources and ask Sia to save its result. Keep Sia open and the Mac awake.
-
-Vision-only computer use is the default. The model observes screenshots and chooses coordinates and keys. Background work is the default; **On my screen** is an explicit alternative.
-
-If Chrome setup cannot distinguish your window from another, resize the intended Chrome window to a different size and choose it again. Duplicate pages in another window's background tabs can also cause ambiguity. This recovery path still needs a successful live check.
+**Settings → Privacy** shows recording status, queued uploads and errors, with pause/export/delete controls. Existing declines and pauses remain off. Local historical records are not uploaded retroactively. Google Workspace connector turns and internal operator/model-tester-only accounts are excluded. Real installed-app uploads have been independently verified; see the [recording evidence](./public-release.md#default-recording-and-live-aws-proof).
 
 ## Voice
 
-ElevenLabs voice is included through Sia's authenticated AWS service. The shared API key stays server-side. In **Settings → Voice**, choose **Enable voice**, select an agent for **Hold Fn to talk to Sia**, and grant microphone access when macOS asks. Hold until the screen edges glow, speak, then release to send; Escape cancels. If voice is already enabled, **Manage voices → Refresh voices** refreshes its choices.
+ElevenLabs voice runs through Sia's authenticated AWS service; no shared key is bundled. In **Settings → Voice**, choose **Enable voice**, select an agent for **Hold Fn to talk to Sia**, and grant microphone access. Hold Fn until the screen edges glow, speak, then release; Escape cancels. **Manage voices → Refresh voices** refreshes an existing setup.
 
-The November 2 credential outage was repaired server-side. Authenticated speech generation and batch/realtime transcription pass with synthetic audio. Alpha.118 refreshed its voice catalog and entered Speaking during a CUA playback check. On alpha.119, CUA started microphone dictation, observed Listening, stopped recording and received “No speech was detected.” After the competing development copy’s Fn shortcut was disabled, the owner confirmed that the microphone now works. CUA cannot send physical Fn; a complete spoken-command round trip has not been independently verified.
+The reported credential outage was repaired server-side. Speech-service checks pass and the owner confirmed the microphone works. Physical Fn and a complete spoken-command round trip have not been independently verified by CUA. Avoid enabling the Fn shortcut in two Sia installations at once.
 
-## Known limitations
+## Current limits
 
-- Two useful planning tasks completed on alpha.115 with setup and review interventions. Alpha.118 also saved/read/reopened a prep checklist derived from the dinner plan. Two completed simultaneous tasks have not been verified.
-- Native document Name popovers previously misdirected input. Alpha.119 stopped at Finder’s Go to Folder dialog because background input could not resolve the exact window; the original and copy stayed unchanged. Alpha.120 reached TextEdit through Finder’s parent window, but filename input did not complete reliably. Later operator inspection found unexpected pending filename text. The owner confirmed they did not type it; its origin remains unresolved. The original copy name was restored and contents verified. Rename/move acceptance remains incomplete.
-- Chrome may require reconnection after restarting Sia. The five-dinner test hit a browser timeout and required operator tab selection; its later continuation paused on sleep and foreground-app guards without saving the plan. Background input pauses whenever Chrome is your active app, even if you are using a different Chrome window.
-- Off-Space native capture and keep-awake behavior remain unreliable on the release Mac. Lock/sleep recovery and a fresh macOS account have not been accepted.
-- iPhone distribution follows the Mac pilot.
+- A visitor pocket guide was saved and read back, then opened in Preview by the operator after sleep recovery. Browser meal research stopped on an access-check failure before saving a complete plan.
+- Native filename entry is unreliable. Unexpected pending text appeared during an earlier test; its origin remains unresolved. The original filename and document contents were restored and verified. Rename/move/reopen acceptance remains open.
+- Chrome restart/error recovery, two completed concurrent tasks, continuous foreground/clipboard preservation, off-Space capture, and lock/sleep recovery remain unverified or unreliable. Two document tasks overlapped but both paused on sleep.
+- A fresh Mac/account has not been tested. iPhone distribution follows the Mac pilot.
 
-Lawrence Jang owns pilot support. Include the version, task, time and visible error in a report. Avoid private content in screenshots or feedback.
+Lawrence Jang owns pilot support. Report the version, task, time and visible error; avoid private content in screenshots or feedback.
