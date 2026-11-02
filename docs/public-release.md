@@ -2,6 +2,26 @@
 
 ## Current RA evaluation artifact
 
+Alpha.119 is the current signed and notarized evaluation DMG. It adds strict pointer-event delivery for vision-only native clicks. It is not accepted for broad distribution or completed Arena evaluation. Nothing has been publicly published or sent to a recipient by this work.
+
+| Identity                   | Value                                                              |
+| -------------------------- | ------------------------------------------------------------------ |
+| Version                    | `0.1.0-alpha.119`                                                  |
+| Source                     | `2dfcf45ac78e1f6798891ca91a458c5786dd728c`, clean at packaging     |
+| Universal DMG SHA-256      | `9d52730c534016df3c53869f50e673c64af1ff71677954263c695bd7d44656d7` |
+| Universal ZIP SHA-256      | `da8d31d9f1cb421763670106fe23d7b15e3e05a9295f7b05dc8b55c7fd5e2936` |
+| Installed ASAR SHA-256     | `b6975bec3bccfaa4b6242e54c7a60b54bcab7b4ce8bd637952136e033c5f0c48` |
+| Private evidence directory | `alpha119-pointer-only` under Sia Release Verification             |
+| Packaging / installation   | November 2, 2026, 15:06:19 / 15:08:26 UTC                          |
+
+Developer ID signing, notarization, stapling, Gatekeeper and packaged-runtime checks passed. The app was installed from the read-only mounted DMG with ASAR comparison and signature verification. Apple silicon received live testing; Intel received static verification. The full local pilot gate passed: 2,009 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus native/shared/build/static checks. Remote CI run 350 remained in progress at the last check. Earlier intermittent test failures remain recorded in [release status](./release-status.md#alpha119-candidate).
+
+The fresh native handoff (`898c747f-4a3e-4697-89ec-d40264ed17a1`) stopped after 57.659 seconds. Finder’s Go to Folder sheet opened, but both it and the parent reported `ax_unresolved`; rename/move/reopen did not complete. Both original RTF hashes below remained unchanged. A five-day meal-plan task reached Chrome connection recovery and then paused on Mac sleep without saving an output. The native recovery attempt subsequently failed with the connected model plan’s usage limit (HTTP 429). No successful concurrency is claimed.
+
+CUA started microphone dictation, observed **Listening**, stopped it and received **No speech was detected**. No deliberate spoken command was supplied. The physical Fn shortcut remains unverified because CUA cannot send that key. Stale external CUA screenshots/input required the window’s exposed Raise action; this intervention is not evidence of Sia background reliability. Receipts: `package.json`, `install.json`, `pilot-gate.log`, `live-acceptance.json`, extracted trajectories, `voice-listening-cua.png` and `voice-no-speech-cua.png`.
+
+## Alpha.118 recording and voice baseline
+
 Alpha.118 is prepared for the owner's requested RA evaluation. It is not accepted for broad distribution or completed Arena evaluation. Nothing has been publicly published, sent to a recipient or submitted to Arena. The last published pilot remains alpha.24.
 
 | Identity                   | Value                                                                            |
@@ -64,6 +84,8 @@ An ordinary disposable Cognito user then exercised the existing desktop `CloudCl
 Private receipts are `voice-key-rotation.json`, `managed-voice-probe-initial-failure.json` and `managed-voice-roundtrip.json`. The initial installed-app UI check hit the computer-use tool’s `noWindowsAvailable` failure. The owner requested a CUA retry, recorded below.
 
 CUA subsequently refreshed the voice catalog in the installed alpha.118 app and observed **ElevenLabs voice ready** with enabled controls. Reading the saved grocery reply reached **Speaking…**. Cancellation briefly restored the read-aloud control, but later input became unreliable (`noWindowsAvailable`), so microphone startup and stable cancellation are not accepted. CUA rejects the Fn key (`keyNotFound("fn")`); no physical hold-Fn command was verified. Private receipts: `voice-cua-verification.json`, `voice-ready-cua.png`, and `voice-speaking-cua.png`.
+
+On the owner’s physical Fn retry, a notification reported that the personal ElevenLabs key lacked access. Process inspection found the old development app and the QA DMG both running Fn helpers. CUA verified that the development copy had Hold Fn enabled, turned that competing shortcut off, and verified the off state. The development Fn helper exited; the QA helper remained. The managed release route prefers configured AWS over the local credential. A fresh physical Fn retry is still required. Private screenshot: `alpha119-pointer-only/development-fn-disabled-cua.png`.
 
 ## Automated gates and remaining acceptance
 

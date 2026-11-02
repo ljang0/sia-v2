@@ -1,6 +1,6 @@
 # Sia 0.1.0-alpha.119
 
-Candidate for macOS 14+, Apple silicon and Intel. Packaging and exact-app acceptance are pending; the prior alpha.118 DMG remains available. Exact evidence is tracked in [release status](./release-status.md). This is an alpha, not a claim that every desktop workflow is reliable.
+Signed and notarized evaluation DMG for macOS 14+, Apple silicon and Intel. Installed directly from the DMG and checked on Apple silicon; Intel received static package verification. Exact evidence is tracked in [release status](./release-status.md). This is an alpha, not a claim that every desktop workflow is reliable.
 
 Vision-only native clicks now require pointer-event delivery. They cannot use the driver's accessibility press shortcut, even when the requested target is a screenshot coordinate. Window ownership, protected-field and stale-image checks remain enforced. Live save/rename/reopen acceptance is still required for this correction.
 
@@ -26,12 +26,12 @@ Vision-only computer use is the default. The model observes screenshots and choo
 
 ElevenLabs voice is included through Sia's authenticated AWS service. The shared API key stays server-side. In **Settings → Voice**, choose **Enable voice**, select an agent for **Hold Fn to talk to Sia**, and grant microphone access when macOS asks. Hold until the screen edges glow, speak, then release to send; Escape cancels. If voice is already enabled, **Manage voices → Refresh voices** refreshes its choices.
 
-The November 2 credential outage was repaired server-side; this DMG does not need reinstalling. Authenticated speech generation and batch/realtime transcription pass with synthetic audio. The installed app also refreshed its voice catalog and entered Speaking during a CUA playback check. Physical Fn/microphone acceptance remains open.
+The November 2 credential outage was repaired server-side. Authenticated speech generation and batch/realtime transcription pass with synthetic audio. Alpha.118 refreshed its voice catalog and entered Speaking during a CUA playback check. In this alpha.119 DMG, CUA started microphone dictation, observed Listening, stopped recording and received “No speech was detected.” A deliberately spoken command and physical Fn remain unverified; CUA cannot send Fn.
 
 ## Known limitations
 
 - Two useful planning tasks completed on alpha.115 with setup and review interventions. Alpha.118 also saved/read/reopened a prep checklist derived from the dinner plan. Two completed simultaneous tasks have not been verified.
-- Native document Name popovers previously misdirected input. This candidate includes a narrow popup routing correction, but the signed-app attempt stopped before reaching that field: clicking the document title did not expose it. Rename/move acceptance remains incomplete.
+- Native document Name popovers previously misdirected input. This candidate includes popup routing and pointer-only corrections, but its real handoff attempt stopped at Finder’s Go to Folder dialog because background input could not resolve the exact window. The original and copy stayed unchanged. Rename/move acceptance remains incomplete.
 - Chrome may require reconnection after restarting Sia. The foreground-input guard can pause a background task when Chrome is active.
 - Off-Space native capture and keep-awake behavior remain unreliable on the release Mac. Lock/sleep recovery and a fresh macOS account have not been accepted.
 - iPhone distribution follows the Mac pilot.
