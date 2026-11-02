@@ -1,3 +1,5 @@
+import { browserAttestationFailure } from './browser-attestation.js';
+
 export interface DriverResult {
   rawJson: string;
   structuredJson?: string;
@@ -128,15 +130,18 @@ export function decodeDriverResult(
       // Keep callback/transport diagnostics without recording resource identities,
       // URLs, request digests or the driver's potentially content-bearing message.
       const raw = result.structuredJson ?? result.rawJson;
+      const attestation = browserAttestationFailure(tool, result, progress);
       const hint = /CDP [A-Za-z.]+ timed out/.test(raw)
         ? 'browser_transport_timeout'
-        : raw.includes('live top-level')
-          ? 'browser_origin_unavailable'
-          : raw.includes('request timed out')
-            ? 'request_timeout'
-            : /denied in (?:standard|bounded) mode/.test(raw)
-              ? 'mode_denied'
-              : 'unspecified';
+        : attestation
+          ? attestation
+          : raw.includes('live top-level')
+            ? 'browser_origin_unavailable'
+            : raw.includes('request timed out')
+              ? 'request_timeout'
+              : /denied in (?:standard|bounded) mode/.test(raw)
+                ? 'mode_denied'
+                : 'unspecified';
       console.warn(
         `[sia:cua-authorization] native_refusal tool=${tool} hint=${hint} callback_started=${progress.started} callback_completed=${progress.completed}`,
       );
@@ -146,6 +151,7 @@ export function decodeDriverResult(
         progress.started === 0
       )
         throw new Error('CUA refused: browser_observation_timeout');
+      if (attestation) throw new Error(`CUA refused: ${attestation}`);
     }
     throw new Error(`CUA refused: ${result.errorCode}`);
   }

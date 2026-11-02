@@ -177,3 +177,106 @@ it.each(['root', 'snapshot'] as const)(
     }
   },
 );
+
+it.each([
+  'browser_binding_stale',
+  'browser_route_unavailable',
+  'browser_consent_required',
+  'browser_endpoint_owner_mismatch',
+])('preserves a pre-callback native browser attestation refusal: %s', (code) => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    expect(() =>
+      decodeDriverResult(
+        'get_browser_state',
+        {},
+        {
+          errorCode: 'authorization_host_failed',
+          rawJson: '{}',
+          structuredJson: JSON.stringify({
+            status: 'refused',
+            refusal: {
+              code: 'authorization_host_failed',
+              message: `confirmation provider failed: [browser_attestation:${code}] private endpoint detail`,
+            },
+          }),
+        },
+        { started: 0, completed: 0 },
+      ),
+    ).toThrow(`CUA refused: ${code}`);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('private endpoint detail');
+  } finally {
+    warn.mockRestore();
+  }
+});
+
+it.each([
+  ['callback started', 'get_browser_state', 1, 0, 'browser_binding_stale', 'refusal'],
+  ['callback completed', 'get_browser_state', 0, 1, 'browser_binding_stale', 'refusal'],
+  ['native tool', 'get_window_state', 0, 0, 'browser_binding_stale', 'refusal'],
+  ['setup tool', 'browser_prepare', 0, 0, 'browser_binding_stale', 'refusal'],
+  ['unknown code', 'get_browser_state', 0, 0, 'future_private_code', 'refusal'],
+  ['not a refusal field', 'get_browser_state', 0, 0, 'browser_binding_stale', 'page'],
+] as const)(
+  'does not reinterpret %s as pre-callback browser failure',
+  (_label, tool, started, completed, code, field) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(() =>
+        decodeDriverResult(
+          tool,
+          {},
+          {
+            errorCode: 'authorization_host_failed',
+            rawJson: '{}',
+            structuredJson: JSON.stringify({
+              [field]: {
+                code: 'authorization_host_failed',
+                message: `confirmation provider failed: [browser_attestation:${code}] private endpoint detail`,
+              },
+            }),
+          },
+          { started, completed },
+        ),
+      ).toThrow('CUA refused: authorization_host_failed');
+      expect(JSON.stringify(warn.mock.calls)).not.toContain('private endpoint detail');
+    } finally {
+      warn.mockRestore();
+    }
+  },
+);
+
+it('recognizes projected native errors and keeps observation timeout recovery', () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const run = (hint: string) =>
+    decodeDriverResult(
+      'get_browser_state',
+      {},
+      {
+        errorCode: 'authorization_host_failed',
+        rawJson: '{}',
+        structuredJson: JSON.stringify({ error: { code: 'authorization_host_failed', hint } }),
+      },
+      { started: 0, completed: 0 },
+    );
+  try {
+    expect(() =>
+      run(
+        'confirmation provider failed: [browser_attestation:browser_binding_stale] private endpoint detail',
+      ),
+    ).toThrow('CUA refused: browser_binding_stale');
+    expect(() =>
+      run(
+        'confirmation provider failed: [browser_attestation:browser_route_unavailable] CDP Page.getFrameTree timed out private endpoint detail',
+      ),
+    ).toThrow('CUA refused: browser_observation_timeout');
+    expect(() =>
+      run(
+        'private page mentions confirmation provider failed: [browser_attestation:browser_binding_stale]',
+      ),
+    ).toThrow('CUA refused: authorization_host_failed');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('private endpoint detail');
+  } finally {
+    warn.mockRestore();
+  }
+});

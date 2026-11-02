@@ -51,6 +51,18 @@ The relation to observed navigation stalls is not established. Opt-in
 `SIA_CUA_CONSENT_DIAGNOSTICS` timeout logs contain only the CDP method and a fixed stage
 (`focus_enable`, `focus_restore` or `command`), never raw parameters or page data.
 
+## Browser attestation failures
+
+Before a browser observation or input reaches Sia's authorization callback, the native driver
+revalidates the process, window, tab, connection generation and live origin. That boundary used
+to discard its browser refusal code when wrapping the failure as `authorization_host_failed`.
+The patch now prefixes the native code with `[browser_attestation:...]`. Sia decodes only the
+closed set of known codes, from the native refusal/error envelope, when no callback has started.
+Content-bearing details never reach the model or diagnostic log. Unknown envelopes and callback
+failures retain the generic refusal; bounded observation-timeout recovery is unchanged. No action
+is retried or authorized by this classification. This makes stale connections and missing tabs
+distinguishable from an actual consent requirement without weakening the underlying checks.
+
 ## Visual browser input
 
 The staged vision-only host route uses screenshot coordinates for pointer input and a new

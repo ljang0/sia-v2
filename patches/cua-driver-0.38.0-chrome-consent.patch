@@ -822,7 +822,7 @@ index 68f2099..96f1e08 100644
      pub oopif_frames: usize,
  }
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
-index df04401..207fc39 100644
+index df04401..83a0ff8 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 @@ -51,6 +51,106 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
@@ -932,7 +932,20 @@ index df04401..207fc39 100644
  const DOM_CLICK_READBACK: &str = r#"function() {
    const bounded = value => typeof value === 'string' ? value.slice(0, 512) : null;
    const attr = name => bounded(this.getAttribute(name));
-@@ -381,6 +481,7 @@ fn with_tab_screenshot(mut result: ToolResult, screenshot: BrowserTabScreenshot)
+@@ -312,7 +412,11 @@ pub(crate) async fn browser_protected_resource_scope(
+     let (validated, live_origin) = engine
+         .attest_protected_tab(&runtime_session, target_id, tab_id)
+         .await
+-        .map_err(|error| error.message)?;
++        // ConsentError::Provider otherwise erases the browser's machine-readable cause.
++        // Keep the pre-dispatch boundary explicit; callers may expose only this code.
++        .map_err(|error| {
++            format!("[browser_attestation:{}] {}", error.code.as_str(), error.message)
++        })?;
+     let target = validated.record;
+     let tab = validated.tab;
+     let requested_origin = if tool_name == "browser_navigate" {
+@@ -381,6 +485,7 @@ fn with_tab_screenshot(mut result: ToolResult, screenshot: BrowserTabScreenshot)
      if let Some(structured) = result.structured_content.as_mut() {
          structured["screenshot"] = json!({
              "source": "cdp_tab",
@@ -940,7 +953,7 @@ index df04401..207fc39 100644
              "scope": "viewport",
              "mime_type": "image/png",
              "width": screenshot.width,
-@@ -453,6 +554,10 @@ impl GetBrowserStateTool {
+@@ -453,6 +558,10 @@ impl GetBrowserStateTool {
                          "type": "string",
                          "description": "Opaque continuation minted by an earlier semantic_v2 response."
                      },
@@ -951,7 +964,7 @@ index df04401..207fc39 100644
                      "include_screenshot": {
                          "type": "boolean",
                          "default": false,
-@@ -618,9 +723,18 @@ impl Tool for GetBrowserStateTool {
+@@ -618,9 +727,18 @@ impl Tool for GetBrowserStateTool {
                      Err(refusal) => return refusal.to_tool_result(),
                  };
                  if include_screenshot {
@@ -971,7 +984,7 @@ index df04401..207fc39 100644
                          .await
                      {
                          Ok(screenshot) => with_tab_screenshot(snapshot, screenshot),
-@@ -673,7 +787,7 @@ impl Tool for GetBrowserStateTool {
+@@ -673,7 +791,7 @@ impl Tool for GetBrowserStateTool {
              if include_screenshot {
                  return match self
                      .engine
@@ -980,7 +993,7 @@ index df04401..207fc39 100644
                      .await
                  {
                      Ok(screenshot) => with_tab_screenshot(snapshot, screenshot),
-@@ -1158,6 +1272,7 @@ impl BrowserClickTool {
+@@ -1158,6 +1276,7 @@ impl BrowserClickTool {
                  "properties": {
                      "target_id": schema_target_id(),
                      "tab_id": schema_tab_id(),
@@ -988,7 +1001,7 @@ index df04401..207fc39 100644
                      "session": schema_session(),
                      "ref": schema_ref(),
                      "x": { "type": "number", "description": "Viewport x (CSS px) — alternative to ref." },
-@@ -1338,6 +1453,19 @@ impl Tool for BrowserClickTool {
+@@ -1338,6 +1457,19 @@ impl Tool for BrowserClickTool {
          let conn = &validated.conn;
          let cdp = cdp_session.as_str();
  
@@ -1008,7 +1021,7 @@ index df04401..207fc39 100644
          // dom_event route: explicit opt-in only.
          if route == "dom_event" {
              let backend = backend_node_id.expect("checked above");
-@@ -1486,6 +1614,16 @@ impl Tool for BrowserClickTool {
+@@ -1486,6 +1618,16 @@ impl Tool for BrowserClickTool {
              (None, None) => unreachable!("validated above"),
          };
  
@@ -1025,7 +1038,7 @@ index df04401..207fc39 100644
          self.engine
              .visualize_browser_action(
                  &session,
-@@ -1515,6 +1653,11 @@ impl Tool for BrowserClickTool {
+@@ -1515,6 +1657,11 @@ impl Tool for BrowserClickTool {
          }
          tokio::time::sleep(std::time::Duration::from_millis(25)).await;
  
@@ -1037,7 +1050,7 @@ index df04401..207fc39 100644
          let mut delivery_error = None;
          for (event_type, click_count) in [("mousePressed", 1), ("mouseReleased", 1)] {
              if let Err(error) = conn
-@@ -1813,21 +1956,23 @@ impl BrowserTypeTool {
+@@ -1813,21 +1960,23 @@ impl BrowserTypeTool {
                  at the caret, so typing into a field that already holds text appends \
                  to it; pass replace=true to set the field instead, or to clear it by \
                  typing an empty string. Pass a ref to an editable element from the \
@@ -1065,7 +1078,7 @@ index df04401..207fc39 100644
                      },
                      "replace": {
                          "type": "boolean",
-@@ -1839,7 +1984,7 @@ impl BrowserTypeTool {
+@@ -1839,7 +1988,7 @@ impl BrowserTypeTool {
                              framework state stays consistent."
                      },
                  },
@@ -1074,7 +1087,7 @@ index df04401..207fc39 100644
                  "additionalProperties": true
              }),
              read_only: false,
-@@ -1895,9 +2040,9 @@ impl Tool for BrowserTypeTool {
+@@ -1895,9 +2044,9 @@ impl Tool for BrowserTypeTool {
              Err(e) => return e,
          };
          let mode = args.opt_str("mode").unwrap_or_else(|| "insert_text".into());
@@ -1086,7 +1099,7 @@ index df04401..207fc39 100644
              ));
          }
          let replace = args.opt_bool("replace").unwrap_or(false);
-@@ -1919,6 +2064,22 @@ impl Tool for BrowserTypeTool {
+@@ -1919,6 +2068,22 @@ impl Tool for BrowserTypeTool {
              Err(refusal) => return refusal.to_tool_result(),
          };
  
@@ -1110,7 +1123,7 @@ index df04401..207fc39 100644
              Ok(value) => value,
              Err(error) => return error,
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-index d5f50d2..6b558df 100644
+index d5f50d2..b5395d3 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 @@ -57,14 +57,31 @@ pub(super) struct FixtureState {
@@ -1430,7 +1443,39 @@ index d5f50d2..6b558df 100644
  #[tokio::test]
  async fn navigation_targets_an_inactive_tab_without_activating_it() {
      let f = fixture().await;
-@@ -2755,6 +2943,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
+@@ -2709,6 +2897,31 @@ async fn owned_endpoint_transitions_refuse_before_dispatch() {
+     }
+ }
+ 
++#[tokio::test]
++async fn protected_browser_scope_preserves_attestation_failure_code() {
++    use super::refusal::BrowserRefusalCode;
++    for code in [
++        BrowserRefusalCode::BrowserBindingStale,
++        BrowserRefusalCode::BrowserRouteUnavailable,
++        BrowserRefusalCode::BrowserConsentRequired,
++        BrowserRefusalCode::BrowserEndpointOwnerMismatch,
++    ] {
++        let f = fixture().await;
++        let (target, tab) = bind(&f).await;
++        f.state.lock().unwrap().endpoint_responses =
++            [Err(BrowserRefusal::new(code, "private endpoint detail"))].into();
++        let result = browser_protected_resource_scope(
++            &f.engine,
++            &json!({"target_id": target, "tab_id": tab, "session": SESSION}),
++            "get_browser_state",
++        ).await;
++        assert_eq!(result.unwrap_err(), format!(
++            "[browser_attestation:{}] private endpoint detail", code.as_str()
++        ));
++        assert!(recorded_calls(&f, "Input.dispatchMouseEvent").is_empty());
++    }
++}
++
+ // ── Mutation routing + frame identity revalidation ──────────────────────────
+ 
+ #[tokio::test]
+@@ -2755,6 +2968,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
      );
  }
  
@@ -1483,7 +1528,7 @@ index d5f50d2..6b558df 100644
  #[tokio::test]
  async fn click_routes_oopif_refs_through_the_contained_child_session() {
      let f = fixture().await;
-@@ -3603,3 +3837,327 @@ async fn method_unsupported_keeps_the_electron_none_path() {
+@@ -3603,3 +3862,327 @@ async fn method_unsupported_keeps_the_electron_none_path() {
      assert_eq!(tabs.len(), 1, "{s}");
      assert_eq!(tabs[0]["url"], "https://fixture.test/");
  }
