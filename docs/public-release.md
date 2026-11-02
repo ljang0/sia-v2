@@ -1,20 +1,20 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.114
-identified the browser click refusal on the existing scrolled museum tab before input. The handoff
-still fails at rename; the real planning task remains incomplete. QA is stopped for verification.
+Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.115
+completed the museum/lunch itinerary after Chrome reconnection and a content correction. The saved
+result reopens correctly. Native handoff still fails at rename; concurrency acceptance remains open.
 Nothing new was published; the last published Mac pilot is alpha.24.
 
 ## Current signed candidate
 
 | Identity                   | Value                                                                                                                          |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| Version                    | `0.1.0-alpha.114`                                                                                                              |
-| Source                     | `a05f538d375e5a2231c781666eef6d598b7fd0da`, no source diff                                                                     |
-| Installed ASAR SHA-256     | `401ddceea26e7c05e8abb420129132436b891d1ada6ed007b051b6feb25acf9e`                                                             |
-| Private evidence directory | `alpha114-browser-diagnostics`                                                                                                 |
+| Version                    | `0.1.0-alpha.115`                                                                                                              |
+| Source                     | `c5e3509e2de9180f868bcde2c888e21c07cb0b60`, no source diff                                                                     |
+| Installed ASAR SHA-256     | `4ca15b2c5199e8dfb28ad759fdf26413467e46970a88a0bf3dfe899bea03e62e`                                                             |
+| Private evidence directory | `alpha115-scrolled-browser-point`                                                                                              |
 | Package                    | Developer ID signed arm64; packaged-runtime verification passed; not notarized                                                 |
-| Local pilot gate           | Full pilot command passed: 2,000 desktop, 46 Electron, 40 renderer, 72 phone-browser; native/shared/build/static checks passed |
+| Local pilot gate           | Full pilot command passed: 2,000 desktop, 46 Electron, 48 renderer, 72 phone-browser; native/shared/build/static checks passed |
 
 The private directory retains package/install receipts, logs, per-turn trajectories, screenshots,
 startup observations and planning result. Alpha.112 reopen evidence and original/copy hashes remain
@@ -103,7 +103,28 @@ alpha.115 pilot command passed: 2,000 desktop, 46 Electron, 48 renderer and 72 p
 plus native/shared/build/static checks. Initial runs caught release-table formatting and a missing
 null check in the new test fixture; both were corrected before the complete passing run. The
 alpha.114 remote CI failure was the same documentation formatting issue, now corrected. Signed
-real-work verification is pending; this does not establish a fixed live click.
+real-work verification now confirms the formerly refused scrolled Visit click succeeds.
+
+## Signed alpha.115 practical planning result
+
+After inline Chrome reconnection and selecting the titled window, turn
+`a0cd9bb5-89fd-4cb5-b3ca-76c076c7f452` completed in 481.146 seconds. Screenshot-based research
+covered official museum hours, the November 7 12:30 PM adult ticket ($25), restaurant availability
+and Café Carnegie menu prices. The agent handled a suspended site, refused new-context link,
+stale observations and conflicting café closing times without an operator clicking the browser.
+It saved and read back a $97 two-person itinerary with a rainy-day alternative and labeled estimates.
+
+The first draft violated the vegetarian requirement by recommending a turkey-and-bacon sandwich
+in its main schedule. An explicit review prompt corrected the default to two $16 vegetarian salads
+in 24.855 seconds, preserving the budget. The corrected 5,322-byte file was independently read,
+opened in Sia Preview, closed and reopened; captured source images confirm the meal price and
+dated ticket selection. SHA-256: `0be71f91f4453a9dd667179eda3fa9163347dfebe86fa0b89a4c41a4e1e94849`.
+Before/after files, all three turn records and screenshots are retained in
+`alpha115-scrolled-browser-point`. Startup needed no reload.
+
+This is completed useful work **with connection and content-review interventions**, not an
+unassisted pass. Continuous focus/clipboard preservation and two completed simultaneous tasks
+were not independently established. No purchase, reservation or invitation occurred.
 
 ## Other retained evidence
 

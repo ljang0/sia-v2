@@ -58,7 +58,12 @@ incomplete: native document Save/reopen and browser restart/network-error recove
 Some earlier text insertion used an accessibility setter and is excluded from strict visual
 acceptance; current source requires keyboard-only native typing. Isolated screenshot, coordinate
 and shortcut successes do not establish an unattended workflow. Operator-assisted results are
-recorded separately and cannot count as completed Sia tasks.
+recorded separately and cannot count as unassisted acceptance.
+
+Signed alpha.115 completed a real two-person museum/lunch itinerary using official hours, dated
+ticket prices and menu screenshots. The $97 saved plan reopened correctly. Chrome reconnection
+and a review prompt correcting a non-vegetarian recommendation were required. Research took
+about eight minutes and the correction 25 seconds; this is not a concurrent-work pass.
 
 A signed native typing test now passes Stop and recovery without duplicated text. Complete
 workflow repeats, concurrency, broader Stop/recovery, clipboard, restart/expiry and physical

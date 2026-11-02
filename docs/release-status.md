@@ -9,7 +9,7 @@ The full alpha.112 local pilot command passed: 1,996 desktop, 46 Electron, 40 re
 72 phone-browser tests, plus native/shared/build/static checks. The real handoff still stopped
 at TextEdit’s Name field: keyboard input did not visibly change it. Rename and relocation remain open.
 A fresh planning task overlapped native work, but Chrome needed inline reconnection and then
-stalled after navigation. Neither task completed its requested deliverable; concurrency has not passed.
+stalled after navigation. Neither task completed on alpha.112; concurrency has not passed.
 
 Alpha.113 source fixes a stale browser start-page classification after accepted navigation;
 regressions for delayed observation and redirects failed before the fix and pass afterward.
@@ -18,7 +18,7 @@ tests, plus native/shared/build/static checks. The phone suite passed on a compl
 one ENOSPC fixture-creation failure. Signed alpha.113 captured and scrolled the inactive museum
 tab while FaceTime was active, then refused a click with a generic browser error; no plan was saved.
 Initial startup required a UI reload, and Chrome reconnection required the correct window choice.
-The start-page correction itself was not exercised on the signed app. QA is stopped for verification.
+The start-page correction itself was not exercised on the signed app.
 
 Alpha.114 source preserves the driver’s projected refusal hint, with two regressions failing before
 the fix and passing afterward. Browser recovery guidance now uses the exposed prepare-only tab
@@ -33,8 +33,13 @@ Alpha.115 source corrects the scrolled-page hit test: the read-only guard uses d
 while mouse input keeps screenshot-derived viewport coordinates. Chromium regressions cover active
 and inactive tabs, scroll and pinch scale; a native regression failed before the correction.
 The full alpha.115 pilot command passed: 2,000 desktop, 46 Electron, 48 renderer and
-72 phone-browser tests, plus native/shared/build/static checks. Signed real-work verification
-is pending. The alpha.114 remote CI failure was release-table formatting, corrected here.
+72 phone-browser tests, plus native/shared/build/static checks. Signed alpha.115 now completes the
+real museum/lunch itinerary: the formerly refused click works, official prices/hours were checked
+visually, and the $97 plan was saved, read back and reopened. Chrome reconnection required an
+operator selection; review caught a meat recommendation that violated the vegetarian requirement.
+Sia corrected it after a follow-up prompt. Research took 481.146 seconds; correction took 24.855
+seconds. This is useful completed work with interventions, not unassisted or concurrency acceptance.
+The alpha.114 remote CI failure was release-table formatting, corrected here.
 
 The owner selected **Mac first; iPhone follows** and is the pilot support/incident owner.
 The [Arena proposal](./arena-proposal.md) offers a bounded technical review and invited pilot;
@@ -86,10 +91,10 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 
 | Area | Verified | Still required |
 | --- | --- | --- |
-| Automated verification | The full alpha.112 local pilot command passed: 1,996 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
+| Automated verification | The full alpha.115 local pilot command passed: 2,000 desktop, 46 Electron, 48 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance. |
 | Native images and coordinates | Alpha.107 resolved Finder filename observation. Alpha.110 created a verified duplicate; alpha.112 reopened it with both Command+O and double-click without a reported focus interruption. | Complete rename and relocation; independently sample continuous foreground preservation. |
 | Native shortcuts and typing | Alpha.95 completed a 1,469-character checklist in 64.690 seconds without a host timeout. Alpha.96 stopped at 485 characters and resumed to the full checklist without duplication. | Repeatable dialog filename input and Save/close/reopen with complete file contents. |
-| Browser work | Alpha.113 captured and scrolled the inactive museum tab with FaceTime active; a subsequent click was refused. Reconnection and recovery needed operator intervention. | Chrome access after restart, permission-prompt dismissal and network-error recovery; completed planning output. |
+| Browser work | Alpha.115 saved/read/reopened a source-checked $97 itinerary after Chrome reconnection and a vegetarian-content correction. | Repeat without rescue; Chrome access after restart, permission-prompt dismissal and network-error recovery. |
 | Concurrency and performance | Alpha.95 composer CUA round trips during typing: median 649.5 ms, worst 1,205 ms (10 samples). Alpha.96 Stop UI round trip: 1,233 ms, followed by stable partial text and successful recovery. | Two completed Sia tasks, clipboard/focus preservation, end-to-end latency and broader Stop/recovery. These limited samples are not performance acceptance. |
 | Physical/fresh install | Existing-profile signed-app checks pass. | Lock/sleep/voice, first-use sign-in/permissions and a fresh account/second Mac. The keep-awake assertion still fails on this host, including with macOS’s own `caffeinate` utility. |
 
