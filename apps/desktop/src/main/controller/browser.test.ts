@@ -721,6 +721,27 @@ describe('connect Chrome and continue', () => {
     }
   });
 
+  it('keeps the saved request stopped when returning to Sia fails', async () => {
+    const { controller, threadId, userMessageId, nativeCall } = await recoveryHarness({
+      returnToApp: async () => {
+        throw new Error('Sia could not return to the front.');
+      },
+    });
+    try {
+      const result = await controller.invoke('browser.connectAndContinue', {
+        threadId,
+        userMessageId,
+        windowId: 7,
+      });
+      expect(result.browser.status).toBe('error');
+      expect(result.browser.detail).toContain('could not return');
+      expect(result.timeline.filter((item) => item.kind === 'user')).toHaveLength(1);
+      expect(nativeCall.mock.calls.some(([tool]) => tool === 'get_browser_state')).toBe(false);
+    } finally {
+      await controller.shutdown();
+    }
+  });
+
   it('offers window choice first, then continues exactly once in the pinned conversation and preserves drafts', async () => {
     const h = await recoveryHarness();
     const { controller, threadId, userMessageId } = h;

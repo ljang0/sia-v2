@@ -1,5 +1,6 @@
 import { workspaceFileMover } from './mac/workspace-file-move.js';
 import { BrowserWindowService } from './mac/browser-window.js';
+import { returnAfterBrowserSetup } from './window/browser-setup-return.js';
 import { backgroundControlUnavailable } from './controller/computer-access.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
 import {
@@ -603,10 +604,19 @@ async function performApplicationCreation(): Promise<void> {
       returnToAppAfterBrowserSetup: async () => {
         // Explicit connection setup can activate Chrome. Return to the existing Sia window
         // before the saved background task resumes; never reopen a window the person closed.
-        if (shutdownStarted || !mainWindow || mainWindow.isDestroyed() || quietFixture) return;
-        if (mainWindow.isMinimized()) mainWindow.restore();
-        mainWindow.show();
-        mainWindow.focus();
+        if (quietFixture) return;
+        const window = mainWindow;
+        if (!window || shutdownStarted || window.isDestroyed())
+          throw new Error('Open Sia again before continuing Chrome setup.');
+        await returnAfterBrowserSetup({
+          window,
+          available: () => !shutdownStarted && mainWindow === window,
+          activate: () => app.focus({ steal: true }),
+          isForeground: async () =>
+            fakeServices || process.platform !== 'darwin'
+              ? window.isFocused()
+              : (await browserWindows.foregroundPid()) === process.pid,
+        });
       },
       ...(localConnectors ? { localConnectors } : {}),
       openMessages: () => shell.openExternal('sms:', { activate: true }),
