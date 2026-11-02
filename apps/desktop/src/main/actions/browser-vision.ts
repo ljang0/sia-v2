@@ -187,6 +187,13 @@ export function browserVisualInput(
     return refused(
       'This visual browser route supports coordinate clicks, scrolling, drag, page keys and typing into a visually focused field.',
     );
+  if (args.x === undefined || args.y === undefined)
+    return {
+      outcome: 'refused',
+      summary:
+        'This pointer action requires both x and y inside the original screenshot, including for scrolling. No input was sent. Capture a fresh screenshot and choose a visible point in the intended area before continuing.',
+      data: { blocker_code: 'browser_coordinates_required', input_not_sent: true },
+    };
   const points =
     args.action === 'drag'
       ? [

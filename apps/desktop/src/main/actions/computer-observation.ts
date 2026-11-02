@@ -9,6 +9,7 @@ import {
   resultRefusal,
   screenshotDimensions,
   stale,
+  unresolvedComputerWindow,
 } from './action-results.js';
 import { requiredString } from './arguments.js';
 import { windowBackgroundInput, windowInputRecovery } from './background-input.js';
@@ -70,7 +71,7 @@ export class ComputerObservation {
     const windowId = requiredString(request.arguments.window_id, 'window_id');
     const binding = this.ctx.computer.resolveWindow(appId, windowId);
     if (!binding || !(await this.inventory.windowStillValid(binding, request))) {
-      return stale('The computer grant is missing, expired, or no longer matches this window.');
+      return unresolvedComputerWindow();
     }
     if (this.ctx.macBrowserAccess()) {
       const wait = request.arguments.wait_ms;

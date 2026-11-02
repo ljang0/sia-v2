@@ -13,6 +13,22 @@ export function stale(reason: string): ActionExecutionResult {
   return { outcome: 'stale', summary: reason, reason };
 }
 
+/** An old public identifier is not evidence that the OS denied access. */
+export function unresolvedComputerWindow(): ActionExecutionResult {
+  return {
+    outcome: 'stale',
+    summary:
+      'These app/window IDs are missing, expired, or no longer match the window. This does not mean macOS permission was denied. No input was sent.',
+    reason: 'computer_window_ids_stale',
+    data: {
+      blocker_code: 'computer_window_ids_stale',
+      input_not_sent: true,
+      next_step:
+        'Call computer_list for current IDs, identify the same intended window, then take computer_snapshot with those IDs. Do not reuse transcript IDs or request permission unless fresh evidence reports missing access. Do not replay earlier uncertain input.',
+    },
+  };
+}
+
 /** Only these explicit validation/authorization refusals prove that no input was posted. */
 export function inputWasRefused(error: unknown): boolean {
   if (error instanceof BrowserAttestationError) return true;

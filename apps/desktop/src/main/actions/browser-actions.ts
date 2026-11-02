@@ -471,10 +471,28 @@ export class BrowserActions {
         latest.visualDocument !== capability.visualDocument ||
         JSON.stringify(latest.pixels) !== JSON.stringify(capability.pixels)
       ) {
-        this.ctx.browser.invalidateSnapshot(binding.tabId);
-        return stale(
-          'The browser page or screenshot geometry changed. Inspect a fresh image before input.',
-        );
+        const code =
+          latest.url !== capability.url
+            ? 'browser_page_changed'
+            : latest.visualDocument !== capability.visualDocument
+              ? 'browser_document_changed'
+              : JSON.stringify(latest.pixels) !== JSON.stringify(capability.pixels)
+                ? 'browser_geometry_changed'
+                : 'browser_snapshot_expired';
+        // The preflight already captured and validated this replacement image.
+        // Return its new authority for inspection; never dispatch the old input.
+        return {
+          ...observed,
+          outcome: 'stale',
+          summary:
+            'The browser page or screenshot geometry changed before input. No input was sent. Inspect the returned fresh screenshot and choose the next action from it; do not reuse the old snapshot.',
+          reason: code,
+          data: {
+            ...asRecord(observed.data),
+            blocker_code: code,
+            input_not_sent: true,
+          },
+        };
       }
       tool = visual.tool;
       input = visual.input;

@@ -421,3 +421,56 @@ it('consumes keyboard authority after uncertain delivery without replaying', asy
   expect((await h.act(dataRecord(first.data).snapshot_id, args)).outcome).toBe('stale');
   expect(h.state.inputCalls).toHaveLength(1);
 });
+
+it('explains omitted scroll coordinates without claiming lost access and recovers from a fresh image', async () => {
+  const h = await fixture();
+  const first = await h.snapshot();
+  const result = await h.act(dataRecord(first.data).snapshot_id, {
+    action: 'scroll',
+    direction: 'up',
+    amount: 1100,
+  });
+  expect(result).toMatchObject({
+    outcome: 'refused',
+    data: {
+      blocker_code: 'browser_coordinates_required',
+      input_not_sent: true,
+    },
+  });
+  expect(result.summary).toContain('x and y');
+  expect(h.state.inputCalls).toEqual([]);
+  const refreshed = await h.snapshot();
+  const next = await h.act(dataRecord(refreshed.data).snapshot_id, {
+    action: 'scroll',
+    x: 800,
+    y: 600,
+    direction: 'up',
+    amount: 1100,
+  });
+  expect(next.outcome).toBe('accepted_unverified');
+  expect(h.state.inputCalls).toHaveLength(1);
+  expect(h.state.inputCalls[0]!.args).toMatchObject({ x: 400, y: 300, delta_y: -1100 });
+});
+
+it('returns the already captured fresh image when preflight detects a changed document, without sending old input', async () => {
+  const h = await fixture();
+  const first = await h.snapshot();
+  h.state.document = 'b'.repeat(64);
+  const args = { action: 'scroll', x: 800, y: 600, direction: 'down', amount: 300 };
+  const changed = await h.act(dataRecord(first.data).snapshot_id, args);
+  expect(changed).toMatchObject({
+    outcome: 'stale',
+    data: {
+      blocker_code: 'browser_document_changed',
+      input_not_sent: true,
+      snapshot_id: expect.any(String),
+    },
+  });
+  expect(changed.images).toHaveLength(1);
+  expect(dataRecord(changed.data).snapshot_id).not.toBe(dataRecord(first.data).snapshot_id);
+  expect(h.state.inputCalls).toEqual([]);
+  const refreshed = await h.act(dataRecord(changed.data).snapshot_id, args);
+  expect(refreshed.outcome).toBe('accepted_unverified');
+  expect(h.state.inputCalls).toHaveLength(1);
+  expect(h.state.inputCalls[0]!.args.visual_document).toBe('b'.repeat(64));
+});

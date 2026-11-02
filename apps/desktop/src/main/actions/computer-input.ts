@@ -10,6 +10,7 @@ import {
   screenshotDimensions,
   safeErrorMessage,
   stale,
+  unresolvedComputerWindow,
 } from './action-results.js';
 import { requiredEnum, requiredString } from './arguments.js';
 import {
@@ -53,7 +54,7 @@ export class ComputerInput {
     const windowId = requiredString(args.window_id, 'window_id');
     const binding = this.ctx.computer.resolveWindow(appId, windowId);
     if (!binding || !(await this.inventory.windowStillValid(binding, request))) {
-      return stale('The computer grant is missing, expired, or no longer matches this window.');
+      return unresolvedComputerWindow();
     }
     const snapshotId = requiredString(args.snapshot_id, 'snapshot_id');
     const capability = this.ctx.computer.snapshots.get(snapshotId);

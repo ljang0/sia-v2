@@ -58,6 +58,12 @@ export function visualTools(tools: readonly ToolDescriptor[]): ToolDescriptor[] 
           type: 'string',
           enum: ['click', 'type', 'scroll', 'key', 'drag'],
         };
+        for (const coordinate of ['x', 'y'])
+          properties[coordinate] = {
+            ...(source[coordinate] as Record<string, unknown>),
+            description:
+              'Required for click, scroll and drag: a point inside the intended area in original screenshot pixels. Browser type/key use the visually focused control without coordinates.',
+          };
         properties.text = {
           type: 'string',
           description: 'Literal text to insert at the visually focused caret.',
@@ -91,7 +97,7 @@ export function visualTools(tools: readonly ToolDescriptor[]): ToolDescriptor[] 
             : 'Open an ordinary HTTP(S) website. In background mode pass the exact granted Chromium app/window and optional task tab. prepare_only discovers existing tabs and restores that connection without navigation or foregrounding. Select the intended task tab from the returned choices; never replace an unrelated tab. On screen uses the system opener; observe and verify the resulting window before input. Never use navigation to bypass a protected surface.'
           : snapshot
             ? 'Capture a fresh screenshot of the exact granted window or tab. Inspect the image; no extracted text or semantic targets are provided. A failed capture grants no input.'
-            : 'Send one screenshot-coordinate pointer action, literal text, or named key to the exact observed window or tab. Use its latest snapshot_id and original image coordinates. Inspect the returned image before the next action; never replay uncertain input.' +
+            : 'Send one screenshot-coordinate pointer action, literal text, or named key to the exact observed window or tab. Use its latest snapshot_id and original image coordinates. Click, scroll and drag require both x and y; scrolling also requires direction, and dragging requires to_x/to_y. Inspect the returned image before the next action; never replay uncertain input.' +
               (tool.name === 'computer_action'
                 ? ' For a native key action, x/y focuses the chosen field before the key or shortcut in one operation. Omit x/y only when the intended control already has keyboard focus.'
                 : ''),
