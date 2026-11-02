@@ -110,6 +110,15 @@ it.each([
   ['popup process is unavailable', 'popup_process_unavailable'],
   ['popup scan limit exceeded', 'popup_scan_limit'],
   ['layer lies outside composite', 'popup_composite_bounds'],
+  ['popover has no matching window', 'popover_window_unmatched'],
+  [
+    'window 123 is on another Space; SkyLight capture: attached sheets require paired stream geometry; sample contains an unproven surface or changed sheet',
+    'capture_off_space,capture_sheet_needs_stream,capture_surface_unproven',
+  ],
+  [
+    'window 456 is on another Space; SLSHWCaptureWindowList returned no image for window 456; no completed window frame: timed out',
+    'capture_off_space,capture_backing_missing,capture_stream_frame_missing',
+  ],
   ['unknown private failure', 'capture_unavailable'],
 ])('logs a bounded capture reason without native content: %s', (reason, hint) => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});

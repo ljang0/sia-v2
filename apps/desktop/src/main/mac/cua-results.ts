@@ -36,7 +36,7 @@ export function browserGuardRefusalCode(code: string, message = ''): string | un
 }
 
 // Classify only the capture error, never AX labels, paths, or arbitrary native text.
-function popupCaptureHint(raw: string): string | undefined {
+function captureFailureHint(raw: string): string | undefined {
   let reason: unknown;
   try {
     const parsed = JSON.parse(raw) as {
@@ -62,11 +62,26 @@ function popupCaptureHint(raw: string): string | undefined {
     ['popup capture does not match its owned surface', 'popup_capture_mismatch'],
     ['invalid layer crop', 'popup_crop_invalid'],
     ['layer lies outside composite', 'popup_composite_bounds'],
+    ['popover has no matching window', 'popover_window_unmatched'],
+    ['popover window identity is ambiguous', 'popover_window_ambiguous'],
+    ['popover document ancestry is unproven', 'popover_document_unproven'],
+    ['popover process does not match its document', 'popover_process_mismatch'],
+    ['popover geometry is unreadable', 'popover_geometry_missing'],
+    ['popover disappeared', 'popover_disappeared'],
+    ['popover changed during lookup', 'popover_changed'],
+    ['is on another Space', 'capture_off_space'],
+    ['SLSHWCaptureWindowList returned no image', 'capture_backing_missing'],
+    ['fully transparent (no window content)', 'capture_backing_transparent'],
+    ['attached sheets require paired stream geometry', 'capture_sheet_needs_stream'],
+    ['no completed window frame', 'capture_stream_frame_missing'],
     ['sample contains an unproven surface', 'capture_surface_unproven'],
     ['invalid parameter', 'capture_backend_invalid_parameter'],
     ['legacy parent capture frame', 'capture_backing_frame_mismatch'],
   ] as const;
-  return stages.find(([message]) => reason.includes(message))?.[1];
+  // The driver retains both backend failures. Keep every recognized stage so
+  // one failure cannot hide the reason the fallback also refused capture.
+  const hints = stages.filter(([message]) => reason.includes(message)).map(([, hint]) => hint);
+  return hints.length ? hints.join(',') : undefined;
 }
 
 /** Decode native envelopes without exposing content-bearing failure payloads. */
@@ -79,7 +94,7 @@ export function decodeDriverResult(
   if (result.errorCode) {
     if (tool === 'get_window_state' && result.errorCode === 'px_capture_unavailable') {
       const hint =
-        popupCaptureHint(result.structuredJson ?? result.rawJson) ?? 'capture_unavailable';
+        captureFailureHint(result.structuredJson ?? result.rawJson) ?? 'capture_unavailable';
       console.warn(`[sia:cua-capture] screenshot_missing hint=${hint}`);
     }
     const guardCode = browserGuardRefusalCode(
@@ -147,7 +162,7 @@ export function decodeDriverResult(
       : raw.includes('px_frame_mismatch')
         ? 'frame_mismatch'
         : raw.includes('px_capture_unavailable')
-          ? (popupCaptureHint(raw) ?? 'capture_unavailable')
+          ? (captureFailureHint(raw) ?? 'capture_unavailable')
           : 'image_missing';
     console.warn(`[sia:cua-capture] screenshot_missing hint=${hint}`);
   }

@@ -45,6 +45,13 @@ portions with an explicitly permitted half batch. Research took 204.931 seconds 
 47.257 seconds. Native work overlapped but failed capture while its window was off the current
 Space, so two completed concurrent tasks remain unverified.
 
+Alpha.116 source adds bounded native-capture diagnostics for off-Space, popover and backend
+failures. Combined backend failures retain all recognized codes; raw native reasons, paths,
+window identifiers and app content are not logged. This does not change capture or input behavior.
+The post-unlock alpha.115 check still refused the off-Space document screenshot before input.
+The full alpha.116 local pilot command passed: 2,003 desktop, 46 Electron, 48 renderer and
+72 phone-browser tests, plus native/shared/build/static checks. Signed-app verification is pending.
+
 The owner selected **Mac first; iPhone follows** and is the pilot support/incident owner.
 The [Arena proposal](./arena-proposal.md) offers a bounded technical review and invited pilot;
 it does not claim a partnership, validated ranking or completed acceptance. Research sharing is off.
