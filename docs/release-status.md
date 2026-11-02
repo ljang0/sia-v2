@@ -23,7 +23,9 @@ The start-page correction itself was not exercised on the signed app. QA is stop
 Alpha.114 source preserves the driver’s projected refusal hint, with two regressions failing before
 the fix and passing afterward. Browser recovery guidance now uses the exposed prepare-only tab
 discovery route instead of the hidden assisted snapshot option. The full alpha.114 pilot command passed: 2,000 desktop, 46 Electron, 40 renderer and
-72 phone-browser tests, plus native/shared/build/static checks. Signed verification is pending. See the
+72 phone-browser tests, plus native/shared/build/static checks. Signed alpha.114 verified the
+diagnostic fix: the real scrolled museum page now reports `browser_point_context_unavailable`
+before input. Chrome still required reconnection; no plan was saved. Startup cleared without reload. See the
 [exact artifact and intervention record](./public-release.md). The last published Mac pilot remains
 alpha.24. Nothing new has been published.
 

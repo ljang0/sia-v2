@@ -1,7 +1,7 @@
 # Distribution acceptance record
 
-Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.113
-captured and scrolled an inactive museum tab, then stopped on a browser click refusal. The handoff
+Updated November 1, 2026. **Distribution is not ready.** Signed internal arm64 alpha.114
+identified the browser click refusal on the existing scrolled museum tab before input. The handoff
 still fails at rename; the real planning task remains incomplete. QA is stopped for verification.
 Nothing new was published; the last published Mac pilot is alpha.24.
 
@@ -9,12 +9,12 @@ Nothing new was published; the last published Mac pilot is alpha.24.
 
 | Identity                   | Value                                                                                                                                                       |
 | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Version                    | `0.1.0-alpha.113`                                                                                                                                           |
-| Source                     | `675ff0ae4f8a4ce010e0bf147689cd8ae99e13a3`, no source diff                                                                                                  |
-| Installed ASAR SHA-256     | `2314aa28e892fda557d71866bfb28913615763c3148e8df8f2297521c9ec2fdb`                                                                                          |
-| Private evidence directory | `alpha113-browser-navigation`                                                                                                                               |
+| Version                    | `0.1.0-alpha.114`                                                                                                                                           |
+| Source                     | `a05f538d375e5a2231c781666eef6d598b7fd0da`, no source diff                                                                                                  |
+| Installed ASAR SHA-256     | `401ddceea26e7c05e8abb420129132436b891d1ada6ed007b051b6feb25acf9e`                                                                                          |
+| Private evidence directory | `alpha114-browser-diagnostics`                                                                                                                               |
 | Package                    | Developer ID signed arm64; packaged-runtime verification passed; not notarized                                                                              |
-| Local pilot gate           | All stages passed: 1,998 desktop, 46 Electron, 40 renderer, 72 phone-browser; phone suite repeated after ENOSPC |
+| Local pilot gate           | Full pilot command passed: 2,000 desktop, 46 Electron, 40 renderer, 72 phone-browser; native/shared/build/static checks passed |
 
 The private directory retains package/install receipts, logs, per-turn trajectories, screenshots,
 startup observations and planning result. Alpha.112 reopen evidence and original/copy hashes remain
@@ -85,7 +85,17 @@ browser refusal diagnostics: native action dispatch projects the message into `e
 Sia read only the producer envelope. The host now recognizes both, exposing only fixed diagnostic
 codes. The tests fail before the fix and pass afterward; the full pilot command passed
 2,000 desktop, 46 Electron, 40 renderer and 72 phone-browser tests, plus native/shared/build/static
-checks. Signed alpha.114 verification is pending.
+checks. The signed alpha.114 artifact verified this correction: turn
+`a255b1a2-195c-4fd1-8a5d-047b5874d086` captured the exact museum page, then refused the visible
+Visit click at original-image coordinates (1142, 101) with `browser_point_context_unavailable`.
+No input was sent; the agent stopped as instructed. A prior resume again encountered browser
+consent/target refusal and needed the operator's inline connection and titled-window selection.
+Startup cleared normally without a reload. No plan was saved. Package/install receipts,
+trajectories, screenshot and failure record are retained in `alpha114-browser-diagnostics`.
+
+A Chromium regression reproduced the point failure after scrolling in both active and inactive
+tabs. Adding the document scroll offset allowed validation of the intended new-window link.
+The native coordinate correction is still in development; this does not establish a fixed live click.
 
 ## Other retained evidence
 
