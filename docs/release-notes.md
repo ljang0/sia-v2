@@ -20,6 +20,12 @@ Ordinary signed-in user accounts can now upload through the existing encrypted o
 
 Vision-only computer use is the default. The model observes screenshots and chooses coordinates and keys. Background work is the default; **On my screen** is an explicit alternative.
 
+## Voice
+
+ElevenLabs voice is included through Sia's authenticated AWS service. The shared API key stays server-side. In **Settings → Voice**, choose **Enable voice**, select an agent for **Hold Fn to talk to Sia**, and grant microphone access when macOS asks. Hold until the screen edges glow, speak, then release to send; Escape cancels. If voice is already enabled, **Manage voices → Refresh voices** refreshes its choices.
+
+The November 2 credential outage was repaired server-side; this DMG does not need reinstalling. Authenticated speech generation and batch/realtime transcription pass with synthetic audio. Physical Fn/microphone acceptance remains open.
+
 ## Known limitations
 
 - Two useful planning tasks completed on alpha.115 with setup and review interventions. Alpha.118 also saved/read/reopened a prep checklist derived from the dinner plan. Two completed simultaneous tasks have not been verified.

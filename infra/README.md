@@ -121,6 +121,8 @@ API Gateway throttle and a per-user UTC-day DynamoDB quota. Keep `EnableHostedVo
 the secret and allowlists are populated, then use either that parameter or the secret's `enabled`
 field as an emergency kill switch.
 
+For an installed app reporting **Sia voice is temporarily unavailable**, check both `EnableHostedVoice` and the secret's `enabled` field, then verify the configured credential against the voice catalog and required single-use-token endpoints. A populated secret does not establish validity: a rejected provider key caused the November 2 alpha.118 outage. Rotate only `apiKey` after validating the replacement, preserving allowlists and quotas; never ship the shared key or print it in logs. Secret values are cached for up to 60 seconds. Recheck through an ordinary authenticated account and the desktop speech pipeline, then verify physical Fn/microphone behavior separately. The [acceptance record](../docs/public-release.md#managed-voice-repair) distinguishes those checks.
+
 The Composio secret contains `apiKey`, `baseUrl`, exact per-tool `toolVersions`, the reviewed Slack
 OAuth `authConfigIds` (plus the five superseded Google IDs during alpha migration), and an exact
 `toolSlugs` mapping for the canonical connector tools. New Google connections do not use those five

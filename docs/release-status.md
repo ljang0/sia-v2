@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 1, 2026 (verification completed November 2 UTC). **A notarized alpha.118 DMG is available for the requested RA evaluation. Broad distribution and Arena acceptance remain open.**
+Updated November 2, 2026. **A notarized alpha.118 DMG is available for the requested RA evaluation. Broad distribution and Arena acceptance remain open.**
 
 The universal Mac artifact at source `db14166524a0d6fe80c5055fee6209a3bc5c96e7` passed Developer ID signing, Apple notarization, stapling, Gatekeeper and packaged-runtime checks. Its contents were installed directly from the mounted DMG into the isolated QA app. Exact identities and test receipts are in the [distribution acceptance record](./public-release.md).
 
@@ -13,6 +13,8 @@ The full local alpha.118 pilot gate passed: 2,007 desktop, 46 Electron, 48 rende
 Earlier alpha.115 browser tasks produced an itinerary and dinner/grocery plan with setup and review interventions. Native popup input, off-Space capture, restart recovery, continuous focus/clipboard preservation, two completed concurrent tasks, lock/sleep/voice and fresh-account acceptance remain open. A fresh Mac/account is unavailable. The alpha.117 popup-routing correction is included but was not exercised by alpha.118's stopped title-click attempt. The broad native test run still has the known host keep-awake failure; this is not an all-native pass.
 
 The owner selected **Mac first; iPhone follows** and Lawrence Jang is the support/incident owner. The [Arena proposal](./arena-proposal.md) offers a bounded technical review and invited pilot, without claiming a partnership, validated ranking or completed acceptance. No artifact has been publicly published or sent to a recipient by this work.
+
+The reported Fn voice outage was traced to a rejected AWS ElevenLabs key. The owner supplied a valid replacement; only the cloud credential changed, so alpha.118 needs no reinstall. An authenticated ordinary-user check passed catalog access, synthetic TTS, batch/realtime transcription and cancellation in 3.516 seconds. The microphone and physical Fn path still await confirmation; the test did not record user audio. See the [voice repair evidence](./public-release.md#managed-voice-repair).
 
 ## Release requirements
 

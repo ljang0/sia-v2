@@ -53,6 +53,16 @@ A second pair on the same installed DMG overlapped for **18.208 seconds**. Nativ
 
 `overlapping-tasks-verification.json` and the two extracted event logs retain the evidence privately. This establishes overlapping execution and one successful task, not two successful concurrent computer-use workflows. Continuous focus/clipboard preservation was not measured. After both turns finished, operator CUA inspected TextEdit's Window menu for diagnosis; that intervention is not Sia acceptance.
 
+## Managed voice repair
+
+On November 2, the owner reported **temporarily unavailable** when enabling Fn voice in the DMG. Both cloud voice switches were on, but a direct provider check returned HTTP 401 `invalid_api_key` for the AWS credential. The saved local-development credential also failed authentication. Release builds correctly selected the managed AWS route; the shared key was never bundled into the app.
+
+The owner supplied a replacement. Before installation, catalog access and all three single-use token types passed against ElevenLabs. Only the `apiKey` field in the existing AWS secret changed; voice allowlists, quotas, feature switches and other settings were preserved. No app rebuild was needed.
+
+An ordinary disposable Cognito user then exercised the existing desktop `CloudClient` and `ElevenLabsVoiceService` through the deployed AWS API. The live catalog returned 21 voices. Synthetic TTS produced 53,542 bytes; batch and realtime transcription both recovered “Find my Carnegie Mellon professors for this semester.” exactly. Realtime cancellation passed. The round trip took 3,516 ms. The account was deleted, no email was sent, and no microphone or model turn was used. This is real provider transport verification, not a physical Fn/microphone acceptance pass. An initial probe read the wrong session field and stopped before speech; the corrected probe reads `entitlements.hostedVoice`.
+
+Private receipts are `voice-key-rotation.json`, `managed-voice-probe-initial-failure.json` and `managed-voice-roundtrip.json`. The installed-app UI check hit the computer-use tool's `noWindowsAvailable` failure; the owner has been asked to retry Enable voice/Refresh voices and a physical Fn command. Keep that end-to-end check open until confirmed.
+
 ## Automated gates and remaining acceptance
 
 The final full `pnpm test:pilot` passed: 2,007 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus native/shared/build/static checks. An earlier run was stopped after the new notice blocked older E2E flows; it is not counted as a pass. Updated tests cover the default selection, opting out and preserving the choice after reload. Remote CI run 345 was still running when this record was prepared. The broad native run has a known keep-awake failure, so no all-native pass is claimed.
