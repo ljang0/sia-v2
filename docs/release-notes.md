@@ -26,7 +26,7 @@ Vision-only computer use is the default. The model observes screenshots and choo
 
 ElevenLabs voice is included through Sia's authenticated AWS service. The shared API key stays server-side. In **Settings → Voice**, choose **Enable voice**, select an agent for **Hold Fn to talk to Sia**, and grant microphone access when macOS asks. Hold until the screen edges glow, speak, then release to send; Escape cancels. If voice is already enabled, **Manage voices → Refresh voices** refreshes its choices.
 
-The November 2 credential outage was repaired server-side. Authenticated speech generation and batch/realtime transcription pass with synthetic audio. Alpha.118 refreshed its voice catalog and entered Speaking during a CUA playback check. In this alpha.119 DMG, CUA started microphone dictation, observed Listening, stopped recording and received “No speech was detected.” A deliberately spoken command and physical Fn remain unverified; CUA cannot send Fn.
+The November 2 credential outage was repaired server-side. Authenticated speech generation and batch/realtime transcription pass with synthetic audio. Alpha.118 refreshed its voice catalog and entered Speaking during a CUA playback check. In this alpha.119 DMG, CUA started microphone dictation, observed Listening, stopped recording and received “No speech was detected.” After the competing development copy’s Fn shortcut was disabled, the owner confirmed that the microphone now works. CUA cannot send physical Fn; a complete spoken-command round trip has not been independently verified.
 
 ## Known limitations
 
