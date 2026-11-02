@@ -47,6 +47,12 @@ The native turn finished at 02:34:05 UTC; the meal turn started at 02:35:06 UTC.
 
 Earlier alpha.115 tasks produced a source-checked $97 museum/lunch itinerary and a dinner/grocery plan, each with setup and review interventions. The [previous detailed record](https://github.com/ljang0/sia-v2/blob/db14166524a0d6fe80c5055fee6209a3bc5c96e7/docs/public-release.md) preserves those artifact identities, timings, failed diagnostics and interventions. Earlier private receipts, screenshots and generated documents are retained. Progress across versions does not constitute one complete workflow pass.
 
+## Overlapping follow-up tasks
+
+A second pair on the same installed DMG overlapped for **18.208 seconds**. Native recovery turn `ccc20cef-9f67-43de-b86d-2b65224eaafb` ran 02:46:58.017–02:47:51.270 UTC and stopped after the menu-focus shortcut and title context click did not expose a usable control. No successful rename/move is claimed. Grocery turn `d74405f9-a543-4475-808e-d135175c776d` ran 02:47:33.062–02:49:01.732 UTC and completed in **88.670 seconds**. It saved, read back and reopened `grocery-checklist.md` in Sia Preview. Independent review confirmed 23 ingredient rows, shared-ingredient arithmetic, five quesadillas and explicit unknown package sizes. Both source-file hashes remained unchanged. The output is 4,392 bytes, SHA-256 `82359c33c12571f7f6dd3cb9823540d916a7d81f09fff3c1c554b482a5dc1c1d`.
+
+`overlapping-tasks-verification.json` and the two extracted event logs retain the evidence privately. This establishes overlapping execution and one successful task, not two successful concurrent computer-use workflows. Continuous focus/clipboard preservation was not measured. After both turns finished, operator CUA inspected TextEdit's Window menu for diagnosis; that intervention is not Sia acceptance.
+
 ## Automated gates and remaining acceptance
 
 The final full `pnpm test:pilot` passed: 2,007 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus native/shared/build/static checks. An earlier run was stopped after the new notice blocked older E2E flows; it is not counted as a pass. Updated tests cover the default selection, opting out and preserving the choice after reload. Remote CI run 345 was still running when this record was prepared. The broad native run has a known keep-awake failure, so no all-native pass is claimed.

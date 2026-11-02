@@ -4,15 +4,7 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
 public project documents and a real admitted model; fake-service demos are separate.
 
-**Current evidence:** signed universal alpha.60 passed package and installation verification.
-Its real TextEdit brief reached Save, then failed. Later signed arm64 alpha.85 saved and closed
-the brief, but reopening remains incomplete. Alpha.96 stopped native checklist typing midway and
-resumed it without duplicate text. TextEdit autosaved it under a default iCloud name; the requested
-local filename and close/reopen remain unverified. Alpha.59
-browser clicks worked, but restart setup and network-error recovery prevented an itinerary.
-Alpha.57 produced checked dinner/grocery files after operator recovery. Earlier assisted-mode
-successes do not validate the vision-only default. Every selected demo needs two fresh signed runs,
-with failures and interventions retained in the linked record.
+**Current evidence:** universal alpha.118 is signed, notarized, stapled and verified after installation from its DMG. Real tasks automatically uploaded prompts, reported usage, actions/results and computer screenshots to the private AWS archive. Alpha.115 produced checked outing and dinner plans with setup and review interventions. Alpha.118 derived and reopened a prep checklist and a reconciled grocery checklist. Native rename/move still failed; the grocery follow-up overlapped that failed task for 18.208 seconds. Two successful concurrent tasks remain unverified. Earlier assisted-mode successes do not validate the vision-only default. Every selected demo needs two fresh signed runs, with failures and interventions retained in the linked record.
 
 ## Start here
 
@@ -21,8 +13,7 @@ with failures and interventions retained in the linked record.
    For visual acceptance, verify the model receives screenshots without DOM/AX text, semantic
    element targets or OCR helpers. Inspect the actual tool trace, including recovery and skill calls.
    Report explicit file/connector work separately; it cannot establish a visual interaction pass.
-2. Keep research sharing off. Choose **Use my Mac → Work in background**. Record the action
-   confirmation setting; do not change it mid-run or mix results from different settings.
+2. Review the default-on cloud recording notice and Continue with the intended choice. For the public/disposable tasks below, keep recording on to verify automatic prompt, usage and trajectory capture. Settings → Privacy provides pause/export/delete controls. Do not include private material without authorization. Choose **Use my Mac → Work in background** and record the action confirmation setting; do not change it mid-run or mix results from different settings.
 3. Create an assistant with its default folder. Use **Add files** beside the composer to attach
    the source documents listed for the chosen demo. A path typed in a message does not grant
    access to a source file elsewhere on the Mac. Download public files from this repository if
