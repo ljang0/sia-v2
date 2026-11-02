@@ -56,6 +56,16 @@ replacement still left the Name field unchanged. A distinct pointer click dismis
 and focused the document body; Sia stopped before typing there. Both file hashes remain unchanged.
 The next repair targets popup pointer routing and the background click primer.
 
+Alpha.117 source routes a single click on a proven same-process popup to that popup’s window
+and local coordinates, without the parent activation or off-screen primer click. Ambiguous or
+cross-process popup recipients are refused. The click revalidates captured ownership immediately
+before delivery. The transport regression failed against the old five-event sequence; the new
+route emits only mouse move/down/up and retains exact child-window routing. The final full pilot command passed: 2,003 desktop, 46 Electron, 48 renderer and 72
+phone-browser tests, plus the native/shared/build/static gates. Two earlier runs were deliberately
+stopped during review to preserve keyboard-focus and explicit foreground behavior; they are not
+counted as full passes. Signed verification is pending. A broad native run passed 678 tests but failed the already-known
+host keep-awake assertion; seven tests were ignored. This is not an all-native pass.
+
 The owner selected **Mac first; iPhone follows** and is the pilot support/incident owner.
 The [Arena proposal](./arena-proposal.md) offers a bounded technical review and invited pilot;
 it does not claim a partnership, validated ranking or completed acceptance. Research sharing is off.

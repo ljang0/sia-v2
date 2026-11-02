@@ -5233,10 +5233,60 @@ index ad64bdf..5a9faa7 100644
              .iter()
              .map(|event| create_bare_keyboard_event(event.key_code, event.key_down))
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
-index 1b34151..2125660 100644
+index 1b34151..fa43eb2 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
-@@ -2026,19 +2026,42 @@ mod tests {
+@@ -403,6 +403,20 @@ pub fn click_at_xy_with_window_local(
+     }
+ }
+ 
++/// One click to a proven same-process popup. An off-screen Chromium primer
++/// would dismiss an AppKit popover before the requested click reaches it.
++pub fn click_owned_popup(
++    pid: i32,
++    screen: (f64, f64),
++    local: (f64, f64),
++    window_id: u32,
++) -> anyhow::Result<()> {
++    click_at_xy_inner(
++        pid, screen, Some(local), Some(window_id), 1, &[],
++        MousePostMode::SkyLightPreferred,
++    )
++}
++
+ /// `screen` is the click point in screen coordinates.
+ fn click_at_xy_inner(
+     pid: i32,
+@@ -1973,6 +1987,28 @@ mod tests {
+     use super::post_sink::{Capture, Posted};
+     use super::*;
+ 
++    #[test]
++    fn popup_click_posts_only_the_requested_pair_to_the_child_window() {
++        for available in [true, false] {
++            let capture = Capture::start(available);
++            click_owned_popup(1, (120.0, 80.0), (20.0, 30.0), 9).unwrap();
++            let route = if available {
++                PostRoute::SkyLight
++            } else {
++                PostRoute::PublicPid
++            };
++            assert_eq!(capture.posted(), [
++                Posted::new("MouseMoved", route, 0),
++                Posted::new("LeftMouseDown", route, 0),
++                Posted::new("LeftMouseUp", route, 0),
++            ]);
++            for fields in capture.window_routing() {
++                assert_eq!(&fields[..3], &[9, 9, 9]);
++                assert_ne!(fields[3], 0);
++            }
++        }
++    }
++
+     #[test]
+     fn background_middle_click_preserves_exact_window_routing() {
+         let capture = Capture::start(true);
+@@ -2026,19 +2062,42 @@ mod tests {
  
      #[test]
      fn capture_bound_background_route_preserves_nonzero_origin_hit() {
@@ -5586,7 +5636,7 @@ index bb28e4b..1c67145 100644
      Some((window_id, point))
  }
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
-index 8503db3..c035669 100644
+index 8503db3..f7758ff 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
 @@ -148,10 +148,12 @@ fn press_error_may_have_acted(err: crate::ax::bindings::AXError) -> bool {
@@ -5688,7 +5738,37 @@ index 8503db3..c035669 100644
                          {
                              return ToolResult::error(format!(
                                  "click: window-local point ({lx:.1}, {ly:.1}) pt lies outside \
-@@ -1164,33 +1166,50 @@ impl Tool for ClickTool {
+@@ -1081,6 +1083,21 @@ impl Tool for ClickTool {
+                 (cx, cy, cx, cy)
+             };
+ 
++            let owned_popup = match dispatch_surface.as_ref() {
++                Some(surface) => match super::pixel_route::owned_popup_point(
++                    surface, screen_x, screen_y,
++                    !delivery_mode.is_foreground() && action != "focus",
++                ) {
++                    Ok(target) => target,
++                    Err(error) => return ToolResult::error(format!("Popup pointer target refused: {error}")),
++                },
++                None => None,
++            };
++            if owned_popup.is_some() && (button_str != "left"
++                || count != 1 || !modifiers.is_empty()) {
++                return ToolResult::error("Owned popups require a single unmodified background pointer click.");
++            }
++
+             // ── Exact-target background gate (macOS background input v1) ──
+             // A window-addressed background pixel action targets coordinates,
+             // which only mean something while the exact window is current and
+@@ -1158,39 +1175,57 @@ impl Tool for ClickTool {
+             // targeting (PX) orthogonal to delivery (AX) and avoids making a
+             // Chromium/AppKit window key merely to satisfy first-mouse rules.
+             if let Some(hit_test_wid) = window_id.filter(|_| {
+-                !delivery_mode.is_foreground()
++                owned_popup.is_none()
++                    && !delivery_mode.is_foreground()
+                     && button_str == "left"
+                     && count == 1
                      && modifiers.is_empty()
              }) {
                  let focus_only = action == "focus";
@@ -5763,7 +5843,7 @@ index 8503db3..c035669 100644
                      }
                      let delivered = if focus_only {
                          crate::input::ax_actions::focus_element(element as usize).is_ok()
-@@ -1236,13 +1255,32 @@ impl Tool for ClickTool {
+@@ -1236,13 +1271,32 @@ impl Tool for ClickTool {
                                  "code": "background_unavailable"
                              }));
                      }
@@ -5776,14 +5856,14 @@ index 8503db3..c035669 100644
                  }
              }
  
-+            if outside_parent {
++            if outside_parent && owned_popup.is_none() {
 +                return ToolResult::error("The owned sheet could not deliver this point; refusing synthetic input outside the parent window.");
 +            }
 +
              // Resolve the effective delivery posture before observation. A
              // requested foreground click without a window id still degrades to
              // background, matching the existing contract and result label.
-+            if let Some(surface) = dispatch_surface {
++            if let Some(surface) = dispatch_surface.clone() {
 +                match tokio::task::spawn_blocking(move || surface.ensure_current()).await {
 +                    Ok(Ok(())) => {}
 +                    _ => {
@@ -5796,6 +5876,36 @@ index 8503db3..c035669 100644
              let fg = delivery_mode.is_foreground() && window_id.is_some();
              // Background delivery cannot satisfy a toolkit that reads the
              // hardware pointer; refuse before any activation or dispatch.
+@@ -1250,7 +1304,12 @@ impl Tool for ClickTool {
+                 Ok(route) => route,
+                 Err(refusal) => return refusal,
+             };
+-            let activation_policy = pixel_activation_policy(&button_str, fg, window_id.is_some());
++            // An already-open owned popup must not be re-keyed as its parent.
++            let activation_policy = if owned_popup.is_some() {
++                PixelActivationPolicy::SuppressTarget
++            } else {
++                pixel_activation_policy(&button_str, fg, window_id.is_some())
++            };
+ 
+             // ── Focus-suppression wrap (Swift WindowChangeDetector + FocusGuard) ──
+             // A pixel click can land on a "Sign In" button that opens a sheet
+@@ -1372,6 +1431,15 @@ impl Tool for ClickTool {
+                                     &m,
+                                 );
+                             }
++                            if let Some(popup) = owned_popup {
++                                // No activation or off-screen primer: both can dismiss a popover.
++                                dispatch_surface.as_ref()
++                                    .ok_or_else(|| anyhow::anyhow!("popup surface missing"))?
++                                    .ensure_current()?;
++                                return crate::input::mouse::click_owned_popup(
++                                    pid, (screen_x, screen_y), (popup.local_x, popup.local_y), popup.window_id,
++                                );
++                            }
+                             match button_kind.as_str() {
+                                 "right" => {
+                                     if let Some(wid) = window_id {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/drag.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/drag.rs
 index 8e8d8a2..ddaca2a 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/drag.rs
@@ -7181,6 +7291,111 @@ index 0000000..f03728d
 +        assert!(!point_within_rect([5.0, 5.0, -3.0, 10.0], 5.0, 6.0));
 +    }
 +}
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/pixel_route.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/pixel_route.rs
+index b7233f5..9171933 100644
+--- a/libs/cua-driver/rust/crates/platform-macos/src/tools/pixel_route.rs
++++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/pixel_route.rs
+@@ -16,6 +16,40 @@ use cua_driver_core::protocol::ToolResult;
+ 
+ use crate::input::pointer_toolkit::PointerReadingToolkit;
+ 
++/// A screenshot-owned popup is a separate event recipient from its document.
++/// The caller must revalidate the complete captured surface immediately before input.
++#[derive(Clone, Copy, Debug, PartialEq)]
++pub(crate) struct OwnedPopupPoint {
++    pub window_id: u32,
++    pub local_x: f64,
++    pub local_y: f64,
++}
++
++pub(crate) fn owned_popup_point(
++    surface: &crate::capture::frame::Surface,
++    x: f64,
++    y: f64,
++    background_pointer: bool,
++) -> anyhow::Result<Option<OwnedPopupPoint>> {
++    if !background_pointer {
++        return Ok(None);
++    }
++    let mut hits = surface.popups.iter().filter(|p| p.bounds.contains(x, y));
++    let Some(popup) = hits.next() else {
++        return Ok(None);
++    };
++    anyhow::ensure!(hits.next().is_none(), "popup pointer target is ambiguous");
++    anyhow::ensure!(
++        popup.pid == surface.pid && popup.window_id != surface.window_id,
++        "popup pointer recipient is not in the document process"
++    );
++    Ok(Some(OwnedPopupPoint {
++        window_id: popup.window_id,
++        local_x: x - popup.bounds.x,
++        local_y: y - popup.bounds.y,
++    }))
++}
++
+ /// Transport for a pixel click once any background AX hit-test backend has
+ /// declined (or was not eligible).
+ #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+@@ -147,6 +181,59 @@ pub(crate) fn foreground_unavailable(action: &str, window_id: u32, cause: &str)
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn popup_pointer_uses_owned_child_geometry_and_refuses_ambiguous_recipients() {
++        use crate::capture::frame::{Popup, Rect, Surface};
++        let bounds = Rect {
++            x: 100.0,
++            y: 50.0,
++            width: 300.0,
++            height: 100.0,
++        };
++        let popup = Popup {
++            window_id: 9,
++            pid: 20,
++            bounds,
++        };
++        let mut surface = Surface {
++            window_id: 7,
++            pid: 20,
++            parent: Rect {
++                x: 80.0,
++                y: 20.0,
++                width: 500.0,
++                height: 400.0,
++            },
++            sheet: None,
++            popups: vec![popup.clone()],
++        };
++        assert_eq!(
++            owned_popup_point(&surface, 120.0, 80.0, true).unwrap(),
++            Some(OwnedPopupPoint {
++                window_id: 9,
++                local_x: 20.0,
++                local_y: 30.0,
++            })
++        );
++        assert_eq!(owned_popup_point(&surface, 85.0, 30.0, true).unwrap(), None);
++        assert_eq!(
++            owned_popup_point(&surface, f64::NAN, 80.0, true).unwrap(),
++            None
++        );
++        assert_eq!(
++            owned_popup_point(&surface, 120.0, 80.0, false).unwrap(),
++            None
++        );
++        surface.popups.push(popup);
++        assert!(owned_popup_point(&surface, 120.0, 80.0, true).is_err());
++        surface.popups.pop();
++        surface.popups[0].pid = 21;
++        assert!(owned_popup_point(&surface, 120.0, 80.0, true).is_err());
++        surface.popups[0].pid = 20;
++        surface.popups[0].window_id = 7;
++        assert!(owned_popup_point(&surface, 120.0, 80.0, true).is_err());
++    }
++
+     /// D-MAC-6: a foreground window pixel click must use the HID tap with a
+     /// real pointer move (Tk reads the hardware pointer), background clicks
+     /// keep PID routing, and a known pointer-reading toolkit refuses
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/press_key.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/press_key.rs
 index e4d007f..e9c698a 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/press_key.rs
