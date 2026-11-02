@@ -50,6 +50,11 @@ the native service owns driver execution. Permission setup is an explicit user o
 | [`cua-permissions.ts`](../apps/desktop/src/main/mac/cua-permissions.ts)                                                                                | Owns macOS setup, relaunch detection and cached access verification; its injected driver interface permits only window reads. |
 | [`cua-results.ts`](../apps/desktop/src/main/mac/cua-results.ts)                                                                                        | Decodes driver envelopes, sanitizes failures and bounds image results without depending on service state.                     |
 
+[`cua-browser-session.ts`](../apps/desktop/src/main/mac/cua-browser-session.ts) owns the
+trusted browser lease and maps only proved SDK expiry/revocation to connection recovery. It does
+not retry input or silently renew access. This lifecycle is separate from macOS permission setup
+and from the action layer’s exact window/tab grants.
+
 The native patch and its build/verification steps are documented in
 [`native/cua/README.md`](../apps/desktop/native/cua/README.md). The service regression suite covers
 permission setup, concurrent queues, cancellation, stale callbacks, foreground interference and
