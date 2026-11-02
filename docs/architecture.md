@@ -440,6 +440,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   requests structured `elements` and verbose background-route metadata; the driver's compact
   markdown default cannot support Sia's protected-field checks or input grants. Visual actions use
   coordinates bound to a recent screenshot; internal structured state is used for protection only.
+  Browser mouse input uses viewport coordinates. The read-only new-window guard converts those
+  points to document coordinates using live scroll offsets before CDP hit testing; it does not
+  change the input point, scroll the page or expose the DOM node to the model.
   Starting a fresh window observation revokes its previous input snapshot even if the new read
   is protected, unavailable or fails its expected-URL check. Browser preflight revokes changed
   surface grants and refuses newly detected authentication controls even at an unchanged URL.

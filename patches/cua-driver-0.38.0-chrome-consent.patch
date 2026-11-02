@@ -87,7 +87,7 @@ index c401f20..a11a0a7 100644
  
      #[tokio::test]
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
-index 1d0940c..bf5305e 100644
+index 1d0940c..f3bc277 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
 @@ -247,6 +247,43 @@ fn endpoint_access_class(
@@ -151,10 +151,26 @@ index 1d0940c..bf5305e 100644
      pub data_base64: String,
      pub width: u32,
      pub height: u32,
-@@ -515,6 +553,31 @@ fn browser_screenshot_viewport(
+@@ -515,6 +553,47 @@ fn browser_screenshot_viewport(
      })
  }
  
++/// DOM hit testing takes document coordinates; mouse input still takes viewport
++/// coordinates. Keep this conversion confined to the read-only safety check.
++pub(super) fn document_hit_test_point(metrics: &Value, x: f64, y: f64) -> Option<(i32, i32)> {
++    let viewport = browser_screenshot_viewport(metrics).ok()?;
++    if !x.is_finite() || !y.is_finite() || x < 0.0 || y < 0.0
++        || x >= viewport.width || y >= viewport.height {
++        return None;
++    }
++    let document_x = x + viewport.page_x;
++    let document_y = y + viewport.page_y;
++    if document_x > i32::MAX as f64 || document_y > i32::MAX as f64 {
++        return None;
++    }
++    Some((document_x.floor() as i32, document_y.floor() as i32))
++}
++
 +/// Bind the image to CSS viewport state as well as the document. The token remains
 +/// host-only: it exposes neither page content nor coordinates to the model.
 +fn visual_observation_token(document: &str, metrics: &Value) -> Result<String, BrowserRefusal> {
@@ -183,7 +199,7 @@ index 1d0940c..bf5305e 100644
  /// Whether OOPIF content could be composed into the snapshot.
  #[derive(Debug, Clone, Copy, PartialEq, Eq)]
  pub(crate) enum OopifStatus {
-@@ -551,6 +614,13 @@ pub(crate) struct LocalFrameTree {
+@@ -551,6 +630,13 @@ pub(crate) struct LocalFrameTree {
  }
  
  impl LocalFrameTree {
@@ -197,7 +213,7 @@ index 1d0940c..bf5305e 100644
      fn main_identity(&self) -> FrameIdentity {
          FrameIdentity {
              frame_id: self.main_frame_id.clone(),
-@@ -1260,9 +1330,9 @@ impl BrowserEngine {
+@@ -1260,9 +1346,9 @@ impl BrowserEngine {
      /// Attach (flattened) to a tab's target and return the CDP session id.
      async fn attach(
          &self,
@@ -209,7 +225,7 @@ index 1d0940c..bf5305e 100644
          let attached = conn
              .call(
                  None,
-@@ -1276,7 +1346,7 @@ impl BrowserEngine {
+@@ -1276,7 +1362,7 @@ impl BrowserEngine {
                      format!("cannot attach to tab target {cdp_target_id}: {e}"),
                  )
              })?;
@@ -218,7 +234,7 @@ index 1d0940c..bf5305e 100644
              .get("sessionId")
              .and_then(Value::as_str)
              .map(str::to_owned)
-@@ -1285,7 +1355,8 @@ impl BrowserEngine {
+@@ -1285,7 +1371,8 @@ impl BrowserEngine {
                      BrowserRefusalCode::BrowserTabNotFound,
                      format!("attach to {cdp_target_id} returned no sessionId"),
                  )
@@ -228,7 +244,7 @@ index 1d0940c..bf5305e 100644
      }
  
      // ── Binding (get_browser_state, pid + window_id mode) ──────────────
-@@ -1745,7 +1816,7 @@ impl BrowserEngine {
+@@ -1745,7 +1832,7 @@ impl BrowserEngine {
          // feedback is safer than drawing a cursor over another tab.
          let tab_is_active = tab_visibility_proven(&validated.conn, &validated.cdp_session).await;
  
@@ -237,7 +253,7 @@ index 1d0940c..bf5305e 100644
              validated
                  .conn
                  .call(Some(cdp_session), "Page.getLayoutMetrics", json!({}))
-@@ -1977,6 +2048,22 @@ impl BrowserEngine {
+@@ -1977,6 +2064,22 @@ impl BrowserEngine {
          }
      }
  
@@ -260,7 +276,7 @@ index 1d0940c..bf5305e 100644
      // ── Read-side: page snapshot (ref minting) ──────────────────────────
  
      /// Capture the exact page target's current viewport through its attached
-@@ -1988,6 +2075,7 @@ impl BrowserEngine {
+@@ -1988,6 +2091,7 @@ impl BrowserEngine {
          session: &str,
          target_id: &str,
          tab_id: &str,
@@ -268,7 +284,7 @@ index 1d0940c..bf5305e 100644
      ) -> Result<BrowserTabScreenshot, BrowserRefusal> {
          let record = self.store.get_target(session, target_id)?;
          let tab = record.tabs.get(tab_id).cloned().ok_or_else(|| {
-@@ -1998,11 +2086,28 @@ impl BrowserEngine {
+@@ -1998,11 +2102,28 @@ impl BrowserEngine {
          })?;
          let conn = self.connection_for_record(session, &record).await?;
          let cdp_session = self.attach(&conn, &tab.cdp_target_id).await?;
@@ -297,7 +313,7 @@ index 1d0940c..bf5305e 100644
          let response = conn
              .call(
                  Some(&cdp_session),
-@@ -2065,7 +2170,18 @@ impl BrowserEngine {
+@@ -2065,7 +2186,18 @@ impl BrowserEngine {
                  "PNG dimensions must be non-zero",
              ));
          }
@@ -316,7 +332,7 @@ index 1d0940c..bf5305e 100644
              data_base64,
              width,
              height,
-@@ -2603,7 +2719,7 @@ impl BrowserEngine {
+@@ -2603,7 +2735,7 @@ impl BrowserEngine {
                  continuation.offset,
                  DEFAULT_SEMANTIC_NODE_BUDGET,
                  continuation.query.as_deref(),
@@ -325,7 +341,7 @@ index 1d0940c..bf5305e 100644
              );
              let start_index = snapshot
                  .refs
-@@ -2643,7 +2759,7 @@ impl BrowserEngine {
+@@ -2643,7 +2775,7 @@ impl BrowserEngine {
                              SemanticContinuation {
                                  offset,
                                  query: continuation.query.clone(),
@@ -334,7 +350,7 @@ index 1d0940c..bf5305e 100644
                                  oopif_supported: continuation.oopif_supported,
                                  oopif_frames: continuation.oopif_frames,
                              },
-@@ -2654,12 +2770,10 @@ impl BrowserEngine {
+@@ -2654,12 +2786,10 @@ impl BrowserEngine {
              return Ok(outcome);
          }
  
@@ -351,7 +367,7 @@ index 1d0940c..bf5305e 100644
              None => None,
          };
          let record = self.store.get_target(session, target_id)?;
-@@ -2791,11 +2905,21 @@ impl BrowserEngine {
+@@ -2791,11 +2921,21 @@ impl BrowserEngine {
              semantic.complete = false;
          }
  
@@ -374,7 +390,7 @@ index 1d0940c..bf5305e 100644
          );
          let next_offset = page.next_offset;
          let snapshot_id = self.store.mint_snapshot_id();
-@@ -2829,7 +2953,7 @@ impl BrowserEngine {
+@@ -2829,7 +2969,7 @@ impl BrowserEngine {
                              SemanticContinuation {
                                  offset,
                                  query: query.map(str::to_owned),
@@ -383,10 +399,29 @@ index 1d0940c..bf5305e 100644
                                  oopif_supported: matches!(oopif, OopifStatus::Attached(_)),
                                  oopif_frames: oopif.frames(),
                              },
-@@ -3013,6 +3137,35 @@ async fn live_title(conn: &Arc<CdpConnection>, cdp_target_id: &str, fallback: &s
+@@ -3013,6 +3153,54 @@ async fn live_title(conn: &Arc<CdpConnection>, cdp_target_id: &str, fallback: &s
  
  #[cfg(test)]
  mod tests {
++    #[test]
++    fn hit_test_coordinates_require_finite_in_viewport_points_and_bounded_document_offsets() {
++        use serde_json::json;
++        let metrics = json!({"cssVisualViewport": {
++            "pageX": 30.25, "pageY": 650.75, "clientWidth": 800, "clientHeight": 600
++        }});
++        assert_eq!(super::document_hit_test_point(&metrics, 10.5, 20.5), Some((40, 671)));
++        for (x, y) in [(f64::NAN, 0.0), (0.0, f64::INFINITY), (-1.0, 0.0),
++            (0.0, -1.0), (800.0, 0.0), (0.0, 600.0)] {
++            assert_eq!(super::document_hit_test_point(&metrics, x, y), None);
++        }
++        assert_eq!(super::document_hit_test_point(&json!({}), 0.0, 0.0), None);
++        for offset in [-1.0, i32::MAX as f64] {
++            let mut invalid = metrics.clone();
++            invalid["cssVisualViewport"]["pageY"] = json!(offset);
++            assert_eq!(super::document_hit_test_point(&invalid, 10.0, 20.0), None);
++        }
++    }
++
 +    #[test]
 +    fn visual_viewport_token_requires_css_geometry_and_tracks_optional_zoom() {
 +        use serde_json::json;
@@ -787,10 +822,10 @@ index 68f2099..96f1e08 100644
      pub oopif_frames: usize,
  }
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
-index df04401..0096a9b 100644
+index df04401..207fc39 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
-@@ -51,6 +51,105 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
+@@ -51,6 +51,106 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
  
  // ── Shared helpers ───────────────────────────────────────────────────────────
  
@@ -877,11 +912,12 @@ index df04401..0096a9b 100644
 +) -> Result<(), BrowserRefusal> {
 +    let unavailable = || BrowserRefusal::new(BrowserRefusalCode::BrowserActionUnavailable,
 +        "the chosen point's browsing context could not be checked; no input was sent");
-+    if !x.is_finite() || !y.is_finite() || x < 0.0 || y < 0.0 || x > i32::MAX as f64 || y > i32::MAX as f64 {
-+        return Err(unavailable());
-+    }
++    let metrics = conn.call(Some(cdp), "Page.getLayoutMetrics", json!({}))
++        .await.map_err(|_| unavailable())?;
++    let (document_x, document_y) = super::engine::document_hit_test_point(&metrics, x, y)
++        .ok_or_else(unavailable)?;
 +    let hit = conn.call(Some(cdp), "DOM.getNodeForLocation", json!({
-+        "x": x.floor() as i32, "y": y.floor() as i32,
++        "x": document_x, "y": document_y,
 +        "includeUserAgentShadowDOM": true,
 +    })).await.map_err(|_| unavailable())?;
 +    let backend = hit.get("backendNodeId").and_then(Value::as_i64)
@@ -896,7 +932,7 @@ index df04401..0096a9b 100644
  const DOM_CLICK_READBACK: &str = r#"function() {
    const bounded = value => typeof value === 'string' ? value.slice(0, 512) : null;
    const attr = name => bounded(this.getAttribute(name));
-@@ -381,6 +480,7 @@ fn with_tab_screenshot(mut result: ToolResult, screenshot: BrowserTabScreenshot)
+@@ -381,6 +481,7 @@ fn with_tab_screenshot(mut result: ToolResult, screenshot: BrowserTabScreenshot)
      if let Some(structured) = result.structured_content.as_mut() {
          structured["screenshot"] = json!({
              "source": "cdp_tab",
@@ -904,7 +940,7 @@ index df04401..0096a9b 100644
              "scope": "viewport",
              "mime_type": "image/png",
              "width": screenshot.width,
-@@ -453,6 +553,10 @@ impl GetBrowserStateTool {
+@@ -453,6 +554,10 @@ impl GetBrowserStateTool {
                          "type": "string",
                          "description": "Opaque continuation minted by an earlier semantic_v2 response."
                      },
@@ -915,7 +951,7 @@ index df04401..0096a9b 100644
                      "include_screenshot": {
                          "type": "boolean",
                          "default": false,
-@@ -618,9 +722,18 @@ impl Tool for GetBrowserStateTool {
+@@ -618,9 +723,18 @@ impl Tool for GetBrowserStateTool {
                      Err(refusal) => return refusal.to_tool_result(),
                  };
                  if include_screenshot {
@@ -935,7 +971,7 @@ index df04401..0096a9b 100644
                          .await
                      {
                          Ok(screenshot) => with_tab_screenshot(snapshot, screenshot),
-@@ -673,7 +786,7 @@ impl Tool for GetBrowserStateTool {
+@@ -673,7 +787,7 @@ impl Tool for GetBrowserStateTool {
              if include_screenshot {
                  return match self
                      .engine
@@ -944,7 +980,7 @@ index df04401..0096a9b 100644
                      .await
                  {
                      Ok(screenshot) => with_tab_screenshot(snapshot, screenshot),
-@@ -1158,6 +1271,7 @@ impl BrowserClickTool {
+@@ -1158,6 +1272,7 @@ impl BrowserClickTool {
                  "properties": {
                      "target_id": schema_target_id(),
                      "tab_id": schema_tab_id(),
@@ -952,7 +988,7 @@ index df04401..0096a9b 100644
                      "session": schema_session(),
                      "ref": schema_ref(),
                      "x": { "type": "number", "description": "Viewport x (CSS px) — alternative to ref." },
-@@ -1338,6 +1452,19 @@ impl Tool for BrowserClickTool {
+@@ -1338,6 +1453,19 @@ impl Tool for BrowserClickTool {
          let conn = &validated.conn;
          let cdp = cdp_session.as_str();
  
@@ -972,7 +1008,7 @@ index df04401..0096a9b 100644
          // dom_event route: explicit opt-in only.
          if route == "dom_event" {
              let backend = backend_node_id.expect("checked above");
-@@ -1486,6 +1613,16 @@ impl Tool for BrowserClickTool {
+@@ -1486,6 +1614,16 @@ impl Tool for BrowserClickTool {
              (None, None) => unreachable!("validated above"),
          };
  
@@ -989,7 +1025,7 @@ index df04401..0096a9b 100644
          self.engine
              .visualize_browser_action(
                  &session,
-@@ -1515,6 +1652,11 @@ impl Tool for BrowserClickTool {
+@@ -1515,6 +1653,11 @@ impl Tool for BrowserClickTool {
          }
          tokio::time::sleep(std::time::Duration::from_millis(25)).await;
  
@@ -1001,7 +1037,7 @@ index df04401..0096a9b 100644
          let mut delivery_error = None;
          for (event_type, click_count) in [("mousePressed", 1), ("mouseReleased", 1)] {
              if let Err(error) = conn
-@@ -1813,21 +1955,23 @@ impl BrowserTypeTool {
+@@ -1813,21 +1956,23 @@ impl BrowserTypeTool {
                  at the caret, so typing into a field that already holds text appends \
                  to it; pass replace=true to set the field instead, or to clear it by \
                  typing an empty string. Pass a ref to an editable element from the \
@@ -1029,7 +1065,7 @@ index df04401..0096a9b 100644
                      },
                      "replace": {
                          "type": "boolean",
-@@ -1839,7 +1983,7 @@ impl BrowserTypeTool {
+@@ -1839,7 +1984,7 @@ impl BrowserTypeTool {
                              framework state stays consistent."
                      },
                  },
@@ -1038,7 +1074,7 @@ index df04401..0096a9b 100644
                  "additionalProperties": true
              }),
              read_only: false,
-@@ -1895,9 +2039,9 @@ impl Tool for BrowserTypeTool {
+@@ -1895,9 +2040,9 @@ impl Tool for BrowserTypeTool {
              Err(e) => return e,
          };
          let mode = args.opt_str("mode").unwrap_or_else(|| "insert_text".into());
@@ -1050,7 +1086,7 @@ index df04401..0096a9b 100644
              ));
          }
          let replace = args.opt_bool("replace").unwrap_or(false);
-@@ -1919,6 +2063,22 @@ impl Tool for BrowserTypeTool {
+@@ -1919,6 +2064,22 @@ impl Tool for BrowserTypeTool {
              Err(refusal) => return refusal.to_tool_result(),
          };
  
@@ -1074,7 +1110,7 @@ index df04401..0096a9b 100644
              Ok(value) => value,
              Err(error) => return error,
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-index d5f50d2..42bca3d 100644
+index d5f50d2..6b558df 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 @@ -57,14 +57,31 @@ pub(super) struct FixtureState {
@@ -1447,7 +1483,7 @@ index d5f50d2..42bca3d 100644
  #[tokio::test]
  async fn click_routes_oopif_refs_through_the_contained_child_session() {
      let f = fixture().await;
-@@ -3603,3 +3837,298 @@ async fn method_unsupported_keeps_the_electron_none_path() {
+@@ -3603,3 +3837,327 @@ async fn method_unsupported_keeps_the_electron_none_path() {
      assert_eq!(tabs.len(), 1, "{s}");
      assert_eq!(tabs[0]["url"], "https://fixture.test/");
  }
@@ -1744,6 +1780,35 @@ index d5f50d2..42bca3d 100644
 +        if matches!(scenario, "protected" | "reload" | "scroll" | "clipboard" | "no_token") {
 +            assert!(focus.is_empty(), "{scenario}");
 +        } else { assert_eq!(focus.last().unwrap().1["enabled"], false, "{scenario}"); }
++    }
++}
++
++#[tokio::test]
++async fn visual_point_guard_uses_document_scroll_offsets_without_moving_input() {
++    for action in ["click", "double_click", "right_click", "drag"] {
++        let f = fixture_with(|s| { s.viewport_page_x = 30.0; s.viewport_page_y = 650.0; }).await;
++        let (target, tab) = bind(&f).await;
++        let mut args = json!({"target_id": target, "tab_id": tab, "session": SESSION,
++            "x": 10.5, "y": 20.5, "action": action});
++        if action == "drag" { args["to_x"] = json!(30); args["to_y"] = json!(40); }
++        let result = if action == "click" {
++            BrowserClickTool::new(f.engine.clone()).invoke(args).await
++        } else {
++            super::pointer::BrowserPointerTool::new(f.engine.clone()).invoke(args).await
++        };
++        assert!(!result.is_error.unwrap_or(false), "{result:?}");
++        let hit = recorded_calls(&f, "DOM.getNodeForLocation");
++        assert_eq!(hit[0].1["x"], 40);
++        assert_eq!(hit[0].1["y"], 670);
++        if action == "drag" {
++            assert_eq!(hit[1].1["x"], 60);
++            assert_eq!(hit[1].1["y"], 690);
++        }
++        let input = recorded_calls(&f, "Input.dispatchMouseEvent");
++        assert_eq!(input[0].1["x"], 10.5);
++        assert_eq!(input[0].1["y"], 20.5);
++        assert!(recorded_calls(&f, "DOM.scrollIntoViewIfNeeded").is_empty());
++        assert!(recorded_calls(&f, "Page.navigate").is_empty());
 +    }
 +}
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/visual_input.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/visual_input.rs

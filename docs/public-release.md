@@ -7,13 +7,13 @@ Nothing new was published; the last published Mac pilot is alpha.24.
 
 ## Current signed candidate
 
-| Identity                   | Value                                                                                                                                                       |
-| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Version                    | `0.1.0-alpha.114`                                                                                                                                           |
-| Source                     | `a05f538d375e5a2231c781666eef6d598b7fd0da`, no source diff                                                                                                  |
-| Installed ASAR SHA-256     | `401ddceea26e7c05e8abb420129132436b891d1ada6ed007b051b6feb25acf9e`                                                                                          |
-| Private evidence directory | `alpha114-browser-diagnostics`                                                                                                                               |
-| Package                    | Developer ID signed arm64; packaged-runtime verification passed; not notarized                                                                              |
+| Identity                   | Value                                                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Version                    | `0.1.0-alpha.114`                                                                                                              |
+| Source                     | `a05f538d375e5a2231c781666eef6d598b7fd0da`, no source diff                                                                     |
+| Installed ASAR SHA-256     | `401ddceea26e7c05e8abb420129132436b891d1ada6ed007b051b6feb25acf9e`                                                             |
+| Private evidence directory | `alpha114-browser-diagnostics`                                                                                                 |
+| Package                    | Developer ID signed arm64; packaged-runtime verification passed; not notarized                                                 |
 | Local pilot gate           | Full pilot command passed: 2,000 desktop, 46 Electron, 40 renderer, 72 phone-browser; native/shared/build/static checks passed |
 
 The private directory retains package/install receipts, logs, per-turn trajectories, screenshots,
@@ -95,7 +95,15 @@ trajectories, screenshot and failure record are retained in `alpha114-browser-di
 
 A Chromium regression reproduced the point failure after scrolling in both active and inactive
 tabs. Adding the document scroll offset allowed validation of the intended new-window link.
-The native coordinate correction is still in development; this does not establish a fixed live click.
+Alpha.115 source adds the live document offset only for this safety hit test. Mouse input retains
+the model-selected viewport point. Native regressions cover click, double/right click and drag,
+plus malformed/out-of-bounds geometry; the scroll regression failed before the correction. Eleven
+Chromium preflight cases pass, including active/inactive tabs, scroll and pinch scale. The full
+alpha.115 pilot command passed: 2,000 desktop, 46 Electron, 48 renderer and 72 phone-browser tests,
+plus native/shared/build/static checks. Initial runs caught release-table formatting and a missing
+null check in the new test fixture; both were corrected before the complete passing run. The
+alpha.114 remote CI failure was the same documentation formatting issue, now corrected. Signed
+real-work verification is pending; this does not establish a fixed live click.
 
 ## Other retained evidence
 

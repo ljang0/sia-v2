@@ -90,3 +90,51 @@ test('native preflight retains side-effect rejection for page-defined getters', 
   expect(await page.locator('body').getAttribute('data-preflight-mutation')).toBeNull();
   await cdp.send('Runtime.releaseObject', { objectId: object.objectId });
 });
+
+for (const scale of [1, 1.5]) {
+  for (const scrollY of [0, 650]) {
+    for (const inactive of [false, true]) {
+      test(`native pointer guard resolves an ${inactive ? 'inactive' : 'active'} tab at scroll ${scrollY}, scale ${scale} without DOM initialization`, async ({
+        page,
+      }) => {
+        await page.setContent(
+          '<a style="position:fixed;left:40px;top:30px;width:100px;height:40px" target="_blank" href="https://example.com/next">Visit</a><div style="height:3000px"></div>',
+        );
+        await page.evaluate((y) => window.scrollTo(0, y), scrollY);
+        const other = inactive ? await page.context().newPage() : undefined;
+        if (other) {
+          await other.setContent('<p>Unrelated foreground page</p>');
+          await other.bringToFront();
+        }
+        const cdp = await page.context().newCDPSession(page);
+        await cdp.send('Emulation.setPageScaleFactor', { pageScaleFactor: scale });
+        await cdp.send('Page.captureScreenshot', {
+          format: 'png',
+          captureBeyondViewport: false,
+        });
+        const { cssVisualViewport } = await cdp.send('Page.getLayoutMetrics');
+        const hit = await cdp.send('DOM.getNodeForLocation', {
+          x: Math.floor(70 + cssVisualViewport.pageX),
+          y: Math.floor(50 + cssVisualViewport.pageY),
+          includeUserAgentShadowDOM: true,
+        });
+        expect(hit.backendNodeId).toBeGreaterThan(0);
+        const { object } = await cdp.send('DOM.resolveNode', {
+          backendNodeId: hit.backendNodeId,
+        });
+        if (!object.objectId) throw new Error('No remote object for the hit-test fixture.');
+        const result = await cdp.send('Runtime.callFunctionOn', {
+          objectId: object.objectId,
+          functionDeclaration,
+          returnByValue: true,
+          silent: true,
+          throwOnSideEffect: true,
+        });
+        expect(result.exceptionDetails).toBeUndefined();
+        expect(result.result.value).toBe(true);
+        await cdp.send('Runtime.releaseObject', { objectId: object.objectId });
+        await other?.close();
+      });
+    }
+  }
+}

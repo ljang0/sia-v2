@@ -29,6 +29,13 @@ before input. Chrome still required reconnection; no plan was saved. Startup cle
 [exact artifact and intervention record](./public-release.md). The last published Mac pilot remains
 alpha.24. Nothing new has been published.
 
+Alpha.115 source corrects the scrolled-page hit test: the read-only guard uses document offsets,
+while mouse input keeps screenshot-derived viewport coordinates. Chromium regressions cover active
+and inactive tabs, scroll and pinch scale; a native regression failed before the correction.
+The full alpha.115 pilot command passed: 2,000 desktop, 46 Electron, 48 renderer and
+72 phone-browser tests, plus native/shared/build/static checks. Signed real-work verification
+is pending. The alpha.114 remote CI failure was release-table formatting, corrected here.
+
 The owner selected **Mac first; iPhone follows** and is the pilot support/incident owner.
 The [Arena proposal](./arena-proposal.md) offers a bounded technical review and invited pilot;
 it does not claim a partnership, validated ranking or completed acceptance. Research sharing is off.
