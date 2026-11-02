@@ -490,7 +490,12 @@ async function performApplicationCreation(): Promise<void> {
       },
       {
         fakePermissions: fakeServices,
-        ...(!fakeServices ? { readForegroundPid: () => browserWindows.foregroundPid() } : {}),
+        ...(!fakeServices
+          ? {
+              readForegroundPid: () => browserWindows.foregroundPid(),
+              readForegroundWindow: () => browserWindows.foregroundWindow(),
+            }
+          : {}),
         verifyAccess: true,
         freshPermissions: freshPermissionProbe({
           executable: process.execPath,

@@ -7,6 +7,7 @@ import {
   type ValidatedActionInvocation,
 } from '@sia/action-gateway';
 import { DesktopActionBackend } from './desktop-action-backend.js';
+import type { CuaAuthorizationContext } from '../mac/cua-service.js';
 
 function harness() {
   const state = {
@@ -30,74 +31,82 @@ function harness() {
     grantedSessions: new Set<string>(),
     expiredSessions: new Set<string>(),
   };
-  const call = vi.fn(async (tool: string, args: Record<string, unknown>) => {
-    if (tool === 'list_apps')
-      return { apps: [{ pid: 42, name: 'Google Chrome', bundle_id: 'com.google.Chrome' }] };
-    if (tool === 'list_windows')
-      return { windows: [{ window_id: state.windowId, pid: 42, title: 'Chrome' }] };
-    if (tool === 'browser_prepare') {
-      if (state.preparationError) throw new Error(state.preparationError);
-      if (state.unavailable)
-        return {
-          status: 'refused',
-          refusal: {
-            code: 'background_unavailable',
-            message: 'No background preparation route',
-          },
-        };
-      state.prepared = true;
-      state.grantedSessions.add(String(args.session));
-      return { status: 'ready' };
-    }
-    if (tool === 'get_browser_state') {
-      if (state.expiredSessions.has(String(args.session)))
-        throw new Error('CUA refused: session_ended');
-      if (
-        !state.prepared ||
-        (state.requireSessionGrant && !state.grantedSessions.has(String(args.session)))
-      )
-        throw new Error('CUA refused: browser_consent_required');
-      if (args.pid)
-        return {
-          target_id: 'native-target',
-          tabs: [
-            { tab_id: 'native-tab', url: state.url, title: 'Course page', active: true },
-            ...state.extraTabs,
-          ],
-        };
-      if (args.snapshot_format === 'dom_refs_v1')
+  const call = vi.fn(
+    async (
+      tool: string,
+      args: Record<string, unknown>,
+      _authorization?: CuaAuthorizationContext,
+    ) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Google Chrome', bundle_id: 'com.google.Chrome' }] };
+      if (tool === 'list_windows')
+        return { windows: [{ window_id: state.windowId, pid: 42, title: 'Chrome' }] };
+      if (tool === 'browser_prepare') {
+        if (state.preparationError) throw new Error(state.preparationError);
+        if (state.unavailable)
+          return {
+            status: 'refused',
+            refusal: {
+              code: 'background_unavailable',
+              message: 'No background preparation route',
+            },
+          };
+        state.prepared = true;
+        state.grantedSessions.add(String(args.session));
+        return { status: 'ready' };
+      }
+      if (tool === 'get_browser_state') {
+        if (state.expiredSessions.has(String(args.session)))
+          throw new Error('CUA refused: session_ended');
+        if (
+          !state.prepared ||
+          (state.requireSessionGrant && !state.grantedSessions.has(String(args.session)))
+        )
+          throw new Error('CUA refused: browser_consent_required');
+        if (args.pid)
+          return {
+            target_id: 'native-target',
+            tabs: [
+              { tab_id: 'native-tab', url: state.url, title: 'Course page', active: true },
+              ...state.extraTabs,
+            ],
+          };
+        if (args.snapshot_format === 'dom_refs_v1')
+          return {
+            target_id: 'native-target',
+            tab_id: 'native-tab',
+            url: state.linkStateUrl || state.url,
+            refs: [{ ref: 'dom-link', node: 'a', label: state.linkHref }],
+          };
+        if (state.observationError) throw new Error(state.observationError);
+        if (state.observationRefused) return { error_code: 'browser_tab_not_found' };
         return {
           target_id: 'native-target',
           tab_id: 'native-tab',
-          url: state.linkStateUrl || state.url,
-          refs: [{ ref: 'dom-link', node: 'a', label: state.linkHref }],
+          url: state.captureUrl || state.url,
+          outline: 'Verified fixture course content',
+          elements: [
+            { ref: 'native-link', role: 'link', label: 'Assignments' },
+            { ref: 'native-input', role: 'textbox', label: 'Search' },
+          ],
         };
-      if (state.observationError) throw new Error(state.observationError);
-      if (state.observationRefused) return { error_code: 'browser_tab_not_found' };
-      return {
-        target_id: 'native-target',
-        tab_id: 'native-tab',
-        url: state.captureUrl || state.url,
-        outline: 'Verified fixture course content',
-        elements: [
-          { ref: 'native-link', role: 'link', label: 'Assignments' },
-          { ref: 'native-input', role: 'textbox', label: 'Search' },
-        ],
-      };
-    }
-    if (tool === 'browser_navigate') {
-      state.url = String(args.url);
-      state.observationError = state.afterNavigateError;
-      return { effect: 'confirmed' };
-    }
-    if (tool === 'browser_click' || tool === 'browser_type' || tool === 'browser_pointer') {
-      if (state.afterClickUrl) state.url = state.afterClickUrl;
-      if (state.inputRefusal) return { error_code: 'browser_input_trust_unavailable' };
-      if (state.inputError) throw new Error(state.inputError);
-      return state.focusChanged ? { background_focus_changed: true } : { effect: 'confirmed' };
-    }
-    throw new Error(`Unexpected native route ${tool}`);
-  });
+      }
+      if (tool === 'browser_navigate') {
+        state.url = String(args.url);
+        state.observationError = state.afterNavigateError;
+        return { effect: 'confirmed' };
+      }
+      if (tool === 'browser_click' || tool === 'browser_type' || tool === 'browser_pointer') {
+        if (state.afterClickUrl) state.url = state.afterClickUrl;
+        if (state.inputRefusal) return { error_code: 'browser_input_trust_unavailable' };
+        if (state.inputError) throw new Error(state.inputError);
+        return state.focusChanged
+          ? { background_focus_changed: true }
+          : { effect: 'confirmed' };
+      }
+      throw new Error(`Unexpected native route ${tool}`);
+    },
+  );
   const openUrl = vi.fn();
   const onBrowserSessionEnded = vi.fn();
   const backend = new DesktopActionBackend({
@@ -661,6 +670,11 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
       window_id: 91,
       strategy: { kind: 'existing_profile' },
       delivery_mode: 'background',
+    });
+    expect(h.call.mock.calls.find(([name]) => name === 'browser_navigate')?.[2]).toMatchObject({
+      kind: 'turn',
+      backgroundTargetPid: 42,
+      backgroundTargetWindowId: 91,
     });
     expect(h.openUrl).not.toHaveBeenCalled();
     expect(

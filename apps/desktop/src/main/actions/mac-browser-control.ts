@@ -120,7 +120,11 @@ export class MacBrowserControl {
             tool,
             args,
             authorization.kind === 'turn'
-              ? { ...authorization, backgroundTargetPid: window.pid }
+              ? {
+                  ...authorization,
+                  backgroundTargetPid: window.pid,
+                  backgroundTargetWindowId: window.windowId,
+                }
               : authorization,
             signal,
           );

@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
 import { WindowObserver, WindowObservationError } from './window-observer.js';
+import type { ForegroundWindow } from './browser-background-focus.js';
 
 const exec = promisify(execFile);
 const result = z.discriminatedUnion('status', [
@@ -79,6 +80,21 @@ export class BrowserWindowService {
         })
         .strict()
         .parse(await this.observer.read('foreground', 0, 0)).pid;
+    } catch {
+      return undefined;
+    }
+  }
+  async foregroundWindow(): Promise<ForegroundWindow | undefined> {
+    try {
+      const value = z
+        .object({
+          status: z.literal('ready'),
+          pid: z.number().int().positive().max(2147483647),
+          window_id: z.number().int().positive().max(4294967295),
+        })
+        .strict()
+        .parse(await this.observer.read('foreground_window', 0, 0));
+      return { pid: value.pid, windowId: value.window_id };
     } catch {
       return undefined;
     }

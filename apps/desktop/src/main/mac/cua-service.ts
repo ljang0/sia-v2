@@ -14,6 +14,9 @@ import {
   BROWSER_SESSION_SECONDS,
 } from './cua-browser-session.js';
 
+import { permitsOtherBrowserWindow } from './browser-background-focus.js';
+import type { ForegroundWindow } from './browser-background-focus.js';
+
 const CUA_TOOLS = new Set([
   'list_apps',
   'list_windows',
@@ -66,6 +69,7 @@ export type CuaAuthorizationContext =
       readonly backgroundOnly?: boolean;
       /** Host-bound browser target; never supplied by model arguments. */
       readonly backgroundTargetPid?: number;
+      readonly backgroundTargetWindowId?: number;
     }
   | {
       readonly kind: 'direct_user';
@@ -87,6 +91,7 @@ interface DriverLike {
 interface CuaServiceOptions extends CuaPermissionOptions {
   /** Production reads macOS's live frontmost PID, including utility apps. */
   readonly readForegroundPid?: () => Promise<number | undefined>;
+  readonly readForegroundWindow?: () => Promise<ForegroundWindow | undefined>;
   readonly callTimeoutMs?: number;
   /** Test seam; receives the same authorization callback as the native driver. */
   readonly driverFactory?: (
@@ -143,6 +148,7 @@ function driverLane(): DriverLane {
 
 export class CuaService {
   readonly #readForegroundPid: (() => Promise<number | undefined>) | undefined;
+  readonly #readForegroundWindow: CuaServiceOptions['readForegroundWindow'];
   readonly #authorization: AuthorizationBroker;
   readonly #callTimeoutMs: number;
   readonly #typingTimeoutMs: number;
@@ -157,6 +163,7 @@ export class CuaService {
   constructor(authorization: AuthorizationBroker, options: CuaServiceOptions = {}) {
     this.#authorization = authorization;
     this.#readForegroundPid = options.readForegroundPid;
+    this.#readForegroundWindow = options.readForegroundWindow;
     const callTimeoutMs = options.callTimeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
     if (!Number.isFinite(callTimeoutMs) || callTimeoutMs <= 0) {
       throw new Error('CUA call timeout must be a positive number.');
@@ -290,6 +297,7 @@ export class CuaService {
       driver = await waitForAbort(this.#getDriver(lane), operation.signal);
       let foregroundBefore: number | undefined;
       let backgroundTargetPid: number | undefined;
+      let browserForegroundWindow: ForegroundWindow | undefined;
       const result = await waitForAbort(
         Promise.resolve().then(async () => {
           operation.signal.throwIfAborted();
@@ -321,7 +329,23 @@ export class CuaService {
               targetPid <= 0
             )
               throw new Error('CUA refused: background_focus_unavailable');
-            if (foreground === targetPid) throw new Error('CUA refused: foreground_app_in_use');
+            if (foreground === targetPid) {
+              const current =
+                context.kind === 'turn' && BROWSER_INPUT_TOOLS.has(tool)
+                  ? await waitForAbort(
+                      this.#readForegroundWindow?.().catch(() => undefined) ??
+                        Promise.resolve(undefined),
+                      operation.signal,
+                    )
+                  : undefined;
+              operation.signal.throwIfAborted();
+              if (
+                context.kind !== 'turn' ||
+                !permitsOtherBrowserWindow(tool, args, context, current)
+              )
+                throw new Error('CUA refused: foreground_app_in_use');
+              browserForegroundWindow = current;
+            }
             foregroundBefore = foreground;
             backgroundTargetPid = targetPid;
           }
@@ -351,8 +375,20 @@ export class CuaService {
       const nativeToolError = decoded.nativeToolError;
       let parsed = decoded.value;
       if (protectDesktop) {
-        const foreground = await this.#foregroundPid(lane, driver, operation.signal);
+        const currentWindow = browserForegroundWindow
+          ? await waitForAbort(
+              this.#readForegroundWindow?.().catch(() => undefined) ??
+                Promise.resolve(undefined),
+              operation.signal,
+            )
+          : undefined;
+        const foreground = browserForegroundWindow
+          ? currentWindow?.pid
+          : await this.#foregroundPid(lane, driver, operation.signal);
         operation.signal.throwIfAborted();
+        const browserWindowChanged =
+          browserForegroundWindow !== undefined &&
+          currentWindow?.windowId !== browserForegroundWindow.windowId;
         // Page.navigate addresses an exact CDP tab and sends no desktop input.
         // A successful, matching receipt remains valid when the person switches
         // between other apps. BrowserActions still verifies the resulting page.
@@ -383,6 +419,7 @@ export class CuaService {
           foreground !== backgroundTargetPid;
         if (
           foreground === undefined ||
+          browserWindowChanged ||
           (foreground !== foregroundBefore && !unrelatedAppSwitch)
         ) {
           if (context.kind === 'turn') {

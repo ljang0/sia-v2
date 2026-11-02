@@ -457,7 +457,16 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   An unexpected foreground acknowledgement remains uncertain, revokes the old snapshot, and
   records its driver operation. A new dialog cannot relabel that input as "not sent."
   In strict background turns, each native input and Chromium browser mutation/setup reads the live foreground application before
-  dispatch. Input into that application is refused, leaving the person's active work alone.
+  dispatch. Native input and browser connection setup into that application are refused.
+  Tab-addressed browser navigation and visual input may use a different window in the foreground
+  browser process only when the host-bound target has an exact native window ID and the signed
+  `foreground_window` reader proves a distinct focused window. That reader compares the AX window
+  ID with the frontmost owned on-screen WindowServer surface and rechecks focus; it returns only
+  process/window IDs. It never reads titles or page contents or changes focus. Missing identity,
+  the same window, semantic input, native keys and model-supplied window IDs cannot use this exception.
+  The exact foreground window must remain unchanged in the post-action sample; otherwise the
+  execution pauses without replay. These boundary samples are not continuous focus monitoring;
+  same-browser input delivery and foreground preservation still require live acceptance.
   Production reads the actual frontmost process ID through the signed nonactivating helper,
   including utility panels omitted from ordinary app inventories. That fixed operation returns
   only a PID, no window content. An unavailable or malformed host response refuses input without

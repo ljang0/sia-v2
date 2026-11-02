@@ -102,7 +102,7 @@ enum WindowContext {
         return unsafeBitCast(symbol, to: WindowIDReader.self)
     }()
 
-    private static func nativeWindowID(_ window: AXUIElement, pid: pid_t) -> CGWindowID? {
+    static func nativeWindowID(_ window: AXUIElement, pid: pid_t) -> CGWindowID? {
         var owner: pid_t = 0
         var id: CGWindowID = 0
         guard AXUIElementGetPid(window, &owner) == .success, owner == pid,
