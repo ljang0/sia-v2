@@ -1,5 +1,7 @@
 # RA onboarding
 
+For an installed pilot build, sign in with your own email, review the default-on cloud recording notice, complete Mac setup, and connect your own Codex plan. AWS receives eligible prompts, provider-reported usage and trajectories (including screenshots) after you Continue with recording on. Settings → Privacy shows queued uploads and pause/export/delete controls. Google Workspace connector turns are excluded. The signed DMG and its current limitations belong in [release status](./release-status.md); a source checkout is not needed to use the app.
+
 This is the shortest path from a fresh clone to a useful first contribution. It uses fake services,
 so it does not need AWS access, a model API key, a CMU account, or a paid model turn.
 

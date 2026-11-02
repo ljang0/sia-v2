@@ -989,6 +989,7 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   modes. Step transitions and the listening wave honor reduced motion. Voice remains optional.
 - The renderer permission handler admits only an audio-only microphone request from Sia's own main
   frame. Camera, display capture, Bluetooth, and unrelated renderer permissions remain denied.
+- Cloud recording is selected by default in first-run setup for ordinary `Users`, `Participants` and `Admins`. The renderer shows the data notice before a task; Continue saves the versioned choice through the existing typed capture API. Existing opt-outs, paused capture and deletion remain off. Operator/model-tester-only accounts remain excluded. No historic local logs are backfilled.
 - Under v3 raw research consent, eligible provider protocol frames and connected-app/browser/
   computer/action events observed during a turn are copied into encrypted local research batches
   and synced to AWS. A turn that invokes Gmail, Drive, Docs, Sheets, or Slides is excluded in full;

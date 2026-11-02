@@ -68,7 +68,9 @@ host keep-awake assertion; seven tests were ignored. This is not an all-native p
 
 The owner selected **Mac first; iPhone follows** and is the pilot support/incident owner.
 The [Arena proposal](./arena-proposal.md) offers a bounded technical review and invited pilot;
-it does not claim a partnership, validated ranking or completed acceptance. Research sharing is off.
+it does not claim a partnership, validated ranking or completed acceptance.
+
+Alpha.118 prepares the requested RA DMG and default cloud recording. First-run setup selects recording on, discloses prompts, provider-reported usage, actions and screenshots, and saves the choice on Continue. Existing declines remain off. Ordinary AWS `Users` gain upload access through the existing encrypted, identity-bound outbox and private archive; internal tester-only accounts remain excluded. The full pilot command passed: 2,007 desktop, 46 Electron, 48 renderer and 72 phone-browser tests, plus native/shared/build/static gates and 223 cloud tests. The first run was stopped after the new notice blocked older E2E flows; updated flows now exercise Continue and preserve a decline across reload. Live AWS verification used an ordinary Cognito `Users` account through authenticated HTTPS, checked exact prompt/usage/screenshot bytes in KMS-encrypted S3, acknowledged a duplicate without another object, and deleted all object versions and the disposable account. No email was sent. This is synthetic transport proof, not task acceptance. The control-function-only deployment reached `UPDATE_COMPLETE`; dependent ARN references changed without replacement. Exact notarized DMG and real signed-app verification remain pending. The alpha.117 installation ran out of disk; verified alpha.116 was restored and duplicate generated packages were removed while preserving receipts, test evidence and matching backup apps.
 
 ## Release requirements
 

@@ -34,8 +34,7 @@ for an OpenAI Responses-compatible endpoint. Setup does not require an API key.
   require Mac permissions.
 - **Schedules** repeat until paused or deleted; one-time schedules run once. Sia must stay open and
   the Mac awake for local tasks and schedules.
-- **Research capture is off** unless a person separately agrees to it. The pilot is not a research
-  release.
+- **Cloud recording is selected by default** in first-run setup. The notice explains prompts, usage, actions and screenshots before Continue saves the choice. People can turn it off, pause, export or delete it; existing opt-outs remain off. The broader research release has separate gates.
 
 The full product contract, safety boundaries, and change rules are in [`AGENTS.md`](./AGENTS.md).
 

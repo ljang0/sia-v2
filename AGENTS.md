@@ -64,7 +64,7 @@ lint, quality, type, unit, deterministic desktop E2E, renderer, and Chromium/Web
   shell and UI tools; host actions retain their capability and approval checks.
 - Local turns and schedules require the Sia process to remain open and the Mac to stay awake. Sia
   keeps the display awake during Use my Mac tasks and pauses them if the Mac locks or sleeps.
-- Research capture is off unless the user separately consents. A pilot is not a research release.
+- Owner decision, November 1: cloud recording is selected by default in first-run setup for ordinary Sia users. Show the prompts/usage/trajectory/screenshot disclosure before Continue records their choice; preserve explicit opt-outs, paused capture, and deletion. Internal operator/model-tester-only accounts remain excluded. Use the existing encrypted outbox and AWS archive, including identity binding, acknowledgement/retry, retention and Google Workspace exclusions. A pilot is not a research release.
 
 ## Repository map
 

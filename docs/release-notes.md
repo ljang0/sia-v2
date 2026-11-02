@@ -1,113 +1,31 @@
-# Sia 0.1.0-alpha.49
+# Sia 0.1.0-alpha.118
 
-Stop now acknowledges local cancellation without waiting for a slow provider reply. Queued follow-ups
-are removed immediately; the old task retains its workspace/window locks until cleanup finishes.
-Repeated cancellation signals share one provider interruption. Live signed-app verification is pending.
+RA evaluation candidate for macOS 14+, Apple silicon and Intel. Exact signing, notarization and live acceptance are tracked in [release status](./release-status.md). This is an alpha, not a claim that every desktop workflow is reliable.
 
-Explicit Chrome setup now returns to the existing Sia window before a saved task resumes, avoiding
-an immediate background-input pause when setup left Chrome in front. Automatic attachment and
-task tools cannot use that focus change.
+## Cloud recording
 
-Pilot candidate — acceptance and distribution pending.
+After email sign-in, first-run setup selects **Save prompts, usage, and trajectories to AWS**. Review the notice, then Continue with recording on or turn it off. Recording includes eligible prompts, replies, provider-reported token usage, actions/results and task screenshots. It uses Sia's private encrypted AWS archive for evaluation and debugging; authorized administrators can inspect it. Active cloud records expire after 90 days. It is not used for model training.
 
-Sia is a private macOS 14+ alpha of a personal assistant that works in your apps for you. Sign in
-with your invited email, then connect your ChatGPT plan in Settings → AI. You don't need to install
-anything else or paste an API key.
+Settings → Privacy shows recording, queued uploads and errors, with pause/export/delete controls. Existing declines and paused recording stay off. Local-only historical records are not uploaded retroactively. Turns using Google Workspace connectors are excluded in full. Internal operator/model-tester-only accounts remain excluded.
 
-## Current candidate
+Ordinary signed-in user accounts can now upload through the existing encrypted outbox. Uploads retry until acknowledged, and repeated batches do not create duplicate records. The live AWS transport check verified exact prompt, usage and screenshot bytes, retry acknowledgement, and deletion of every object version using a disposable account. This check used synthetic data; it does not establish real-task quality.
 
-Chrome connection setup has more time to verify its exact permission prompt on a busy Mac.
-The connection now uses its configured lifetime across tasks. Expired connections still need
-explicit recovery; restarting Sia does not silently restore browser access. Setup wording now
-explains that choosing a window lets Sia complete its connection prompt. macOS permissions
-remain with you.
+## Getting started
 
-Active conversations keep a still background and lightweight status indicators to reduce
-continuous graphics work. Full source gates and useful-work evidence are tracked separately
-from signed-artifact acceptance in [release status](./release-status.md).
+1. Drag Sia from the DMG into Applications and open it.
+2. Sign in with your own email and review cloud recording.
+3. Connect your ChatGPT plan in Settings → AI. A source checkout or API key is not needed.
+4. Follow **Set up Sia** and approve macOS permissions yourself. Choose the Chrome window you want Sia to use.
+5. Try a research-and-writing task with public sources and ask Sia to save its result. Keep Sia open and the Mac awake.
 
-## Concurrent background work
+Vision-only computer use is the default. The model observes screenshots and chooses coordinates and keys. Background work is the default; **On my screen** is an explicit alternative.
 
-Alpha.39 isolates each task's computer access and lets independent background windows progress
-without waiting for another task's entire GUI loop. Work on the same window stays ordered; stopping
-one task releases its own access. On my screen remains exclusive. This change is awaiting full
-signed-app acceptance; see [release status](./release-status.md) for verified scope.
-When another task owns the window or screen, the conversation explains the wait and keeps Stop available.
+## Known limitations
 
-## What's new since alpha.24
+- Two useful planning tasks completed on alpha.115 with setup and review interventions. Two completed simultaneous tasks have not been verified.
+- Native document Name popovers previously misdirected input. This candidate includes a narrow popup routing correction; exact signed-app acceptance remains pending.
+- Chrome may require reconnection after restarting Sia. The foreground-input guard can pause a background task when Chrome is active.
+- Off-Space native capture and keep-awake behavior remain unreliable on the release Mac. Lock/sleep recovery and a fresh macOS account have not been accepted.
+- iPhone distribution follows the Mac pilot.
 
-- **Use my Mac works in the background.** Sia can work in your apps while you keep using your Mac.
-  Choose On my screen in Settings → Computer if you'd rather watch it work. Sia keeps your display
-  awake during a Mac task and pauses if your Mac locks or sleeps; unlock it and press Continue task.
-- **Simpler setup.** One setup flow covers AI access and the Mac permissions Sia needs. Google
-  Workspace, Slack, GitHub, and Notion connections stay optional. Chrome setup is included, with an
-  explicit option to continue without it. Use my Mac walks through
-  Accessibility, Screen Recording, app Automation, and Full Disk Access; macOS approves each grant.
-  Connected-app setup skips Mac permissions, and ordinary chat remains available before screen access.
-- **Visible setup progress.** Codex setup shows downloaded megabytes and handles slow connections;
-  a stalled download offers a clear retry without replacing a working installation.
-- **Reports you can open.** Final file links from ordinary provider replies now also receive
-  verified result controls. Generated documents have Preview, Open, and Reveal controls that
-  remain available when you reopen the conversation. Phone remote can download saved results.
-- **Monthly and yearly schedules.** Create schedules directly from Scheduled. Month-end and
-  leap-day dates are preserved, and successful monitoring checks with no new findings stay quiet.
-- **Clearer conversations.** Sia shows what it is doing while it works, folds finished steps,
-  formats replies, and lets you queue follow-up messages. Messages you send while offline wait and
-  go out when you're back online.
-- **Approvals that wait for you.** Sia waits for your answer instead of timing out, names the files
-  it wants to change, and notifies you when it needs your OK. Turning off approvals asks first.
-- **Safer everyday controls.** Deleting or disconnecting asks first, archiving offers Undo, and
-  quitting while a task runs asks before stopping it. The window reopens where you left it.
-- **Faster startup and streaming.** The window opens while startup checks finish, streamed replies
-  use smaller updates, and long tasks show their progress with calmer animations.
-- **GitHub and Notion.** Connect them from Settings → Connections. Calendar, Tasks, and Outlook
-  remain unavailable in this candidate; Slack behavior is unchanged.
-- **Your own API key.** Settings → AI can optionally use an OpenAI Responses-compatible model.
-  The key is encrypted and never shown again after saving.
-- **Scotty and phone access.** The desktop companion and Wi-Fi remote remain available. Text Sia
-  adds iMessage, Telegram, and Discord channels, off by default. Your own paired phone and texting numbers follow your Computer approval setting; trusted
-  people's Sia and the plain-HTTP Wi-Fi link always ask. Optional YES/NO replies approve one exact step. Voice notes, photos, and
-  result files are implemented. Real phone and bot acceptance remains a release gate.
-- **Native iPhone companion.** Pair the TestFlight app with your Mac to send tasks and view
-  results over the encrypted relay. Your Mac must remain awake with Sia running.
-- **Voice.** Hold Fn to talk to Sia and hear results read back.
-- **Feedback.** Rate finished tasks with thumbs up or down and optional reasons. Notes are previewed
-  before sending. Ratings queue for cloud sync; account deletion removes their cloud notes and
-  report contributions.
-- **Refreshed interface.** More readable controls, clearer working states, responsive menus, and
-  reduced-motion support on Mac and phone.
-- **Computer-use recovery.** When a dialog takes focus, Sia can find it and continue the task.
-- **Setup and pairing fixes.** Included AI can finish setup without ChatGPT sign-in; another phone
-  can pair while one is connected; self-addressed replies no longer start an echo task.
-
-## Changes since alpha.37
-
-- **Chrome setup before the first task.** Default Mac setup offers a window connection and checks
-  that a website is available. Choosing a window authorizes its connection setup, including the exact Chrome connection prompt.
-- **Continue after browser access expires.** A conversation offers Connect Chrome & continue when
-  the host reports missing browser access. It preserves the request and asks for the task window.
-- **All saved documents are accessible.** A multi-file response gives each verified result its
-  own Preview and Open controls, including file links returned alongside the primary result.
-- **Independent document tasks.** Background file and planning work no longer reserves the whole
-  computer before it starts. GUI action loops still wait for exclusive control, and tasks sharing
-  a folder still queue to protect each other’s files.
-- **Clearer file guidance.** When a source document is outside the task folder, Sia points to
-  Add files instead of asking you to copy it into an internal workspace.
-
-These changes are undergoing signed-app acceptance. Real-work and concurrent-use checks are
-tracked in [release status](./release-status.md).
-
-## Earlier Chrome setup changes
-
-- **Clearer Chrome connection.** Connect Chrome explains that setup may briefly show Chrome.
-  Choosing a window lets Sia confirm Chrome’s connection prompt for it. Automatic background connection never starts
-  this foreground setup, and a refused browser read no longer reports a successful connection.
-
-## Good to know
-
-- Sia and your Mac need to stay on and awake for tasks and schedules to run.
-- Sia won't type into password fields, sign-in screens, Keychain, or password managers.
-- Research sharing is off unless you separately agree to it in Privacy.
-
-Read [`PRIVACY.md`](../PRIVACY.md) before connecting an app or joining research. Report problems
-through the private alpha support channel described in [`SUPPORT.md`](../SUPPORT.md).
+Lawrence Jang owns pilot support. Include the version, task, time and visible error in a report. Avoid private content in screenshots or feedback.

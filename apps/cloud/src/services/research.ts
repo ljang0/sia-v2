@@ -9,7 +9,7 @@ import {
 } from '../domain.js';
 import type { ResearchBatchMetadata } from '../ports.js';
 import type { ServiceDependencies } from '../services.js';
-import { requireFeature, requireParticipant } from './access.js';
+import { requireFeature, requireRecordingUser } from './access.js';
 
 const MAX_RESEARCH_BATCH_BYTES = 4 * 1024 * 1024;
 
@@ -19,7 +19,7 @@ export class ResearchService {
   constructor(private readonly deps: ServiceDependencies) {}
 
   async upload(user: AuthContext, request: ResearchBatchRequest) {
-    requireParticipant(user);
+    requireRecordingUser(user);
     requireFeature(this.deps.config.features.researchUploads, 'research_uploads_disabled');
     requireString(request.batchId, 'batchId', { max: 128 });
     if (request.consent.version !== this.deps.config.consentVersion) {

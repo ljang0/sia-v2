@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 
-import { exitFirstRunSetup, launchIsolatedSia } from '../support/electron-harness';
+import {
+  exitFirstRunSetup,
+  launchIsolatedSia,
+  reviewCloudRecording,
+} from '../support/electron-harness';
 
 const cloudEnvironment = {
   SIA_API_BASE_URL: 'https://cloud.example.test/alpha',
@@ -9,7 +13,7 @@ const cloudEnvironment = {
   SIA_DEV_ID_TOKEN: 'deterministic-development-token',
 };
 
-test('signed-in users can opt into research from Privacy without an onboarding gate', async () => {
+test('users can decline the default, keep their choice across reload, and enable recording later', async () => {
   let harness = await launchIsolatedSia({
     prefix: 'sia-research-consent-',
     environment: cloudEnvironment,
@@ -17,7 +21,13 @@ test('signed-in users can opt into research from Privacy without an onboarding g
   const testRoot = harness.testRoot;
 
   try {
+    await reviewCloudRecording(harness.page, false);
     await exitFirstRunSetup(harness.page);
+    await harness.page.reload();
+    await expect(harness.page.getByRole('button', { name: 'Settings' })).toBeVisible();
+    await expect(
+      harness.page.getByRole('alertdialog', { name: 'Cloud recording is on by default' }),
+    ).toHaveCount(0);
     await expect(
       harness.page.getByRole('alertdialog', { name: 'Join the Sia research release?' }),
     ).toHaveCount(0);
