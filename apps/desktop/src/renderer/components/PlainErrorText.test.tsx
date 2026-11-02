@@ -67,7 +67,8 @@ describe('plain failure banner', () => {
         onResolveApproval={async () => undefined}
       />,
     );
-    expect(screen.getByText(/usage limit has been reached/)).toBeTruthy();
+    expect(screen.getByText(/service is limiting requests/)).toBeTruthy();
+    expect(screen.queryByText(/usage limit has been reached/)).toBeNull();
     expect(screen.getByText('429 Too Many Requests').closest('details')).toBeTruthy();
   });
 });

@@ -7,7 +7,10 @@ describe('plainError', () => {
     ['fetch failed: getaddrinfo ENOTFOUND chatgpt.com', 'network'],
     ['connect ECONNREFUSED 127.0.0.1:443', 'network'],
     ['You have hit your usage limit. Try again in 3 hours.', 'usage'],
-    ['429 Too Many Requests', 'usage'],
+    ['429 Too Many Requests', 'rate-limit'],
+    ['exceeded retry limit, last status: 429 Too Many Requests', 'rate-limit'],
+    ['rate_limit_exceeded: tokens per minute limit reached', 'rate-limit'],
+    ['429: insufficient_quota', 'usage'],
     ['unexpected status 401 Unauthorized: token expired', 'sign-in'],
     [
       'Your access token could not be refreshed: refresh token is invalid; please log in again',
@@ -42,15 +45,25 @@ describe('plan usage limits', () => {
     const plain = plainError('You have hit your usage limit.', { usageResetsAt: later, now });
     expect(plain?.message).toContain(`It resets at ${time(later)}.`);
     expect(
-      plainError('429 Too Many Requests', { usageResetsAt: tomorrow, now })?.message,
+      plainError('You have hit your usage limit.', { usageResetsAt: tomorrow, now })?.message,
     ).toContain(`resets tomorrow at ${time(tomorrow)}`);
     // A reset time already past says nothing about it.
     expect(
-      plainError('429 Too Many Requests', {
+      plainError('You have hit your usage limit.', {
         usageResetsAt: new Date(2026, 8, 29, 9).toISOString(),
         now,
       })?.message,
     ).toContain('for now');
+  });
+
+  it('does not attach a subscription reset time to an unspecified 429', () => {
+    const plain = plainError('exceeded retry limit, last status: 429 Too Many Requests', {
+      usageResetsAt: tomorrow,
+      now,
+    });
+    expect(plain?.kind).toBe('rate-limit');
+    expect(plain?.message).not.toMatch(/plan|resets|tomorrow/);
+    expect(plain?.message).toContain('try again');
   });
 
   it('shows what is left and warns from 80% used', () => {
