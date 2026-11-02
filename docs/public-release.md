@@ -28,6 +28,18 @@ The household guide queued behind the browser task because it shared the working
 
 Private receipts: `package.json`, `install.json`, `source-checks.json`, `pilot-gate.log`, `package.log`, `install.log`, `pilot.log` and `live-acceptance.json`. The alpha.121 QA app is preserved for rollback. Native filename input remains unresolved; its earlier evidence follows.
 
+## Internal attestation trial after alpha.122
+
+Source `cb944d2fb8bde9bef8686098ce6806f329816c29` preserves known native browser attestation failures before host callbacks instead of erasing their codes. It does not weaken authorization or replay input. The full local pilot gate passed (2,056 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests); 212 focused checks and 252 native browser tests also passed, with one native test ignored.
+
+A Developer ID-signed **internal Apple silicon QA app** was packaged and runtime-verified at 20:35:09 UTC, then installed in the isolated profile. It is not notarized and is not a distribution DMG. Its ASAR SHA-256 is `567fff6e0bd23fb80e17c65337cb896dbeac933012a36971717b793daf8a9247`. The notarized alpha.122 DMG above remains the evaluation artifact, and its installed app is preserved for rollback. Receipts and content-free event summaries are in private `alpha122-attestation-internal`.
+
+The meal retry stopped after restart because Chrome needed reconnection. CUA selected the same public recipe window in the explicit recovery chooser. Two further attempts paused before input because the host reported Chrome as active. Native Window-menu selection did not establish another foreground app; CUA Command-Tab did, as confirmed by the next app inventory. Background scrolling then delivered. Navigation to the fourth recipe reported uncertain delivery, and fresh observation remained on the previous page. The model stopped without replaying navigation and without creating `alpha122-weeknight-plan.md`. The new decoder logged `browser_wrong_target_refused` on an earlier snapshot; the later navigation failure still lacks its native/transport cause. Do not describe this as a permission fix or a successful research task.
+
+In separate workspace thread `5d12bf87-999d-4c7d-a5ee-878c3be0fad7`, turn `08517546-3e22-454c-b947-d3fe1bc86162`, Sia completed a late-start museum backup from 20:37:07.516 to 20:38:18.179 UTC (**70.663 seconds**). It saved and read back `alpha122-late-start-backup.md` (5,245 bytes; SHA-256 `6193c5c88b9c00e78663a0a633bf68830ad388dbbd8e13fbee263433db6a3d22`) and returned its attachment. Independent review verified the 180-minute schedule, the missed sit-down-lunch cutoff, and the separate walking/transit budgets. It explicitly labels inherited hours/prices as not rechecked. Both sources retain their prior hashes. The operator opened Sia Preview. The tasks overlapped for 9.225 seconds during the first reconnected browser attempt, but only this document task completed.
+
+CUA observations and input remained inconsistent: screenshots lagged accessibility state, and recovery required fresh indices, repeated clicks, rebinding and one CUA reset. No continuous foreground/clipboard or two-successful-task acceptance is claimed. The app's keep-awake assertion still returned `0xe00002bd`; Apple's installed IOKit SDK identifies it as `kIOReturnNoMemory`, not a permission denial. Host sleep/recovery remains open.
+
 ## Alpha.121 setup evidence
 
 Alpha.121 is the preceding signed and notarized evaluation candidate. Direct Chrome setup explicitly activates Sia and waits for native foreground-process confirmation before resuming; an unconfirmed handoff leaves the request stopped. Broad distribution and Arena acceptance remain open. Nothing has been publicly published or sent to a recipient by this work.
