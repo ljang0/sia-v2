@@ -1,76 +1,18 @@
 # Release status
 
-Updated November 1, 2026. **Distribution is not ready.** Signed internal alpha.112 reopened the
-preserved checklist copy through both Command+O and double-click without a reported focus
-interruption. Independent image review confirmed the complete contents, and both file hashes
-remain unchanged. These were controlled regressions with recovery guidance, not unassisted acceptance.
+Updated November 1, 2026 (verification completed November 2 UTC). **A notarized alpha.118 DMG is available for the requested RA evaluation. Broad distribution and Arena acceptance remain open.**
 
-The full alpha.112 local pilot command passed: 1,996 desktop, 46 Electron, 40 renderer and
-72 phone-browser tests, plus native/shared/build/static checks. The real handoff still stopped
-at TextEdit’s Name field: keyboard input did not visibly change it. Rename and relocation remain open.
-A fresh planning task overlapped native work, but Chrome needed inline reconnection and then
-stalled after navigation. Neither task completed on alpha.112; concurrency has not passed.
+The universal Mac artifact at source `db14166524a0d6fe80c5055fee6209a3bc5c96e7` passed Developer ID signing, Apple notarization, stapling, Gatekeeper and packaged-runtime checks. Its contents were installed directly from the mounted DMG into the isolated QA app. Exact identities and test receipts are in the [distribution acceptance record](./public-release.md).
 
-Alpha.113 source fixes a stale browser start-page classification after accepted navigation;
-regressions for delayed observation and redirects failed before the fix and pass afterward.
-All local pilot stages passed: 1,998 desktop, 46 Electron, 40 renderer and 72 phone-browser
-tests, plus native/shared/build/static checks. The phone suite passed on a complete repeat after
-one ENOSPC fixture-creation failure. Signed alpha.113 captured and scrolled the inactive museum
-tab while FaceTime was active, then refused a click with a generic browser error; no plan was saved.
-Initial startup required a UI reload, and Chrome reconnection required the correct window choice.
-The start-page correction itself was not exercised on the signed app.
+Cloud recording is selected by default in first-run setup. The notice discloses prompts, provider-reported usage, actions/results and screenshots; Continue saves the choice. Existing opt-outs and pauses remain respected. Ordinary AWS users can upload through the existing encrypted outbox and private archive. The control-function deployment completed without resource replacement. The installed app showed the default-selected notice and then **Recording** in Privacy.
 
-Alpha.114 source preserves the driver’s projected refusal hint, with two regressions failing before
-the fix and passing afterward. Browser recovery guidance now uses the exposed prepare-only tab
-discovery route instead of the hidden assisted snapshot option. The full alpha.114 pilot command passed: 2,000 desktop, 46 Electron, 40 renderer and
-72 phone-browser tests, plus native/shared/build/static checks. Signed alpha.114 verified the
-diagnostic fix: the real scrolled museum page now reports `browser_point_context_unavailable`
-before input. Chrome still required reconnection; no plan was saved. Startup cleared without reload. See the
-[exact artifact and intervention record](./public-release.md). The last published Mac pilot remains
-alpha.24. Nothing new has been published.
+Two real-provider tasks automatically uploaded 109 events to AWS without per-task recording actions. Independent S3 reads verified the batch hashes, prompt text, reported token usage, action results and three actual computer screenshots. A saved dinner plan became a practical prep checklist in 104.759 seconds; the result was saved, read back and opened in Sia Preview. Its original file remained unchanged. The native checklist handoff stopped when clicking the title failed to expose the Name field; both documents remained unchanged. These runs were sequential, not concurrency proof.
 
-Alpha.115 source corrects the scrolled-page hit test: the read-only guard uses document offsets,
-while mouse input keeps screenshot-derived viewport coordinates. Chromium regressions cover active
-and inactive tabs, scroll and pinch scale; a native regression failed before the correction.
-The full alpha.115 pilot command passed: 2,000 desktop, 46 Electron, 48 renderer and
-72 phone-browser tests, plus native/shared/build/static checks. Signed alpha.115 now completes the
-real museum/lunch itinerary: the formerly refused click works, official prices/hours were checked
-visually, and the $97 plan was saved, read back and reopened. Chrome reconnection required an
-operator selection; review caught a meat recommendation that violated the vegetarian requirement.
-Sia corrected it after a follow-up prompt. Research took 481.146 seconds; correction took 24.855
-seconds. This is useful completed work with interventions, not unassisted or concurrency acceptance.
-The alpha.114 remote CI failure was release-table formatting, corrected here. A second dinner-and-grocery
-plan also saved/read/reopened after setup; a review revision replaced impractical fractional
-portions with an explicitly permitted half batch. Research took 204.931 seconds and revision
-47.257 seconds. Native work overlapped but failed capture while its window was off the current
-Space, so two completed concurrent tasks remain unverified.
+The full local alpha.118 pilot gate passed: 2,007 desktop, 46 Electron, 48 renderer and 72 phone-browser tests, plus native/shared/build/static checks and 223 cloud tests. Remote CI was still running at the evidence check. A separate authenticated disposable-user AWS transport check verified retry acknowledgement and complete deletion of all uploaded object versions. That synthetic check is separate from real-task acceptance.
 
-Alpha.116 source adds bounded native-capture diagnostics for off-Space, popover and backend
-failures. Combined backend failures retain all recognized codes; raw native reasons, paths,
-window identifiers and app content are not logged. This does not change capture or input behavior.
-The post-unlock alpha.115 check still refused the off-Space document screenshot before input.
-The full alpha.116 local pilot command passed: 2,003 desktop, 46 Electron, 48 renderer and
-72 phone-browser tests, plus native/shared/build/static checks. Signed alpha.116 captured the
-checklist after its window returned to the current Space; no capture fix is claimed. Keyboard
-replacement still left the Name field unchanged. A distinct pointer click dismissed the popover
-and focused the document body; Sia stopped before typing there. Both file hashes remain unchanged.
-The next repair targets popup pointer routing and the background click primer.
+Earlier alpha.115 browser tasks produced an itinerary and dinner/grocery plan with setup and review interventions. Native popup input, off-Space capture, restart recovery, continuous focus/clipboard preservation, two completed concurrent tasks, lock/sleep/voice and fresh-account acceptance remain open. A fresh Mac/account is unavailable. The alpha.117 popup-routing correction is included but was not exercised by alpha.118's stopped title-click attempt. The broad native test run still has the known host keep-awake failure; this is not an all-native pass.
 
-Alpha.117 source routes a single click on a proven same-process popup to that popup’s window
-and local coordinates, without the parent activation or off-screen primer click. Ambiguous or
-cross-process popup recipients are refused. The click revalidates captured ownership immediately
-before delivery. The transport regression failed against the old five-event sequence; the new
-route emits only mouse move/down/up and retains exact child-window routing. The final full pilot command passed: 2,003 desktop, 46 Electron, 48 renderer and 72
-phone-browser tests, plus the native/shared/build/static gates. Two earlier runs were deliberately
-stopped during review to preserve keyboard-focus and explicit foreground behavior; they are not
-counted as full passes. Signed verification is pending. A broad native run passed 678 tests but failed the already-known
-host keep-awake assertion; seven tests were ignored. This is not an all-native pass.
-
-The owner selected **Mac first; iPhone follows** and is the pilot support/incident owner.
-The [Arena proposal](./arena-proposal.md) offers a bounded technical review and invited pilot;
-it does not claim a partnership, validated ranking or completed acceptance.
-
-Alpha.118 prepares the requested RA DMG and default cloud recording. First-run setup selects recording on, discloses prompts, provider-reported usage, actions and screenshots, and saves the choice on Continue. Existing declines remain off. Ordinary AWS `Users` gain upload access through the existing encrypted, identity-bound outbox and private archive; internal tester-only accounts remain excluded. The full pilot command passed: 2,007 desktop, 46 Electron, 48 renderer and 72 phone-browser tests, plus native/shared/build/static gates and 223 cloud tests. The first run was stopped after the new notice blocked older E2E flows; updated flows now exercise Continue and preserve a decline across reload. Live AWS verification used an ordinary Cognito `Users` account through authenticated HTTPS, checked exact prompt/usage/screenshot bytes in KMS-encrypted S3, acknowledged a duplicate without another object, and deleted all object versions and the disposable account. No email was sent. This is synthetic transport proof, not task acceptance. The control-function-only deployment reached `UPDATE_COMPLETE`; dependent ARN references changed without replacement. Exact notarized DMG and real signed-app verification remain pending. The alpha.117 installation ran out of disk; verified alpha.116 was restored and duplicate generated packages were removed while preserving receipts, test evidence and matching backup apps.
+The owner selected **Mac first; iPhone follows** and Lawrence Jang is the support/incident owner. The [Arena proposal](./arena-proposal.md) offers a bounded technical review and invited pilot, without claiming a partnership, validated ranking or completed acceptance. No artifact has been publicly published or sent to a recipient by this work.
 
 ## Release requirements
 
@@ -118,12 +60,12 @@ owns dynamic-tool image forwarding, verified with image-only facts in a real mod
 
 | Area                          | Verified                                                                                                                                                                                                                                                                                                               | Still required                                                                                                                                                                      |
 | ----------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Automated verification        | The full alpha.115 local pilot command passed: 2,000 desktop, 46 Electron, 48 renderer and 72 phone-browser tests, plus native/shared/build/static checks. [CI for the typing/cancellation baseline](https://github.com/ljang0/sia-v2/actions/runs/41339903171) passed. Automated checks are not real-work acceptance. | The final signed distributable and real-work acceptance.                                                                                                                            |
+| Automated verification        | Alpha.118 full local pilot command passed: 2,007 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus native/shared/build/static checks. Automated checks are not real-work acceptance. | Remote CI and remaining real-work acceptance.                                                                                                                            |
 | Native images and coordinates | Alpha.107 resolved Finder filename observation. Alpha.110 created a verified duplicate; alpha.112 reopened it with both Command+O and double-click without a reported focus interruption.                                                                                                                              | Complete rename and relocation; independently sample continuous foreground preservation.                                                                                            |
 | Native shortcuts and typing   | Alpha.95 completed a 1,469-character checklist in 64.690 seconds without a host timeout. Alpha.96 stopped at 485 characters and resumed to the full checklist without duplication.                                                                                                                                     | Repeatable dialog filename input and Save/close/reopen with complete file contents.                                                                                                 |
 | Browser work                  | Alpha.115 saved/read/reopened a source-checked $97 itinerary after Chrome reconnection and a vegetarian-content correction.                                                                                                                                                                                            | Repeat without rescue; Chrome access after restart, permission-prompt dismissal and network-error recovery.                                                                         |
 | Concurrency and performance   | Alpha.95 composer CUA round trips during typing: median 649.5 ms, worst 1,205 ms (10 samples). Alpha.96 Stop UI round trip: 1,233 ms, followed by stable partial text and successful recovery.                                                                                                                         | Two completed Sia tasks, clipboard/focus preservation, end-to-end latency and broader Stop/recovery. These limited samples are not performance acceptance.                          |
-| Physical/fresh install        | Existing-profile signed-app checks pass.                                                                                                                                                                                                                                                                               | Lock/sleep/voice, first-use sign-in/permissions and a fresh account/second Mac. The keep-awake assertion still fails on this host, including with macOS’s own `caffeinate` utility. |
+| Physical/fresh install        | Alpha.118 universal DMG is signed, notarized, stapled, Gatekeeper-accepted and installed directly from the DMG; existing-profile checks pass.                                                                                                                                                                                                                                                                               | Lock/sleep/voice, first-use sign-in/permissions and a fresh account/second Mac. The keep-awake assertion still fails on this host, including with macOS’s own `caffeinate` utility. |
 
 The original checklist and its alpha.110 duplicate are preserved in TextEdit’s iCloud folder,
 with matching hashes. The requested local handoff filename does not exist. Do not count the
@@ -131,5 +73,4 @@ operator-guided continuation as an unassisted workflow pass. The reviewer brief 
 private evidence are also preserved; exact identities and limitations are in the artifact record.
 
 See [manual acceptance](./manual-acceptance.md#real-work-and-concurrent-use) and the
-[native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. Do not publish,
-distribute or contact Arena until the remaining acceptance work and owner decisions are complete.
+[native patch guide](../apps/desktop/native/cua/README.md). Keep the PR draft. The owner requested a local RA evaluation DMG; alpha.118 is prepared for that limited handoff with the known limitations disclosed. Do not publish, send invitations or contact Arena without authorization. Broad distribution still requires the remaining acceptance work.

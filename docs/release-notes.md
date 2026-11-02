@@ -1,6 +1,6 @@
 # Sia 0.1.0-alpha.118
 
-RA evaluation candidate for macOS 14+, Apple silicon and Intel. Exact signing, notarization and live acceptance are tracked in [release status](./release-status.md). This is an alpha, not a claim that every desktop workflow is reliable.
+RA evaluation candidate for macOS 14+, Apple silicon and Intel. The universal DMG passed Developer ID signing, notarization, stapling and Gatekeeper, and was installed directly from the DMG. Exact evidence is tracked in [release status](./release-status.md). This is an alpha, not a claim that every desktop workflow is reliable.
 
 ## Cloud recording
 
@@ -8,7 +8,7 @@ After email sign-in, first-run setup selects **Save prompts, usage, and trajecto
 
 Settings → Privacy shows recording, queued uploads and errors, with pause/export/delete controls. Existing declines and paused recording stay off. Local-only historical records are not uploaded retroactively. Turns using Google Workspace connectors are excluded in full. Internal operator/model-tester-only accounts remain excluded.
 
-Ordinary signed-in user accounts can now upload through the existing encrypted outbox. Uploads retry until acknowledged, and repeated batches do not create duplicate records. The live AWS transport check verified exact prompt, usage and screenshot bytes, retry acknowledgement, and deletion of every object version using a disposable account. This check used synthetic data; it does not establish real-task quality.
+Ordinary signed-in user accounts can now upload through the existing encrypted outbox. Uploads retry until acknowledged, and repeated batches do not create duplicate records. The live AWS transport check verified exact prompt, usage and screenshot bytes, retry acknowledgement, and deletion of every object version using a disposable account. That check used synthetic data. Separately, two real tasks on the installed app automatically uploaded prompts, reported token usage and action results; the computer-use task included three actual screenshots. Independent reads verified the encrypted S3 objects and their hashes.
 
 ## Getting started
 
@@ -22,8 +22,8 @@ Vision-only computer use is the default. The model observes screenshots and choo
 
 ## Known limitations
 
-- Two useful planning tasks completed on alpha.115 with setup and review interventions. Two completed simultaneous tasks have not been verified.
-- Native document Name popovers previously misdirected input. This candidate includes a narrow popup routing correction; exact signed-app acceptance remains pending.
+- Two useful planning tasks completed on alpha.115 with setup and review interventions. Alpha.118 also saved/read/reopened a prep checklist derived from the dinner plan. Two completed simultaneous tasks have not been verified.
+- Native document Name popovers previously misdirected input. This candidate includes a narrow popup routing correction, but the signed-app attempt stopped before reaching that field: clicking the document title did not expose it. Rename/move acceptance remains incomplete.
 - Chrome may require reconnection after restarting Sia. The foreground-input guard can pause a background task when Chrome is active.
 - Off-Space native capture and keep-awake behavior remain unreliable on the release Mac. Lock/sleep recovery and a fresh macOS account have not been accepted.
 - iPhone distribution follows the Mac pilot.
