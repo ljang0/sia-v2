@@ -280,3 +280,41 @@ it('recognizes projected native errors and keeps observation timeout recovery', 
     warn.mockRestore();
   }
 });
+
+// The native stage proof must survive through the action backend, not just its log.
+it.each([
+  'browser_wrong_target_refused',
+  'browser_endpoint_owner_mismatch',
+  'browser_route_unavailable',
+])('preserves proof that %s happened before browser input', (code) => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  let failure: unknown;
+  try {
+    decodeDriverResult(
+      'browser_navigate',
+      {},
+      {
+        errorCode: 'authorization_host_failed',
+        rawJson: JSON.stringify({
+          refusal: {
+            code: 'authorization_host_failed',
+            message: `confirmation provider failed: [browser_attestation:${code}] private detail`,
+          },
+        }),
+      },
+      { started: 0, completed: 0 },
+    );
+  } catch (error) {
+    failure = error;
+  } finally {
+    warn.mockRestore();
+  }
+  expect(inputWasRefused(failure)).toBe(true);
+  expect(classifyFailure(failure)).toMatchObject({
+    outcome: 'refused',
+    data: { blocker_code: code, input_not_sent: true },
+  });
+  expect(JSON.stringify(classifyFailure(failure))).not.toContain('private detail');
+  // The code alone cannot prove what happened before or after dispatch.
+  expect(inputWasRefused(new Error(`CUA refused: ${code}`))).toBe(false);
+});

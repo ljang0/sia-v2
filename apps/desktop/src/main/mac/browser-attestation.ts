@@ -24,12 +24,20 @@ const codes = new Set([
   'browser_origin_outside_scope',
 ]);
 
+/** Host-only stage evidence; never reconstruct this from a model-visible error string. */
+export class BrowserAttestationError extends Error {
+  constructor(readonly code: string) {
+    super(`CUA refused: ${code}`);
+    this.name = 'BrowserAttestationError';
+  }
+}
+
 /** Recover only the native pre-callback attestation code, never its content-bearing detail. */
 export function browserAttestationFailure(
   tool: string,
   result: DriverResult,
   progress: { started: number; completed: number },
-): string | undefined {
+): BrowserAttestationError | undefined {
   if (
     !tools.has(tool) ||
     result.errorCode !== 'authorization_host_failed' ||
@@ -49,7 +57,7 @@ export function browserAttestationFailure(
     if (typeof message !== 'string') return;
     const match =
       /^confirmation provider failed: \[browser_attestation:([a-z_]+)\](?: |$)/.exec(message);
-    if (match?.[1] && codes.has(match[1])) return match[1];
+    if (match?.[1] && codes.has(match[1])) return new BrowserAttestationError(match[1]);
   } catch {
     // Unknown/legacy envelopes retain the generic refusal, with no guessed recovery.
   }

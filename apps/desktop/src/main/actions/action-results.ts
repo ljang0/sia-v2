@@ -1,6 +1,7 @@
 /** Builds the ActionExecutionResult shapes the backend returns, and classifies driver refusals. */
 
 import type { ActionExecutionResult } from '@sia/action-gateway';
+import { BrowserAttestationError } from '../mac/browser-attestation.js';
 import { browserGuardRefusalCode, isCuaCallResult } from '../mac/cua-results.js';
 import { asRecord, compact, findNestedString, findString } from './driver-records.js';
 
@@ -14,6 +15,7 @@ export function stale(reason: string): ActionExecutionResult {
 
 /** Only these explicit validation/authorization refusals prove that no input was posted. */
 export function inputWasRefused(error: unknown): boolean {
+  if (error instanceof BrowserAttestationError) return true;
   if (
     /^(?:CUA refused: )?browser_(?:point|link)_context_unavailable$/.test(
       safeErrorMessage(error),
@@ -45,6 +47,14 @@ export function browserInputTrustFailure(error: unknown): ActionExecutionResult 
 }
 
 export function classifyFailure(error: unknown): ActionExecutionResult {
+  if (error instanceof BrowserAttestationError)
+    return {
+      outcome: 'refused',
+      summary:
+        'The chosen browser connection could not be verified before this action, so no input was sent. Refresh the same window’s connection state before continuing. Only repeat connection setup if it reports missing consent; do not switch windows or replay earlier actions with uncertain results.',
+      reason: error.message,
+      data: { blocker_code: error.code, input_not_sent: true },
+    };
   const message = safeErrorMessage(error);
   const normalized = message.toLowerCase();
   if (/^(?:cua refused: )?browser_(?:point|link)_context_unavailable$/.test(normalized))

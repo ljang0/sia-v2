@@ -134,7 +134,7 @@ export function decodeDriverResult(
       const hint = /CDP [A-Za-z.]+ timed out/.test(raw)
         ? 'browser_transport_timeout'
         : attestation
-          ? attestation
+          ? attestation.code
           : raw.includes('live top-level')
             ? 'browser_origin_unavailable'
             : raw.includes('request timed out')
@@ -151,7 +151,7 @@ export function decodeDriverResult(
         progress.started === 0
       )
         throw new Error('CUA refused: browser_observation_timeout');
-      if (attestation) throw new Error(`CUA refused: ${attestation}`);
+      if (attestation) throw attestation;
     }
     throw new Error(`CUA refused: ${result.errorCode}`);
   }

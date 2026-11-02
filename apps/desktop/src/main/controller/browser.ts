@@ -61,7 +61,7 @@ export class BrowserSession {
 
   async ensureBrowserAttachedForActions(): Promise<string | undefined> {
     if (this.ctx.computerAccess.accessMode() === 'mac')
-      return 'Use my Mac is enabled. Use native shell, AppleScript and screenshots with the existing Safari or browser window. Chrome attachment is optional.';
+      return 'Use my Mac is enabled. Use the computer tools to observe screenshots and act in the chosen window. If Chrome needs a connection, use its connection recovery control.';
     if (this.reconnectRequired) return this.ctx.state.browser.detail;
     if (this.ctx.computerAccess.trust() !== 'auto')
       return 'No Chrome window is connected. Sia shows a Connect Chrome & continue control below this response. Ask the user to choose their window there; they do not need to repeat the request.';

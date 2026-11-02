@@ -7,6 +7,7 @@ import {
   type ValidatedActionInvocation,
 } from '@sia/action-gateway';
 import { DesktopActionBackend } from './desktop-action-backend.js';
+import { decodeDriverResult, type DriverResult } from '../mac/cua-results.js';
 import type { CuaAuthorizationContext } from '../mac/cua-service.js';
 
 function harness() {
@@ -26,6 +27,7 @@ function harness() {
     observationError: '',
     observationRefused: false,
     afterNavigateError: '',
+    navigationFailure: undefined as DriverResult | undefined,
     windowId: 91,
     requireSessionGrant: false,
     grantedSessions: new Set<string>(),
@@ -92,6 +94,8 @@ function harness() {
         };
       }
       if (tool === 'browser_navigate') {
+        if (state.navigationFailure)
+          decodeDriverResult(tool, args, state.navigationFailure, { started: 0, completed: 0 });
         state.url = String(args.url);
         state.observationError = state.afterNavigateError;
         return { effect: 'confirmed' };
@@ -1020,4 +1024,46 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
     expect((await h.backend.invoke(h.request('computer_action', args))).outcome).toBe('stale');
     expect(h.call.mock.calls.filter(([name]) => name === 'browser_type')).toHaveLength(1);
   });
+});
+
+it('reports a pre-dispatch connection failure without claiming lost navigation or replaying it', async () => {
+  const h = harness();
+  h.state.prepared = true;
+  h.state.url = 'https://canvas.cmu.edu/';
+  h.state.navigationFailure = {
+    errorCode: 'authorization_host_failed',
+    rawJson: JSON.stringify({
+      refusal: {
+        code: 'authorization_host_failed',
+        message:
+          'confirmation provider failed: [browser_attestation:browser_wrong_target_refused] private native detail',
+      },
+    }),
+  };
+  const target = await h.target();
+  const observed = await h.backend.invoke(h.request('computer_snapshot', target));
+  const tab = (observed.data as { tab_id: string }).tab_id;
+  const result = await h.backend.invoke(
+    h.request('computer_open_url', {
+      ...target,
+      tab_id: tab,
+      url: 'https://canvas.cmu.edu/courses',
+    }),
+  );
+  expect(result).toMatchObject({
+    outcome: 'refused',
+    data: {
+      blocker_code: 'browser_wrong_target_refused',
+      input_not_sent: true,
+    },
+  });
+  expect(result.data).not.toHaveProperty('input_delivery_uncertain');
+  expect(JSON.stringify(result)).not.toContain('private native detail');
+  expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_navigate')).toHaveLength(1);
+  expect(
+    h.call.mock.calls.some(([tool]) =>
+      ['browser_prepare', 'hotkey', 'type_text'].includes(tool),
+    ),
+  ).toBe(false);
+  expect(h.state.url).toBe('https://canvas.cmu.edu/');
 });
