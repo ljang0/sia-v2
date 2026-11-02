@@ -8,7 +8,7 @@ Arena's [Agent Mode](https://help.arena.ai/articles/5432423882-how-to-use-agent-
 
 ## What is available
 
-- A signed, notarized universal **alpha.120 DMG** for macOS 14+, with email sign-in, guided permission setup, task progress, Stop and feedback. The exact DMG was installed and checked on Apple silicon; Intel received static package verification. Mac first; iPhone follows.
+- A signed, notarized universal **alpha.121 DMG** for macOS 14+, with email sign-in, guided permission setup, task progress, Stop and feedback. The exact DMG was installed and checked on Apple silicon; Intel received static package verification. Mac first; iPhone follows.
 - Vision-only computer control by default: screenshots in, pointer/keyboard actions out. Explicit workspace-file and connector tools are labeled separately. macOS access remains person-approved.
 - A short [setup guide](./release-notes.md), practical [demo prompts](./demo.md), [artifact evidence](./public-release.md) and a [repository walkthrough](./architecture.md#reviewing-the-computer-use-path). The [README](../README.md) supports local UI review without AWS credentials or model spend; actual evaluation uses a real admitted model.
 

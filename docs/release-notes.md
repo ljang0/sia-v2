@@ -1,8 +1,10 @@
-# Sia 0.1.0-alpha.120
+# Sia 0.1.0-alpha.121
 
 Signed and notarized evaluation DMG for macOS 14+, Apple silicon and Intel. Installed directly from the DMG and checked on Apple silicon; Intel received static package verification. Exact evidence is tracked in [release status](./release-status.md). This is an alpha, not a claim that every desktop workflow is reliable.
 
-This build recognizes an exactly identified native sheet, such as Finder's Go to Folder dialog, without accepting sibling windows. It also prevents memory reviews from scheduling themselves and distinguishes temporary request limits from exhausted subscription quota. Vision-only native clicks retain pointer-event delivery, exact-window ownership, protected-field and stale-image checks. Live rename/move/reopen acceptance remains incomplete.
+This build explicitly returns Sia to the front after direct Chrome setup and verifies that handoff before resuming the saved task. If macOS does not confirm it, the request stays stopped. The successful live recovery path remains unverified; the signed-app trial reached an ambiguous Chrome-window refusal.
+
+It also recognizes an exactly identified native sheet, such as Finder's Go to Folder dialog, without accepting sibling windows. It also prevents memory reviews from scheduling themselves and distinguishes temporary request limits from exhausted subscription quota. Vision-only native clicks retain pointer-event delivery, exact-window ownership, protected-field and stale-image checks. Live rename/move/reopen acceptance remains incomplete.
 
 ## Cloud recording
 

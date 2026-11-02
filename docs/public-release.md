@@ -2,7 +2,29 @@
 
 ## Current RA evaluation artifact
 
-Alpha.120 is the current signed and notarized evaluation DMG. It includes exact top-level sheet recognition, the memory-review scheduling correction and accurate request-limit guidance, alongside pointer-only visual input. It is not accepted for broad distribution or completed Arena evaluation. Nothing has been publicly published or sent to a recipient by this work.
+Alpha.121 is the current signed and notarized evaluation candidate. Direct Chrome setup explicitly activates Sia and waits for native foreground-process confirmation before resuming; an unconfirmed handoff leaves the request stopped. Broad distribution and Arena acceptance remain open. Nothing has been publicly published or sent to a recipient by this work.
+
+| Identity                   | Value                                                              |
+| -------------------------- | ------------------------------------------------------------------ |
+| Version                    | `0.1.0-alpha.121`                                                  |
+| Source                     | `17ced846eda6002de975fdd460cfd5c38dae3877`, clean at packaging     |
+| Universal DMG SHA-256      | `aedcb94f406662b2bef09600a8630f717d298a2aee3526212ec2abc0820705f8` |
+| Universal ZIP SHA-256      | `ea432622dd39b12b16fe7a52a9d8b56813dca8caa71911cd86728fccc21c983a` |
+| Installed ASAR SHA-256     | `ce38c632ae3252f8f39c6cc4e16ed1772c68dddb87a047d748f266ca9e02c25d` |
+| Private evidence directory | `alpha121-browser-return` under Sia Release Verification           |
+| Packaging / installation   | November 2, 2026, 18:35:43 / 18:37:06 UTC                          |
+
+Developer ID signing, Apple notarization, stapling, Gatekeeper and packaged-runtime checks passed. Installation used the read-only mounted DMG, verified signatures and compared its ASAR. Apple silicon received runtime verification; Intel received static verification. Live AWS configuration, default recording and managed ElevenLabs remain included without bundled private credentials or the QA profile.
+
+The full local pilot gate passed: 2,026 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. All 24 focused handoff/controller checks passed. After the full gate, only root/desktop version metadata and release-status prose changed; the packaged verifier checked the new version. Remote CI run 359 is pending for the exact source.
+
+Live acceptance is incomplete. Resetting the external CUA session restored readable UI state after it kept showing an old startup surface. The installed app reached Settings and the Chrome chooser. Choosing an isolated public recipe window was refused because Chrome could not distinguish it from another open window. An attempted distinct-public-page workaround was interrupted by CUA reporting that the user changed Chrome, so operator GUI input stopped. No successful setup-and-resume, completed meal plan, native rename/move or two-task concurrency is claimed. The alpha.120 filename incident remains unresolved; the owner denied typing the unexpected text.
+
+Private receipts: `package.json`, `install.json`, `source-checks.json`, `pilot-gate.log`, `package.log`, `install.log`, `pilot.log` and `live-acceptance.json`. Alpha.120 remains available for rollback.
+
+## Alpha.120 task and filename evidence
+
+Alpha.120 is the preceding signed and notarized evaluation DMG. It includes exact top-level sheet recognition, the memory-review scheduling correction and accurate request-limit guidance, alongside pointer-only visual input. It is not accepted for broad distribution or completed Arena evaluation. Nothing has been publicly published or sent to a recipient by this work.
 
 | Identity                   | Value                                                              |
 | -------------------------- | ------------------------------------------------------------------ |
