@@ -93,4 +93,15 @@ The owner subsequently confirmed “mic now works” and requested the latest DM
 
 ## Follow-up source changes after alpha.119
 
+Native memory reviews could repeatedly schedule themselves because their own journal edits
+were newer than the last-review timestamp. The host now checkpoints journal and failure-note
+revisions and advances them only for review writes that replace the checkpointed revision.
+Ordinary task activity, including a write during a review, remains eligible after the cooldown.
+Explicit requests still override the cooldown; legacy empty markers migrate at the next review.
+Both controller routes reproduced the defect before the fix. All 35 focused vault/controller
+tests pass, including restart, concurrent task edits, explicit requests and linked-marker checks.
+The full `pnpm test:pilot` passed: 2,022 desktop, 46 Electron, 48 renderer, 72 phone-browser
+and 223 cloud tests, plus native/shared/build/static checks. Private evidence is retained in
+`memory-review-source-checks/pilot-gate.log`. This source correction is not in the alpha.119 DMG.
+
 A generic HTTP 429 was incorrectly translated into an exhausted-plan message with the saved subscription reset time. Error formatting now distinguishes request-rate failures from explicit usage/quota failures. Bare 429 and rate-limit messages advise waiting and retrying without claiming a plan reset; explicit usage/quota errors retain their guidance, and original errors remain under Details. Five focused checks reproduced the old behavior; all 17 focused tests pass after the correction. The full `pnpm test:pilot` passed: 2,013 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus native/shared/build/static checks. Private evidence is retained in `rate-limit-source-checks/pilot-gate.log`. This change is not in the handed-off alpha.119 DMG.

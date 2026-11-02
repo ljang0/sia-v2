@@ -852,6 +852,9 @@ always-on remote capabilities is defined in [cloud-computer.md](./cloud-computer
   settings still govern all durable preferences, vault notes, lessons and consolidation.
   Native consolidation uses the source recipe on the agent's pinned Codex model after new
   experience, at most every six hours while idle; explicit review/trigger can request it sooner.
+  A host-only checkpoint stores the review start time and journal/failure revisions. Review writes
+  advance only the revision they actually replaced; an intervening ordinary task remains eligible
+  for the next review. Review bookkeeping therefore cannot schedule another review by itself.
   The review has only `memory_vault` list/read/write/append: no native shell, GUI, accounts or
   network tools. Every call rechecks the current learning preferences, Mac access mode and pinned
   workspace. Revisions prevent overwriting concurrent edits; read paging and append preserve long

@@ -296,6 +296,7 @@ export class AssistantFeatures {
             : args.operation === 'append'
               ? vault.append(args.name, args.text, args.revision)
               : vault.write(args.name, args.text, args.revision);
+        if (review && args.operation !== 'read') vault.recordReviewWrite(file, args.revision);
         return {
           outcome: 'verified',
           summary:

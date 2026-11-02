@@ -12,7 +12,6 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
-  statSync,
   unlinkSync,
   writeFileSync,
   writeSync,
@@ -22,6 +21,11 @@ import { join } from 'node:path';
 import type { AssistantLibraryView } from '../../shared/assistant-library.js';
 import { containsMemoryCredentials as sensitive } from '../assistant/memory-privacy.js';
 import { notchVaultRoot } from './foreground.js';
+import {
+  consolidationNotes,
+  readConsolidationState,
+  writeConsolidationState,
+} from './consolidation-state.js';
 import {
   hasMemoryQuery,
   isSearchableMemoryNote,
@@ -298,27 +302,44 @@ export class NotchVault {
     return existsSync(join(this.root, '.consolidate-now'));
   }
   due(now = Date.now()): boolean {
+    if (this.requested()) return true;
     const modified = (name: string) => {
       try {
-        return statSync(join(this.root, name)).mtimeMs;
+        return lstatSync(join(this.root, name)).mtimeMs;
       } catch {
         return 0;
       }
     };
-    const last = modified('.last-consolidation');
-    return (
-      this.requested() ||
-      (now - last > 6 * 3600_000 &&
-        Math.max(modified('journal.md'), modified('failures.log')) > last)
-    );
+    const state = readConsolidationState(this.root);
+    const last = state?.startedAt ?? modified('.last-consolidation');
+    if (now - last <= 6 * 3600_000) return false;
+    return state
+      ? consolidationNotes.some((name) => this.read(name).revision !== state.revisions[name])
+      : Math.max(...consolidationNotes.map(modified)) > last;
   }
   markConsolidation(): void {
     this.ensure();
-    for (const name of ['.consolidate-now', '.last-consolidation']) {
-      const path = join(this.root, name);
-      if (existsSync(path)) unlinkSync(path);
+    const request = join(this.root, '.consolidate-now');
+    if (existsSync(request)) unlinkSync(request);
+    writeConsolidationState(this.root, {
+      version: 1,
+      startedAt: Date.now(),
+      revisions: {
+        'journal.md': this.read('journal.md').revision,
+        'failures.log': this.read('failures.log').revision,
+      },
+    });
+  }
+  recordReviewWrite(note: VaultNote, previousRevision: string): void {
+    for (const name of consolidationNotes) {
+      if (note.name !== name) continue;
+      const state = readConsolidationState(this.root);
+      // A user task may have updated this note during the review. Do not consume that
+      // activity, even if the review subsequently read and edited the newer revision.
+      if (!state || state.revisions[name] !== previousRevision) return;
+      state.revisions[name] = note.revision;
+      writeConsolidationState(this.ensure(), state);
     }
-    writeFileSync(join(this.root, '.last-consolidation'), '', { flag: 'wx', mode: 0o600 });
   }
   async engine(
     helper: string,

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { utimesSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -623,6 +624,35 @@ it.each([false, true])(
       );
       expect(result.summary).toContain('Saved and read back');
       expect(invoke).not.toHaveBeenCalled();
+      const workspace = controller
+        .snapshot()
+        .agents.find((agent) => agent.id === agentId)!.workspace;
+      const vault = new NotchVault(workspace, agentId);
+      const earlier = new Date(Date.now() - 1000);
+      utimesSync(join(vault.root, '.last-consolidation'), earlier, earlier);
+      const journal = vault.read('journal.md');
+      await controller.assistantAction(
+        {
+          name: 'memory_vault',
+          descriptor: getActionToolDescriptor('memory_vault')!,
+          context: { sessionId: 'review', threadId, turnId, provider: 'codex', workspace },
+          arguments: {
+            operation: background ? 'append' : 'write',
+            name: journal.name,
+            revision: journal.revision,
+            text: 'Reviewed the existing Finder history. No new task activity.',
+          },
+        },
+        invoke,
+      );
+      const afterCooldown = Date.now() + 7 * 3600_000;
+      expect(new NotchVault(workspace, agentId).due(afterCooldown)).toBe(false);
+      vault.append(
+        'journal.md',
+        'Completed a new user task.',
+        vault.read('journal.md').revision,
+      );
+      expect(new NotchVault(workspace, agentId).due(afterCooldown)).toBe(true);
       const view = await controller.invoke('assistant.library', { operation: 'list' });
       expect(view.suggestions).toEqual([]);
       expect(view.skills).toEqual([

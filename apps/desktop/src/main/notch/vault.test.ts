@@ -9,6 +9,7 @@ import {
   linkSync,
   existsSync,
   statSync,
+  utimesSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -53,6 +54,104 @@ function fixture() {
 afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
+
+it.each(['journal.md', 'failures.log'])(
+  'keeps repeated review edits to %s quiet after restart, but notices a new task',
+  (name) => {
+    const { workspace, agentId, vault, view } = fixture();
+    vault.initialize(view);
+    vault.markConsolidation();
+    const afterCooldown = Date.now() + 7 * 3600_000;
+    for (const text of ['Review summary.', 'Further distillation.']) {
+      const before = vault.read(name);
+      const after = vault.append(name, text, before.revision);
+      vault.recordReviewWrite(after, before.revision);
+    }
+    const restarted = new NotchVault(workspace, agentId);
+    expect(restarted.due(afterCooldown)).toBe(false);
+    restarted.append(name, 'New user task result.', restarted.read(name).revision);
+    expect(restarted.due()).toBe(false); // Preserve the six-hour cooldown.
+    expect(restarted.due(afterCooldown)).toBe(true);
+  },
+);
+
+it.each(['journal.md', 'failures.log'])(
+  'does not consume new task activity when a review subsequently edits %s',
+  (name) => {
+    const { vault, view } = fixture();
+    vault.initialize(view);
+    vault.markConsolidation();
+    const original = vault.read(name);
+    const task = vault.append(name, 'New task completed during the review.', original.revision);
+    expect(() => vault.append(name, 'Stale review.', original.revision)).toThrow('changed');
+    const review = vault.append(name, 'Review read the newer note.', task.revision);
+    vault.recordReviewWrite(review, task.revision);
+    expect(vault.due(Date.now() + 7 * 3600_000)).toBe(true);
+    vault.markConsolidation();
+    expect(vault.due(Date.now() + 7 * 3600_000)).toBe(false);
+  },
+);
+
+it('keeps an explicit consolidation request authoritative, including during a review', () => {
+  const { vault, view } = fixture();
+  vault.initialize(view);
+  const request = join(vault.root, '.consolidate-now');
+  writeFileSync(request, '');
+  expect(vault.due()).toBe(true);
+  vault.markConsolidation();
+  expect(existsSync(request)).toBe(false);
+  expect(vault.due()).toBe(false);
+  writeFileSync(request, '');
+  const before = vault.read('journal.md');
+  vault.recordReviewWrite(
+    vault.append(before.name, 'Review.', before.revision),
+    before.revision,
+  );
+  expect(vault.due()).toBe(true);
+});
+
+it.each(['', '{corrupt checkpoint'])(
+  'recovers a legacy or damaged review marker: %j',
+  (marker) => {
+    const { vault, view } = fixture();
+    vault.initialize(view);
+    const path = join(vault.root, '.last-consolidation');
+    writeFileSync(path, marker);
+    const earlier = new Date(Date.now() - 7 * 3600_000);
+    utimesSync(path, earlier, earlier);
+    expect(vault.due()).toBe(true);
+    vault.markConsolidation();
+    const before = vault.read('journal.md');
+    vault.recordReviewWrite(
+      vault.append(before.name, 'Review.', before.revision),
+      before.revision,
+    );
+    expect(vault.due(Date.now() + 7 * 3600_000)).toBe(false);
+    expect(readFileSync(path, 'utf8')).not.toContain('Review.');
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+  },
+);
+
+it.each(['symbolic', 'hard'])(
+  'replaces a %s-linked checkpoint without modifying its target',
+  (kind) => {
+    const { vault, workspace, view } = fixture();
+    vault.initialize(view);
+    const outside = join(workspace, 'outside-review-marker');
+    writeFileSync(outside, 'Keep this file.');
+    const path = join(vault.root, '.last-consolidation');
+    (kind === 'symbolic' ? symlinkSync : linkSync)(outside, path);
+    const before = vault.read('journal.md');
+    vault.recordReviewWrite(
+      vault.append(before.name, 'Review.', before.revision),
+      before.revision,
+    );
+    expect(readFileSync(outside, 'utf8')).toBe('Keep this file.');
+    vault.markConsolidation();
+    expect(readFileSync(outside, 'utf8')).toBe('Keep this file.');
+    expect(vault.due(Date.now() + 7 * 3600_000)).toBe(false);
+  },
+);
 
 it('blocks new access-bearing links in vault notes', () => {
   const { vault, view } = fixture();
