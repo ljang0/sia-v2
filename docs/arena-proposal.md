@@ -63,7 +63,10 @@ recorded separately and cannot count as unassisted acceptance.
 Signed alpha.115 completed a real two-person museum/lunch itinerary using official hours, dated
 ticket prices and menu screenshots. The $97 saved plan reopened correctly. Chrome reconnection
 and a review prompt correcting a non-vegetarian recommendation were required. Research took
-about eight minutes and the correction 25 seconds; this is not a concurrent-work pass.
+about eight minutes and the correction 25 seconds; this is not a concurrent-work pass. A second
+source-checked dinner/grocery plan saved and reopened in about 3.4 minutes after setup; a 47-second
+review revision made the portions practical. Native work overlapped but failed capture, so these
+are two intervention-assisted results, not two completed concurrent tasks.
 
 A signed native typing test now passes Stop and recovery without duplicated text. Complete
 workflow repeats, concurrency, broader Stop/recovery, clipboard, restart/expiry and physical

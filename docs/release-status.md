@@ -39,7 +39,11 @@ visually, and the $97 plan was saved, read back and reopened. Chrome reconnectio
 operator selection; review caught a meat recommendation that violated the vegetarian requirement.
 Sia corrected it after a follow-up prompt. Research took 481.146 seconds; correction took 24.855
 seconds. This is useful completed work with interventions, not unassisted or concurrency acceptance.
-The alpha.114 remote CI failure was release-table formatting, corrected here.
+The alpha.114 remote CI failure was release-table formatting, corrected here. A second dinner-and-grocery
+plan also saved/read/reopened after setup; a review revision replaced impractical fractional
+portions with an explicitly permitted half batch. Research took 204.931 seconds and revision
+47.257 seconds. Native work overlapped but failed capture while its window was off the current
+Space, so two completed concurrent tasks remain unverified.
 
 The owner selected **Mac first; iPhone follows** and is the pilot support/incident owner.
 The [Arena proposal](./arena-proposal.md) offers a bounded technical review and invited pilot;

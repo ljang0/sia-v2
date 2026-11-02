@@ -126,6 +126,33 @@ This is completed useful work **with connection and content-review interventions
 unassisted pass. Continuous focus/clipboard preservation and two completed simultaneous tasks
 were not independently established. No purchase, reservation or invitation occurred.
 
+## Signed alpha.115 dinner planning and native overlap
+
+A second real task researched three vegetarian dinners and consolidated their ingredients from
+published Good Food and Budget Bytes pages. After Chrome reconnection and explicit permission to
+reuse the completed museum test tab, turn `b9048d95-d8c5-46a1-849f-d8fae8d8db97` saved and read
+back the plan in 204.931 seconds. Independent screenshot review checked recipe servings,
+ingredients and 35/15/25-minute publisher totals; arithmetic and unspecified quantities were
+checked against the saved file. Sia Preview closed and reopened correctly.
+
+The exact two-serving quesadilla scaling produced awkward fifths and a light portion. An operator
+review relaxed that recipe to a half batch: two quesadillas per adult and one leftover. Sia updated
+all affected shopping quantities and read back the file in 47.257 seconds; independent review
+confirmed the ratios and shared garlic total. Revised file: 6,702 bytes, SHA-256
+`e3fb2eb00a3747039cbe64a25089c6c1b5b5eff1e70a5984cf97410209e0743b`.
+This is a second saved practical result with setup/review intervention, not an unassisted pass.
+Before/after files, trajectories and source screenshots remain in the alpha.115 evidence folder.
+
+The native handoff retry overlapped meal research but did not complete. Inventory reported the
+preserved TextEdit copy off screen and off the current Space; capture returned
+`visual_observation_unavailable` before input. Operator CUA Raise and exact Window-menu selection
+did not restore Sia capture. CUA's separate document screenshot is not evidence that Sia's route
+works. Three attempts stopped without native input; original and copy hashes remain unchanged.
+No successful concurrent pair or continuous focus/clipboard measurement was established. A final
+read-only capture after relaunch with retained logging failed the same way. Runtime diagnostics
+include `capture_surface_unproven` and `capture_unavailable`; they are not individually correlated
+to model calls and do not establish a root cause. QA is stopped for the next repair.
+
 ## Other retained evidence
 
 - **Finder observation:** signed alpha.107 captured Applications windows containing openable
