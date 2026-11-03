@@ -7,7 +7,7 @@ Updated November 3, 2026. **A signed, notarized alpha.122 DMG is available for t
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `d2474d021380b3f01f8793b23b429f199380c57e`; ASAR `b05e6d605aa52e9b0157502d3bd9e919d19b9e5ca26124793956471597ce6d28`; Developer ID and package/runtime checks passed. | Includes browser recovery fixes after the DMG. Not notarized or a replacement distribution artifact. |
+| Installed internal arm64 QA | `2c0deaac7593a8c6a8185dace9504902b8b02559`; ASAR `23ccb8eea100d6efeee814267782cfce2573d0d3445cb1871166e903ed1eca02`; Developer ID and package/runtime checks passed. | Includes browser recovery and partial-activation focus restoration after the DMG. Not notarized or a replacement distribution artifact. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;
@@ -59,8 +59,13 @@ that observed target only while the user’s app remains foreground; unknown and
 holders remain untouched. The regression failed before the fix and all 19 focused click tests
 passed afterward. The full local `pnpm test:pilot` gate then passed, including 2,075 desktop,
 46 Electron, 48 renderer and 72 phone-browser tests, plus shared, cloud and native checks.
-This source change is not installed in QA or the DMG, and does not establish
-the cause of the filename/image mismatch or a successful native workflow.
+The correction is installed in signed internal QA, but not the DMG. On November 3 at 19:58–20:00 UTC,
+read-only capture and one title-control click produced screenshots matching independent TextEdit
+observations. One coordinate-addressed background typing attempt still left the original name selected.
+This time Sia’s returned image and the subsequent independent accessibility observation agreed; no
+new unexpected field text was observed. No rename was committed, and both file hashes remain unchanged.
+The partial-focus fix does not resolve text delivery or explain the earlier mismatch. Private receipt:
+`alpha122-focus-restoration-internal/live-diagnostic.json`.
 
 ## Release requirements
 
