@@ -67,6 +67,25 @@ new unexpected field text was observed. No rename was committed, and both file h
 The partial-focus fix does not resolve text delivery or explain the earlier mismatch. Private receipt:
 `alpha122-focus-restoration-internal/live-diagnostic.json`.
 
+A later read-only preflight ended at 20:36:08.706 UTC with
+`visual_observation_unavailable`; the designated TextEdit window was off the current Space.
+No input was attempted by Sia, and both document hashes remain unchanged. The owner approved
+one bounded foreground keyboard comparison, but unreliable operator CUA input prevented
+opening Settings, so that comparison has not run and the background policy was not changed.
+This adds no foreground or background keyboard acceptance. Private receipt:
+`alpha122-focus-restoration-internal/foreground-comparison-preflight.json`.
+
+A fresh lunch-planning task on the same signed QA stopped at 20:17:23.189 UTC on November 3.
+The agent selected an unrelated Chrome window despite the request to reuse the prior public
+research window. None of the nine Chrome inventory entries had a recognizable recipe/USDA
+identity; eight had no source URL. Observation and prepare-only recovery refused, and no
+navigation, source inspection or output write occurred. All 13 planning-source hashes remain
+unchanged. This is a target-selection failure, not a valid recovery test of the intended window.
+The follow-up source guidance distinguishes connection readiness from task relevance and tells
+the agent to stop when the requested window cannot be identified. Its signed-app verification
+is still pending; it is not an authorization change. Private receipt:
+`alpha122-focus-restoration-internal/lunch-recovery/result.json`.
+
 ## Release requirements
 
 - Vision-only computer use is the default throughout Sia. Models receive screenshots and choose
