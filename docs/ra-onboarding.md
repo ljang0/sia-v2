@@ -1,6 +1,28 @@
 # RA onboarding
 
-For an installed pilot build, sign in with your own email, review the default-on cloud recording notice, complete Mac setup, and connect your own Codex plan. AWS receives eligible prompts, provider-reported usage and trajectories (including screenshots) after you Continue with recording on. Settings → Privacy shows queued uploads and pause/export/delete controls. Google Workspace connector turns are excluded. The signed DMG and its current limitations belong in [release status](./release-status.md); a source checkout is not needed to use the app.
+## Use the installed Mac app
+
+No source checkout, AWS credentials or API key is needed. Use the exact evaluation DMG identified
+in [release status](./release-status.md), then follow the five steps in
+[Start using Sia](./release-notes.md#start-using-sia). Sign in with your own email, connect your
+ChatGPT plan and complete Mac/Chrome setup. macOS grants need your approval; ordinary task actions
+then run automatically unless you opt into **Ask before each action**.
+
+Review the default-on cloud recording notice before Continue. AWS receives eligible prompts,
+provider-reported usage and trajectories, including screenshots, while recording is on.
+**Settings → Privacy** shows queued uploads and pause/export/delete controls. Google Workspace
+connector turns are excluded.
+
+For a useful first task, copy the [weekday dinner and grocery prompt](./demo.md#everyday-assistant-acceptance).
+Use a public Chrome window and a fresh conversation. It should produce `dinner-plan.md` and
+`grocery-list.md`; open both result attachments in Preview and check recipe quantities and portions.
+The [budgeted outing prompt](./demo.md#demo-4-plan-a-useful-visit-from-live-sources) is a second option.
+These are real-model tasks, and the current evaluation build has known background/recovery limits.
+Keep the actual result and any intervention in your report; do not count delivery messages as success.
+
+Stop here if you only want to evaluate the app. The remaining sections are for contributing code.
+
+## Contribute from source
 
 This is the shortest path from a fresh clone to a useful first contribution. It uses fake services,
 so it does not need AWS access, a model API key, a CMU account, or a paid model turn.

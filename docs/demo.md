@@ -4,6 +4,11 @@ Use the exact signed candidate recorded in [release status](./release-status.md)
 [artifact evidence](./public-release.md). Distribution is not approved. These examples use actual
 public project documents and a real admitted model; fake-service demos are separate.
 
+For an everyday first task, start with the [dinner and grocery plan](#everyday-assistant-acceptance)
+or the [budgeted outing](#demo-4-plan-a-useful-visit-from-live-sources). The reviewer-packet and
+codebase exercises below help with technical review. Native editing and simultaneous GUI use
+remain acceptance tests, with the open gates recorded below.
+
 **Current evidence:** universal alpha.122 is signed, notarized, stapled and verified after installation from its DMG. Later signed internal source `d2474d0` completed dairy-free dinner research and an outing checklist with 67.582 seconds of overlapping successful turns and interleaved actions. Stopping the checklist did not cancel research; explicit continuation finished it. Both outputs were independently checked and opened in Preview, with all 11 source hashes preserved. Browser reconnection and Stop/resume were operator interventions. A prior trial produced a checked museum calendar, but calendar-app import remains untested. These two successful turns automatically uploaded prompts, reported usage, actions/results and 12 screenshots to AWS; independent downloads verified hashes and encryption. Native rename/move, two native-app workflows, contention, continuous focus/clipboard preservation and repeatability remain open. The internal app is not a replacement distribution DMG. Every selected demo needs two fresh signed runs, retaining failures and interventions.
 
 ## Start here

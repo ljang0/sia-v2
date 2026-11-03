@@ -30,8 +30,10 @@ defines the maximum and notes that rotation retains the original session's remai
 Public `POST /v1/auth/register` is enumeration-resistant and creates a passwordless Cognito account
 in the `Users` group; it does not require a research invite or research acknowledgment. If the
 address also has a non-failed research invite, registration additionally grants `Participants` and
-activates the existing invite record. Research uploads still require `Participants` and the current
-per-upload consent receipt.
+activates the existing invite record. Cloud recording accepts ordinary `Users`, `Participants` and
+`Admins`, subject to the enabled upload feature and current per-batch consent receipt. Internal
+`Operators`/`MetaTesters` accounts without one of those eligible roles remain excluded. First-run
+setup discloses default-on recording before saving the choice; opt-out does not prevent sign-in.
 
 The update route is authenticated and limited to `Users`, `Operators`, `MetaTesters`, `Participants`,
 and `Admins`. `Operators` can retrieve the private release but do not receive participant,
@@ -46,9 +48,11 @@ decoded S3 object path differs from the signed artifact key.
 Research captures expire from S3 after `ResearchRetentionDays` (90 by default), while noncurrent
 versions expire after 30 days. DynamoDB is on-demand and the three Lambda concurrency reservations
 are deployment parameters, so raise them only after checking the regional Lambda quota and the
-error/throttle alarms. The desktop bounds a local research batch below the API's 4 MiB limit and
-keeps at most one eligible screenshot per turn. It retains unsynced batches, prunes synced copies
-after 90 days, and evicts only the oldest synced copies if encrypted local research storage reaches
+error/throttle alarms. The desktop bounds each raw research batch below the API's 4 MiB limit.
+Eligible action images are retained within raw turn events, with large events split into
+reconstructable chunks; the raw recording path is not limited to one screenshot per turn.
+It retains unsynced batches, prunes synced copies after 90 days, and evicts only the oldest synced
+copies if encrypted local research storage reaches
 128 MiB or 500 batches.
 
 The hosted-model secret keeps the legacy `MetaSecret` resource name but is a catalog-driven model-lab configuration:

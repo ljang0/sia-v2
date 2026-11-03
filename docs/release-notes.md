@@ -10,7 +10,7 @@ Signed and notarized evaluation DMG for macOS 14+, Apple silicon and Intel. The 
 4. Follow **Set up Sia** and approve the macOS permissions. Choose the Chrome window Sia should use.
 5. Start with public research or a document in the agent's working folder. Ask Sia to save the result; click its result attachment to open Preview. Keep Sia open and the Mac awake.
 
-Computer use is vision-only by default: the model observes screenshots and chooses pointer and keyboard actions. Background work is the default; **On my screen** is an explicit alternative. Use Stop to end a task and review the result before relying on it.
+Computer use is vision-only by default: the model observes screenshots and chooses pointer and keyboard actions. Background work and automatic action approval are the defaults. **Ask before each action** and **On my screen** are explicit alternatives in Settings → Computer. Initial macOS and Chrome grants still need your approval; Sia reuses granted access and silently checks the target before acting. Use Stop to end a task and review the result before relying on it.
 
 ## What changed
 
@@ -33,6 +33,9 @@ ElevenLabs voice runs through Sia's authenticated AWS service; no shared key is 
 The reported credential outage was repaired server-side. Speech-service checks pass and the owner confirmed the microphone works. Physical Fn and a complete spoken-command round trip have not been independently verified by CUA. Avoid enabling the Fn shortcut in two Sia installations at once.
 
 ## Current limits
+
+These limits describe this DMG. Later internal QA completed additional personal tasks, but those
+corrections are not in this installer; see [current evidence](./release-status.md#current-evidence-and-open-gates).
 
 - A visitor pocket guide was saved and read back, then opened in Preview by the operator after sleep recovery. Browser meal research stopped on an access-check failure before saving a complete plan.
 - Native filename entry is unreliable. Unexpected pending text appeared during an earlier test; its origin remains unresolved. The original filename and document contents were restored and verified. Rename/move/reopen acceptance remains open.
