@@ -5846,7 +5846,7 @@ index bb28e4b..1c67145 100644
      Some((window_id, point))
  }
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
-index 8503db3..2d00774 100644
+index 8503db3..326f8e9 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/click.rs
 @@ -148,10 +148,12 @@ fn press_error_may_have_acted(err: crate::ax::bindings::AXError) -> bool {
@@ -5866,7 +5866,38 @@ index 8503db3..2d00774 100644
  }
  
  /// Whether a toggle's value moving from `before` to `now` is what pressing it
-@@ -330,6 +332,8 @@ fn def() -> &'static ToolDef {
+@@ -270,6 +272,7 @@ pub(super) async fn restore_user_focus_after_background_pixel(
+             focus_without_raise,
+             crate::input::skylight::key_focus_pid(),
+             previous_pid,
++            pid,
+         );
+         if key_moved && apps::frontmost_pid() == Some(previous_pid) {
+             let _ = tokio::task::spawn_blocking(move || {
+@@ -288,14 +291,20 @@ pub(super) async fn restore_user_focus_after_background_pixel(
+ /// Whether the user's window needs the focus record back after a background
+ /// pixel action: their app was re-activated, or WindowServer's key focus
+ /// (`key_focus`) left it. Not when it never moved, since the record then makes
+-/// their app become active again.
++/// their app become active again. A failed private activation can still leave
++/// the target holding key focus; that observed target is sufficient evidence
++/// for restoration. Without a successful prologue, an unrelated holder is not.
+ fn user_focus_needs_restore(
+     reactivated: bool,
+     focus_without_raise: bool,
+     key_focus: Option<i32>,
+     previous_pid: i32,
++    target_pid: i32,
+ ) -> bool {
+-    reactivated || (focus_without_raise && key_focus.is_some_and(|pid| pid != previous_pid))
++    reactivated
++        || key_focus.is_some_and(|holder| {
++            holder != previous_pid && (focus_without_raise || holder == target_pid)
++        })
+ }
+ 
+ /// Poll until `pid` is the frontmost application or `budget` runs out.
+@@ -330,6 +339,8 @@ fn def() -> &'static ToolDef {
              // cua_driver_core::tool_schema.)
              "required": [],
              "properties": {
@@ -5875,7 +5906,7 @@ index 8503db3..2d00774 100644
                  "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it." },
                  "pid":           { "type": "integer", "description": "Target process ID. Optional with element_token (it carries the pid)." },
                  "window_id":     { "type": "integer", "description": "Target window ID. Omit with element_token." },
-@@ -386,6 +390,14 @@ impl Tool for ClickTool {
+@@ -386,6 +397,14 @@ impl Tool for ClickTool {
      async fn invoke(&self, args: Value) -> ToolResult {
          use cua_driver_core::tool_args::ArgsExt;
  
@@ -5890,7 +5921,7 @@ index 8503db3..2d00774 100644
          // ── Window-less screen-absolute branch (scope="desktop") ──────
          // x,y given with NO pid and NO window_id → the coordinates are TRUE
          // SCREEN pixels. This is the foreground, vision-driven desktop-scope
-@@ -762,7 +774,7 @@ impl Tool for ClickTool {
+@@ -762,7 +781,7 @@ impl Tool for ClickTool {
                  None
              };
              let mut selection_pixel = if let Some(screen_center) = selection_center {
@@ -5899,7 +5930,7 @@ index 8503db3..2d00774 100644
                      .await
                      .ok()
                      .map(|frame| {
-@@ -1019,23 +1031,14 @@ impl Tool for ClickTool {
+@@ -1019,23 +1038,14 @@ impl Tool for ClickTool {
                      }
                      Err(refusal) => return refusal,
                  }
@@ -5928,7 +5959,7 @@ index 8503db3..2d00774 100644
              }
  
              // ── Window-local → screen coordinate translation ──────────────────
-@@ -1049,20 +1052,28 @@ impl Tool for ClickTool {
+@@ -1049,20 +1059,28 @@ impl Tool for ClickTool {
              // win_local_x/y: window-local logical-pixel coords used when the
              // Chromium recipe falls back to public PID posting. Its SkyLight
              // route uses the translated screen coordinates instead.
@@ -5964,7 +5995,7 @@ index 8503db3..2d00774 100644
                          {
                              return ToolResult::error(format!(
                                  "click: window-local point ({lx:.1}, {ly:.1}) pt lies outside \
-@@ -1081,6 +1092,21 @@ impl Tool for ClickTool {
+@@ -1081,6 +1099,21 @@ impl Tool for ClickTool {
                  (cx, cy, cx, cy)
              };
  
@@ -5986,7 +6017,7 @@ index 8503db3..2d00774 100644
              // ── Exact-target background gate (macOS background input v1) ──
              // A window-addressed background pixel action targets coordinates,
              // which only mean something while the exact window is current and
-@@ -1158,39 +1184,58 @@ impl Tool for ClickTool {
+@@ -1158,39 +1191,58 @@ impl Tool for ClickTool {
              // targeting (PX) orthogonal to delivery (AX) and avoids making a
              // Chromium/AppKit window key merely to satisfy first-mouse rules.
              if let Some(hit_test_wid) = window_id.filter(|_| {
@@ -6070,7 +6101,7 @@ index 8503db3..2d00774 100644
                      }
                      let delivered = if focus_only {
                          crate::input::ax_actions::focus_element(element as usize).is_ok()
-@@ -1236,13 +1281,32 @@ impl Tool for ClickTool {
+@@ -1236,13 +1288,32 @@ impl Tool for ClickTool {
                                  "code": "background_unavailable"
                              }));
                      }
@@ -6103,7 +6134,7 @@ index 8503db3..2d00774 100644
              let fg = delivery_mode.is_foreground() && window_id.is_some();
              // Background delivery cannot satisfy a toolkit that reads the
              // hardware pointer; refuse before any activation or dispatch.
-@@ -1250,7 +1314,12 @@ impl Tool for ClickTool {
+@@ -1250,7 +1321,12 @@ impl Tool for ClickTool {
                  Ok(route) => route,
                  Err(refusal) => return refusal,
              };
@@ -6117,7 +6148,7 @@ index 8503db3..2d00774 100644
  
              // ── Focus-suppression wrap (Swift WindowChangeDetector + FocusGuard) ──
              // A pixel click can land on a "Sign In" button that opens a sheet
-@@ -1372,6 +1441,15 @@ impl Tool for ClickTool {
+@@ -1372,6 +1448,15 @@ impl Tool for ClickTool {
                                      &m,
                                  );
                              }
@@ -6133,7 +6164,7 @@ index 8503db3..2d00774 100644
                              match button_kind.as_str() {
                                  "right" => {
                                      if let Some(wid) = window_id {
-@@ -1940,10 +2018,52 @@ fn validate_click_action(action: &str, element_target: bool) -> anyhow::Result<(
+@@ -1940,10 +2025,52 @@ fn validate_click_action(action: &str, element_target: bool) -> anyhow::Result<(
      crate::input::ax_actions::map_action(action).map(|_| ())
  }
  
@@ -6186,6 +6217,32 @@ index 8503db3..2d00774 100644
      /// The pixel focus rung keeps working after unknown AX action names
      /// started refusing: background pixel typing into Electron depended on it.
      #[test]
+@@ -2108,11 +2235,20 @@ mod tests {
+     /// re-activated the user's app after every background pixel click.
+     #[test]
+     fn user_focus_record_only_when_focus_moved() {
+-        assert!(!user_focus_needs_restore(false, true, Some(7), 7));
+-        assert!(!user_focus_needs_restore(false, true, None, 7));
+-        assert!(!user_focus_needs_restore(false, false, Some(42), 7));
+-        assert!(user_focus_needs_restore(false, true, Some(42), 7));
+-        assert!(user_focus_needs_restore(true, false, Some(7), 7));
++        assert!(!user_focus_needs_restore(false, true, Some(7), 7, 42));
++        assert!(!user_focus_needs_restore(false, true, None, 7, 42));
++        assert!(user_focus_needs_restore(false, true, Some(42), 7, 42));
++        assert!(user_focus_needs_restore(true, false, Some(7), 7, 42));
++    }
++
++    #[test]
++    fn partial_activation_restores_only_the_observed_target_key_holder() {
++        assert!(user_focus_needs_restore(false, false, Some(42), 7, 42));
++        // A launcher or another app taking focus is not proof that our target
++        // took it. Unknown focus and the unchanged user window also stay put.
++        for holder in [Some(99), Some(7), None] {
++            assert!(!user_focus_needs_restore(false, false, holder, 7, 42));
++        }
+     }
+ 
+     /// The no-foreground contract must not depend on the private activation
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/drag.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/drag.rs
 index 8e8d8a2..ddaca2a 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/drag.rs

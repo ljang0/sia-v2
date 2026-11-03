@@ -53,6 +53,15 @@ the owner has been asked whether they typed that text elsewhere. Further diagnos
 where input lands and whether captures update before attempting the remaining workflow. Private evidence is in
 `alpha122-after-restart`; no rename, move or close/reopen pass is claimed.
 
+A subsequent source review found a separate cleanup gap: failed private activation could leave
+the exact target holding keyboard focus without triggering restoration. The correction restores
+that observed target only while the user’s app remains foreground; unknown and unrelated focus
+holders remain untouched. The regression failed before the fix and all 19 focused click tests
+passed afterward. The full local `pnpm test:pilot` gate then passed, including 2,075 desktop,
+46 Electron, 48 renderer and 72 phone-browser tests, plus shared, cloud and native checks.
+This source change is not installed in QA or the DMG, and does not establish
+the cause of the filename/image mismatch or a successful native workflow.
+
 ## Release requirements
 
 - Vision-only computer use is the default throughout Sia. Models receive screenshots and choose

@@ -269,6 +269,12 @@ window and focused-input checks, applies the synthesis budget before input, post
 and leaves effect verification to screenshots. It neither reads text values nor uses AX setters.
 The regular native gate includes modal-context, menu-equivalent and visual-typing regressions.
 
+Background pixel cleanup also checks the actual keyboard-focus holder after a failed private
+activation call. If the exact target holds that focus while the user’s app remains foreground,
+it restores the user’s focus record. Unknown focus and unrelated holders do not trigger this
+fallback. A failing-then-passing regression covers this partial-activation case; it does not
+establish the cause of the live filename mismatch or prove native typing acceptance.
+
 Prior signed filename diagnostics found matching client/field process identities and granted
 Accessibility/event-posting access. Both the authenticated native route and a public
 `CGEventPostToPid` text trial failed to replace the selected filename/query. The public transport
