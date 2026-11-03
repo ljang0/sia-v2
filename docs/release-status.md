@@ -9,20 +9,29 @@ reliability. Freeze functional scope at the tested `e7dd676` QA candidate. Prepa
 notarized DMG from that candidate and a short setup/limitations guide. Reuse the existing Arena
 proposal; keep it a technical-review draft, not a rollout or reliability promise.
 
-The acceptance pass is two useful workflows on that exact installed DMG: public browser research
-saved to a checked document, and a separate workspace-document task with checked contents and
-preserved sources. Explicit initial Chrome connection and foregrounding the Sia window are allowed
-setup; record any later rescue as a limitation. Confirm automatic AWS prompt/usage/trajectory capture
-for the candidate. Existing internal-QA evidence informs these checks but does not replace them.
+Owner clarification: useful background personal-desktop control, automatic task approval after
+initial setup, and correct automatic AWS prompt/usage/trajectory uploads remain required. A
+workspace-file tool alone does not prove desktop control. On the exact installed DMG, complete a
+public-browser research task and a bounded everyday native-app task with checked results and
+preserved sources. Include browser reuse after restart and input isolation while another app is
+in use. Initial macOS/Chrome grants remain person-approved; reuse existing grants without redundant
+Sia approval cards. Default recording must retain its disclosure and existing opt-outs.
 
-Do not expand this pass to native rename/move, two native-app tasks, unattended concurrency,
+Verify AWS objects against that candidate's local task records, including prompts, provider usage,
+action results, screenshot hashes and completion/failure events. Existing internal-QA evidence
+informs these checks but does not replace them. Record operator intervention; a rescued or failed
+run is not a background acceptance pass.
+
+Do not expand this pass beyond the bounded native task to two native-app tasks, unattended concurrency,
 physical Fn/lock/sleep, Intel runtime, iPhone or a fresh-account setup that is unavailable. Keep those
 as future milestones. Do not promise them to the RA or Arena. No speculative native-driver changes,
 cosmetic fixes, new demos or repeated packaging for documentation changes.
 
 If a scoped workflow fails, make at most one evidence-backed targeted repair and rerun that path.
-If it still fails, finish the handoff as a limited technical-evaluation build with that workflow marked
-unsupported; do not keep extending the test loop or label it distribution-ready. Wrong-window input,
+If it still fails, report the exact blocker and missing evidence instead of repeating speculative
+experiments. The artifact can be labeled a limited technical-evaluation build, but the owner's
+background personal-desktop requirement is not complete and must not be waived or labeled
+passed. Wrong-window input,
 credential disclosure or source-data loss blocks sharing until resolved. Finish with the exact DMG,
 checksums, pass/fail results and known limits. Publishing, invitations and Arena outreach remain
 separate actions requiring authorization.
@@ -42,7 +51,7 @@ this page describes current evidence and outstanding requirements.
 
 | Area | Observed evidence | Still required |
 | --- | --- | --- |
-| Automated checks | Current source, including final window guidance and wrapping table headers, passed the full pilot gate: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The packaged guidance also passed 15 focused runtime tests. | Exact-source remote CI remains pending. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
+| Automated checks | Current source, including final window guidance and wrapping table headers, passed the full pilot gate: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The packaged guidance also passed 15 focused runtime tests. Exact-source CI run 377 passed the pilot gates and unsigned universal package verification. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
 | Useful personal tasks | On signed QA, recipe research and an outing checklist completed with 67.582 seconds of overlapping successful turns and interleaved actions. Independent recipe/quantity/budget/timing review and both Sia Previews passed. All 11 original source hashes stayed unchanged. | Repeatability and unattended completion. Browser setup required operator reconnection; the checklist included an intentional Stop and continuation. This was browser plus file work, not two native-app tasks. |
 | Stop and performance | Stopping the checklist left browser research running. Resumed checklist: 67.582 seconds. Recipe task after reconnect: 241.765 seconds. | Two native workflows, same-window contention, continuous foreground/clipboard preservation, wider cancellation/recovery, and acceptable repeated end-to-end latency. Before/after focus samples are insufficient. |
 | Native filename input | Both pre-restart attempts and the post-restart coordinate-addressed typing attempt failed to show the requested name. Original/duplicate RTF hashes stayed unchanged; no destination file was created. | Fix typing, then rename/move/close/reopen and verify complete contents. An earlier alpha.120 mismatch between recorded images and later uncommitted field text remains unexplained; input isolation and capture freshness are not accepted. |
@@ -141,7 +150,12 @@ After selecting the existing USDA tab and resuming without reconnecting, prepara
 `browser_wrong_target_refused` (safe diagnostic: `consent_not_settled`); observation then required
 browser connection. The resumed attempt ended at 21:21:14.812 UTC without an output. Existing
 source documents remain unchanged. This is a failed restart-recovery test, not a useful-task pass.
-Private receipt: `alpha122-table-preview-internal/restart-trial.json`.
+Private receipt: `alpha122-table-preview-internal/restart-trial.json`. Automatic recording of both failed attempts was also verified
+from AWS: two encrypted batches, 88 events, prompt, usage, eight action results and two capture
+completion records. Both stored object hashes matched. No screenshot was expected because both
+attempts failed before capture; the earlier successful lunch trial separately verified screenshots.
+All 15 existing workspace documents remain unchanged. Private receipt:
+`alpha122-table-preview-internal/aws-recording-verification.json`.
 
 ## Later broad-release requirements
 
