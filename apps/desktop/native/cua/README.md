@@ -276,9 +276,13 @@ fallback. A failing-then-passing regression covers this partial-activation case;
 establish the cause of the live filename mismatch or prove native typing acceptance.
 
 Prior signed filename diagnostics found matching client/field process identities and granted
-Accessibility/event-posting access. Both the authenticated native route and a public
-`CGEventPostToPid` text trial failed to replace the selected filename/query. The public transport
-experiment was removed; it is not a fallback. Before adding another transport variant, inspect
+Accessibility/event-posting access. The authenticated route, alpha.91’s envelope-free
+`SLEventPostToPid` text trial and separate single-key test, and alpha.94’s public
+`CGEventPostToPid` trial all failed to replace the selected filename/query. The transport
+experiments were removed; none is a fallback. The private alpha.88 document-body receipt records
+visible text after an acknowledgement timeout, followed by failed filename entry; a new empty-body
+trial alone would repeat that comparison, not explain native dialog delivery. These historical
+results do not establish the behavior of the current signed build. Before adding another transport variant, inspect
 the current [release evidence](../../../../docs/release-status.md) and its preserved diagnostic
 receipts, and state what new observation distinguishes the hypothesis from those failed trials.
 A successful post call alone does not verify delivery.
