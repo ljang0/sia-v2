@@ -7,7 +7,7 @@ Updated November 3, 2026. **A signed, notarized alpha.122 DMG is available for t
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `2c0deaac7593a8c6a8185dace9504902b8b02559`; ASAR `23ccb8eea100d6efeee814267782cfce2573d0d3445cb1871166e903ed1eca02`; Developer ID and package/runtime checks passed. | Includes browser recovery and partial-activation focus restoration after the DMG. Not notarized or a replacement distribution artifact. |
+| Installed internal arm64 QA | `2ac42bccadbd23c1a2ca4b24529e621665c33334`; ASAR `5af669f76eb77c724ad5384feca41d8ccba37f9479c05975058d42aab1300e5d`; Developer ID and package/runtime checks passed. | Adds task-relevant browser-window guidance to the prior recovery/focus corrections. Not notarized or a replacement distribution artifact. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;
@@ -17,7 +17,7 @@ this page describes current evidence and outstanding requirements.
 
 | Area | Observed evidence | Still required |
 | --- | --- | --- |
-| Automated checks | Installed QA source passed the full pilot rerun: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. Three real native browser-session probes passed. | Automated checks do not establish live usefulness. Two executable-sandbox tests timed out initially; isolation and the unchanged full rerun passed, but the cause is undiagnosed. |
+| Automated checks | Current source, including final window guidance and wrapping table headers, passed the full pilot gate: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The packaged guidance also passed 15 focused runtime tests. | Exact-source remote CI remains pending. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
 | Useful personal tasks | On signed QA, recipe research and an outing checklist completed with 67.582 seconds of overlapping successful turns and interleaved actions. Independent recipe/quantity/budget/timing review and both Sia Previews passed. All 11 original source hashes stayed unchanged. | Repeatability and unattended completion. Browser setup required operator reconnection; the checklist included an intentional Stop and continuation. This was browser plus file work, not two native-app tasks. |
 | Stop and performance | Stopping the checklist left browser research running. Resumed checklist: 67.582 seconds. Recipe task after reconnect: 241.765 seconds. | Two native workflows, same-window contention, continuous foreground/clipboard preservation, wider cancellation/recovery, and acceptable repeated end-to-end latency. Before/after focus samples are insufficient. |
 | Native filename input | Both pre-restart attempts and the post-restart coordinate-addressed typing attempt failed to show the requested name. Original/duplicate RTF hashes stayed unchanged; no destination file was created. | Fix typing, then rename/move/close/reopen and verify complete contents. An earlier alpha.120 mismatch between recorded images and later uncommitted field text remains unexplained; input isolation and capture freshness are not accepted. |
@@ -90,9 +90,24 @@ identity; eight had no source URL. Observation and prepare-only recovery refused
 navigation, source inspection or output write occurred. All 13 planning-source hashes remain
 unchanged. This is a target-selection failure, not a valid recovery test of the intended window.
 The follow-up source guidance distinguishes connection readiness from task relevance and tells
-the agent to stop when the requested window cannot be identified. Its signed-app verification
-is still pending; it is not an authorization change. Private receipt:
+the agent to stop when the requested window cannot be identified. Its signed-app retry correctly
+requested the window chooser without observing or navigating an unrelated window; this was
+one successful regression observation, not an authorization change. Private receipt:
 `alpha122-focus-restoration-internal/lunch-recovery/result.json`.
+
+On signed QA `2ac42bc`, a subsequent lunch task completed in 283.113 seconds after the operator
+created and connected a fresh public Chrome window. Sia inspected two Budget Bytes recipes and
+USDA guidance, saved and reread `nov9-lunch-prep.md` and `nov9-lunch-groceries.md`, and recovered
+from three stale-page checks without intervention during that turn. Independent review confirmed
+the recipe scaling, five-lunch allocation, $30 estimated whole-package basket plus $5 cushion,
+and safe late-week freezing. All 13 existing source hashes were preserved. Both previews opened;
+the grocery table's no-wrap header hid its price column beyond the initial viewport. A header-wrap
+source correction passed the full pilot gate and awaits signed visual verification. This is a supervised browser-plus-file task, not
+native typing or concurrent-use acceptance. Five automatic AWS batches contained 209 records
+(204 events after reassembling five chunk groups), including prompt, usage, action results and
+15 PNGs whose hashes matched the local trajectory. Stored batch hashes and KMS encryption passed.
+Private receipts: `alpha122-window-selection-internal/lunch-acceptance.json` and
+`aws-recording-verification.json`.
 
 ## Release requirements
 
