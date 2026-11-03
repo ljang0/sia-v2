@@ -268,3 +268,11 @@ keyboard-only acceptance.
 window and focused-input checks, applies the synthesis budget before input, posts one event sequence,
 and leaves effect verification to screenshots. It neither reads text values nor uses AX setters.
 The regular native gate includes modal-context, menu-equivalent and visual-typing regressions.
+
+Prior signed filename diagnostics found matching client/field process identities and granted
+Accessibility/event-posting access. Both the authenticated native route and a public
+`CGEventPostToPid` text trial failed to replace the selected filename/query. The public transport
+experiment was removed; it is not a fallback. Before adding another transport variant, inspect
+the current [release evidence](../../../../docs/release-status.md) and its preserved diagnostic
+receipts, and state what new observation distinguishes the hypothesis from those failed trials.
+A successful post call alone does not verify delivery.
