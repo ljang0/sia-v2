@@ -71,9 +71,17 @@ A later read-only preflight ended at 20:36:08.706 UTC with
 `visual_observation_unavailable`; the designated TextEdit window was off the current Space.
 No input was attempted by Sia, and both document hashes remain unchanged. The owner approved
 one bounded foreground keyboard comparison, but unreliable operator CUA input prevented
-opening Settings, so that comparison has not run and the background policy was not changed.
+opening Settings, so that first attempt did not reach the comparison or change background policy.
 This adds no foreground or background keyboard acceptance. Private receipt:
 `alpha122-focus-restoration-internal/foreground-comparison-preflight.json`.
+
+The subsequent approved foreground comparison reached a fresh screenshot at 20:44:33.822 UTC.
+The uncommitted Name field contained unexpected text, so the conditional diagnostic stopped
+without clicking or typing. It completed at 20:44:42.629 UTC; this is not a keyboard-delivery
+pass. Both file hashes remain unchanged. The operator restored and verified Work in background
+with Pause and tell me. Moving QA through its native Window menu had restored operator input;
+that intervention is not evidence of unattended recovery. The text's origin remains unresolved.
+Private receipt: `alpha122-focus-restoration-internal/foreground-comparison.json`.
 
 A fresh lunch-planning task on the same signed QA stopped at 20:17:23.189 UTC on November 3.
 The agent selected an unrelated Chrome window despite the request to reuse the prior public
