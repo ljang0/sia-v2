@@ -2,12 +2,37 @@
 
 Updated November 3, 2026. **A signed, notarized alpha.122 DMG is available for the requested RA evaluation. Broad distribution and Arena acceptance remain open.**
 
+## Bounded RA handoff goal
+
+Owner reset, November 3: finish a supervised **Apple-silicon RA evaluation**, not general desktop
+reliability. Freeze functional scope at the tested `e7dd676` QA candidate. Prepare one final signed,
+notarized DMG from that candidate and a short setup/limitations guide. Reuse the existing Arena
+proposal; keep it a technical-review draft, not a rollout or reliability promise.
+
+The acceptance pass is two useful workflows on that exact installed DMG: public browser research
+saved to a checked document, and a separate workspace-document task with checked contents and
+preserved sources. Explicit initial Chrome connection and foregrounding the Sia window are allowed
+setup; record any later rescue as a limitation. Confirm automatic AWS prompt/usage/trajectory capture
+for the candidate. Existing internal-QA evidence informs these checks but does not replace them.
+
+Do not expand this pass to native rename/move, two native-app tasks, unattended concurrency,
+physical Fn/lock/sleep, Intel runtime, iPhone or a fresh-account setup that is unavailable. Keep those
+as future milestones. Do not promise them to the RA or Arena. No speculative native-driver changes,
+cosmetic fixes, new demos or repeated packaging for documentation changes.
+
+If a scoped workflow fails, make at most one evidence-backed targeted repair and rerun that path.
+If it still fails, finish the handoff as a limited technical-evaluation build with that workflow marked
+unsupported; do not keep extending the test loop or label it distribution-ready. Wrong-window input,
+credential disclosure or source-data loss blocks sharing until resolved. Finish with the exact DMG,
+checksums, pass/fail results and known limits. Publishing, invitations and Arena outreach remain
+separate actions requiring authorization.
+
 ## Current artifacts
 
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `2ac42bccadbd23c1a2ca4b24529e621665c33334`; ASAR `5af669f76eb77c724ad5384feca41d8ccba37f9479c05975058d42aab1300e5d`; Developer ID and package/runtime checks passed. | Adds task-relevant browser-window guidance to the prior recovery/focus corrections. Not notarized or a replacement distribution artifact. |
+| Installed internal arm64 QA | `e7dd676ec12022fb464661c42aafe2f9ca866f87`; ASAR `a7a31a9d1c88e799cd63da612b6728ed8a1deb865f3323cdb417d660e1d20f9e`; Developer ID and package/runtime checks passed. | Adds wrapping table headers and task-relevant browser-window guidance to the prior recovery/focus corrections. Not notarized or a replacement distribution artifact. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;
@@ -101,15 +126,26 @@ USDA guidance, saved and reread `nov9-lunch-prep.md` and `nov9-lunch-groceries.m
 from three stale-page checks without intervention during that turn. Independent review confirmed
 the recipe scaling, five-lunch allocation, $30 estimated whole-package basket plus $5 cushion,
 and safe late-week freezing. All 13 existing source hashes were preserved. Both previews opened;
-the grocery table's no-wrap header hid its price column beyond the initial viewport. A header-wrap
-source correction passed the full pilot gate and awaits signed visual verification. This is a supervised browser-plus-file task, not
+the grocery table's no-wrap header hid its price column beyond the initial viewport. The header-wrap
+correction passed the full pilot gate and signed visual verification on `e7dd676`: all four columns
+and the first two prices are visible without horizontal scrolling. This is a supervised browser-plus-file task, not
 native typing or concurrent-use acceptance. Five automatic AWS batches contained 209 records
 (204 events after reassembling five chunk groups), including prompt, usage, action results and
 15 PNGs whose hashes matched the local trajectory. Stored batch hashes and KMS encryption passed.
 Private receipts: `alpha122-window-selection-internal/lunch-acceptance.json` and
 `aws-recording-verification.json`.
 
-## Release requirements
+The subsequent cold-lunch follow-up on `e7dd676` failed after restart. Initial inventory could not
+identify the public research window; operator CUA found the USDA tab behind a selected New Tab.
+After selecting the existing USDA tab and resuming without reconnecting, preparation refused with
+`browser_wrong_target_refused` (safe diagnostic: `consent_not_settled`); observation then required
+browser connection. The resumed attempt ended at 21:21:14.812 UTC without an output. Existing
+source documents remain unchanged. This is a failed restart-recovery test, not a useful-task pass.
+Private receipt: `alpha122-table-preview-internal/restart-trial.json`.
+
+## Later broad-release requirements
+
+These remain future milestones; they are not the exit criteria for the bounded RA handoff above.
 
 - Vision-only computer use is the default throughout Sia. Models receive screenshots and choose
   coordinates, literal text and keys. DOM/AX observations, element references, OCR, semantic setters

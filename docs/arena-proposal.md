@@ -24,6 +24,11 @@ For rehearsal, use disposable inputs, fresh workspaces and fixed learning settin
 
 ## Evidence and rollout gate
 
+The immediate deliverable is a supervised Apple-silicon RA evaluation: one exact installer,
+two scoped browser/workspace workflows, checked outputs, recording verification and explicit
+limitations. It does not depend on solving general native-app control or unattended concurrency.
+Those remain prerequisites for a later rollout that promises those capabilities.
+
 Signed app trials have produced source-checked outing plans, dinner/grocery plans and checklists. The signed internal QA build from source `d2474d0` completed dairy-free recipe research and a separate outing checklist with 68 seconds of overlapping successful turns and interleaved work. Stopping the checklist left research running; continuation completed it. Both saved outputs were independently checked and opened in Preview, and 11 source files were preserved. Recipe research took four minutes after browser reconnection; the resumed checklist took 68 seconds. Operator setup, cancellation and continuation remain part of the evidence. This is one browser-plus-file-work trial, not two simultaneous native-app workflows or an unattended reliability claim. Real prompts, usage, action results and screenshots have also been independently verified in AWS. Automated pilot gates passed; the latest correction is internal QA, not the notarized alpha.122 DMG.
 
 Native keyboard delivery is a current blocker: in signed QA from `2c0deaa`, one background typing attempt left the original filename selected, confirmed by both the returned image and an independent observation. Rename/move/reopen, repeatable Chrome restart/idle recovery, two native-app tasks and contention, continuous focus/clipboard preservation, off-Space capture and physical lock/sleep/voice acceptance remain open. A fresh Mac/account is unavailable. The [release status](./release-status.md) is authoritative. Keep the first handoff a bounded technical evaluation until these gates pass. Lawrence Jang owns support and incidents; no invitation, public release or Arena outreach has been sent.
