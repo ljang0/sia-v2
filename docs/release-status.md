@@ -114,13 +114,20 @@ semantic field setter, not Sia vision-only native acceptance. Private receipts a
 `native-old-file-downloaded.json` and `native-old-file-restoration.json` in
 `alpha122-focused-consent-internal`.
 
-A planned comparison against Finder's standard Get Info field did not start. During setup, the
-computer-use tool explicitly reported user interaction with Finder; the folder dialog closed,
-and operator input stopped. No Sia model turn or native typing attempt ran. The preflight receipt
-is `finder-comparison-setup-interruption.json`. Activating the local TextEdit copy without typing
-had previously failed to reproduce delayed input. Native background typing, input isolation and
-exact-DMG acceptance remain required before sharing. Earlier browser attempts and artifact
-identities are retained in the [distribution record](./public-release.md) and Git history.
+The Finder standard-field comparison reached the exact local Get Info panel on November 4 but
+has not typed the marker. The original run paused on sleep; after unlock it correctly stopped
+when the panel was missing. Operator CUA reopened the panel and verified the original filename.
+Sia then captured that field but refused input because Finder remained foreground. Operator window
+activation and Raise did not resolve that precondition; owner activation of QA is pending. The
+local fixture's contents still match their baseline. AWS automatically archived all four segments:
+82 events, the matching prompt, 22 usage records, eight matching action results and three
+byte-matching screenshots; object hashes and KMS encryption passed. These are preflight and
+recording results, not a native typing pass. Private receipts in `alpha122-elided-title-internal`
+are `finder-standard-field-preflight.json` and `finder-aws-recording-verification.json`.
+
+Native background typing, input isolation and exact-DMG acceptance remain required before sharing.
+Earlier browser attempts and artifact identities are retained in the
+[distribution record](./public-release.md) and Git history.
 
 ## Current artifacts
 
