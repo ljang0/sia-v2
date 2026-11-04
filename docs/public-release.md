@@ -30,7 +30,34 @@ Private receipts: `package.json`, `install.json`, `source-checks.json`, `pilot-g
 
 ## Internal QA after alpha.122
 
-### Current internal consent-deadline trial
+### Current internal focused-consent trial
+
+Source `e842725d73e4a37572ceb523729f917937d0570a` passed the full pilot gate and 12 focused native
+consent tests. The Developer ID-signed arm64 app was installed at 00:46:49.187 UTC on November 4;
+package/runtime and strict-signature verification passed. ASAR SHA-256:
+`92044bebebb6c3b94687cf62bce17ab4cae7b1372a4fac34f2b5ff866b098a6d`; native patch SHA-256:
+`bb3bcdada6ffa0a359134b509a5353a2d850b17c9168a8e4912fc8e2d287bd7a`.
+Cloud configuration is unchanged. The prior QA remains in `Sia QA alpha122 before focused-consent.app`.
+This is internal QA, not a notarized replacement DMG.
+
+The continued cold-lunch task completed at 00:49:21.307 UTC in 113.479 seconds, automatically
+recovering the existing public Chrome window and using background vision-only browsing. No browser
+setup or browser input was supplied during the run; earlier operator selection and cancellation
+of queued consent dialogs remain part of its starting state. The ordinary consent scan handled
+this prompt; no focused-sheet fallback diagnostic appeared. Repeatability and the fallback's
+live effect remain unproved.
+
+`nov13-cold-lunch.md` is 6,629 bytes, SHA-256
+`dfad590cbd609856b379fb8f68983aaf1d598b7a103d9a83b7cec1726f0342f8`. Independent review confirmed
+portions, the estimated budget, safety guidance against all three recorded USDA images and the
+signed Sia Preview. Fourteen baseline file hashes stayed unchanged, including all eight planning
+documents; the internal journal preserved its prior 7,656 bytes and appended 333 bytes. An unsent
+Sia draft was entered and cleared during final file writing, not concurrent browser input.
+One automatic encrypted AWS batch contained 120 events, including 18 usage records; all 11 action
+results and three screenshot hashes match the local trajectory. The original archived prompt and
+completion were verified. Private receipts are in `alpha122-focused-consent-internal`.
+
+### Earlier internal consent-deadline trial
 
 Clean source `5011ab3bdd95de9280f68d6816508873bd4c471a` passed the full local pilot gate and
 23 focused native preparation tests, including a regression that failed before the repair.

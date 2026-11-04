@@ -39,7 +39,8 @@ It applies the same web-content exclusion, size limits, exact prompt/button matc
 checks. The fallback is read-only until those existing consent checks authorize the exact action;
 it neither changes focus nor supplies an accessibility tree to the model. A native matcher test
 covers the observed standalone-sheet shape and rejects a web-content imitation. This candidate
-still needs signed live verification; the timed observation does not itself prove the fallback fixes it.
+has passed the full pilot gate. A signed useful-task retry succeeded through the ordinary scan,
+without a fallback diagnostic; that run does not prove the fallback fixes the earlier mismatch.
 
 ## Background links
 

@@ -5,8 +5,8 @@ Updated November 3, 2026. **A signed, notarized alpha.122 DMG is available for t
 ## Bounded RA handoff goal
 
 Owner reset, November 3: finish a supervised **Apple-silicon RA evaluation**, not general desktop
-reliability. Freeze functional scope at the tested QA candidate plus the single targeted Chrome
-repair below. Prepare one final signed,
+reliability. Freeze functional scope at the tested QA candidate plus the targeted Chrome
+corrections justified below. Prepare one final signed,
 notarized DMG from that candidate and a short setup/limitations guide. Reuse the existing Arena
 proposal; keep it a technical-review draft, not a rollout or reliability promise.
 
@@ -64,16 +64,37 @@ not simply a slow scan. A narrowly scoped candidate now inspects the approved pr
 native sheet only when the ordinary native walk finds no consent prompt; exact ownership and
 consent matching remain unchanged. All 12 focused native consent tests and the full pilot gate
 passed (2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser tests, plus cloud/shared/native
-and static checks). It is not installed or accepted yet. Private timing and native
+and static checks). Signed candidate `e842725` is installed and completed the follow-up below.
+The fallback itself has not been observed in use. Private timing and native
 dialog evidence: `alpha122-consent-deadline-internal/explicit-setup-comparison.json` and
 `operator-consent-prompt.png`.
+
+On `e842725`, the saved cold-lunch follow-up completed in **113.479 seconds** at 00:49:21.307 UTC.
+After installation the operator brought Sia forward and clicked ordinary Continue; no browser
+reconnection, tab selection or browser input was supplied during the run. The existing USDA window
+was identified, authorization was automatic, and background screenshots/navigation/scrolling worked.
+The ordinary native scan saw the consent sheet in 72 ms and confirmed acceptance/disappearance
+by 442 ms. **No focused-sheet fallback diagnostic appeared**, so this success does not establish
+that the fallback fixed the earlier mismatch. Prior operator cancellation of queued dialogs is
+part of the starting state; repeatability remains open.
+
+The saved `nov13-cold-lunch.md` passed independent portion, budget, storage and signed Preview
+checks. All eight planning documents and six other baseline notes are byte-for-byte unchanged.
+The internal journal retained its entire prior 7,656-byte prefix and gained 333 bytes. An unsent
+foreground draft arrived intact during final file writing and was cleared; it did not overlap
+browser input and does not establish input isolation. AWS automatically stored 120 events;
+all 11 action results and all three PNGs match the local trajectory. Original prompt, provider
+usage, completion, object hash and KMS encryption were verified. Private receipts:
+`alpha122-focused-consent-internal/cold-lunch-acceptance.json`, `source-checks.json` and
+`aws-recording-verification.json`. Native keyboard delivery, input isolation and exact-DMG
+acceptance are still required.
 
 ## Current artifacts
 
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `5011ab3bdd95de9280f68d6816508873bd4c471a`; ASAR `62fe1bca62006cd725c0276299cfb5a863536f16fa2b490a7d01ea9011dd2e95`; Developer ID and package/runtime checks passed. | Includes the consent deadline correction; live recovery still fails. Not notarized or a replacement distribution artifact. |
+| Installed internal arm64 QA | `e842725d73e4a37572ceb523729f917937d0570a`; ASAR `92044bebebb6c3b94687cf62bce17ab4cae7b1372a4fac34f2b5ff866b098a6d`; Developer ID and package/runtime checks passed. | One useful background recovery completed after prior operator cleanup. Focused-sheet fallback not exercised; repeatability and native input remain open. Not notarized or a replacement distribution artifact. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;
@@ -83,7 +104,7 @@ this page describes current evidence and outstanding requirements.
 
 | Area | Observed evidence | Still required |
 | --- | --- | --- |
-| Automated checks | Current source, including final window guidance and wrapping table headers, passed the full pilot gate: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The packaged guidance also passed 15 focused runtime tests. Exact-source CI run 377 passed the pilot gates and unsigned universal package verification. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
+| Automated checks | Current source, including final window guidance and wrapping table headers, passed the full pilot gate: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The packaged guidance also passed 15 focused runtime tests. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Current `e842725` CI run 381 is in progress. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
 | Useful personal tasks | On signed QA, recipe research and an outing checklist completed with 67.582 seconds of overlapping successful turns and interleaved actions. Independent recipe/quantity/budget/timing review and both Sia Previews passed. All 11 original source hashes stayed unchanged. | Repeatability and unattended completion. Browser setup required operator reconnection; the checklist included an intentional Stop and continuation. This was browser plus file work, not two native-app tasks. |
 | Stop and performance | Stopping the checklist left browser research running. Resumed checklist: 67.582 seconds. Recipe task after reconnect: 241.765 seconds. | Two native workflows, same-window contention, continuous foreground/clipboard preservation, wider cancellation/recovery, and acceptable repeated end-to-end latency. Before/after focus samples are insufficient. |
 | Native filename input | Both pre-restart attempts and the post-restart coordinate-addressed typing attempt failed to show the requested name. Original/duplicate RTF hashes stayed unchanged; no destination file was created. | Fix typing, then rename/move/close/reopen and verify complete contents. An earlier alpha.120 mismatch between recorded images and later uncommitted field text remains unexplained; input isolation and capture freshness are not accepted. |
