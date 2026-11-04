@@ -57,6 +57,17 @@ One automatic encrypted AWS batch contained 120 events, including 18 usage recor
 results and three screenshot hashes match the local trajectory. The original archived prompt and
 completion were verified. Private receipts are in `alpha122-focused-consent-internal`.
 
+The same candidate subsequently completed a matched TextEdit diagnostic: foreground text arrived
+at the caret, while background text did not arrive in the same field. No rename was committed;
+operator cleanup restored the local fixture and background policy. Original/local fixture hashes
+remain unchanged. Both turns uploaded automatically: 90 events, both prompts, 28 usage records,
+12 matching action results and eight matching screenshots; object hashes and KMS encryption passed.
+Receipts: `native-foreground-comparison.json`, `native-background-comparison.json` and
+`native-aws-recording-verification.json` in the same private directory. This is a background-input
+failure, not native workflow acceptance. The older iCloud duplicate is missing at its recorded path;
+an unexpected filename was observed, with identity and origin unresolved. See the
+[current incident record](./release-status.md#current-targeted-repair).
+
 ### Earlier internal consent-deadline trial
 
 Clean source `5011ab3bdd95de9280f68d6816508873bd4c471a` passed the full local pilot gate and

@@ -89,6 +89,33 @@ usage, completion, object hash and KMS encryption were verified. Private receipt
 `aws-recording-verification.json`. Native keyboard delivery, input isolation and exact-DMG
 acceptance are still required.
 
+A matched native comparison on the same signed candidate isolates a remaining keyboard failure.
+At 01:00 UTC November 4, the approved foreground trial delivered text into a fresh local TextEdit
+duplicate's Name field. It inserted at the caret instead of replacing the name; no rename was
+committed. After operator restoration, the 01:03 UTC background trial opened the same popover
+but its single typing attempt left the name unchanged. Sia's returned screenshots and independent
+operator observations agreed in both trials. The foreground Sia draft stayed empty during the
+background attempt. Both original and local duplicate still match the recorded 1,874-byte hash.
+Work in background with Pause and tell me was restored before the second trial.
+
+These actions were authorized automatically; removing access checks would not address the observed
+failure. Source inspection confirms that vision typing uses global HID events only for explicit
+foreground delivery and PID-addressed events after exact-window focus checks for background delivery.
+It does not yet establish why the latter events are ignored. Earlier transport/priming experiments
+remain relevant; another transport variant without new evidence is not justified.
+
+AWS automatically archived both comparison turns: 90 events, including both prompts, 28 usage
+records, all 12 action results, eight screenshots and completion records. Every action result and
+image matches its local record; both object hashes and KMS encryption passed. Private receipts:
+`alpha122-focused-consent-internal/native-foreground-comparison.json`,
+`native-background-comparison.json` and `native-aws-recording-verification.json`.
+
+The older iCloud duplicate is no longer present at its previously recorded path. Operator inspection
+also found an RTF with a name containing the previously observed unexpected field text; its identity,
+contents and origin are not established. No rename or deletion was attempted during this setup.
+Historical checks below describe their recorded times, not current proof that this older duplicate
+is intact. The unresolved input-isolation incident still blocks sharing.
+
 ## Current artifacts
 
 | Artifact | Exact source and verification | Scope |
@@ -107,7 +134,7 @@ this page describes current evidence and outstanding requirements.
 | Automated checks | Current source, including final window guidance and wrapping table headers, passed the full pilot gate: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The packaged guidance also passed 15 focused runtime tests. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Current `e842725` CI run 381 is in progress. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
 | Useful personal tasks | On signed QA, recipe research and an outing checklist completed with 67.582 seconds of overlapping successful turns and interleaved actions. Independent recipe/quantity/budget/timing review and both Sia Previews passed. All 11 original source hashes stayed unchanged. | Repeatability and unattended completion. Browser setup required operator reconnection; the checklist included an intentional Stop and continuation. This was browser plus file work, not two native-app tasks. |
 | Stop and performance | Stopping the checklist left browser research running. Resumed checklist: 67.582 seconds. Recipe task after reconnect: 241.765 seconds. | Two native workflows, same-window contention, continuous foreground/clipboard preservation, wider cancellation/recovery, and acceptable repeated end-to-end latency. Before/after focus samples are insufficient. |
-| Native filename input | Both pre-restart attempts and the post-restart coordinate-addressed typing attempt failed to show the requested name. Original/duplicate RTF hashes stayed unchanged; no destination file was created. | Fix typing, then rename/move/close/reopen and verify complete contents. An earlier alpha.120 mismatch between recorded images and later uncommitted field text remains unexplained; input isolation and capture freshness are not accepted. |
+| Native filename input | The matched November 4 comparison delivered text in foreground but left the same local field unchanged in background. Independent observations agreed with both images; original/local fixture hashes stayed unchanged. | Fix background typing, then rename/move/close/reopen and verify contents. The older iCloud duplicate's changed path and unexpected filename remain unresolved; input isolation is not accepted. |
 | Browser recovery | After QA restart, Chrome recovery selected the same approved public window and resumed the task automatically. Five stale-page refusals recovered through fresh observations. Exact SDK lease-expiry envelopes now reach connection recovery. | Natural idle-expiry recovery, repeatable restart recovery, permission-prompt dismissal, network errors, and live same-browser coexistence. The previous raw native lease envelope was not retained, so its cause is not proved. |
 | AWS recording | Four automatic batches for the successful personal tasks contained prompts, usage, action results and 12 screenshots. Stored payload hashes and KMS encryption were verified. | Retain default disclosure, explicit opt-outs, paused capture, deletion and exclusions. These records do not establish research-release consent or permissions for other people. |
 | Handoff and public disclosure | Installed-app onboarding now separates evaluation from developer setup. Repository privacy/site/infrastructure copy matches default-on recording and ordinary-user eligibility; site build/check and download tests pass. | Publish the reviewed disclosure changes only with authorization, then verify live pages. Direct HTTP checks on November 3 at 00:24 UTC found no default-on notice in the live privacy page and `/download/` returned 404. No site or installer was published. |
