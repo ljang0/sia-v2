@@ -31,6 +31,16 @@ Committed native consent work still settles before teardown, and rejected, ambig
 consent remains a refusal. This fixes the reproduced deadline mismatch; live restart recovery on
 the newly signed artifact still has to pass.
 
+A subsequent timed signed-app comparison found the native consent sheet through operator CUA
+five seconds into setup while the driver reported no prompt throughout its eight-second scan.
+When the application-child/window walk finds no consent sheet, the host now also inspects
+`AXFocusedWindow`, but only if it is a native `AXSheet` owned by the already-approved process.
+It applies the same web-content exclusion, size limits, exact prompt/button matcher and settlement
+checks. The fallback is read-only until those existing consent checks authorize the exact action;
+it neither changes focus nor supplies an accessibility tree to the model. A native matcher test
+covers the observed standalone-sheet shape and rejects a web-content imitation. This candidate
+still needs signed live verification; the timed observation does not itself prove the fallback fixes it.
+
 ## Background links
 
 The same patch checks an exactly bound link before background click dispatch. A signed alpha.50

@@ -28,9 +28,9 @@ physical Fn/lock/sleep, Intel runtime, iPhone or a fresh-account setup that is u
 as future milestones. Do not promise them to the RA or Arena. No speculative native-driver changes,
 cosmetic fixes, new demos or repeated packaging for documentation changes.
 
-If a scoped workflow fails, make at most one evidence-backed targeted repair and rerun that path.
-If it still fails, report the exact blocker and missing evidence instead of repeating speculative
-experiments. The artifact can be labeled a limited technical-evaluation build, but the owner's
+If a scoped workflow fails, isolate one evidenced cause, make one targeted repair and rerun that
+path. If it still fails, record the exact blocker. Another repair requires new evidence that changes
+the diagnosis; do not repeat timeout or transport variants speculatively. The artifact can be labeled a limited technical-evaluation build, but the owner's
 background personal-desktop requirement is not complete and must not be waived or labeled
 passed. Wrong-window input,
 credential disclosure or source-data loss blocks sharing until resolved. Finish with the exact DMG,
@@ -51,10 +51,22 @@ The live retry still failed. After operator selection of the existing USDA tab, 
 correct window and automatically authorized preparation, but the full 8.178-second platform scan
 found no exact consent prompt. Preparation returned `consent_not_settled`; the task ended at
 00:23:30.884 UTC with `background_browser_unavailable` / `browser_consent_required` and no output.
-The deadline regression is fixed; reliable background recovery is not. This exhausts the single
-targeted Chrome repair for this acceptance attempt. Do not package another purportedly ready DMG
-or repeat ordinary Continue attempts. The next investigation needs to establish why the exact
-Chrome connection request produces no observable consent prompt or usable handshake.
+The deadline regression is fixed; reliable background recovery is not. Do not repeat timeout
+changes or ordinary Continue attempts. The next investigation needs to establish why the exact
+Chrome connection request produces no observable consent prompt or usable handshake before
+another repair. Do not package another purportedly ready DMG without live acceptance.
+
+A timed explicit-setup comparison at 00:31 UTC supplied new evidence: operator CUA saw the native
+consent sheet at 00:31:06.364, roughly five seconds after setup began, while the driver continued
+reporting no prompt through its full deadline. Explicit setup also failed. The stale dialogs were
+cancelled and no task was resumed. This identifies an observation mismatch within the deadline,
+not simply a slow scan. A narrowly scoped candidate now inspects the approved process's focused
+native sheet only when the ordinary native walk finds no consent prompt; exact ownership and
+consent matching remain unchanged. All 12 focused native consent tests and the full pilot gate
+passed (2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser tests, plus cloud/shared/native
+and static checks). It is not installed or accepted yet. Private timing and native
+dialog evidence: `alpha122-consent-deadline-internal/explicit-setup-comparison.json` and
+`operator-consent-prompt.png`.
 
 ## Current artifacts
 
