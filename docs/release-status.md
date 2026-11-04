@@ -39,7 +39,7 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-Signed internal QA `7fe2089` now completes the practical commute-card follow-up using the same
+Signed internal QA `7fe2089` completed the practical commute-card follow-up using the same
 approved public Chrome window after app restart. Two evidenced browser defects were repaired:
 
 - The consent observer missed a native focused sheet that operator CUA could see. The bounded
@@ -149,8 +149,13 @@ not native workflow acceptance. The transient missing filename did not recur in 
 
 The host now retains a bounded `window_not_key` log diagnostic distinguishing missing focus from
 focus on another window. It emits only relationship labels, never native IDs, paths, labels or
-raw error text, and changes neither input dispatch nor refusal behavior. The signed app still
-lacks this diagnostic; an instrumented signed comparison is needed before changing key routing.
+raw error text, and changes neither input dispatch nor refusal behavior. Signed internal QA
+`68eecb4` now includes it. Signature and packaged-runtime checks passed; installation used the
+same isolated profile, with the preceding app preserved for rollback. CUA could read the restarted
+app but could not enter the diagnostic prompt through paste, typing or set-value, including after
+rebinding; coordinate input returned `noWindowsAvailable`. The local trajectory confirms no new
+turn was submitted. A manual composer-typing observation was requested to distinguish an app
+input defect from the external automation failure. Native diagnosis remains pending.
 The full `pnpm test:pilot` gate passed with 2,082 desktop tests, 46 Electron checks, 48 renderer
 checks and 72 companion checks, plus the native, cloud/shared, build and static gates. The private
 log is `alpha122-elided-title-internal/key-window-diagnostic-pilot.log`.
@@ -168,7 +173,7 @@ Earlier browser attempts and artifact identities are retained in the
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `7fe20890655be10fa41e41bb6b4293b540558858`; ASAR `05a0b9050fdd7cc07e06218a4de723c999d58a5bd260c643d60a8c3183aeb6d8`; Developer ID and package/runtime checks passed. | Useful commute card completed with focused-sheet recovery and exact elided-title binding observed. Sleep/focus interventions occurred; repeatability and native input remain open. Not notarized or a replacement distribution artifact. |
+| Installed internal arm64 QA | `68eecb44a152f8adb16dff128c2a810e220de0d1`; ASAR `04d7e8964683a25e016ff75b1de4663614df92dd93a865258265fe58649a0603`; full pilot, Developer ID and package/runtime checks passed. | Adds bounded key-window diagnostics to the preceding browser fixes. The instrumented native turn is not yet submitted because operator CUA input is failing. Not notarized or a replacement distribution artifact. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;

@@ -30,7 +30,28 @@ Private receipts: `package.json`, `install.json`, `source-checks.json`, `pilot-g
 
 ## Internal QA after alpha.122
 
-### Current internal elided-title trial
+### Current internal key-window diagnostic
+
+Clean source `68eecb44a152f8adb16dff128c2a810e220de0d1` passed the full pilot gate: 2,082 desktop,
+46 Electron, 48 renderer and 72 companion checks, plus native/cloud/shared/build/static gates.
+It adds only content-free key-window refusal diagnostics; input delivery and guards are unchanged.
+The Developer ID-signed arm64 app passed package/runtime and strict-signature checks and was
+installed at 22:09:57.043 UTC November 4 into the existing isolated QA profile. ASAR SHA-256:
+`04d7e8964683a25e016ff75b1de4663614df92dd93a865258265fe58649a0603`. Cloud configuration remains
+`d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`. The preceding app is preserved as
+`Sia QA alpha122 before key-window.app`. This is internal QA, not a notarized replacement DMG.
+
+The app quit through CUA and relaunched with the previously authorized exact-profile command.
+It loaded the existing thread, but operator CUA paste, typing and set-value did not enter the
+new diagnostic prompt, including after a session reset; coordinate input returned
+`noWindowsAvailable`. No new trajectory turn was submitted. The operator requested one manual
+composer-typing observation to distinguish an application defect from a tool input failure.
+Live routing diagnosis remains pending; no native acceptance pass is claimed. Private receipts
+are `installation.json`, `verify.log`, `package.log` and `diagnostic-prompt.txt` in
+`alpha122-key-window-internal`; the full pilot log is
+`alpha122-elided-title-internal/key-window-diagnostic-pilot.log`.
+
+### Earlier internal elided-title trial
 
 Clean source `7fe20890655be10fa41e41bb6b4293b540558858` passed all 20 focused binding tests and the
 full local pilot gate (2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser, 223 cloud, plus
