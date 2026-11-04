@@ -6888,7 +6888,7 @@ index 133dff9..dceb43f 100644
          }
          for prefetched in [Some(Err(anyhow::anyhow!("old error"))), None] {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
-index 2bf28e0..a09d2b2 100644
+index 2bf28e0..44c1337 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
 @@ -68,6 +68,7 @@ fn def() -> &'static ToolDef {
@@ -7007,7 +7007,7 @@ index 2bf28e0..a09d2b2 100644
                  )
                  .await
                  {
-@@ -495,6 +430,62 @@ impl Tool for HotkeyTool {
+@@ -495,6 +430,79 @@ impl Tool for HotkeyTool {
              }
          };
  
@@ -7039,9 +7039,24 @@ index 2bf28e0..a09d2b2 100644
 +                    let native = !super::type_text::is_browser_pid(pid)
 +                        && !crate::browser::electron_js::ElectronJs::is_electron(pid);
 +                    let in_front = apps::frontmost_pid() == Some(pid);
++                    // Keep route decisions visible without logging the combo, menu
++                    // titles, process/window identifiers or focused-field contents.
 +                    if native && !in_front {
-+                        super::menu_equivalent::find(pid, &combo)
++                        let item = super::menu_equivalent::find(pid, &combo);
++                        let outcome = match &item {
++                            Some(item) if item.enabled => "enabled_match",
++                            Some(_) => "disabled_match",
++                            None => "no_match",
++                        };
++                        eprintln!("[sia:cua-input] menu_lookup={outcome}");
++                        item
 +                    } else {
++                        let outcome = if native {
++                            "target_active"
++                        } else {
++                            "non_native"
++                        };
++                        eprintln!("[sia:cua-input] menu_lookup={outcome}");
 +                        None
 +                    }
 +                })
@@ -7061,8 +7076,10 @@ index 2bf28e0..a09d2b2 100644
 +                    // Only unavailable background menus may fall back to keys;
 +                    // target-safety refusals must survive this route unchanged.
 +                    if !menu_allows_key_fallback(&menu_result) {
++                        eprintln!("[sia:cua-input] menu_dispatch=returned");
 +                        return menu_result;
 +                    }
++                    eprintln!("[sia:cua-input] menu_dispatch=unavailable_key_fallback");
 +                }
 +            }
 +        }

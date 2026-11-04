@@ -327,3 +327,11 @@ refuses. It reports whether the native focused window and focused element's wind
 the requested target, or another window. Unknown envelope shapes produce `unavailable`; native
 IDs and content are never logged. This diagnostic does not relax the gate or retry input. Use it
 to distinguish missing focus from conflicting focus before proposing another routing change.
+
+Native hotkeys also log fixed `menu_lookup` labels: `enabled_match`, `disabled_match`,
+`no_match`, `target_active` or `non_native`. A matched command logs `menu_dispatch=returned`
+or `unavailable_key_fallback`. These distinguish the paths that otherwise all end in synthetic
+key delivery. They contain no combo, menu title, process/window ID or field content and do not
+change dispatch. A `returned` label alone is not success; inspect the existing action result and
+fresh screenshot. This diagnostic follows the signed Finder comparison: menu-assisted folder
+creation worked, while a later Info-field Cmd+A used synthetic events without visible selection.
