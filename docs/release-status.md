@@ -4,6 +4,16 @@ Updated November 4, 2026. **A signed, notarized alpha.122 DMG exists, but RA han
 
 ## Bounded RA handoff goal
 
+**November 4 acceptance clarification:** the RA handoff is a first milestone, not a replacement
+for the full distribution goal. Real personal workflows, CUA-operated Sia controls, background
+operation alongside the person's work, preserved inputs, independently checked outputs and
+matching automatic AWS archives determine readiness. Manual rescue is recorded as failure of
+autonomous acceptance. Unit tests, synthetic fixtures, diagnostics and signing are supporting
+checks; none substitutes for working functionality. Each cycle must deliver a targeted repair
+and a live rerun or establish a concrete blocker. The current menu-routing diagnostic gets one
+signed selection trial to distinguish missing/disabled menu matches from skipped menu lookup;
+its result must lead to an evidenced repair or a blocker, not another unchanged workflow loop.
+
 Owner reset, November 3: finish a supervised **Apple-silicon RA evaluation**, not general desktop
 reliability. Freeze functional scope at the tested QA candidate plus the targeted Chrome
 corrections justified below. Prepare one final signed,

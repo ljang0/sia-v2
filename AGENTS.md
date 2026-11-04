@@ -108,6 +108,18 @@ admission checks in [`docs/harness-policy.md`](./docs/harness-policy.md).
 
 ## Verification ladder
 
+Owner clarification, November 4: release work must deliver actual functionality, not accumulate
+diagnostic builds or passing test counts. Useful personal tasks completed through CUA, correct
+saved outputs, background operation alongside the person's work, and verified automatic AWS
+uploads are the acceptance evidence. Sia's own composer and controls must be operable through
+CUA. A manually rescued run is a failed autonomous acceptance run; initial person-owned OS grants
+and explicit lock-screen handoffs are separate setup requirements, not task-completion evidence.
+For each repair cycle, identify an evidenced defect, make a targeted functional change and rerun
+the real failing path. Automated checks protect the change but do not prove usefulness. A new
+diagnostic-only build requires a specific unresolved decision that its result will settle; do not
+repeat one after it yields no actionable distinction. Do not replace missing functionality with
+documentation, toy tasks, semantic UI fallbacks or a newly packaged installer.
+
 1. During development, run the nearest workspace test (`pnpm --filter <workspace> test`).
 2. Before review, run `pnpm check`. It includes `pnpm lint` (type-aware ESLint).
 3. For pilot-facing behavior, run `pnpm test:pilot`.
