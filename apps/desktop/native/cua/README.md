@@ -321,3 +321,9 @@ results do not establish the behavior of the current signed build. Before adding
 the current [release evidence](../../../../docs/release-status.md) and its preserved diagnostic
 receipts, and state what new observation distinguishes the hypothesis from those failed trials.
 A successful post call alone does not verify delivery.
+
+The host logs a bounded `[sia:cua-input] window_not_key` hint when exact key-window priming
+refuses. It reports whether the native focused window and focused element's window are missing,
+the requested target, or another window. Unknown envelope shapes produce `unavailable`; native
+IDs and content are never logged. This diagnostic does not relax the gate or retry input. Use it
+to distinguish missing focus from conflicting focus before proposing another routing change.

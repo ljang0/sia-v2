@@ -3,6 +3,61 @@ import { actionResult, classifyFailure, inputWasRefused } from '../actions/actio
 import { decodeDriverResult } from './cua-results.js';
 
 it.each([
+  ['None', 'None', 'window_missing_element_missing'],
+  ['Some(456)', 'Some(123)', 'window_other_element_target'],
+  ['Some(123)', 'Some(456)', 'window_target_element_other'],
+])('retains only native key-window relationships: %s / %s', (window, element, hint) => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    expect(() =>
+      decodeDriverResult(
+        'hotkey',
+        {},
+        {
+          errorCode: 'window_not_key',
+          rawJson: 'private native text',
+          structuredJson: JSON.stringify({
+            code: 'window_not_key',
+            effect: 'refused',
+            pid: 789,
+            window_id: 123,
+            reason: `window 123 could not be confirmed as the app's key window (the app's focused window is ${window}, its focused element is in window ${element}), so no keys were sent: private native text`,
+          }),
+        },
+        { started: 0, completed: 0 },
+      ),
+    ).toThrow('CUA refused: window_not_key');
+    expect(warn).toHaveBeenCalledExactlyOnceWith(`[sia:cua-input] window_not_key hint=${hint}`);
+  } finally {
+    warn.mockRestore();
+  }
+});
+
+it.each([
+  'private unstructured failure',
+  JSON.stringify({ reason: 'private unknown reason' }),
+  JSON.stringify({ reason: 123, label: 'private label' }),
+  'null',
+])('does not log unknown key-window failure content', (rawJson) => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  try {
+    expect(() =>
+      decodeDriverResult(
+        'hotkey',
+        {},
+        { errorCode: 'window_not_key', rawJson },
+        { started: 0, completed: 0 },
+      ),
+    ).toThrow('CUA refused: window_not_key');
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      '[sia:cua-input] window_not_key hint=unavailable',
+    );
+  } finally {
+    warn.mockRestore();
+  }
+});
+
+it.each([
   [
     "the chosen point's browsing context could not be checked",
     'browser_point_context_unavailable',

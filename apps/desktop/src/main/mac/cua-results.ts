@@ -86,6 +86,25 @@ function captureFailureHint(raw: string): string | undefined {
   return hints.length ? hints.join(',') : undefined;
 }
 
+/** Keep focus relationships from the native refusal, never window IDs or content. */
+function keyWindowFailureHint(raw: string): string {
+  let reason: unknown;
+  try {
+    reason = (JSON.parse(raw) as { reason?: unknown } | null)?.reason;
+  } catch {
+    return 'unavailable';
+  }
+  if (typeof reason !== 'string') return 'unavailable';
+  const match =
+    /^window (\d+) could not be confirmed as the app's key window \(the app's focused window is (None|Some\(\d+\)), its focused element is in window (None|Some\(\d+\))\), so no keys were sent:/.exec(
+      reason,
+    );
+  if (!match) return 'unavailable';
+  const relation = (value: string): string =>
+    value === 'None' ? 'missing' : value === `Some(${match[1]})` ? 'target' : 'other';
+  return `window_${relation(match[2]!)}_element_${relation(match[3]!)}`;
+}
+
 /** Decode native envelopes without exposing content-bearing failure payloads. */
 export function decodeDriverResult(
   tool: string,
@@ -94,6 +113,10 @@ export function decodeDriverResult(
   progress: { started: number; completed: number },
 ): { value: unknown; nativeToolError: boolean } {
   if (result.errorCode) {
+    if (result.errorCode === 'window_not_key')
+      console.warn(
+        `[sia:cua-input] window_not_key hint=${keyWindowFailureHint(result.structuredJson ?? result.rawJson)}`,
+      );
     if (tool === 'get_window_state' && result.errorCode === 'px_capture_unavailable') {
       const hint =
         captureFailureHint(result.structuredJson ?? result.rawJson) ?? 'capture_unavailable';

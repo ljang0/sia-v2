@@ -137,6 +137,24 @@ screenshots; object hashes and KMS encryption passed. Per-turn receipts are
 `37b695de-07c2-485c-b82e-ab737818330a`, `57311678-7be8-4e83-a02a-174656e2c3cd` and
 `93bed0bc-29b5-40e1-86d9-1870b8e45955`.
 
+A fresh operator screenshot and then a fresh Sia screenshot recovered the selected filename.
+Sia's subsequent background Action-toolbar click did not produce a visible menu, including in
+the follow-up screenshot, so it stopped without another write. That turn
+(`ac48f2aa-4643-424d-ac86-d8fe7bf919f1`) automatically archived 45 events, its matching prompt,
+12 usage records, four matching action results and three byte-matching screenshots; hashes and
+KMS encryption passed. The matched operator coordinate click failed with `noWindowsAvailable`.
+An operator accessibility click exposed menu entries but no visible menu in its window capture;
+the operator cancelled that menu without selecting a command. This is diagnostic evidence,
+not native workflow acceptance. The transient missing filename did not recur in fresh reads.
+
+The host now retains a bounded `window_not_key` log diagnostic distinguishing missing focus from
+focus on another window. It emits only relationship labels, never native IDs, paths, labels or
+raw error text, and changes neither input dispatch nor refusal behavior. The signed app still
+lacks this diagnostic; an instrumented signed comparison is needed before changing key routing.
+The full `pnpm test:pilot` gate passed with 2,082 desktop tests, 46 Electron checks, 48 renderer
+checks and 72 companion checks, plus the native, cloud/shared, build and static gates. The private
+log is `alpha122-elided-title-internal/key-window-diagnostic-pilot.log`.
+
 Sia itself need not be foreground: the successful Finder input ran while another app was active.
 The target app must be inactive to protect the person's work. Neither removing that guard nor
 removing permission checks fixes the observed key-window and screenshot failures. These partial
