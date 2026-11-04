@@ -38,9 +38,11 @@ When the application-child/window walk finds no consent sheet, the host now also
 It applies the same web-content exclusion, size limits, exact prompt/button matcher and settlement
 checks. The fallback is read-only until those existing consent checks authorize the exact action;
 it neither changes focus nor supplies an accessibility tree to the model. A native matcher test
-covers the observed standalone-sheet shape and rejects a web-content imitation. This candidate
-has passed the full pilot gate. A signed useful-task retry succeeded through the ordinary scan,
-without a fallback diagnostic; that run does not prove the fallback fixes the earlier mismatch.
+covers the observed standalone-sheet shape and rejects a web-content imitation. The full pilot
+gate passed. A signed commute-card retry on `7fe2089` exercised this fallback:
+the diagnostic reported a focused native sheet and accepted consent settled in 143 ms. An earlier
+retry used only the ordinary walk. The later run required sleep/focus recovery before continuation,
+so repeatable unattended recovery remains unproved.
 
 ## Background links
 
@@ -79,10 +81,12 @@ when both ends contain at least eight characters, both match the full candidate,
 character was omitted. Candidates containing their own ellipsis use only the original literal
 match. All matching windows/tabs still compete: collisions, including a literal ellipsis title,
 remain ambiguous. Missing geometry still yields at most a read-only heuristic binding. A regression
-uses the observed USDA window title and failed before the change. This is a candidate correction;
-its effect on the signed restart failure still requires live verification. The existing opt-in
-diagnostic flag also records binding counts, geometry/elision booleans and a fixed outcome label,
-never titles, URLs or target IDs.
+uses the observed USDA window title and failed before the change. All 20 binding tests and the full
+pilot gate passed. In signed QA `7fe2089`, automatic recovery
+then produced one exact binding among 29 tabs in seven windows with elision and exact geometry
+confirmed; the useful commute-card task completed. The existing opt-in diagnostic flag records
+only binding counts, geometry/elision booleans and a fixed outcome label, never titles, URLs or
+target IDs. This one resumed run does not establish repeatable recovery or native keyboard input.
 
 Before a browser observation or input reaches Sia's authorization callback, the native driver
 revalidates the process, window, tab, connection generation and live origin. That boundary used

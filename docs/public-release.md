@@ -30,7 +30,43 @@ Private receipts: `package.json`, `install.json`, `source-checks.json`, `pilot-g
 
 ## Internal QA after alpha.122
 
-### Current internal focused-consent trial
+### Current internal elided-title trial
+
+Clean source `7fe20890655be10fa41e41bb6b4293b540558858` passed all 20 focused binding tests and the
+full local pilot gate (2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser, 223 cloud, plus
+shared/native/build/static checks). The Developer ID-signed arm64 app was installed at
+01:37:38.072 UTC November 4. Strict signing and package/runtime checks passed. ASAR SHA-256:
+`05a0b9050fdd7cc07e06218a4de723c999d58a5bd260c643d60a8c3183aeb6d8`.
+Cloud configuration is unchanged. The preceding QA is preserved as
+`Sia QA alpha122 before elided-title.app`. This is internal QA, not a notarized replacement DMG.
+CI run 384 passed its pilot step and was cancelled during unsigned universal packaging; signing
+was skipped.
+
+Turn `6bbfffa4-bd73-425d-bcc6-a6b2b723304b` in thread
+`d282901f-0dba-417e-b061-f0d4ee7805b7` completed the commute-card follow-up at 03:48:20.526 UTC,
+109.402 seconds after its final continuation. Initial execution paused on sleep; after owner
+unlock, the first continuation paused while Chrome was foreground. Operator CUA then activated
+the exact Sia window and clicked Continue. No operator Chrome reconnection, window selection,
+resize or browser input occurred during this run. The focused-sheet consent fallback was observed,
+settling in 143 ms. Binding diagnostics confirmed one exact elided-title match among 29 tabs in
+seven windows. Sia inspected and scrolled the same approved public USDA window and saved/read back
+its result. This is recovered useful work, not unattended or repeatable recovery acceptance.
+
+`nov13-commute-card.md` is 5,927 bytes, SHA-256
+`f9caa7b7a40123d6f5669e868e67acc70a3323b945e8744ddd491d8e2065938d`. Independent review checked
+arithmetic, conditional cold-storage advice, shelf-stable fallback and separate food/equipment
+costs against the three source images and saved plans. All nine baseline planning documents are
+unchanged. Sia Preview opened with matching content; a later screenshot confirmed readable
+rendering after the initial stale capture. An unsent reminder appeared intact and was cleared, but
+its arrival timing was unproved, so it does not establish concurrent keyboard isolation.
+
+AWS automatically stored three batches containing 174 events: the prompt, 28 usage records, all
+15 action results and all three PNGs matched the local turn; interruption and completion records
+were present. Object hashes and KMS encryption passed. Private `alpha122-elided-title-internal` contains installation,
+pilot, package, `commute-acceptance.json` and `aws-recording-verification.json` receipts. Native
+background typing and the earlier input-isolation incident remain unresolved.
+
+### Earlier internal focused-consent trial
 
 Source `e842725d73e4a37572ceb523729f917937d0570a` passed the full pilot gate and 12 focused native
 consent tests. The Developer ID-signed arm64 app was installed at 00:46:49.187 UTC on November 4;

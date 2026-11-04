@@ -39,115 +39,88 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-The recorded Chrome restart failure reported `consent_not_settled`. Source inspection found that
-macOS allows eight seconds for its exact consent scan, but the core caller cancelled unstarted
-scans after four seconds. A focused regression reproduced the same refusal at four seconds.
-The source correction allows ten seconds for observation and bounds the subsequent handshake to
-four seconds, preserving ownership, consent, cancellation and worker-settlement checks. All 23
-focused native consent/preparation tests passed, including the regression that failed before the fix. The full pilot gate also passed: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser
-and 223 cloud tests, plus shared/native/build/static checks. Signed source `5011ab3` was installed
-at 00:15:35 UTC on November 4 (November 3 Eastern); package/runtime verification passed.
-The live retry still failed. After operator selection of the existing USDA tab, Sia identified the
-correct window and automatically authorized preparation, but the full 8.178-second platform scan
-found no exact consent prompt. Preparation returned `consent_not_settled`; the task ended at
-00:23:30.884 UTC with `background_browser_unavailable` / `browser_consent_required` and no output.
-The deadline regression is fixed; reliable background recovery is not. Do not repeat timeout
-changes or ordinary Continue attempts. The next investigation needs to establish why the exact
-Chrome connection request produces no observable consent prompt or usable handshake before
-another repair. Do not package another purportedly ready DMG without live acceptance.
+Signed internal QA `7fe2089` now completes the practical commute-card follow-up using the same
+approved public Chrome window after app restart. Two evidenced browser defects were repaired:
 
-A timed explicit-setup comparison at 00:31 UTC supplied new evidence: operator CUA saw the native
-consent sheet at 00:31:06.364, roughly five seconds after setup began, while the driver continued
-reporting no prompt through its full deadline. Explicit setup also failed. The stale dialogs were
-cancelled and no task was resumed. This identifies an observation mismatch within the deadline,
-not simply a slow scan. A narrowly scoped candidate now inspects the approved process's focused
-native sheet only when the ordinary native walk finds no consent prompt; exact ownership and
-consent matching remain unchanged. All 12 focused native consent tests and the full pilot gate
-passed (2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser tests, plus cloud/shared/native
-and static checks). Signed candidate `e842725` is installed and completed the follow-up below.
-The fallback itself has not been observed in use. Private timing and native
-dialog evidence: `alpha122-consent-deadline-internal/explicit-setup-comparison.json` and
-`operator-consent-prompt.png`.
+- The consent observer missed a native focused sheet that operator CUA could see. The bounded
+  fallback inspects only a native sheet belonging to the already-approved process and retains
+  exact consent matching. In this live run, its diagnostic confirms that the fallback found the
+  sheet and acceptance settled in 143 ms.
+- WindowServer middle-elided the approved window's title while several Chrome windows shared
+  its geometry. Full-title containment refused the binding. Substantial exact prefix/suffix
+  matching around one ellipsis now preserves unique-or-refuse decisions. The regression failed
+  before the fix; the live diagnostic found one exact binding among 29 tabs in seven windows.
+  Duplicate candidates still refuse; missing geometry still permits only a read-only heuristic.
 
-On `e842725`, the saved cold-lunch follow-up completed in **113.479 seconds** at 00:49:21.307 UTC.
-After installation the operator brought Sia forward and clicked ordinary Continue; no browser
-reconnection, tab selection or browser input was supplied during the run. The existing USDA window
-was identified, authorization was automatic, and background screenshots/navigation/scrolling worked.
-The ordinary native scan saw the consent sheet in 72 ms and confirmed acceptance/disappearance
-by 442 ms. **No focused-sheet fallback diagnostic appeared**, so this success does not establish
-that the fallback fixed the earlier mismatch. Prior operator cancellation of queued dialogs is
-part of the starting state; repeatability remains open.
+All 20 focused binding tests and the full local pilot gate passed on the exact source: 2,075
+desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/
+static checks. Developer ID signing, installed strict signature and package/runtime verification
+passed. CI run 384 passed its pilot step but was cancelled during unsigned universal packaging;
+release signing was skipped. This app is not notarized and is not the distribution DMG.
 
-The saved `nov13-cold-lunch.md` passed independent portion, budget, storage and signed Preview
-checks. All eight planning documents and six other baseline notes are byte-for-byte unchanged.
-The internal journal retained its entire prior 7,656-byte prefix and gained 333 bytes. An unsent
-foreground draft arrived intact during final file writing and was cleared; it did not overlap
-browser input and does not establish input isolation. AWS automatically stored 120 events;
-all 11 action results and all three PNGs match the local trajectory. Original prompt, provider
-usage, completion, object hash and KMS encryption were verified. Private receipts:
-`alpha122-focused-consent-internal/cold-lunch-acceptance.json`, `source-checks.json` and
-`aws-recording-verification.json`. Native keyboard delivery, input isolation and exact-DMG
-acceptance are still required.
+The commute task completed at **03:48:20.526 UTC November 4** (November 3 Eastern), **109.402
+seconds** after its final continuation. Initial execution paused on Mac sleep. After the owner
+unlocked, the first continuation correctly paused while Chrome was still foreground. Operator CUA
+activated the exact Sia window through its native Window menu and clicked Continue. No operator
+reconnected Chrome, selected a browser window or supplied browser input during the run. Sia
+recovered the approved window, captured/scrolled USDA guidance and saved/read back the card.
+This is one recovered useful task, not repeatable unattended recovery acceptance.
 
-A matched native comparison on the same signed candidate isolates a remaining keyboard failure.
-At 01:00 UTC November 4, the approved foreground trial delivered text into a fresh local TextEdit
-duplicate's Name field. It inserted at the caret instead of replacing the name; no rename was
-committed. After operator restoration, the 01:03 UTC background trial opened the same popover
-but its single typing attempt left the name unchanged. Sia's returned screenshots and independent
-operator observations agreed in both trials. The foreground Sia draft stayed empty during the
-background attempt. Both original and local duplicate still match the recorded 1,874-byte hash.
-Work in background with Pause and tell me was restored before the second trial.
+Independent review checked the 5¼-hour interval, discard deadlines, conditional cold-holding
+advice, shelf-stable alternative, quantities and separate grocery/equipment costs against three
+readable source screenshots and the saved plans. All nine baseline planning files are byte-for-byte
+unchanged. Sia Preview opened with matching content and a readable signed-app screenshot after
+an initial stale capture. An unsent foreground reminder eventually appeared intact and was cleared;
+its delivery timing was not established. It does not prove
+concurrent input isolation.
 
-These actions were authorized automatically; removing access checks would not address the observed
-failure. Source inspection confirms that vision typing uses global HID events only for explicit
-foreground delivery and PID-addressed events after exact-window focus checks for background delivery.
-It does not yet establish why the latter events are ignored. Earlier transport/priming experiments
-remain relevant; another transport variant without new evidence is not justified.
+AWS uploaded all three segments automatically: **174 events**, including the original prompt,
+**28 usage records, 15 matching action results and three byte-matching PNGs**, interruption and
+completion events. Object hashes and KMS encryption passed. Private receipts in
+`alpha122-elided-title-internal` include `commute-acceptance.json`,
+`aws-recording-verification.json`, `installation.json` and `pilot-result.json`.
 
-AWS automatically archived both comparison turns: 90 events, including both prompts, 28 usage
-records, all 12 action results, eight screenshots and completion records. Every action result and
-image matches its local record; both object hashes and KMS encryption passed. Private receipts:
-`alpha122-focused-consent-internal/native-foreground-comparison.json`,
-`native-background-comparison.json` and `native-aws-recording-verification.json`.
+### Native input blocker
 
-The older iCloud duplicate is no longer present at its previously recorded path. Operator inspection
-also found an RTF with a name containing the previously observed unexpected field text; its identity,
-contents and origin are not established. No rename or deletion was attempted during this setup.
-Historical checks below describe their recorded times, not current proof that this older duplicate
-is intact. The unresolved input-isolation incident still blocks sharing.
+The matched TextEdit comparison on the preceding signed candidate `e842725` delivered text in
+foreground but left the same local duplicate's Name field unchanged in background. Foreground
+input inserted at the caret instead of replacing the name; no rename was committed. Independent
+observations agreed with both returned images. Operator cleanup restored the field and Work in
+background → Pause and tell me. Both original/local fixture hashes matched their baseline at that
+check. These actions were authorized automatically; removing access checks would not fix delivery.
 
-The following activation check did not reproduce delayed text: operator CUA activated the exact
-local duplicate and reopened its Name field without sending text; the name and document remained
-unchanged. Reading the older unexpected iCloud filename timed out again after eight seconds, so
-its content and identity remain unknown. This does not resolve the earlier incident.
+Source inspection confirms global HID delivery for explicit foreground mode and PID-addressed
+events after exact-window focus checks for background mode. The scope remains alive through the
+whole posting operation; it is not dropped before the event-posting loop. This does not prove
+the target has consumed those events before cleanup. The cause of ignored
+background events is not established. Previously failed transport/priming variants are documented
+in the [native integration guide](../apps/desktop/native/cua/README.md); do not repeat them without
+new diagnostic evidence.
 
-A subsequent QA restart tested a practical 7:15 AM–12:30 PM commute packing card. The first prompt
-explicitly told the model to stop if the browser was unavailable, and it stopped before trying
-recovery; that turn is prompt-confounded, not a recovery failure. After clarification allowing
-automatic recovery of the same approved window, preparation accepted and settled Chrome consent
-in 447 ms, then refused `browser_binding_ambiguous` at 01:16:13.248 UTC. No operator selected or
-connected a window. All nine baseline Markdown files stayed unchanged; no new card was created.
-AWS automatically archived both turns, including prompts, usage, all six action results and failure
-records (67 events); object hashes and KMS encryption passed.
+Both comparison turns uploaded automatically: 90 events, both prompts, 28 usage records,
+12 matching action results and eight matching screenshots, with matching object hashes and KMS
+encryption. Private receipts in `alpha122-focused-consent-internal` are
+`native-foreground-comparison.json`, `native-background-comparison.json` and
+`native-aws-recording-verification.json`.
 
-The approved native window's observed title was middle-elided, and several Chrome windows shared
-its geometry. The binding matcher required full-title containment, so the observed title shape
-fails its tie-break in a new regression. A candidate now matches substantial prefix/suffix pairs
-around one middle ellipsis while retaining unique-or-refuse decisions, duplicate-title refusal and
-read-only treatment without geometric proof. The regression failed before the correction. The
-actual live candidate set was not recorded, so this is not yet proof of the runtime cause or a
-successful repair. All 20 focused binding tests passed; full pilot and signed acceptance remain
-pending. Private receipts:
-`alpha122-focused-consent-internal/restart-reuse-result.json`,
-`restart-aws-recording-verification.json`, `native-after-activation-name.txt` and
-`native-old-filename-audit.json`.
+The older iCloud duplicate is missing at its previous path. An RTF with previously observed
+unexpected filename text exists, but its identity, contents and origin remain unknown. Metadata
+shows a dataless iCloud placeholder with zero allocated blocks; Finder confirmed Not downloaded.
+Operator CUA requested that one file through its download control. It remained dataless at the
+last check; no contents claim, rename or deletion was made. Private receipts are
+`native-old-file-metadata.json` and `native-old-file-download-result.json` in
+`alpha122-focused-consent-internal`. Activating the fresh local duplicate and reopening
+its Name field without typing did not reproduce delayed input. These observations do not resolve
+the older incident. Native background typing, input isolation and exact-DMG acceptance remain
+required before sharing. Earlier browser attempts and artifact identities are retained in the
+[distribution record](./public-release.md) and Git history.
 
 ## Current artifacts
 
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `e842725d73e4a37572ceb523729f917937d0570a`; ASAR `92044bebebb6c3b94687cf62bce17ab4cae7b1372a4fac34f2b5ff866b098a6d`; Developer ID and package/runtime checks passed. | One useful background recovery completed after prior operator cleanup. Focused-sheet fallback not exercised; repeatability and native input remain open. Not notarized or a replacement distribution artifact. |
+| Installed internal arm64 QA | `7fe20890655be10fa41e41bb6b4293b540558858`; ASAR `05a0b9050fdd7cc07e06218a4de723c999d58a5bd260c643d60a8c3183aeb6d8`; Developer ID and package/runtime checks passed. | Useful commute card completed with focused-sheet recovery and exact elided-title binding observed. Sleep/focus interventions occurred; repeatability and native input remain open. Not notarized or a replacement distribution artifact. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;
@@ -157,7 +130,7 @@ this page describes current evidence and outstanding requirements.
 
 | Area | Observed evidence | Still required |
 | --- | --- | --- |
-| Automated checks | Current source, including final window guidance and wrapping table headers, passed the full pilot gate: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The packaged guidance also passed 15 focused runtime tests. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Current `e842725` CI run 381 is in progress. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
+| Automated checks | Current source, including final window guidance and wrapping table headers, passed the full pilot gate: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The packaged guidance also passed 15 focused runtime tests. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Current `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
 | Useful personal tasks | On signed QA, recipe research and an outing checklist completed with 67.582 seconds of overlapping successful turns and interleaved actions. Independent recipe/quantity/budget/timing review and both Sia Previews passed. All 11 original source hashes stayed unchanged. | Repeatability and unattended completion. Browser setup required operator reconnection; the checklist included an intentional Stop and continuation. This was browser plus file work, not two native-app tasks. |
 | Stop and performance | Stopping the checklist left browser research running. Resumed checklist: 67.582 seconds. Recipe task after reconnect: 241.765 seconds. | Two native workflows, same-window contention, continuous foreground/clipboard preservation, wider cancellation/recovery, and acceptable repeated end-to-end latency. Before/after focus samples are insufficient. |
 | Native filename input | The matched November 4 comparison delivered text in foreground but left the same local field unchanged in background. Independent observations agreed with both images; original/local fixture hashes stayed unchanged. | Fix background typing, then rename/move/close/reopen and verify contents. The older iCloud duplicate's changed path and unexpected filename remain unresolved; input isolation is not accepted. |
@@ -168,7 +141,7 @@ this page describes current evidence and outstanding requirements.
 
 The native task ended at 23:51:09.467 UTC and its supervised diagnostic at 23:57:01.244 UTC,
 November 2. The post-restart typing diagnostic also failed at 02:40:42.115 UTC, November 3.
-The two RTFs remain 1,874 bytes with SHA-256
+At those historical checks, both RTFs were 1,874 bytes with SHA-256
 `bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`.
 Private receipts in `alpha122-browser-lease-internal` preserve action records, file checks and
 power samples. Failure outside Sia does not establish the underlying system cause.
