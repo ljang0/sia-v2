@@ -30,29 +30,35 @@ Private receipts: `package.json`, `install.json`, `source-checks.json`, `pilot-g
 
 ## Internal QA after alpha.122
 
-### Current internal native-focus candidate
+### Current internal rename-recovery candidate
 
-Clean source `706b3e7854dbe72af25993055639eeb3b846fab2` passed the full pilot and Developer ID/package
-checks. Installed November 4 at 23:32:50 UTC; ASAR
-`572642fbf1c1da54a11fe12f5da4a3e8a4283385341281f0e82c43f44b65c895`. Cloud resource hash remains
-`d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`. The previous app is preserved as
-`Sia QA alpha122 before native focus.app`. This is internal arm64 QA, not notarized or a new DMG.
+Clean source `8dc8e14eb3a0b32a565643b25ddfdd761b2e62e6` was installed November 4 at
+23:42:52 UTC after Developer ID, packaged-runtime and strict-signature checks. ASAR SHA-256:
+`facfbf45dda4cf712449aaee2b7b103e5379613e9096a88da6be8c1f80a05d28`. Cloud resource SHA-256:
+`d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`. The preceding app is preserved
+as `Sia QA alpha122 before rename recovery.app`. This is arm64 internal QA, not notarized or a DMG.
+The repair passed 117 affected tests and build/static checks; its full pilot remains pending.
 
-Fresh agent `RA handoff acceptance` used the default GPT-6.1-Sol/ChatGPT plan, a new private folder,
-empty lessons/preferences, existing Mac grants and automatic task authorization. In thread
-`944bedfc-f1bd-4c3b-a5d8-27a10cbf3059`, turn `2e83b10b-46be-4a62-b26b-58fcbff389ce` read the three
-headings and 12 items but failed inline rename at 23:35:31 UTC. Native `window_not_key` reported
-`window_missing_element_missing`; rename and close/reopen were incomplete. Original bytes/hash
-remain unchanged. An unsent Sia draft typed during the task eventually appeared intact and was
-cleared through CUA; an initial stale observation prevents a timing/continuous-isolation claim.
-No operator supplied Finder/TextEdit input or coached the model through controls.
+Fresh agent `RA handoff check` used the default GPT-6.1-Sol/ChatGPT plan and ordinary instructions.
+Thread `f371af2b-9f3d-4522-abbf-832613d3cee6`, turn `c2f769cb-e3dd-4947-8173-69da565abb66`, completed
+the checklist rename, review, close and reopen at 23:46:09 UTC, about 150 seconds after submission.
+No operator supplied Finder/TextEdit input or coached recovery. The preceding candidate failed
+inline rename; this repair preserves input guards and prefers the visible Get Info naming field.
 
-AWS verification matched the prompt, 79 events, 18 usage records, 11 action results and five PNGs,
-including failure, object hashes and KMS encryption. Private `alpha122-native-focus-internal`
-contains installation/source/gate receipts, `fresh-native-acceptance.json` and archive verification.
-The targeted source follow-up distinguishes unavailable keyboard focus from a blanket foreground
-requirement and prefers the visual Get Info naming field. Its 117 affected tests pass; it is not yet
-packaged and does not change native input guards.
+Independent before/after screenshots show the three correct headings and 12 items. Window
+inventory confirms the document disappeared after Close and returned after Open. The renamed
+`RA handoff checklist.rtf` retains its original 1,874 bytes and SHA-256
+`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`; the old filename is absent.
+An unsent Sia draft entered during background work remained intact and was cleared through CUA.
+Initial observations after typing were stale; continuous focus/clipboard isolation and latency
+are not established. Only the target file had a full baseline; other-file preservation is not
+independently claimed. This is a bounded native-workflow pass, not general native reliability.
+
+AWS verification matched the prompt, 175 events, 48 provider-usage records, 27 action results and
+17 PNGs, including terminal capture, object hashes, lengths and KMS encryption. Private
+`alpha122-rename-recovery-internal` contains installation/source checks, `fresh-native-acceptance.json`
+and the read-only archive-verification receipt. Earlier `706b3e7` failure evidence remains in
+`alpha122-native-focus-internal`. Exact-DMG and input-isolation acceptance remain open.
 
 ### Earlier internal menu-routing trial
 
@@ -93,9 +99,8 @@ service-owned panel-mapping prototype was removed without packaging when the liv
 the immediate failure to native keyboard focus; its private patch is retained only as investigation
 history. The canonical native patch and input guards are unchanged.
 
-Default guidance now covers establishing native focus before keyboard commands and omitting field
-coordinates for window-level shortcuts. Its expanded form is not packaged; a new full pilot is
-pending. A fresh conversation, input isolation and exact-installer acceptance remain required.
+This diagnostic informed the default focus guidance in the current candidate above. It is not
+independent acceptance evidence; input isolation and exact-installer acceptance remain required.
 
 ### Earlier internal key-window diagnostic
 

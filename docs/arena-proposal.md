@@ -34,4 +34,15 @@ Signed internal QA `7fe2089` completed a practical commute lunch card in 109 sec
 
 An earlier signed trial completed recipe research and an outing checklist with 68 seconds of overlapping successful turns. Stopping the checklist left browser research running. That trial included reconnection and continuation, and combined browser work with file tools; it did not demonstrate two simultaneous native-app workflows. Both trials are documented in the [release status](./release-status.md) and are newer than the notarized alpha.122 DMG.
 
-Native workflow reliability and input isolation remain blockers. Finder background typing and a committed rename passed on the internal candidate, with unchanged file contents, and folder creation/move later passed after operator File-menu preparation. The same shortcut had previously produced no effect through synthetic events. A later explicit background click established a native edit session, enabling verified selection and folder naming with unchanged file contents. TextEdit initially was missing from discovery; it later appeared. A coached background body click enabled Close, after which Sia closed, reopened and verified the checklist with unchanged bytes. A fresh-agent trial on the next signed candidate read the checklist but failed Finder inline rename; the targeted recovery still needs live acceptance. This does not establish unattended native reliability. A matched TextEdit comparison delivered text in foreground but failed in background. These diagnostic prompts, usage, actions and screenshots uploaded automatically and matched local records. Repeatable Chrome restart/idle recovery, exact-installer acceptance and the bounded native workflow must pass before the RA handoff. Two native-app tasks, contention, continuous focus/clipboard preservation, off-Space behavior and physical lock/sleep/voice acceptance remain requirements for broader reliability claims. A fresh Mac/account is unavailable. Lawrence Jang owns support and incidents; no invitation, public release or Arena outreach has been sent.
+Signed internal QA `8dc8e14` then completed a fresh-agent native workflow without recovery coaching
+or operator Finder/TextEdit input: rename the RA checklist, review its three sections and 12 items,
+close it and reopen it. It took about 150 seconds. Independent screenshots and the unchanged file
+hash corroborate completion. A draft typed into Sia during the run remained intact; continuous
+focus/clipboard isolation and input latency are not yet established. AWS automatically archived
+the exact prompt, 48 usage records, 27 matching actions and 17 matching screenshots. This is one
+bounded workflow pass on internal QA, not acceptance of the older distribution installer.
+
+Repeatable Chrome recovery, input isolation and exact-installer acceptance remain RA handoff
+gates. Two native-app tasks, contention, off-Space behavior and physical lock/sleep/voice acceptance
+remain requirements for broader reliability claims. A fresh Mac/account is unavailable. Lawrence
+Jang owns support and incidents; no invitation, public release or Arena outreach has been sent.

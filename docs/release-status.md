@@ -1,8 +1,32 @@
 # Release status
 
-Updated November 4, 2026. **A signed, notarized alpha.122 DMG exists, but RA handoff is blocked by native background input and input-isolation failures. It does not contain the latest internal browser fixes. Broad distribution and Arena acceptance remain open.**
+Updated November 4, 2026. **A signed, notarized alpha.122 DMG exists, but RA handoff is blocked by native background input and input-isolation failures. It does not contain the latest internal browser and native-workflow fixes. Broad distribution and Arena acceptance remain open.**
 
 ## Bounded RA handoff goal
+
+**Definition of done:** deliver a usable Mac app, not a collection of test results. The next
+release decision has five gates:
+
+1. From ordinary prompts, complete useful browser research and native document work through
+   the installed app; independently check the saved results. No task-time operator rescue.
+2. Let the person keep using another window: preserve their text, focus and clipboard; make
+   Sia's composer, task controls and Stop work through CUA. Record elapsed time, stalled periods
+   and retries. Unexplained misdirected input or recurring stalls fail acceptance.
+3. Reuse initial access grants after restart, with automatic ordinary-task authorization.
+   Person-owned macOS grants are setup, not permissions that the app can silently enable.
+4. Automatically archive the exact prompts, provider usage, actions/results, screenshots and
+   terminal outcome in AWS; independently match them to the local run, retaining disclosure
+   and explicit opt-outs.
+5. Ship those verified behaviors in one signed, notarized DMG with a short setup guide and
+   honest limits. Keep the changed code focused, remove superseded experiments, and maintain
+   a short architecture walkthrough and Arena proposal.
+
+A first RA evaluation does not complete the broader goal of reliable concurrent desktop work.
+Two simultaneous native workflows and wider recovery coverage remain explicit follow-on gates.
+Work only on an open gate: identify a user-visible failure, repair its evidenced cause, and rerun
+that useful path. Do not build again for documentation changes or rerun passing suites without a
+new change or unresolved concern. A failed attempt stays in the evidence; do not relabel it a pass
+because a diagnostic continuation succeeded.
 
 **November 4 acceptance clarification:** the RA handoff is a first milestone, not a replacement
 for the full distribution goal. Real personal workflows, CUA-operated Sia controls, background
@@ -52,29 +76,33 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-### Fresh native workflow: inline rename remains blocked
+### Fresh native workflow passed; isolation and installer acceptance remain open
 
-Signed internal QA `706b3e7` passed the full pilot, Developer ID, packaged-runtime and installed
-strict-signature checks. A new agent was created entirely through CUA with the default model,
-private folder and empty lessons/preferences. Accessibility and Screen Recording were Allowed;
-actions used the existing Acts without asking setting. The ordinary request asked it to rename
-the real RA checklist, read its sections, then close/reopen it, with no click-by-click coaching.
+Signed internal QA `8dc8e14` completed the ordinary checklist request with a fresh agent and no
+operator Finder/TextEdit input or recovery coaching. It renamed the document, read the three
+sections and 12 checklist items, closed it, verified its absence, reopened it and checked the
+visible contents. The run finished November 4 at 23:46:09 UTC, about 150 seconds after submission.
+Independent screenshot review and the renamed file's unchanged 1,874 bytes/SHA-256
+`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14` corroborate completion.
 
-It read all three headings and 12 items, but Finder's inline filename editor refused typing with
-`window_not_key` (`window_missing_element_missing`). Rename and close/reopen did not complete.
-The existing 1,874-byte RTF retains SHA-256
-`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`; the new filename was not created.
-An unsent draft typed in Sia during the run appeared intact, then was cleared. The first observation
-after typing was stale, so this does not establish delivery latency or continuous input isolation.
-No operator supplied Finder/TextEdit input. AWS automatically archived the prompt, 79 events,
-18 usage records, 11 matching action results and five byte-matching PNGs; hashes and KMS encryption
-passed. Exact evidence is in `alpha122-native-focus-internal/fresh-native-acceptance.json`.
+The prior `706b3e7` fresh-agent run failed in Finder's transient inline editor. The repair preserves
+native input guards, distinguishes keyboard-focus refusal from a blanket foreground requirement,
+and prefers the visible Get Info naming field. The new run recovered its initial selection itself.
+This is one useful native workflow pass, not general desktop reliability.
 
-The targeted follow-up keeps an exact keyboard-focus refusal distinct from a blanket foreground
-requirement, while preserving all permission, protected-content and input-isolation guards. Default
-guidance prefers Finder Get Info's Name & Extension field over its transient inline editor. The
-regression failed before the change; 117 affected tests pass. This follow-up is not packaged yet.
-Fresh-agent workflow completion and input isolation remain distribution blockers.
+An unsent draft typed into Sia during background work remained exactly intact and was cleared
+through CUA after completion. Initial observations after typing were stale; delivery latency,
+continuous focus/clipboard preservation and the earlier misdirected-input incident remain open.
+No complete surrounding-files baseline was available for this run; preservation of the target
+file is independently verified, while the model's broader preservation claim is not accepted
+as independent evidence.
+
+AWS automatically archived the exact prompt, 175 events, 48 provider-usage records, 27 matching
+action results and 17 byte-matching PNGs, including the terminal event. Object hashes, lengths and
+KMS encryption passed read-only verification. Private `alpha122-rename-recovery-internal`
+contains `fresh-native-acceptance.json`, installation/signature records and the archive receipt.
+The installed repair passed 117 affected tests and build/static checks; its full pilot is pending.
+It is Developer ID signed and package/runtime verified, but is not notarized or a distribution DMG.
 
 ### Earlier supported native sequence
 
@@ -89,7 +117,7 @@ transport or generic helper access was added.
 Those eight turns automatically archived 358 events, eight matching prompts, 108 usage records,
 39 matching actions and 23 byte-matching PNGs. Private `alpha122-menu-routing-internal` receipts
 preserve exact identities and intervention limits. These diagnostic successes inform the repair;
-they do not replace the failed fresh-agent acceptance above or exact-DMG acceptance.
+they do not replace the fresh-agent evidence above or exact-DMG acceptance.
 
 ### Browser recovery
 
@@ -153,7 +181,7 @@ person-owned, ordinary task authorization was automatic, and Sia itself need not
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `706b3e7854dbe72af25993055639eeb3b846fab2`; ASAR `572642fbf1c1da54a11fe12f5da4a3e8a4283385341281f0e82c43f44b65c895`; full pilot, Developer ID and package/runtime checks passed. | Fresh agent read the document but failed Finder inline rename. The Get Info/recovery follow-up is not packaged. Not notarized or a replacement DMG. |
+| Installed internal arm64 QA | `8dc8e14eb3a0b32a565643b25ddfdd761b2e62e6`; ASAR `facfbf45dda4cf712449aaee2b7b103e5379613e9096a88da6be8c1f80a05d28`; Developer ID and package/runtime checks passed. | Fresh native workflow passed without rescue. Full pilot, continuous input isolation and exact-DMG acceptance remain open. Not notarized or a replacement DMG. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;
@@ -163,10 +191,10 @@ this page describes current evidence and outstanding requirements.
 
 | Area | Observed evidence | Still required |
 | --- | --- | --- |
-| Automated checks | Installed source `706b3e7` passed the full pilot gate: 2,082 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The rename-recovery follow-up passed 117 affected tests and remains unpackaged; its full pilot is pending. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Earlier `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
+| Automated checks | Previous source `706b3e7` passed the full pilot gate: 2,082 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. Installed `8dc8e14` passed 117 affected tests and the fresh native workflow; its full pilot is pending. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Earlier `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
 | Useful personal tasks | On signed QA, recipe research and an outing checklist completed with 67.582 seconds of overlapping successful turns and interleaved actions. Independent recipe/quantity/budget/timing review and both Sia Previews passed. All 11 original source hashes stayed unchanged. | Repeatability and unattended completion. Browser setup required operator reconnection; the checklist included an intentional Stop and continuation. This was browser plus file work, not two native-app tasks. |
 | Stop and performance | Stopping the checklist left browser research running. Resumed checklist: 67.582 seconds. Recipe task after reconnect: 241.765 seconds. | Two native workflows, same-window contention, continuous foreground/clipboard preservation, wider cancellation/recovery, and acceptable repeated end-to-end latency. Before/after focus samples are insufficient. |
-| Native workflow | Finder background typing and file rename passed. Folder creation/move passed after operator File-menu preparation, with all original bytes intact. TextEdit background field typing failed in the matched comparison. | Editor inspection/close/reopen passed after explicit-focus coaching. Repeat the bounded workflow using default guidance in a fresh conversation without operator menu preparation or step-by-step instructions. Capture availability, the earlier unexpected input’s origin and continuous input isolation remain unresolved. |
+| Native workflow | Finder background typing and file rename passed. Folder creation/move passed after operator File-menu preparation, with all original bytes intact. TextEdit background field typing failed in the matched comparison. | Fresh `8dc8e14` completed rename, inspection and close/reopen without operator preparation or step-by-step instructions. Exact-DMG repetition, the earlier unexpected input’s origin and continuous input isolation remain unresolved. |
 | Browser recovery | After QA restart, Chrome recovery selected the same approved public window and resumed the task automatically. Five stale-page refusals recovered through fresh observations. Exact SDK lease-expiry envelopes now reach connection recovery. | Natural idle-expiry recovery, repeatable restart recovery, permission-prompt dismissal, network errors, and live same-browser coexistence. The previous raw native lease envelope was not retained, so its cause is not proved. |
 | AWS recording | Four automatic batches for the successful personal tasks contained prompts, usage, action results and 12 screenshots. Stored payload hashes and KMS encryption were verified. | Retain default disclosure, explicit opt-outs, paused capture, deletion and exclusions. These records do not establish research-release consent or permissions for other people. |
 | Handoff and public disclosure | Installed-app onboarding now separates evaluation from developer setup. Repository privacy/site/infrastructure copy matches default-on recording and ordinary-user eligibility; site build/check and download tests pass. | Publish the reviewed disclosure changes only with authorization, then verify live pages. Direct HTTP checks on November 3 at 00:24 UTC found no default-on notice in the live privacy page and `/download/` returned 404. No site or installer was published. |

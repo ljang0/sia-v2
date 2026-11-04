@@ -123,6 +123,9 @@ The acceptance rerun must start from an ordinary user request on the release can
 prompts that prescribe clicks, keys or recovery steps can isolate defects but cannot establish
 out-of-the-box usefulness. Keep the next milestone bounded by `docs/release-status.md`; additional
 features and test volume are not progress toward that milestone unless they resolve an open gate.
+Record end-to-end duration, stalls and retries for useful tasks. Do not claim responsiveness from
+a final screenshot or input acknowledgement. Do not rebuild for prose-only changes. Keep the
+next release decision tied to the five definition-of-done gates in `docs/release-status.md`.
 
 1. During development, run the nearest workspace test (`pnpm --filter <workspace> test`).
 2. Before review, run `pnpm check`. It includes `pnpm lint` (type-aware ESLint).
