@@ -30,7 +30,28 @@ Private receipts: `package.json`, `install.json`, `source-checks.json`, `pilot-g
 
 ## Internal QA after alpha.122
 
-### Current internal table-preview trial
+### Current internal consent-deadline trial
+
+Clean source `5011ab3bdd95de9280f68d6816508873bd4c471a` passed the full local pilot gate and
+23 focused native preparation tests, including a regression that failed before the repair.
+It was Developer ID-signed and installed at 00:15:35.488 UTC on November 4. Package/runtime and
+strict-signature checks passed. ASAR SHA-256:
+`62fe1bca62006cd725c0276299cfb5a863536f16fa2b490a7d01ea9011dd2e95`.
+Native patch SHA-256: `d1072c717424ef6492955edbde719233633a782679d38228a15c57a45180932e`.
+The previous QA is preserved as `Sia QA alpha122 before consent-deadline.app`.
+This internal arm64 build is not notarized and does not replace the DMG.
+
+The live cold-lunch retry failed at 00:23:30.884 UTC after operator CUA selected the existing USDA
+tab and resumed the task. Automatic authorization succeeded, but the full 8.178-second consent
+scan saw no exact prompt; preparation refused with `consent_not_settled`, followed by
+`background_browser_unavailable` / `browser_consent_required`. No output was created and all
+15 source hashes remain unchanged. This is a failed recovery check, not background acceptance.
+Two automatic AWS batches contained 87 events; object hashes and KMS encryption passed. The
+original prompt was verified against the previous batch for the same continued turn. Private
+`alpha122-consent-deadline-internal` contains installation, regression, pilot, package, live retry
+and AWS verification receipts. Source CI run 379 was still running at this update.
+
+### Earlier internal table-preview trial
 
 Clean source `e7dd676ec12022fb464661c42aafe2f9ca866f87` passed the full local pilot gate and was packaged, Developer ID-signed and installed at 21:13:28.080 UTC on November 3. Package/runtime and installed strict-signature verification passed. ASAR SHA-256: `a7a31a9d1c88e799cd63da612b6728ed8a1deb865f3323cdb417d660e1d20f9e`. Opening the actual saved grocery attachment in Sia verified wrapping headings and all four columns, including the first two prices, without horizontal scrolling. Private `alpha122-table-preview-internal` contains installation, package/runtime logs and `grocery-preview.png`. The previous QA is preserved as `Sia QA alpha122 before table-preview.app`. This internal arm64 build is not notarized and does not replace the evaluation DMG.
 

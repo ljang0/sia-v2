@@ -5,7 +5,8 @@ Updated November 3, 2026. **A signed, notarized alpha.122 DMG is available for t
 ## Bounded RA handoff goal
 
 Owner reset, November 3: finish a supervised **Apple-silicon RA evaluation**, not general desktop
-reliability. Freeze functional scope at the tested `e7dd676` QA candidate. Prepare one final signed,
+reliability. Freeze functional scope at the tested QA candidate plus the single targeted Chrome
+repair below. Prepare one final signed,
 notarized DMG from that candidate and a short setup/limitations guide. Reuse the existing Arena
 proposal; keep it a technical-review draft, not a rollout or reliability promise.
 
@@ -44,15 +45,23 @@ scans after four seconds. A focused regression reproduced the same refusal at fo
 The source correction allows ten seconds for observation and bounds the subsequent handshake to
 four seconds, preserving ownership, consent, cancellation and worker-settlement checks. All 23
 focused native consent/preparation tests passed, including the regression that failed before the fix. The full pilot gate also passed: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser
-and 223 cloud tests, plus shared/native/build/static checks. It is not yet installed or a live
-recovery pass. This is the single targeted Chrome repair for the current acceptance attempt.
+and 223 cloud tests, plus shared/native/build/static checks. Signed source `5011ab3` was installed
+at 00:15:35 UTC on November 4 (November 3 Eastern); package/runtime verification passed.
+The live retry still failed. After operator selection of the existing USDA tab, Sia identified the
+correct window and automatically authorized preparation, but the full 8.178-second platform scan
+found no exact consent prompt. Preparation returned `consent_not_settled`; the task ended at
+00:23:30.884 UTC with `background_browser_unavailable` / `browser_consent_required` and no output.
+The deadline regression is fixed; reliable background recovery is not. This exhausts the single
+targeted Chrome repair for this acceptance attempt. Do not package another purportedly ready DMG
+or repeat ordinary Continue attempts. The next investigation needs to establish why the exact
+Chrome connection request produces no observable consent prompt or usable handshake.
 
 ## Current artifacts
 
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `e7dd676ec12022fb464661c42aafe2f9ca866f87`; ASAR `a7a31a9d1c88e799cd63da612b6728ed8a1deb865f3323cdb417d660e1d20f9e`; Developer ID and package/runtime checks passed. | Adds wrapping table headers and task-relevant browser-window guidance to the prior recovery/focus corrections. Not notarized or a replacement distribution artifact. |
+| Installed internal arm64 QA | `5011ab3bdd95de9280f68d6816508873bd4c471a`; ASAR `62fe1bca62006cd725c0276299cfb5a863536f16fa2b490a7d01ea9011dd2e95`; Developer ID and package/runtime checks passed. | Includes the consent deadline correction; live recovery still fails. Not notarized or a replacement distribution artifact. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;
@@ -167,6 +176,23 @@ completion records. Both stored object hashes matched. No screenshot was expecte
 attempts failed before capture; the earlier successful lunch trial separately verified screenshots.
 All 15 existing workspace documents remain unchanged. Private receipt:
 `alpha122-table-preview-internal/aws-recording-verification.json`.
+
+On `5011ab3`, the first continued attempt again could not identify the public window. Operator
+CUA then selected only the existing USDA tab via Chrome Tab Search and brought Sia forward.
+The subsequent failed connection attempt is described above; neither attempt reached a successful
+screenshot or UI input. All 15 source hashes remain unchanged. Two new automatic AWS batches
+contain 87 events, including 18 usage records, nine action results, automatic authorization and
+two capture completion records. Both stored object hashes and KMS encryption passed. The original
+prompt in the earlier batch for this continued turn exactly matches the local prompt; no new prompt
+was submitted. No screenshot is expected for these failures. Private receipts:
+`alpha122-consent-deadline-internal/live-retry.json` and `aws-recording-verification.json`.
+
+The approved native comparison was not reached on this candidate. Operator CUA initially timed
+out binding TextEdit, then showed no designated duplicate in its Window menu and could not
+provide a screenshot after Open. No text typing, rename commit or Sia settings change occurred.
+A new hash check blocked reading the iCloud document and was interrupted, so no fresh native-file
+integrity claim is made. This is a diagnostic/tool barrier, not a new Sia input result. Private
+receipt: `alpha122-consent-deadline-internal/native-comparison-preflight.json`.
 
 ## Later broad-release requirements
 
