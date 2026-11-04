@@ -12,7 +12,7 @@ autonomous acceptance. Unit tests, synthetic fixtures, diagnostics and signing a
 checks; none substitutes for working functionality. Each cycle must deliver a targeted repair
 and a live rerun or establish a concrete blocker. The menu-routing diagnostic identified a missing native edit-session step; its successful
 explicit-click comparison now informs the functional guidance repair. Do not repeat diagnostic
-builds or unchanged workflow loops instead of resolving the remaining editor-inventory blocker.
+builds or unchanged workflow loops instead of completing fresh-conversation and input-isolation acceptance.
 Acceptance starts with an ordinary user request on the candidate, without operator-supplied click,
 key or recovery instructions. Diagnostic continuations count only as evidence for a repair; the
 default app must perform the sequence itself before that workflow passes.
@@ -52,7 +52,7 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-### Native editing: working sequence identified, editor inventory still blocked
+### Native editing and close/reopen: working sequence, autonomous repeat still open
 
 Signed internal QA `7b1562e` passed the full pilot, Developer ID, packaged-runtime and installed
 strict-signature checks. CUA entered and submitted its diagnostic prompts without manual user input.
@@ -67,21 +67,32 @@ confirmed `RA review/Sia Arena handoff checklist.rtf`, all 1,874 original bytes 
 `bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`. The old folder name is gone.
 This supersedes the earlier incomplete folder-naming evidence below.
 
-The workflow then stopped at TextEdit launch: no editor window was listed. Operator CUA binding
-subsequently exposed its Open panel, without clicking a file or completing Open. Sia's refreshed
-inventory still omitted that panel and listed only unrelated off-screen untitled windows, which
-were untouched. Native source explicitly models Open panels as service-owned windows; Sia joins
-window records only to its ordinary app inventory. That ownership path is the next investigation,
-not proof yet of this exact panel's native identity. Headings, close/reopen, input isolation and an
-autonomous repeat remain incomplete. No new distribution DMG was produced.
+The first continuation stopped at TextEdit launch: Sia omitted the Open panel seen by operator
+CUA. A later read-only CUA observation found the intended document already open; the transition
+is unexplained. Sia then discovered and read it. A candidate mapping for service-owned panels was
+removed without packaging because it did not resolve the current failure. No generic helper access
+or speculative input transport was added.
 
-The successful edit sequence is now in source agent guidance: explicitly enter a native editing
-field before selection, and preserve verified selection while typing. Its 16 focused provider/tool
-tests passed; this guidance change is not yet packaged or covered by a new full pilot run. The
-installed diagnostic's four turns archived automatically: 179 events, all four prompts, 54 usage
-records, 20 matching action results and 12 byte-matching PNGs, with object hashes and KMS encryption
-verified. Exact identities, intervention limits and receipts are in
-`alpha122-menu-routing-internal/finder-edit-session.json` and the distribution record.
+Closing initially failed: title-bar coordinates made Cmd+W request field focus, and a subsequent
+coordinate-free Cmd+W found a disabled Close menu and sent ineffective synthetic keys. The fresh
+capture did not show a close button, so no pointer click was guessed. One explicit background
+click in the document body changed the menu to enabled. Sia then closed the exact document,
+verified its absence, reopened it through Finder, and inspected the three headings and all 12
+items. The reopened screenshot independently matches, and the file retains the 1,874 bytes and
+SHA-256 above. No operator supplied TextEdit/Finder input during these turns.
+
+This successful continuation was coached and does not pass fresh-conversation, continuous input
+isolation or exact-DMG acceptance. Source guidance now establishes native window/control focus
+before keyboard commands and omits field coordinates for window-level shortcuts. The preceding
+edit-session guidance passed the full pilot; this expanded guidance is not packaged and its new
+full pilot is pending. No new distribution DMG was produced.
+
+All eight diagnostic/workflow turns archived automatically: 358 events, eight matching prompts,
+108 usage records, 39 matching action results and 23 byte-matching PNGs, with hashes and KMS
+encryption verified. Private `alpha122-menu-routing-internal/finder-edit-session.json` and
+`textedit-close-reopen.json` record exact identities, interventions, discarded prototype and
+archive receipts. A fresh ordinary request on the next signed candidate must reproduce the
+workflow without step-by-step coaching.
 
 ### Browser recovery
 
@@ -145,7 +156,7 @@ person-owned, ordinary task authorization was automatic, and Sia itself need not
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `7b1562ebc4053bfe1c83f83156d1dd1fe5769f11`; ASAR `bc61a010297ab2293644cbc86380d5b4eae2decde5932d748bf2ac1ae4919328`; full pilot, Developer ID and package/runtime checks passed. | Explicit background click enabled native selection and folder rename. TextEdit Open-panel discovery and full native acceptance remain open. The default-guidance follow-up is not packaged. Not notarized or a replacement distribution artifact. |
+| Installed internal arm64 QA | `7b1562ebc4053bfe1c83f83156d1dd1fe5769f11`; ASAR `bc61a010297ab2293644cbc86380d5b4eae2decde5932d748bf2ac1ae4919328`; full pilot, Developer ID and package/runtime checks passed. | Explicit background clicks enabled native selection, folder rename and TextEdit close/reopen in coached continuations. Autonomous repetition and input isolation remain open. The default-guidance follow-up is not packaged. Not notarized or a replacement distribution artifact. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;
@@ -155,10 +166,10 @@ this page describes current evidence and outstanding requirements.
 
 | Area | Observed evidence | Still required |
 | --- | --- | --- |
-| Automated checks | Installed diagnostic source `7b1562e` passed the full pilot gate: 2,082 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The unpackaged edit-session guidance passed 16 focused provider/tool tests; its full pilot is pending. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Earlier `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
+| Automated checks | Installed diagnostic source `7b1562e` passed the full pilot gate: 2,082 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The edit-session guidance at `364ea73` also passed the full pilot. Expanded native keyboard-focus guidance is under a new gate and remains unpackaged. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Earlier `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
 | Useful personal tasks | On signed QA, recipe research and an outing checklist completed with 67.582 seconds of overlapping successful turns and interleaved actions. Independent recipe/quantity/budget/timing review and both Sia Previews passed. All 11 original source hashes stayed unchanged. | Repeatability and unattended completion. Browser setup required operator reconnection; the checklist included an intentional Stop and continuation. This was browser plus file work, not two native-app tasks. |
 | Stop and performance | Stopping the checklist left browser research running. Resumed checklist: 67.582 seconds. Recipe task after reconnect: 241.765 seconds. | Two native workflows, same-window contention, continuous foreground/clipboard preservation, wider cancellation/recovery, and acceptable repeated end-to-end latency. Before/after focus samples are insufficient. |
-| Native workflow | Finder background typing and file rename passed. Folder creation/move passed after operator File-menu preparation, with all original bytes intact. TextEdit background field typing failed in the matched comparison. | Complete editor inspection/close/reopen, then repeat the bounded workflow using the new default edit-session guidance without operator menu preparation. Capture availability, the earlier unexpected input’s origin and continuous input isolation remain unresolved. |
+| Native workflow | Finder background typing and file rename passed. Folder creation/move passed after operator File-menu preparation, with all original bytes intact. TextEdit background field typing failed in the matched comparison. | Editor inspection/close/reopen passed after explicit-focus coaching. Repeat the bounded workflow using default guidance in a fresh conversation without operator menu preparation or step-by-step instructions. Capture availability, the earlier unexpected input’s origin and continuous input isolation remain unresolved. |
 | Browser recovery | After QA restart, Chrome recovery selected the same approved public window and resumed the task automatically. Five stale-page refusals recovered through fresh observations. Exact SDK lease-expiry envelopes now reach connection recovery. | Natural idle-expiry recovery, repeatable restart recovery, permission-prompt dismissal, network errors, and live same-browser coexistence. The previous raw native lease envelope was not retained, so its cause is not proved. |
 | AWS recording | Four automatic batches for the successful personal tasks contained prompts, usage, action results and 12 screenshots. Stored payload hashes and KMS encryption were verified. | Retain default disclosure, explicit opt-outs, paused capture, deletion and exclusions. These records do not establish research-release consent or permissions for other people. |
 | Handoff and public disclosure | Installed-app onboarding now separates evaluation from developer setup. Repository privacy/site/infrastructure copy matches default-on recording and ordinary-user eligibility; site build/check and download tests pass. | Publish the reviewed disclosure changes only with authorization, then verify live pages. Direct HTTP checks on November 3 at 00:24 UTC found no default-on notice in the live privacy page and `/download/` returned 404. No site or installer was published. |

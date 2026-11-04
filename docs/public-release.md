@@ -52,8 +52,26 @@ archived 179 events, four matching prompts, 54 usage records, 20 matching action
 12 byte-matching PNGs. Object hashes and KMS encryption passed. Private
 `alpha122-menu-routing-internal` contains `installation.json`, `finder-edit-session.json`,
 per-turn archive verification, `pilot.log`, `package.log`, `verify.log` and app logs.
-The follow-up source guidance teaches the successful click-before-edit sequence; its 16 focused
-provider/tool tests passed. It is not yet packaged or covered by a new full pilot run.
+The edit-session guidance at `364ea73` subsequently passed the full pilot. Before packaging,
+operator CUA found the intended TextEdit document open; its transition from the earlier Open panel
+is unexplained. Sia discovered it and read the three headings. Coordinate-addressed Cmd+W failed
+field-focus preflight; coordinate-free Cmd+W found a disabled native Close menu and ineffective
+synthetic keys. A pointer-only alternative stopped because the fresh screenshot had no visible
+close button. A final explicit background body click enabled the menu: Cmd+W closed the document,
+Sia verified its absence, reopened it through Finder and checked all 12 items and three headings.
+Independent screenshot review and the unchanged 1,874-byte file hash corroborate that result.
+
+These four further turns (`a64363b8`, `4ab3f8ed`, `cfa45ce6`, `b09f270d`) automatically archived
+179 events, four matching prompts, 54 usage records, 19 matching action results and 11 byte-matching
+PNGs, with hashes and KMS encryption verified. `textedit-close-reopen.json` records the comparison
+and intervention limits. The final continuation was coached, not autonomous acceptance. A
+service-owned panel-mapping prototype was removed without packaging when the live evidence moved
+the immediate failure to native keyboard focus; its private patch is retained only as investigation
+history. The canonical native patch and input guards are unchanged.
+
+Default guidance now covers establishing native focus before keyboard commands and omitting field
+coordinates for window-level shortcuts. Its expanded form is not packaged; a new full pilot is
+pending. A fresh conversation, input isolation and exact-installer acceptance remain required.
 
 ### Earlier internal key-window diagnostic
 
