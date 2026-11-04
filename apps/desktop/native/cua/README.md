@@ -23,6 +23,14 @@ leaving the original four-second cutoff too close to ordinary scan latency. Opti
 The initial engineering probe connected in 1.7 seconds;
 repeatability and exact release acceptance remain separate gates.
 
+The core connection caller must also allow that platform budget. It previously cancelled an
+unstarted consent scan after four seconds, before macOS's eight-second attempt could finish.
+A regression reproduced that exact refusal with a 4.1-second scan. The caller now allows ten
+seconds for observation and always bounds the subsequent socket handshake to four seconds.
+Committed native consent work still settles before teardown, and rejected, ambiguous or revoked
+consent remains a refusal. This fixes the reproduced deadline mismatch; live restart recovery on
+the newly signed artifact still has to pass.
+
 ## Background links
 
 The same patch checks an exactly bound link before background click dispatch. A signed alpha.50

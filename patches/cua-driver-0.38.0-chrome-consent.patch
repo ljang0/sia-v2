@@ -528,6 +528,143 @@ index bc741d9..2055a76 100644
          let delivery = self
              .dispatch_trusted(conn, cdp_session, request, origin, destination)
              .await;
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/prepare.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/prepare.rs
+index 82f7dff..e9044d4 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/prepare.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/prepare.rs
+@@ -22,10 +22,16 @@ use super::refusal::{BrowserRefusal, BrowserRefusalCode};
+ use super::types::{
+     BrowserEngineFamily, EndpointOwnershipMethod, EndpointOwnershipProof, OwnedEndpoint,
+ };
++
+ use super::BrowserEngine;
+ 
+ const PROFILE_MARKER: &str = ".cua-driver-owned-profile.json";
+ const PROFILE_SCHEMA: &str = "cua-driver-browser-profile-v1";
++// macOS allows eight seconds to observe and settle its exact native consent
++// sheet. Do not cancel that platform attempt at the former four-second limit.
++// Keep a bounded outer deadline for a handler that never returns.
++const CONSENT_OBSERVATION_TIMEOUT: Duration = Duration::from_secs(10);
++const CLAIM_AFTER_CONSENT_TIMEOUT: Duration = Duration::from_secs(4);
+ 
+ fn validate_profile(profile: &PrepareProfile) -> Result<(), BrowserRefusal> {
+     match profile.mode {
+@@ -73,7 +79,7 @@ where
+     let mut consent = Box::pin(consent);
+     let (result, outcome) = {
+         let mut bounded = Box::pin(tokio::time::timeout(
+-            Duration::from_secs(4),
++            CONSENT_OBSERVATION_TIMEOUT,
+             consent.as_mut(),
+         ));
+         tokio::select! {
+@@ -86,7 +92,6 @@ where
+             outcome = bounded.as_mut() => (None, outcome),
+         }
+     };
+-    let consent_timed_out = outcome.is_err();
+     let outcome = match outcome {
+         Ok(outcome) => outcome?,
+         Err(_) if action.started() => consent.await.map_err(|mut error| {
+@@ -111,7 +116,7 @@ where
+     }
+     let result = match result {
+         Some(result) => result,
+-        None if consent_timed_out => tokio::time::timeout(Duration::from_secs(4), claim.as_mut())
++        None => tokio::time::timeout(CLAIM_AFTER_CONSENT_TIMEOUT, claim.as_mut())
+             .await
+             .map_err(|_| {
+                 refusal(
+@@ -119,7 +124,6 @@ where
+                     "browser reconnect did not settle after confirmed consent",
+                 )
+             })?,
+-        None => claim.as_mut().await,
+     };
+     Ok((result, accepted))
+ }
+@@ -1546,6 +1550,50 @@ mod tests {
+         }
+     }
+ 
++    #[tokio::test]
++    async fn consent_scan_can_finish_after_four_seconds_before_exact_action() {
++        let action = BrowserConsentAction::default();
++        let marker = action.clone();
++        let (accepted, pending_acceptance) = tokio::sync::oneshot::channel();
++        let mut claim = Box::pin(async move {
++            pending_acceptance.await.unwrap();
++            Ok::<_, anyhow::Error>(7_u8)
++        });
++        let consent = async move {
++            // The macOS handler has an eight-second observation budget. A
++            // first scan without the prompt plus a second exact scan can
++            // legitimately take longer than the caller's former four seconds.
++            tokio::time::sleep(Duration::from_millis(4100)).await;
++            marker.perform(|| accepted.send(()).unwrap());
++            Ok(BrowserConsentOutcome::Accepted)
++        };
++        let (result, displayed) = claim_with_optional_consent(&mut claim, &action, consent)
++            .await
++            .expect("do not cancel the exact consent scan before its platform deadline");
++        assert_eq!(result.unwrap(), 7);
++        assert!(displayed);
++    }
++
++    #[tokio::test]
++    async fn confirmed_consent_does_not_wait_indefinitely_for_handshake() {
++        let action = BrowserConsentAction::default();
++        let marker = action.clone();
++        let mut claim = Box::pin(std::future::pending::<anyhow::Result<u8>>());
++        let result = tokio::time::timeout(
++            Duration::from_secs(5),
++            claim_with_optional_consent(&mut claim, &action, async move {
++                marker.perform(|| ());
++                Ok(BrowserConsentOutcome::Accepted)
++            }),
++        )
++        .await
++        .expect("the handshake must remain bounded after a prompt is accepted");
++        assert_eq!(
++            result.unwrap_err().code,
++            BrowserRefusalCode::BrowserWrongTargetRefused
++        );
++    }
++
+     #[tokio::test]
+     async fn claim_completion_preserves_started_consent_confirmation() {
+         use std::sync::atomic::{AtomicBool, Ordering};
+@@ -1602,7 +1650,9 @@ mod tests {
+                     if outcome >= 2 {
+                         // Model Linux's non-cancellable native action worker.
+                         tokio::task::spawn_blocking(|| {
+-                            std::thread::sleep(Duration::from_millis(4100));
++                            std::thread::sleep(
++                                CONSENT_OBSERVATION_TIMEOUT + Duration::from_millis(100),
++                            );
+                         })
+                         .await
+                         .unwrap();
+@@ -1649,7 +1699,7 @@ mod tests {
+         });
+         let consent = async move {
+             marker.perform(|| ());
+-            tokio::time::sleep(Duration::from_millis(4100)).await;
++            tokio::time::sleep(CONSENT_OBSERVATION_TIMEOUT + Duration::from_millis(100)).await;
+             confirmed.send(()).unwrap();
+             Ok(BrowserConsentOutcome::Accepted)
+         };
+@@ -1678,7 +1728,9 @@ mod tests {
+                 action
+                     .perform(|| {
+                         tokio::task::spawn_blocking(move || {
+-                            std::thread::sleep(Duration::from_millis(4100));
++                            std::thread::sleep(
++                                CONSENT_OBSERVATION_TIMEOUT + Duration::from_millis(100),
++                            );
+                             assert!(!dropped_during_worker.load(Ordering::SeqCst));
+                             finished.store(true, Ordering::SeqCst);
+                         })
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs
 index d709315..33f41ca 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/refusal.rs

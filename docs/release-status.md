@@ -36,6 +36,17 @@ credential disclosure or source-data loss blocks sharing until resolved. Finish 
 checksums, pass/fail results and known limits. Publishing, invitations and Arena outreach remain
 separate actions requiring authorization.
 
+## Current targeted repair
+
+The recorded Chrome restart failure reported `consent_not_settled`. Source inspection found that
+macOS allows eight seconds for its exact consent scan, but the core caller cancelled unstarted
+scans after four seconds. A focused regression reproduced the same refusal at four seconds.
+The source correction allows ten seconds for observation and bounds the subsequent handshake to
+four seconds, preserving ownership, consent, cancellation and worker-settlement checks. All 23
+focused native consent/preparation tests passed, including the regression that failed before the fix. The full pilot gate also passed: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser
+and 223 cloud tests, plus shared/native/build/static checks. It is not yet installed or a live
+recovery pass. This is the single targeted Chrome repair for the current acceptance attempt.
+
 ## Current artifacts
 
 | Artifact | Exact source and verification | Scope |
