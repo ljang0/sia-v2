@@ -42,14 +42,28 @@ installed at 22:09:57.043 UTC November 4 into the existing isolated QA profile. 
 `Sia QA alpha122 before key-window.app`. This is internal QA, not a notarized replacement DMG.
 
 The app quit through CUA and relaunched with the previously authorized exact-profile command.
-It loaded the existing thread, but operator CUA paste, typing and set-value did not enter the
-new diagnostic prompt, including after a session reset; coordinate input returned
-`noWindowsAvailable`. No new trajectory turn was submitted. The operator requested one manual
-composer-typing observation to distinguish an application defect from a tool input failure.
-Live routing diagnosis remains pending; no native acceptance pass is claimed. Private receipts
-are `installation.json`, `verify.log`, `package.log` and `diagnostic-prompt.txt` in
-`alpha122-key-window-internal`; the full pilot log is
-`alpha122-elided-title-internal/key-window-diagnostic-pilot.log`.
+Operator input initially appeared ineffective, then arrived late as a duplicated unsent draft.
+The draft was normalized and checked against the exact single prompt before submission; the
+manual typing request was withdrawn. No duplicate task was submitted.
+
+Turn `3d4c2d01-8fa2-4153-824f-2b7584955155` passed key-window preparation but used synthetic events
+for background Cmd+Ctrl+N and created no folder. The operator then opened and cancelled Finder's
+File menu after observing the enabled folder-with-selection command. Turn
+`b2260811-4701-4524-b8f7-17e7cfdeb05e` used the accessibility route for the same background shortcut
+and created `New Folder With Items`, containing `Sia Arena handoff checklist.rtf`. Independent
+verification confirmed 1,874 bytes and SHA-256
+`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`. This comparison implicates menu
+state but does not prove a cause or unattended reliability. No native input change was made.
+
+Turn `c1cdb16b-1bc6-4e7f-8059-d30ba339d38a` then stopped before input on
+`visual_observation_unavailable`; capture reported `capture_off_space,capture_backing_missing`.
+Folder naming and native-editor inspection/close/reopen remain incomplete. The three turns
+archived automatically: 101 events, all three matching prompts, 30 usage records, nine matching
+action results and five byte-matching PNGs; object hashes and KMS encryption passed.
+
+Private receipts in `alpha122-key-window-internal` include `installation.json`, `verify.log`,
+`package.log`, `finder-menu-comparison.json` and per-turn `native-archive-verification-<turnId>.json`.
+The full pilot log remains `alpha122-elided-title-internal/key-window-diagnostic-pilot.log`.
 
 ### Earlier internal elided-title trial
 

@@ -80,100 +80,67 @@ completion events. Object hashes and KMS encryption passed. Private receipts in
 `alpha122-elided-title-internal` include `commute-acceptance.json`,
 `aws-recording-verification.json`, `installation.json` and `pilot-result.json`.
 
-### Native input blocker
+### Native workflow: partial success, acceptance still blocked
 
-The matched TextEdit comparison on the preceding signed candidate `e842725` delivered text in
-foreground but left the same local duplicate's Name field unchanged in background. Foreground
-input inserted at the caret instead of replacing the name; no rename was committed. Independent
-observations agreed with both returned images. Operator cleanup restored the field and Work in
-background → Pause and tell me. Both original/local fixture hashes matched their baseline at that
-check. These actions were authorized automatically; removing access checks would not fix delivery.
+Signed internal QA `68eecb4` adds a content-free `window_not_key` diagnostic without changing
+input dispatch or its guards. The full pilot gate passed: 2,082 desktop tests, 46 Electron checks,
+48 renderer checks and 72 companion checks, plus native/cloud/shared/build/static gates.
+Developer ID, packaged-runtime and installed strict-signature checks passed. It is not notarized.
 
-Source inspection confirms global HID delivery for explicit foreground mode and PID-addressed
-events after exact-window focus checks for background mode. The scope remains alive through the
-whole posting operation; it is not dropped before the event-posting loop. This does not prove
-the target has consumed those events before cleanup. The cause of ignored
-background events is not established. Previously failed transport/priming variants are documented
-in the [native integration guide](../apps/desktop/native/cua/README.md); do not repeat them without
-new diagnostic evidence.
+The latest Finder comparison distinguishes two routes:
 
-Both comparison turns uploaded automatically: 90 events, both prompts, 28 usage records,
-12 matching action results and eight matching screenshots, with matching object hashes and KMS
-encryption. Private receipts in `alpha122-focused-consent-internal` are
-`native-foreground-comparison.json`, `native-background-comparison.json` and
-`native-aws-recording-verification.json`.
+- At 22:15 UTC November 4, exact-window key preparation passed, but background Cmd+Ctrl+N used
+  synthetic events and created no folder. Independent disk verification confirmed no change.
+- The operator opened Finder's File menu, observed the enabled folder-with-selection command and
+  cancelled without invoking it. One subsequent background Cmd+Ctrl+N used the accessibility menu
+  route and created `New Folder With Items`, containing `Sia Arena handoff checklist.rtf`.
+  Independent disk verification confirmed all 1,874 original bytes and SHA-256
+  `bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`.
 
-The older iCloud file has now been recovered. It was a dataless placeholder with zero allocated
-blocks; after an explicit Finder download, its 1,874 bytes exactly matched the original and the
-old duplicate's recorded SHA-256. Operator CUA restored the recorded `Untitled 8 copy.rtf` name
-through Finder's Get Info panel. The original, recovered duplicate and fresh local comparison
-copy all retain SHA-256 `bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`.
-The unexpected old path is absent. This resolves file availability and contents verification,
-**not the origin of the unexpected filename or input isolation**. It is operator cleanup using a
-semantic field setter, not Sia vision-only native acceptance. Private receipts are
-`native-old-file-downloaded.json` and `native-old-file-restoration.json` in
-`alpha122-focused-consent-internal`.
+The route and outcome changed after operator menu inspection. Menu initialization is a lead;
+causality and unattended reliability remain unproved. The next continuation stopped **before input**
+at 22:20 UTC because fresh
+capture returned `visual_observation_unavailable`; the native diagnostic was
+`capture_off_space,capture_backing_missing`. Naming the folder `RA review`, editor inspection,
+close/reopen and continuous input isolation remain incomplete. Do not replay the successful
+folder command. The complete bounded workflow still must pass without operator menu preparation.
 
-On November 4, the Finder standard-field comparison **passed background typing** on signed QA
-`7fe2089`. After a focus-change interruption, operator observation confirmed the original field and
-caret before the first typing attempt. Sia typed the marker once; both its returned image and an
-independent operator image/field read showed the complete expected name. Operator cleanup restored
-the original name. AWS automatically archived that successful turn: 27 events, the matching prompt,
-eight usage records, three matching action results and two byte-matching screenshots. Object hashes
-and KMS encryption passed. The earlier 82-event receipt covers only the initial four preflight
-segments, not all subsequent continuations. Private receipts in `alpha122-elided-title-internal`
-include `finder-background-typing.json` and `finder-type-aws-recording-verification.json`.
+All three latest turns uploaded automatically: **101 events, all three matching prompts, 30 usage
+records, nine matching action results and five byte-matching screenshots**. Object hashes and KMS
+encryption passed. Private `alpha122-key-window-internal` contains `finder-menu-comparison.json`,
+per-turn `native-archive-verification-<turnId>.json`, installation/signature receipts and logs.
+The full pilot log is `alpha122-elided-title-internal/key-window-diagnostic-pilot.log`.
 
-The subsequent background native workflow successfully committed the rename to
-`Sia Arena handoff checklist.rtf`. Independent disk verification confirmed all 1,874 original bytes
-and the baseline SHA-256 above. However, creating `RA review` with Finder's folder shortcut refused
-`window_not_key` before sending keys, both with the Info panel open and after Sia closed it.
-A distinct background left-click selected the file, but the returned image omitted its filename;
-Sia stopped before a menu action or further mutation. The subfolder does not exist, and native
-editor inspection/close/reopen remain incomplete. The three workflow turns automatically archived
-182 events, all three prompts, 52 usage records, 19 matching action results and 12 byte-matching
-screenshots; object hashes and KMS encryption passed. Per-turn receipts are
-`native-archive-verification-<turnId>.json` in the same private evidence directory, for turns
-`37b695de-07c2-485c-b82e-ab737818330a`, `57311678-7be8-4e83-a02a-174656e2c3cd` and
-`93bed0bc-29b5-40e1-86d9-1870b8e45955`.
+Operator CUA initially showed no composer changes and returned `noWindowsAvailable`. Earlier text
+attempts later appeared as a duplicated unsent draft. It was normalized and independently checked
+against the exact single prompt before submission; no duplicate task was submitted. Native Window
+menu selection and refreshed controls allowed continuation. The manual typing request was withdrawn.
+This behavior does not by itself establish whether the delay arose in Sia or the external tool.
 
-A fresh operator screenshot and then a fresh Sia screenshot recovered the selected filename.
-Sia's subsequent background Action-toolbar click did not produce a visible menu, including in
-the follow-up screenshot, so it stopped without another write. That turn
-(`ac48f2aa-4643-424d-ac86-d8fe7bf919f1`) automatically archived 45 events, its matching prompt,
-12 usage records, four matching action results and three byte-matching screenshots; hashes and
-KMS encryption passed. The matched operator coordinate click failed with `noWindowsAvailable`.
-An operator accessibility click exposed menu entries but no visible menu in its window capture;
-the operator cancelled that menu without selecting a command. This is diagnostic evidence,
-not native workflow acceptance. The transient missing filename did not recur in fresh reads.
+Earlier signed QA `7fe2089` passed Finder background field typing and a committed file rename,
+with unchanged contents. Its successful typing turn archived 27 events, eight usage records,
+three matching action results and two matching screenshots. A matched TextEdit comparison on
+`e842725` inserted text in foreground but failed in background; both turns archived 90 events,
+28 usage records, 12 matching actions and eight matching screenshots. These observations are
+app/control-specific and do not establish general background typing. Prior failed transport variants
+remain documented in the [native integration guide](../apps/desktop/native/cua/README.md).
 
-The host now retains a bounded `window_not_key` log diagnostic distinguishing missing focus from
-focus on another window. It emits only relationship labels, never native IDs, paths, labels or
-raw error text, and changes neither input dispatch nor refusal behavior. Signed internal QA
-`68eecb4` now includes it. Signature and packaged-runtime checks passed; installation used the
-same isolated profile, with the preceding app preserved for rollback. CUA could read the restarted
-app but could not enter the diagnostic prompt through paste, typing or set-value, including after
-rebinding; coordinate input returned `noWindowsAvailable`. The local trajectory confirms no new
-turn was submitted. A manual composer-typing observation was requested to distinguish an app
-input defect from the external automation failure. Native diagnosis remains pending.
-The full `pnpm test:pilot` gate passed with 2,082 desktop tests, 46 Electron checks, 48 renderer
-checks and 72 companion checks, plus the native, cloud/shared, build and static gates. The private
-log is `alpha122-elided-title-internal/key-window-diagnostic-pilot.log`.
+The older iCloud duplicate was downloaded and restored by operator CUA to `Untitled 8 copy.rtf`;
+its complete bytes match the original and the baseline hash above. This resolves availability and
+contents, **not the origin of the unexpected filename or input isolation**. Operator semantic cleanup
+does not count as Sia vision-only acceptance. Receipts are in `alpha122-focused-consent-internal`.
 
-Sia itself need not be foreground: the successful Finder input ran while another app was active.
-The target app must be inactive to protect the person's work. Neither removing that guard nor
-removing permission checks fixes the observed key-window and screenshot failures. These partial
-successes do not resolve the TextEdit failure, continuous input isolation, the complete bounded
-native workflow or exact-DMG acceptance, which remain required before sharing.
-Earlier browser attempts and artifact identities are retained in the
-[distribution record](./public-release.md) and Git history.
+Sia itself need not be foreground: successful Finder input ran while another app was active.
+Initial macOS/Chrome approvals remain person-owned; ordinary task authorization was automatic.
+Removing permission or foreground-protection checks would not fix the observed delivery failures.
+Artifact identities and earlier evidence are in the [distribution record](./public-release.md).
 
 ## Current artifacts
 
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `68eecb44a152f8adb16dff128c2a810e220de0d1`; ASAR `04d7e8964683a25e016ff75b1de4663614df92dd93a865258265fe58649a0603`; full pilot, Developer ID and package/runtime checks passed. | Adds bounded key-window diagnostics to the preceding browser fixes. The instrumented native turn is not yet submitted because operator CUA input is failing. Not notarized or a replacement distribution artifact. |
+| Installed internal arm64 QA | `68eecb44a152f8adb16dff128c2a810e220de0d1`; ASAR `04d7e8964683a25e016ff75b1de4663614df92dd93a865258265fe58649a0603`; full pilot, Developer ID and package/runtime checks passed. | Adds bounded key-window diagnostics. Finder folder creation/move succeeded after operator menu preparation; the continuation stopped before input on unavailable capture. Full native acceptance remains open. Not notarized or a replacement distribution artifact. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;
@@ -183,10 +150,10 @@ this page describes current evidence and outstanding requirements.
 
 | Area | Observed evidence | Still required |
 | --- | --- | --- |
-| Automated checks | Current source, including final window guidance and wrapping table headers, passed the full pilot gate: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The packaged guidance also passed 15 focused runtime tests. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Current `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
+| Automated checks | Current diagnostic source `68eecb4` passed the full pilot gate: 2,082 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The packaged guidance also passed 15 focused runtime tests. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Earlier `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
 | Useful personal tasks | On signed QA, recipe research and an outing checklist completed with 67.582 seconds of overlapping successful turns and interleaved actions. Independent recipe/quantity/budget/timing review and both Sia Previews passed. All 11 original source hashes stayed unchanged. | Repeatability and unattended completion. Browser setup required operator reconnection; the checklist included an intentional Stop and continuation. This was browser plus file work, not two native-app tasks. |
 | Stop and performance | Stopping the checklist left browser research running. Resumed checklist: 67.582 seconds. Recipe task after reconnect: 241.765 seconds. | Two native workflows, same-window contention, continuous foreground/clipboard preservation, wider cancellation/recovery, and acceptable repeated end-to-end latency. Before/after focus samples are insufficient. |
-| Native filename input | The matched November 4 comparison delivered text in foreground but left the same local field unchanged in background. Independent observations agreed with both images; original/local fixture hashes stayed unchanged. | Fix background typing, then rename/move/close/reopen and verify contents. The iCloud duplicate's contents and name have been recovered by the operator; the unexpected input's origin and input isolation remain unresolved. |
+| Native workflow | Finder background typing and file rename passed. Folder creation/move passed after operator File-menu preparation, with all original bytes intact. TextEdit background field typing failed in the matched comparison. | Complete folder naming and editor inspection/close/reopen, then repeat the bounded workflow without operator menu preparation. Capture availability, the earlier unexpected input’s origin and continuous input isolation remain unresolved. |
 | Browser recovery | After QA restart, Chrome recovery selected the same approved public window and resumed the task automatically. Five stale-page refusals recovered through fresh observations. Exact SDK lease-expiry envelopes now reach connection recovery. | Natural idle-expiry recovery, repeatable restart recovery, permission-prompt dismissal, network errors, and live same-browser coexistence. The previous raw native lease envelope was not retained, so its cause is not proved. |
 | AWS recording | Four automatic batches for the successful personal tasks contained prompts, usage, action results and 12 screenshots. Stored payload hashes and KMS encryption were verified. | Retain default disclosure, explicit opt-outs, paused capture, deletion and exclusions. These records do not establish research-release consent or permissions for other people. |
 | Handoff and public disclosure | Installed-app onboarding now separates evaluation from developer setup. Repository privacy/site/infrastructure copy matches default-on recording and ordinary-user eligibility; site build/check and download tests pass. | Publish the reviewed disclosure changes only with authorization, then verify live pages. Direct HTTP checks on November 3 at 00:24 UTC found no default-on notice in the live privacy page and `/download/` returned 404. No site or installer was published. |
