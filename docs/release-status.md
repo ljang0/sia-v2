@@ -105,10 +105,28 @@ capture returned `visual_observation_unavailable`; the native diagnostic was
 close/reopen and continuous input isolation remain incomplete. Do not replay the successful
 folder command. The complete bounded workflow still must pass without operator menu preparation.
 
-All three latest turns uploaded automatically: **101 events, all three matching prompts, 30 usage
+Selecting the exact Finder window through its Window menu restored the missing name in both
+operator screenshots and AX state. The name stayed visible after selecting Sia. At 22:29 UTC,
+one background Return made the label disappear again; two read-only snapshots did not verify an
+inline rename field, so no replacement text was typed. A separate Get Info continuation opened
+the correct folder panel in background, but Cmd+A did not visibly select its name. It stopped at
+22:31 UTC without typing. The original file hash and folder name remain unchanged. The Info panel
+is open; do not replay either uncertain input. These are assisted diagnostics, not acceptance.
+
+Related upstream [Finder rename reports](https://github.com/trycua/cua/issues/4615) describe a
+transient editor that closes when activation is restored. The proposed
+[focus fix](https://github.com/trycua/cua/pull/4616) is still open and explicitly leaves its
+other-app-active cases failing; it was not adopted as a background repair. This is a related lead,
+not proof of the cause on Sia's candidate. Further changes must distinguish menu lookup, key
+delivery and focus restoration rather than repeat the same inputs or relax target checks.
+
+The three initial diagnostic turns uploaded automatically: **101 events, all three matching prompts, 30 usage
 records, nine matching action results and five byte-matching screenshots**. Object hashes and KMS
 encryption passed. Private `alpha122-key-window-internal` contains `finder-menu-comparison.json`,
 per-turn `native-archive-verification-<turnId>.json`, installation/signature receipts and logs.
+The two later rename turns added **108 verified archived events, two matching prompts, 32 usage
+records, 12 matching action results and nine byte-matching PNGs**, with matching object hashes and
+KMS encryption. `finder-rename-comparison.json` records the interventions and unchanged file.
 The full pilot log is `alpha122-elided-title-internal/key-window-diagnostic-pilot.log`.
 
 Operator CUA initially showed no composer changes and returned `noWindowsAvailable`. Earlier text
@@ -140,7 +158,7 @@ Artifact identities and earlier evidence are in the [distribution record](./publ
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `68eecb44a152f8adb16dff128c2a810e220de0d1`; ASAR `04d7e8964683a25e016ff75b1de4663614df92dd93a865258265fe58649a0603`; full pilot, Developer ID and package/runtime checks passed. | Adds bounded key-window diagnostics. Finder folder creation/move succeeded after operator menu preparation; the continuation stopped before input on unavailable capture. Full native acceptance remains open. Not notarized or a replacement distribution artifact. |
+| Installed internal arm64 QA | `68eecb44a152f8adb16dff128c2a810e220de0d1`; ASAR `04d7e8964683a25e016ff75b1de4663614df92dd93a865258265fe58649a0603`; full pilot, Developer ID and package/runtime checks passed. | Finder folder creation/move succeeded after operator menu preparation. After capture recovery, inline rename and Info-field selection remained unverified. Full native acceptance remains open. Not notarized or a replacement distribution artifact. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;

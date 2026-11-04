@@ -61,8 +61,20 @@ Folder naming and native-editor inspection/close/reopen remain incomplete. The t
 archived automatically: 101 events, all three matching prompts, 30 usage records, nine matching
 action results and five byte-matching PNGs; object hashes and KMS encryption passed.
 
+After operator Window-menu selection restored the folder label, turn
+`8d8740d6-7e36-4210-8643-474aabd3b894` delivered one background Return. The label disappeared;
+two read-only snapshots could not verify rename mode. Turn
+`28a21a16-4aff-4393-adbd-9e1948a16ea2` instead opened the folder's Get Info panel with Cmd+I, but
+Cmd+A did not visibly select its Name field. Both stopped without replacement text, at
+22:29:35.565 and 22:31:52.018 UTC respectively. The folder and file hash remain unchanged;
+the Info panel remains open. Do not replay the uncertain inputs. These two turns automatically
+archived another 108 events, both matching prompts, 32 usage records, 12 matching action results
+and nine byte-matching PNGs; payload hashes and KMS encryption passed. Operator-assisted recovery
+and upstream foreground-only rename fixes do not establish background acceptance.
+
 Private receipts in `alpha122-key-window-internal` include `installation.json`, `verify.log`,
-`package.log`, `finder-menu-comparison.json` and per-turn `native-archive-verification-<turnId>.json`.
+`package.log`, `finder-menu-comparison.json`, `finder-rename-comparison.json` and per-turn
+`native-archive-verification-<turnId>.json`.
 The full pilot log remains `alpha122-elided-title-internal/key-window-diagnostic-pilot.log`.
 
 ### Earlier internal elided-title trial
