@@ -114,18 +114,34 @@ semantic field setter, not Sia vision-only native acceptance. Private receipts a
 `native-old-file-downloaded.json` and `native-old-file-restoration.json` in
 `alpha122-focused-consent-internal`.
 
-The Finder standard-field comparison reached the exact local Get Info panel on November 4 but
-has not typed the marker. The original run paused on sleep; after unlock it correctly stopped
-when the panel was missing. Operator CUA reopened the panel and verified the original filename.
-Sia then captured that field but refused input because Finder remained foreground. Operator window
-activation and Raise did not resolve that precondition; owner activation of QA is pending. The
-local fixture's contents still match their baseline. AWS automatically archived all four segments:
-82 events, the matching prompt, 22 usage records, eight matching action results and three
-byte-matching screenshots; object hashes and KMS encryption passed. These are preflight and
-recording results, not a native typing pass. Private receipts in `alpha122-elided-title-internal`
-are `finder-standard-field-preflight.json` and `finder-aws-recording-verification.json`.
+On November 4, the Finder standard-field comparison **passed background typing** on signed QA
+`7fe2089`. After a focus-change interruption, operator observation confirmed the original field and
+caret before the first typing attempt. Sia typed the marker once; both its returned image and an
+independent operator image/field read showed the complete expected name. Operator cleanup restored
+the original name. AWS automatically archived that successful turn: 27 events, the matching prompt,
+eight usage records, three matching action results and two byte-matching screenshots. Object hashes
+and KMS encryption passed. The earlier 82-event receipt covers only the initial four preflight
+segments, not all subsequent continuations. Private receipts in `alpha122-elided-title-internal`
+include `finder-background-typing.json` and `finder-type-aws-recording-verification.json`.
 
-Native background typing, input isolation and exact-DMG acceptance remain required before sharing.
+The subsequent background native workflow successfully committed the rename to
+`Sia Arena handoff checklist.rtf`. Independent disk verification confirmed all 1,874 original bytes
+and the baseline SHA-256 above. However, creating `RA review` with Finder's folder shortcut refused
+`window_not_key` before sending keys, both with the Info panel open and after Sia closed it.
+A distinct background left-click selected the file, but the returned image omitted its filename;
+Sia stopped before a menu action or further mutation. The subfolder does not exist, and native
+editor inspection/close/reopen remain incomplete. The three workflow turns automatically archived
+182 events, all three prompts, 52 usage records, 19 matching action results and 12 byte-matching
+screenshots; object hashes and KMS encryption passed. Per-turn receipts are
+`native-archive-verification-<turnId>.json` in the same private evidence directory, for turns
+`37b695de-07c2-485c-b82e-ab737818330a`, `57311678-7be8-4e83-a02a-174656e2c3cd` and
+`93bed0bc-29b5-40e1-86d9-1870b8e45955`.
+
+Sia itself need not be foreground: the successful Finder input ran while another app was active.
+The target app must be inactive to protect the person's work. Neither removing that guard nor
+removing permission checks fixes the observed key-window and screenshot failures. These partial
+successes do not resolve the TextEdit failure, continuous input isolation, the complete bounded
+native workflow or exact-DMG acceptance, which remain required before sharing.
 Earlier browser attempts and artifact identities are retained in the
 [distribution record](./public-release.md) and Git history.
 
