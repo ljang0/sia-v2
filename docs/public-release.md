@@ -66,6 +66,14 @@ were present. Object hashes and KMS encryption passed. Private `alpha122-elided-
 pilot, package, `commute-acceptance.json` and `aws-recording-verification.json` receipts. Native
 background typing and the earlier input-isolation incident remain unresolved.
 
+At 04:09 UTC the older iCloud file downloaded after Finder's explicit Download Now command. Its
+1,874-byte SHA-256 matched both the original and the duplicate's previous baseline. Operator CUA
+restored `Untitled 8 copy.rtf` through Get Info; subsequent hashes of original, recovered copy and
+local comparison copy all match. The unexpected old filename is absent. This is verified operator
+recovery, not Sia native-task acceptance, and does not explain the earlier unexpected input.
+Receipts: `native-old-file-downloaded.json` and `native-old-file-restoration.json` under
+`alpha122-focused-consent-internal`.
+
 ### Earlier internal focused-consent trial
 
 Source `e842725d73e4a37572ceb523729f917937d0570a` passed the full pilot gate and 12 focused native
@@ -100,8 +108,9 @@ remain unchanged. Both turns uploaded automatically: 90 events, both prompts, 28
 12 matching action results and eight matching screenshots; object hashes and KMS encryption passed.
 Receipts: `native-foreground-comparison.json`, `native-background-comparison.json` and
 `native-aws-recording-verification.json` in the same private directory. This is a background-input
-failure, not native workflow acceptance. The older iCloud duplicate is missing at its recorded path;
-an unexpected filename was observed, with identity and origin unresolved. See the
+failure, not native workflow acceptance. At that comparison, the older iCloud duplicate was missing at its recorded path;
+an unexpected filename was observed. Contents and name were later recovered as recorded above;
+the input origin remains unresolved. See the
 [current incident record](./release-status.md#current-targeted-repair).
 
 ### Earlier internal consent-deadline trial

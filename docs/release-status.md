@@ -103,17 +103,24 @@ encryption. Private receipts in `alpha122-focused-consent-internal` are
 `native-foreground-comparison.json`, `native-background-comparison.json` and
 `native-aws-recording-verification.json`.
 
-The older iCloud duplicate is missing at its previous path. An RTF with previously observed
-unexpected filename text exists, but its identity, contents and origin remain unknown. Metadata
-shows a dataless iCloud placeholder with zero allocated blocks; Finder confirmed Not downloaded.
-Operator CUA requested that one file through its download control. It remained dataless at the
-last check; no contents claim, rename or deletion was made. Private receipts are
-`native-old-file-metadata.json` and `native-old-file-download-result.json` in
-`alpha122-focused-consent-internal`. Activating the fresh local duplicate and reopening
-its Name field without typing did not reproduce delayed input. These observations do not resolve
-the older incident. Native background typing, input isolation and exact-DMG acceptance remain
-required before sharing. Earlier browser attempts and artifact identities are retained in the
-[distribution record](./public-release.md) and Git history.
+The older iCloud file has now been recovered. It was a dataless placeholder with zero allocated
+blocks; after an explicit Finder download, its 1,874 bytes exactly matched the original and the
+old duplicate's recorded SHA-256. Operator CUA restored the recorded `Untitled 8 copy.rtf` name
+through Finder's Get Info panel. The original, recovered duplicate and fresh local comparison
+copy all retain SHA-256 `bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`.
+The unexpected old path is absent. This resolves file availability and contents verification,
+**not the origin of the unexpected filename or input isolation**. It is operator cleanup using a
+semantic field setter, not Sia vision-only native acceptance. Private receipts are
+`native-old-file-downloaded.json` and `native-old-file-restoration.json` in
+`alpha122-focused-consent-internal`.
+
+A planned comparison against Finder's standard Get Info field did not start. During setup, the
+computer-use tool explicitly reported user interaction with Finder; the folder dialog closed,
+and operator input stopped. No Sia model turn or native typing attempt ran. The preflight receipt
+is `finder-comparison-setup-interruption.json`. Activating the local TextEdit copy without typing
+had previously failed to reproduce delayed input. Native background typing, input isolation and
+exact-DMG acceptance remain required before sharing. Earlier browser attempts and artifact
+identities are retained in the [distribution record](./public-release.md) and Git history.
 
 ## Current artifacts
 
@@ -133,7 +140,7 @@ this page describes current evidence and outstanding requirements.
 | Automated checks | Current source, including final window guidance and wrapping table headers, passed the full pilot gate: 2,075 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The packaged guidance also passed 15 focused runtime tests. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Current `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
 | Useful personal tasks | On signed QA, recipe research and an outing checklist completed with 67.582 seconds of overlapping successful turns and interleaved actions. Independent recipe/quantity/budget/timing review and both Sia Previews passed. All 11 original source hashes stayed unchanged. | Repeatability and unattended completion. Browser setup required operator reconnection; the checklist included an intentional Stop and continuation. This was browser plus file work, not two native-app tasks. |
 | Stop and performance | Stopping the checklist left browser research running. Resumed checklist: 67.582 seconds. Recipe task after reconnect: 241.765 seconds. | Two native workflows, same-window contention, continuous foreground/clipboard preservation, wider cancellation/recovery, and acceptable repeated end-to-end latency. Before/after focus samples are insufficient. |
-| Native filename input | The matched November 4 comparison delivered text in foreground but left the same local field unchanged in background. Independent observations agreed with both images; original/local fixture hashes stayed unchanged. | Fix background typing, then rename/move/close/reopen and verify contents. The older iCloud duplicate's changed path and unexpected filename remain unresolved; input isolation is not accepted. |
+| Native filename input | The matched November 4 comparison delivered text in foreground but left the same local field unchanged in background. Independent observations agreed with both images; original/local fixture hashes stayed unchanged. | Fix background typing, then rename/move/close/reopen and verify contents. The iCloud duplicate's contents and name have been recovered by the operator; the unexpected input's origin and input isolation remain unresolved. |
 | Browser recovery | After QA restart, Chrome recovery selected the same approved public window and resumed the task automatically. Five stale-page refusals recovered through fresh observations. Exact SDK lease-expiry envelopes now reach connection recovery. | Natural idle-expiry recovery, repeatable restart recovery, permission-prompt dismissal, network errors, and live same-browser coexistence. The previous raw native lease envelope was not retained, so its cause is not proved. |
 | AWS recording | Four automatic batches for the successful personal tasks contained prompts, usage, action results and 12 screenshots. Stored payload hashes and KMS encryption were verified. | Retain default disclosure, explicit opt-outs, paused capture, deletion and exclusions. These records do not establish research-release consent or permissions for other people. |
 | Handoff and public disclosure | Installed-app onboarding now separates evaluation from developer setup. Repository privacy/site/infrastructure copy matches default-on recording and ordinary-user eligibility; site build/check and download tests pass. | Publish the reviewed disclosure changes only with authorization, then verify live pages. Direct HTTP checks on November 3 at 00:24 UTC found no default-on notice in the live privacy page and `/download/` returned 404. No site or installer was published. |
