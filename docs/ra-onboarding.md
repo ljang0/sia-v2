@@ -2,6 +2,10 @@
 
 ## Use the installed Mac app
 
+RA handoff is currently blocked; the existing alpha.122 DMG has not passed the required native
+background and input-isolation checks. Follow these steps only after the release owner clears the
+exact installer in [release status](./release-status.md).
+
 No source checkout, AWS credentials or API key is needed. Use the exact evaluation DMG identified
 in [release status](./release-status.md), then follow the five steps in
 [Start using Sia](./release-notes.md#start-using-sia). Sign in with your own email, connect your

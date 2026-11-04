@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 3, 2026. **A signed, notarized alpha.122 DMG is available for the requested RA evaluation. Broad distribution and Arena acceptance remain open.**
+Updated November 4, 2026. **A signed, notarized alpha.122 DMG exists, but RA handoff is blocked by native background input and input-isolation failures. It does not contain the latest internal browser fixes. Broad distribution and Arena acceptance remain open.**
 
 ## Bounded RA handoff goal
 

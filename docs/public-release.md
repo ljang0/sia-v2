@@ -2,7 +2,7 @@
 
 ## Current RA evaluation artifact
 
-Alpha.122 is the current signed and notarized evaluation candidate. It permits background browser actions when a host check proves that a different browser window is in front, and rechecks that identity after input. Unknown identity fails closed. Broad distribution and Arena acceptance remain open. Nothing has been publicly published or sent to a recipient by this work.
+Alpha.122 is the current signed and notarized evaluation candidate, held from RA handoff pending native background input and input-isolation acceptance. It lacks the later internal browser fixes recorded below. It permits background browser actions when a host check proves that a different browser window is in front, and rechecks that identity after input. Unknown identity fails closed. Broad distribution and Arena acceptance remain open. Nothing has been publicly published or sent to a recipient by this work.
 
 | Identity                   | Value                                                              |
 | -------------------------- | ------------------------------------------------------------------ |
