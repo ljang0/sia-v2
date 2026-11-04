@@ -119,6 +119,10 @@ the real failing path. Automated checks protect the change but do not prove usef
 diagnostic-only build requires a specific unresolved decision that its result will settle; do not
 repeat one after it yields no actionable distinction. Do not replace missing functionality with
 documentation, toy tasks, semantic UI fallbacks or a newly packaged installer.
+The acceptance rerun must start from an ordinary user request on the release candidate. Diagnostic
+prompts that prescribe clicks, keys or recovery steps can isolate defects but cannot establish
+out-of-the-box usefulness. Keep the next milestone bounded by `docs/release-status.md`; additional
+features and test volume are not progress toward that milestone unless they resolve an open gate.
 
 1. During development, run the nearest workspace test (`pnpm --filter <workspace> test`).
 2. Before review, run `pnpm check`. It includes `pnpm lint` (type-aware ESLint).

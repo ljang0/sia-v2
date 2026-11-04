@@ -30,7 +30,32 @@ Private receipts: `package.json`, `install.json`, `source-checks.json`, `pilot-g
 
 ## Internal QA after alpha.122
 
-### Current internal key-window diagnostic
+### Current internal menu-routing trial
+
+Source `7b1562ebc4053bfe1c83f83156d1dd1fe5769f11` passed the full pilot (2,082 desktop,
+46 Electron, 48 renderer, 72 companion and 223 cloud checks plus native/shared/build/static),
+Developer ID, packaged-runtime and installed strict-signature checks. Installed at 22:48:44 UTC
+November 4; ASAR SHA-256 `bc61a010297ab2293644cbc86380d5b4eae2decde5932d748bf2ac1ae4919328`.
+The previous app is preserved as `Sia QA alpha122 before menu routing.app`. This is not notarized.
+
+The diagnostic reported `disabled_match` then `unavailable_key_fallback` for implicit-focus Cmd+A.
+An explicit background pointer click instead established a caret/focus ring; Cmd+A then reported
+`enabled_match` and `returned`, with the entire name visibly selected. Continuing without operator
+Finder input, Sia renamed the folder to `RA review`, closed Info and opened the folder. Independent
+verification confirmed its checklist's original 1,874 bytes and unchanged SHA-256 listed below.
+TextEdit started but Sia did not discover its Open panel, including after operator CUA binding
+exposed that panel. No operator completed Open, and unrelated untitled windows were untouched.
+Editor inspection, close/reopen, isolation and a cold autonomous repeat remain incomplete.
+
+The four turns (`76badc6d`, `44820021`, `55c9af95`, `1f6d6daa`; full IDs in receipts) automatically
+archived 179 events, four matching prompts, 54 usage records, 20 matching action results and
+12 byte-matching PNGs. Object hashes and KMS encryption passed. Private
+`alpha122-menu-routing-internal` contains `installation.json`, `finder-edit-session.json`,
+per-turn archive verification, `pilot.log`, `package.log`, `verify.log` and app logs.
+The follow-up source guidance teaches the successful click-before-edit sequence; its 16 focused
+provider/tool tests passed. It is not yet packaged or covered by a new full pilot run.
+
+### Earlier internal key-window diagnostic
 
 Clean source `68eecb44a152f8adb16dff128c2a810e220de0d1` passed the full pilot gate: 2,082 desktop,
 46 Electron, 48 renderer and 72 companion checks, plus native/cloud/shared/build/static gates.
