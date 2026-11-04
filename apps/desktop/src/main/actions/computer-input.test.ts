@@ -1190,11 +1190,13 @@ it.each([
   {
     tool: 'scroll',
     code: 'background_unavailable',
+    outcome: 'needs_foreground',
     action: { action: 'scroll', direction: 'down', amount: 3 },
   },
   {
     tool: 'hotkey',
     code: 'window_not_key',
+    outcome: 'refused',
     action: { action: 'key', value: 's', modifiers: ['cmd'] },
   },
 ])('keeps an explicit $code refusal distinct from uncertain delivery', async (scenario) => {
@@ -1228,7 +1230,7 @@ it.each([
       ...scenario.action,
     }),
   );
-  expect(result.outcome).toBe('needs_foreground');
+  expect(result.outcome).toBe(scenario.outcome);
   expect(dataRecord(result.data).input_delivery_uncertain).toBeUndefined();
   expect(cua.call.mock.calls.filter(([name]) => name === scenario.tool)).toHaveLength(1);
   expect(cua.call.mock.calls.every(([, args]) => args.delivery_mode !== 'foreground')).toBe(

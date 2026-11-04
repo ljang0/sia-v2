@@ -30,7 +30,31 @@ Private receipts: `package.json`, `install.json`, `source-checks.json`, `pilot-g
 
 ## Internal QA after alpha.122
 
-### Current internal menu-routing trial
+### Current internal native-focus candidate
+
+Clean source `706b3e7854dbe72af25993055639eeb3b846fab2` passed the full pilot and Developer ID/package
+checks. Installed November 4 at 23:32:50 UTC; ASAR
+`572642fbf1c1da54a11fe12f5da4a3e8a4283385341281f0e82c43f44b65c895`. Cloud resource hash remains
+`d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`. The previous app is preserved as
+`Sia QA alpha122 before native focus.app`. This is internal arm64 QA, not notarized or a new DMG.
+
+Fresh agent `RA handoff acceptance` used the default GPT-6.1-Sol/ChatGPT plan, a new private folder,
+empty lessons/preferences, existing Mac grants and automatic task authorization. In thread
+`944bedfc-f1bd-4c3b-a5d8-27a10cbf3059`, turn `2e83b10b-46be-4a62-b26b-58fcbff389ce` read the three
+headings and 12 items but failed inline rename at 23:35:31 UTC. Native `window_not_key` reported
+`window_missing_element_missing`; rename and close/reopen were incomplete. Original bytes/hash
+remain unchanged. An unsent Sia draft typed during the task eventually appeared intact and was
+cleared through CUA; an initial stale observation prevents a timing/continuous-isolation claim.
+No operator supplied Finder/TextEdit input or coached the model through controls.
+
+AWS verification matched the prompt, 79 events, 18 usage records, 11 action results and five PNGs,
+including failure, object hashes and KMS encryption. Private `alpha122-native-focus-internal`
+contains installation/source/gate receipts, `fresh-native-acceptance.json` and archive verification.
+The targeted source follow-up distinguishes unavailable keyboard focus from a blanket foreground
+requirement and prefers the visual Get Info naming field. Its 117 affected tests pass; it is not yet
+packaged and does not change native input guards.
+
+### Earlier internal menu-routing trial
 
 Source `7b1562ebc4053bfe1c83f83156d1dd1fe5769f11` passed the full pilot (2,082 desktop,
 46 Electron, 48 renderer, 72 companion and 223 cloud checks plus native/shared/build/static),

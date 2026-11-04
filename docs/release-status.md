@@ -52,47 +52,44 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-### Native editing and close/reopen: working sequence, autonomous repeat still open
+### Fresh native workflow: inline rename remains blocked
 
-Signed internal QA `7b1562e` passed the full pilot, Developer ID, packaged-runtime and installed
-strict-signature checks. CUA entered and submitted its diagnostic prompts without manual user input.
-The menu diagnostic settled the routing question: implicit coordinate focus left Finder Select All
-disabled, followed by ineffective synthetic keys. One explicit background pointer click produced a
-caret/focus ring; the next Cmd+A found an enabled menu item and visibly selected the whole name.
-The active-app lookup was not the cause in this trial.
+Signed internal QA `706b3e7` passed the full pilot, Developer ID, packaged-runtime and installed
+strict-signature checks. A new agent was created entirely through CUA with the default model,
+private folder and empty lessons/preferences. Accessibility and Screen Recording were Allowed;
+actions used the existing Acts without asking setting. The ordinary request asked it to rename
+the real RA checklist, read its sections, then close/reopen it, with no click-by-click coaching.
 
-Continuing from that selection, Sia typed and committed `RA review`, closed the Info panel and
-opened the renamed folder through background vision-only controls. Independent disk verification
-confirmed `RA review/Sia Arena handoff checklist.rtf`, all 1,874 original bytes and SHA-256
-`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`. The old folder name is gone.
-This supersedes the earlier incomplete folder-naming evidence below.
+It read all three headings and 12 items, but Finder's inline filename editor refused typing with
+`window_not_key` (`window_missing_element_missing`). Rename and close/reopen did not complete.
+The existing 1,874-byte RTF retains SHA-256
+`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`; the new filename was not created.
+An unsent draft typed in Sia during the run appeared intact, then was cleared. The first observation
+after typing was stale, so this does not establish delivery latency or continuous input isolation.
+No operator supplied Finder/TextEdit input. AWS automatically archived the prompt, 79 events,
+18 usage records, 11 matching action results and five byte-matching PNGs; hashes and KMS encryption
+passed. Exact evidence is in `alpha122-native-focus-internal/fresh-native-acceptance.json`.
 
-The first continuation stopped at TextEdit launch: Sia omitted the Open panel seen by operator
-CUA. A later read-only CUA observation found the intended document already open; the transition
-is unexplained. Sia then discovered and read it. A candidate mapping for service-owned panels was
-removed without packaging because it did not resolve the current failure. No generic helper access
-or speculative input transport was added.
+The targeted follow-up keeps an exact keyboard-focus refusal distinct from a blanket foreground
+requirement, while preserving all permission, protected-content and input-isolation guards. Default
+guidance prefers Finder Get Info's Name & Extension field over its transient inline editor. The
+regression failed before the change; 117 affected tests pass. This follow-up is not packaged yet.
+Fresh-agent workflow completion and input isolation remain distribution blockers.
 
-Closing initially failed: title-bar coordinates made Cmd+W request field focus, and a subsequent
-coordinate-free Cmd+W found a disabled Close menu and sent ineffective synthetic keys. The fresh
-capture did not show a close button, so no pointer click was guessed. One explicit background
-click in the document body changed the menu to enabled. Sia then closed the exact document,
-verified its absence, reopened it through Finder, and inspected the three headings and all 12
-items. The reopened screenshot independently matches, and the file retains the 1,874 bytes and
-SHA-256 above. No operator supplied TextEdit/Finder input during these turns.
+### Earlier supported native sequence
 
-This successful continuation was coached and does not pass fresh-conversation, continuous input
-isolation or exact-DMG acceptance. Source guidance now establishes native window/control focus
-before keyboard commands and omits field coordinates for window-level shortcuts. The preceding
-edit-session guidance passed the full pilot; this expanded guidance is not packaged and its new
-full pilot is pending. No new distribution DMG was produced.
+Internal `7b1562e` completed folder naming and TextEdit close/reopen in coached continuations. An
+explicit background click established native focus, after which selection, typing and menu key
+equivalents worked. Sia closed the checklist, verified its absence, reopened it in Finder and checked
+all 12 items and three headings. Independent screenshots and the unchanged file hash corroborate
+that result. The document's earlier transition from a missing Open panel to an open editor remains
+unexplained. A service-panel mapping prototype was removed without packaging; no speculative
+transport or generic helper access was added.
 
-All eight diagnostic/workflow turns archived automatically: 358 events, eight matching prompts,
-108 usage records, 39 matching action results and 23 byte-matching PNGs, with hashes and KMS
-encryption verified. Private `alpha122-menu-routing-internal/finder-edit-session.json` and
-`textedit-close-reopen.json` record exact identities, interventions, discarded prototype and
-archive receipts. A fresh ordinary request on the next signed candidate must reproduce the
-workflow without step-by-step coaching.
+Those eight turns automatically archived 358 events, eight matching prompts, 108 usage records,
+39 matching actions and 23 byte-matching PNGs. Private `alpha122-menu-routing-internal` receipts
+preserve exact identities and intervention limits. These diagnostic successes inform the repair;
+they do not replace the failed fresh-agent acceptance above or exact-DMG acceptance.
 
 ### Browser recovery
 
@@ -156,7 +153,7 @@ person-owned, ordinary task authorization was automatic, and Sia itself need not
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `7b1562ebc4053bfe1c83f83156d1dd1fe5769f11`; ASAR `bc61a010297ab2293644cbc86380d5b4eae2decde5932d748bf2ac1ae4919328`; full pilot, Developer ID and package/runtime checks passed. | Explicit background clicks enabled native selection, folder rename and TextEdit close/reopen in coached continuations. Autonomous repetition and input isolation remain open. The default-guidance follow-up is not packaged. Not notarized or a replacement distribution artifact. |
+| Installed internal arm64 QA | `706b3e7854dbe72af25993055639eeb3b846fab2`; ASAR `572642fbf1c1da54a11fe12f5da4a3e8a4283385341281f0e82c43f44b65c895`; full pilot, Developer ID and package/runtime checks passed. | Fresh agent read the document but failed Finder inline rename. The Get Info/recovery follow-up is not packaged. Not notarized or a replacement DMG. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;
@@ -166,7 +163,7 @@ this page describes current evidence and outstanding requirements.
 
 | Area | Observed evidence | Still required |
 | --- | --- | --- |
-| Automated checks | Installed diagnostic source `7b1562e` passed the full pilot gate: 2,082 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The edit-session guidance at `364ea73` also passed the full pilot. Expanded native keyboard-focus guidance is under a new gate and remains unpackaged. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Earlier `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
+| Automated checks | Installed source `706b3e7` passed the full pilot gate: 2,082 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. The rename-recovery follow-up passed 117 affected tests and remains unpackaged; its full pilot is pending. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Earlier `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
 | Useful personal tasks | On signed QA, recipe research and an outing checklist completed with 67.582 seconds of overlapping successful turns and interleaved actions. Independent recipe/quantity/budget/timing review and both Sia Previews passed. All 11 original source hashes stayed unchanged. | Repeatability and unattended completion. Browser setup required operator reconnection; the checklist included an intentional Stop and continuation. This was browser plus file work, not two native-app tasks. |
 | Stop and performance | Stopping the checklist left browser research running. Resumed checklist: 67.582 seconds. Recipe task after reconnect: 241.765 seconds. | Two native workflows, same-window contention, continuous foreground/clipboard preservation, wider cancellation/recovery, and acceptable repeated end-to-end latency. Before/after focus samples are insufficient. |
 | Native workflow | Finder background typing and file rename passed. Folder creation/move passed after operator File-menu preparation, with all original bytes intact. TextEdit background field typing failed in the matched comparison. | Editor inspection/close/reopen passed after explicit-focus coaching. Repeat the bounded workflow using default guidance in a fresh conversation without operator menu preparation or step-by-step instructions. Capture availability, the earlier unexpected input’s origin and continuous input isolation remain unresolved. |

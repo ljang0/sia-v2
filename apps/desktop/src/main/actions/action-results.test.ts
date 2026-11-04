@@ -1,6 +1,30 @@
 import { describe, expect, it } from 'vitest';
 import { classifyFailure, inputWasRefused, resultRefusal } from './action-results.js';
 
+it('keeps an exact keyboard-focus refusal local to that interaction', () => {
+  const error = new Error('CUA refused: window_not_key');
+  expect(classifyFailure(error)).toMatchObject({
+    outcome: 'refused',
+    data: { blocker_code: 'window_not_key', keyboard_input_not_sent: true },
+  });
+  expect(
+    resultRefusal({ status: 'refused', refusal: { code: 'window_not_key' } }),
+  ).toMatchObject({
+    outcome: 'refused',
+    data: { blocker_code: 'window_not_key', keyboard_input_not_sent: true },
+  });
+  expect(inputWasRefused(error)).toBe(true);
+  for (const code of [
+    'permission_denied',
+    'foreground_app_in_use',
+    'background_input_paused',
+  ]) {
+    expect(classifyFailure(new Error('CUA refused: ' + code)).data ?? {}).not.toHaveProperty(
+      'keyboard_input_not_sent',
+    );
+  }
+});
+
 it('distinguishes an exhausted browser read timeout from permission denial or safe input replay', () => {
   const error = new Error('CUA refused: browser_observation_timeout');
   const result = classifyFailure(error);

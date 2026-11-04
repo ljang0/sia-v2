@@ -117,6 +117,19 @@ export function classifyFailure(error: unknown): ActionExecutionResult {
         blocker_code: 'background_input_paused',
       },
     };
+  if (/^(?:cua refused: )?window_not_key$/.test(normalized))
+    return {
+      outcome: 'refused',
+      summary:
+        'Keyboard focus could not be established in this window; no keys were sent. This does not mean Mac permission is missing or all background controls are unavailable.',
+      reason: message,
+      data: {
+        blocker_code: 'window_not_key',
+        keyboard_input_not_sent: true,
+        next_step:
+          'Observe the same intended window again. If its fresh screenshot confirms the current state and an available background route, choose another visible control or dialog for the same task. Do not replay uncertain input, change permissions, or switch to foreground delivery.',
+      },
+    };
   if (/\b(?:foreground_app_in_use|background_focus_unavailable)\b/.test(normalized)) {
     return {
       outcome: 'needs_foreground',

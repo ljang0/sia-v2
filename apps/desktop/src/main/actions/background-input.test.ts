@@ -233,10 +233,10 @@ describe('native window input availability', () => {
   it.each([
     ['key', undefined, 'accepted_unverified'],
     ['key', 'same_pid_keyboard_ambiguity', 'needs_foreground'],
-    ['key', 'window_not_key', 'needs_foreground'],
+    ['key', 'window_not_key', 'refused'],
     ['type', undefined, 'accepted_unverified'],
     ['type', 'same_pid_keyboard_ambiguity', 'needs_foreground'],
-    ['type', 'window_not_key', 'needs_foreground'],
+    ['type', 'window_not_key', 'refused'],
   ] as const)(
     'defers ambiguous %s to exact-window native validation (%s), without replay',
     async (action, nativeRefusal, outcome) => {
