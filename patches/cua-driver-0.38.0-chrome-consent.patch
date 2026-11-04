@@ -1,3 +1,117 @@
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/binding.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/binding.rs
+index 3f797c5..0dcdd0e 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/binding.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/binding.rs
+@@ -81,9 +81,30 @@ pub fn cardinality_exact_candidate(
+ 
+ /// Whether the native window title plausibly displays this tab's title.
+ /// Browsers render "<tab title> - <product>", so containment (not
+-/// equality) is the tie-break; empty tab titles never match.
++/// equality) is the tie-break; empty tab titles never match. macOS can instead
++/// expose a middle-elided window title. Both substantial ends must match the
++/// full tab title, with a nonempty omitted middle. This is still only a
++/// candidate match: callers require uniqueness across all candidate windows
++/// or tabs, and title-only window correlation remains heuristic.
+ fn title_matches(native_title: &str, candidate_title: &str) -> bool {
+-    !candidate_title.is_empty() && native_title.contains(candidate_title)
++    if candidate_title.is_empty() {
++        return false;
++    }
++    if native_title.contains(candidate_title) {
++        return true;
++    }
++    let Some((prefix, suffix)) = native_title.split_once('…') else {
++        return false;
++    };
++    // Do not treat a short fragment, repeated elision, or a tab title that
++    // itself contains an ellipsis as proof of the missing native text.
++    !suffix.contains('…')
++        && !candidate_title.contains('…')
++        && prefix.chars().count() >= 8
++        && suffix.chars().count() >= 8
++        && candidate_title.len() > prefix.len() + suffix.len()
++        && candidate_title.starts_with(prefix)
++        && candidate_title.ends_with(suffix)
+ }
+ 
+ /// Prove the selected page in one already-correlated browser window without
+@@ -422,6 +443,76 @@ mod tests {
+         );
+     }
+ 
++    #[test]
++    fn middle_elided_native_title_disambiguates_shared_bounds_without_guessing() {
++        let n = native(
++            "Keeping \"Bag\" Lunches Safe | Fo… Safety and Inspection Service",
++            B,
++        );
++        let title = "Keeping \"Bag\" Lunches Safe | Food Safety and Inspection Service";
++        let mut lunch = cand("lunch", title, B);
++        lunch.cdp_window_id = Some(2);
++        let candidates = [cand("other", "Another public page", B), lunch.clone()];
++        assert!(matches!(
++            correlate(&n, &candidates, 4.0),
++            BindingOutcome::Bound { candidate, quality: BindingQuality::Exact }
++                if candidate.cdp_target_id == "lunch"
++        ));
++        assert_eq!(
++            selected_tab_target_id(&n.title, &candidates, Some(2)),
++            Some("lunch")
++        );
++
++        // Different hidden text can produce the same native elision. Neither
++        // a different window nor a second tab may win that collision.
++        let mut collision = cand(
++            "collision",
++            "Keeping \"Bag\" Lunches Safe | Foreign Safety and Inspection Service",
++            B,
++        );
++        collision.cdp_window_id = Some(3);
++        assert_eq!(
++            correlate(&n, &[lunch.clone(), collision.clone()], 4.0),
++            BindingOutcome::Ambiguous(2)
++        );
++        collision.title = n.title.clone();
++        assert_eq!(
++            correlate(&n, &[lunch.clone(), collision.clone()], 4.0),
++            BindingOutcome::Ambiguous(2),
++            "a literal ellipsis title competes with an elided title; neither may win"
++        );
++        collision.cdp_window_id = Some(2);
++        assert_eq!(
++            selected_tab_target_id(&n.title, &[lunch, collision], Some(2)),
++            None
++        );
++    }
++
++    #[test]
++    fn elided_titles_require_both_substantial_ends_and_remain_heuristic_without_bounds() {
++        let title = "Keeping \"Bag\" Lunches Safe | Food Safety and Inspection Service";
++        for native in [
++            "Keeping… Safety and Inspection Service",
++            "Keeping \"Bag\" Lunches Safe | Fo…Service",
++            "Keeping \"Bag\" Lunches Safe | Fo… Safety…Inspection Service",
++            "Keeping \"Bag\" Lunches Safe | Fo... Safety and Inspection Service",
++            "Wrong beginning to the title… Safety and Inspection Service",
++            "Keeping \"Bag\" Lunches Safe | Fo…Wrong ending to the title",
++        ] {
++            assert!(!title_matches(native, title), "{native}");
++        }
++        assert!(!title_matches("abcdefgh…ijklmnop", "abcdefghijklmnop"));
++        assert!(!title_matches("abcdefgh…ijklmnop", "abcdefgh…moreijklmnop"));
++        let n = native(
++            "Keeping \"Bag\" Lunches Safe | Fo… Safety and Inspection Service",
++            B,
++        );
++        assert!(matches!(
++            correlate(&n, &[cand("lunch", title, OTHER)], 4.0),
++            BindingOutcome::Bound { quality: BindingQuality::Heuristic, .. }
++        ));
++    }
++
+     #[test]
+     fn geometry_without_a_cdp_window_id_is_not_exact() {
+         let n = native("Docs - Chrome", B);
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
 index c401f20..a11a0a7 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
@@ -87,7 +201,7 @@ index c401f20..a11a0a7 100644
  
      #[tokio::test]
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
-index 1d0940c..f3bc277 100644
+index 1d0940c..0dc34f0 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
 @@ -247,6 +247,43 @@ fn endpoint_access_class(
@@ -244,7 +358,35 @@ index 1d0940c..f3bc277 100644
      }
  
      // ── Binding (get_browser_state, pid + window_id mode) ──────────────
-@@ -1745,7 +1832,7 @@ impl BrowserEngine {
+@@ -1350,6 +1437,27 @@ impl BrowserEngine {
+         let candidates = self.window_candidates(&conn).await?;
+ 
+         let correlation = correlate(&native, &candidates, BOUNDS_TOLERANCE_PX);
++        if std::env::var_os("SIA_CUA_CONSENT_DIAGNOSTICS").is_some() {
++            // Counts and fixed labels only: never emit titles, URLs or target ids.
++            let outcome = match &correlation {
++                BindingOutcome::Bound {
++                    quality: BindingQuality::Exact,
++                    ..
++                } => "exact",
++                BindingOutcome::Bound { .. } => "heuristic",
++                BindingOutcome::Ambiguous(_) => "ambiguous",
++                BindingOutcome::None => "none",
++            };
++            let window_count = candidates
++                .iter()
++                .filter_map(|candidate| candidate.cdp_window_id)
++                .collect::<std::collections::BTreeSet<_>>()
++                .len();
++            eprintln!(
++                "[sia:cua-binding] candidates={} windows={} native_title_elided={} geometry_exact={} outcome={outcome}",
++                candidates.len(), window_count, native.title.contains('…'), native.geometry_exact,
++            );
++        }
+         let (candidate, quality) = match correlation {
+             BindingOutcome::Bound {
+                 candidate,
+@@ -1745,7 +1853,7 @@ impl BrowserEngine {
          // feedback is safer than drawing a cursor over another tab.
          let tab_is_active = tab_visibility_proven(&validated.conn, &validated.cdp_session).await;
  
@@ -253,7 +395,7 @@ index 1d0940c..f3bc277 100644
              validated
                  .conn
                  .call(Some(cdp_session), "Page.getLayoutMetrics", json!({}))
-@@ -1977,6 +2064,22 @@ impl BrowserEngine {
+@@ -1977,6 +2085,22 @@ impl BrowserEngine {
          }
      }
  
@@ -276,7 +418,7 @@ index 1d0940c..f3bc277 100644
      // ── Read-side: page snapshot (ref minting) ──────────────────────────
  
      /// Capture the exact page target's current viewport through its attached
-@@ -1988,6 +2091,7 @@ impl BrowserEngine {
+@@ -1988,6 +2112,7 @@ impl BrowserEngine {
          session: &str,
          target_id: &str,
          tab_id: &str,
@@ -284,7 +426,7 @@ index 1d0940c..f3bc277 100644
      ) -> Result<BrowserTabScreenshot, BrowserRefusal> {
          let record = self.store.get_target(session, target_id)?;
          let tab = record.tabs.get(tab_id).cloned().ok_or_else(|| {
-@@ -1998,11 +2102,28 @@ impl BrowserEngine {
+@@ -1998,11 +2123,28 @@ impl BrowserEngine {
          })?;
          let conn = self.connection_for_record(session, &record).await?;
          let cdp_session = self.attach(&conn, &tab.cdp_target_id).await?;
@@ -313,7 +455,7 @@ index 1d0940c..f3bc277 100644
          let response = conn
              .call(
                  Some(&cdp_session),
-@@ -2065,7 +2186,18 @@ impl BrowserEngine {
+@@ -2065,7 +2207,18 @@ impl BrowserEngine {
                  "PNG dimensions must be non-zero",
              ));
          }
@@ -332,7 +474,7 @@ index 1d0940c..f3bc277 100644
              data_base64,
              width,
              height,
-@@ -2603,7 +2735,7 @@ impl BrowserEngine {
+@@ -2603,7 +2756,7 @@ impl BrowserEngine {
                  continuation.offset,
                  DEFAULT_SEMANTIC_NODE_BUDGET,
                  continuation.query.as_deref(),
@@ -341,7 +483,7 @@ index 1d0940c..f3bc277 100644
              );
              let start_index = snapshot
                  .refs
-@@ -2643,7 +2775,7 @@ impl BrowserEngine {
+@@ -2643,7 +2796,7 @@ impl BrowserEngine {
                              SemanticContinuation {
                                  offset,
                                  query: continuation.query.clone(),
@@ -350,7 +492,7 @@ index 1d0940c..f3bc277 100644
                                  oopif_supported: continuation.oopif_supported,
                                  oopif_frames: continuation.oopif_frames,
                              },
-@@ -2654,12 +2786,10 @@ impl BrowserEngine {
+@@ -2654,12 +2807,10 @@ impl BrowserEngine {
              return Ok(outcome);
          }
  
@@ -367,7 +509,7 @@ index 1d0940c..f3bc277 100644
              None => None,
          };
          let record = self.store.get_target(session, target_id)?;
-@@ -2791,11 +2921,21 @@ impl BrowserEngine {
+@@ -2791,11 +2942,21 @@ impl BrowserEngine {
              semantic.complete = false;
          }
  
@@ -390,7 +532,7 @@ index 1d0940c..f3bc277 100644
          );
          let next_offset = page.next_offset;
          let snapshot_id = self.store.mint_snapshot_id();
-@@ -2829,7 +2969,7 @@ impl BrowserEngine {
+@@ -2829,7 +2990,7 @@ impl BrowserEngine {
                              SemanticContinuation {
                                  offset,
                                  query: query.map(str::to_owned),
@@ -399,7 +541,7 @@ index 1d0940c..f3bc277 100644
                                  oopif_supported: matches!(oopif, OopifStatus::Attached(_)),
                                  oopif_frames: oopif.frames(),
                              },
-@@ -3013,6 +3153,54 @@ async fn live_title(conn: &Arc<CdpConnection>, cdp_target_id: &str, fallback: &s
+@@ -3013,6 +3174,54 @@ async fn live_title(conn: &Arc<CdpConnection>, cdp_target_id: &str, fallback: &s
  
  #[cfg(test)]
  mod tests {

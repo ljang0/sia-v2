@@ -116,6 +116,32 @@ contents and origin are not established. No rename or deletion was attempted dur
 Historical checks below describe their recorded times, not current proof that this older duplicate
 is intact. The unresolved input-isolation incident still blocks sharing.
 
+The following activation check did not reproduce delayed text: operator CUA activated the exact
+local duplicate and reopened its Name field without sending text; the name and document remained
+unchanged. Reading the older unexpected iCloud filename timed out again after eight seconds, so
+its content and identity remain unknown. This does not resolve the earlier incident.
+
+A subsequent QA restart tested a practical 7:15 AM–12:30 PM commute packing card. The first prompt
+explicitly told the model to stop if the browser was unavailable, and it stopped before trying
+recovery; that turn is prompt-confounded, not a recovery failure. After clarification allowing
+automatic recovery of the same approved window, preparation accepted and settled Chrome consent
+in 447 ms, then refused `browser_binding_ambiguous` at 01:16:13.248 UTC. No operator selected or
+connected a window. All nine baseline Markdown files stayed unchanged; no new card was created.
+AWS automatically archived both turns, including prompts, usage, all six action results and failure
+records (67 events); object hashes and KMS encryption passed.
+
+The approved native window's observed title was middle-elided, and several Chrome windows shared
+its geometry. The binding matcher required full-title containment, so the observed title shape
+fails its tie-break in a new regression. A candidate now matches substantial prefix/suffix pairs
+around one middle ellipsis while retaining unique-or-refuse decisions, duplicate-title refusal and
+read-only treatment without geometric proof. The regression failed before the correction. The
+actual live candidate set was not recorded, so this is not yet proof of the runtime cause or a
+successful repair. All 20 focused binding tests passed; full pilot and signed acceptance remain
+pending. Private receipts:
+`alpha122-focused-consent-internal/restart-reuse-result.json`,
+`restart-aws-recording-verification.json`, `native-after-activation-name.txt` and
+`native-old-filename-audit.json`.
+
 ## Current artifacts
 
 | Artifact | Exact source and verification | Scope |

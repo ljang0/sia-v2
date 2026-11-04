@@ -72,6 +72,18 @@ The relation to observed navigation stalls is not established. Opt-in
 
 ## Browser attestation failures
 
+macOS can middle-elide a native window title even when Chrome's tab metadata contains the full
+title. With several maximized windows, the original full-title containment check then refused the
+approved window as ambiguous. The title matcher now accepts one interior Unicode ellipsis only
+when both ends contain at least eight characters, both match the full candidate, and at least one
+character was omitted. Candidates containing their own ellipsis use only the original literal
+match. All matching windows/tabs still compete: collisions, including a literal ellipsis title,
+remain ambiguous. Missing geometry still yields at most a read-only heuristic binding. A regression
+uses the observed USDA window title and failed before the change. This is a candidate correction;
+its effect on the signed restart failure still requires live verification. The existing opt-in
+diagnostic flag also records binding counts, geometry/elision booleans and a fixed outcome label,
+never titles, URLs or target IDs.
+
 Before a browser observation or input reaches Sia's authorization callback, the native driver
 revalidates the process, window, tab, connection generation and live origin. That boundary used
 to discard its browser refusal code when wrapping the failure as `authorization_host_failed`.
