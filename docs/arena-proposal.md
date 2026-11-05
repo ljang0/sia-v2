@@ -1,6 +1,6 @@
 # Computer Use Arena: a Mac pilot with Sia
 
-Draft for Arena technical review · November 4, 2026 · No partnership or rollout agreed
+Draft for Arena technical review · November 5, 2026 · No partnership or rollout agreed
 
 Sia proposes a small invited pilot for evaluating agents on useful personal Mac tasks: researching plans, preparing documents and working across apps. The first ask is a technical review and task rehearsal. Sia supplies the Mac client, computer-use integration, recording and support; the proposed Arena role is to help select models, evaluation design and the initial cohort. The review should decide three things: which tasks and models to rehearse, what data/report access Arena needs, and what success criteria and spending cap would permit a cohort. No cohort size or rollout is committed before that review and the remaining acceptance gates.
 
@@ -8,7 +8,7 @@ Arena's [Agent Mode](https://help.arena.ai/articles/5432423882-how-to-use-agent-
 
 ## What is available
 
-- A signed, notarized universal **alpha.122 DMG** for macOS 14+, with email sign-in, guided permission setup, task progress, Stop and feedback. It is held from RA handoff pending the gates below and lacks the latest internal browser fixes. Installation and package/runtime checks passed on Apple silicon; Intel received static package verification. Mac first; iPhone follows.
+- A signed, notarized universal **alpha.122 DMG** for macOS 14+, with email sign-in, guided permission setup, task progress, Stop and feedback. It is held from RA handoff pending the gates below and lacks later internal native, browser and capture fixes. Installation and package/runtime checks passed on Apple silicon; Intel received static package verification. Mac first; iPhone follows.
 - Vision-only computer control by default: screenshots in, pointer/keyboard actions out. Explicit workspace-file and connector tools are labeled separately. macOS access remains person-approved.
 - An [installed-app walkthrough](./ra-onboarding.md#use-the-installed-mac-app) that needs no checkout, AWS credentials or API key, practical [demo prompts](./demo.md), [artifact evidence](./public-release.md) and a [repository walkthrough](./architecture.md#reviewing-the-computer-use-path). The [README](../README.md) also supports local UI review without model spend; actual evaluation uses a real admitted model.
 
@@ -30,11 +30,12 @@ and explicit limitations. Working-folder file writes alone do not establish nati
 The first handoff must pass those bounded workflows; broader native-app coverage and unattended
 concurrency remain prerequisites for a later rollout that promises those capabilities.
 
-Signed internal candidates completed three useful workflows without task-time rescue: an RA
-checklist copy edited, saved and reopened through Finder/TextEdit (230 seconds); a sourced visitor
-itinerary after restart (214 seconds); and a three-dinner plan with scaled ingredients and a
-combined shopping list after explicit Chrome setup (352 seconds). Independent checks covered the
-saved outputs and sources. Unrelated drafts or notes were preserved at observed points, but
+The current signed internal candidate completed a personal errands/lunch checklist through
+background Finder/TextEdit in 207 seconds: it preserved the source, saved a separate RTF with
+three sections and 14 unchecked items, then reopened it. Independent checks verified the full
+contents, filename and unchanged originals. Earlier candidates completed a sourced visitor
+itinerary after restart (214 seconds) and a three-dinner plan with a combined shopping list after
+explicit Chrome setup (352 seconds). Unrelated drafts or notes survived at observed points;
 continuous focus/clipboard isolation and two successful simultaneous native workflows remain
 unproved. The dinner run included an unexplained 96-second gap before file writing.
 

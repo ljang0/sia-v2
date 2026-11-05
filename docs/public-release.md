@@ -1,43 +1,56 @@
 # Distribution acceptance record
 
-**RA handoff is held.** Useful browser research after restart passed on `b7c1f36`, and a native
-copy/edit/reopen task with working result delivery passed on included `a2d63b8`. Dinner research
-passed on `0c72ce8` after explicit Chrome setup. Automatic recovery while another Chrome window
-is active, input reliability and exact-DMG acceptance remain open. Cancellation capture is fixed
-and verified on included `5bab2f5`. The included `52a81f3` native document rerun passed, but current
-`04fdb7d` still fails the targeted Finder panel diagnostic. Finder panel input and
-browser responsiveness remain open; see the current [release status](./release-status.md#current-targeted-repair).
-Nothing has been
-published, sent to a recipient or submitted to Arena by this work.
+**RA handoff is held.** Current signed internal `6b24a04` passes Finder panel navigation and an
+ordinary personal checklist task through background Finder/TextEdit, with independently checked
+files and matching automatic AWS archives. Browser recovery, broader input isolation and
+exact-DMG acceptance remain open. Earlier useful browser runs and failed attempts remain below.
+Nothing has been published, sent to a recipient or submitted to Arena by this work.
 
 ## Current installed candidate
 
 | Identity               | Value                                                                |
 | ---------------------- | -------------------------------------------------------------------- |
-| Source                 | `04fdb7da1fe6e8e17045d9c4bd784606933d1c96`                           |
-| Installed              | November 5, 2026, 05:16:57 UTC                                      |
+| Source                 | `6b24a04dc36f35cac12c711f53bd9c7139925853`                           |
+| Installed              | November 5, 2026, 05:55:00 UTC                                       |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG     |
-| ASAR SHA-256           | `b0b6216a309502ec74330c7fc26511bdbf27a15c699404b4e9b2da2d1e42aab7`   |
+| ASAR SHA-256           | `5696905e558babd7a5831397fccbadb3851928b60065587c5e53c46c14d998aa`   |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`   |
-| Native patch SHA-256   | `09ee3b0ef1a15aebc97c21cdf7c0c2196618c806775ef5f26f92c9083a5400b3`   |
+| Native patch SHA-256   | `1f4405f24729be1ea0abe27e1e8245d0200b300e5e34871da5f0e9675f939df5`   |
 | Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before sheet visibility.app`                        |
+| Rollback               | `Sia QA alpha122 before sheet field.app`                             |
 
-Package/runtime verification, installed deep/strict signature checks and the native gate passed.
-Full pilot has not run on `04fdb7d`; its live panel diagnostic failed. The preceding `52a81f3`
-full pilot passed: 2,100 desktop unit tests (23 skipped), 46 Electron (five skipped),
-48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates. The real Electron
-bare-launch fixture passed in this full run; its earlier exit-1 failure with no output remains
-unexplained. The earlier terminal-test `pwd` → `pwda` failure also remains unresolved despite
-subsequent passing runs. Original logs and traces are retained.
-
-Included capture, native-result and browser repairs have regression evidence recorded in release
-status and Git history. In particular, all four capture-finalization cases failed before the
-runner-owned repair and passed afterward. Automated checks do not establish useful-task acceptance.
-The current native workflow and its remaining panel-input limitation are recorded in
-[release status](./release-status.md#current-targeted-repair).
+Package/runtime verification and installed deep/strict signature checks passed. Targeted native
+ownership/menu checks and 37 desktop regressions passed. The current full pilot stopped at a
+formatting error in this document; a corrected full rerun is required. Prior `52a81f3` passed the
+full suite. Its preceding unexplained bare-Electron exit and earlier `pwd` → `pwda` failure remain
+in the evidence; a passing targeted workflow does not erase input-isolation concerns.
 
 ## Live results that determine readiness
+
+### Current personal checklist: useful-task pass
+
+On installed `6b24a04`, thread `baca784e-d62e-4acc-8d36-9c55d834f504`, turn
+`4c531f1b-4d6a-432f-82a9-075a9cd000d1`, completed an ordinary background request in 206.524
+seconds. Finder duplicated/named the source; TextEdit edited, saved, closed and reopened the
+copy. Independent disk and CUA verification confirms the correct filename, date, three sections
+and 14 unchecked items covering every original reminder. Five previous RTF hashes are unchanged;
+an unrelated Sia draft retained both additions. No task-time operator rescue occurred.
+
+Output: `Tomorrow errands and lunch checklist.rtf` in the private `Personal notes acceptance`
+folder. SHA-256: `51c70e210ffd2259f050ccc9b131c360524b18a5806c9ab2700cf59a4b5fbea0`.
+The longest event gap, 33.459 seconds, was keyboard-only entry of 748 characters. One checkpoint
+update failed after a source label changed; the agent corrected it and finished with complete
+coverage. AWS matches the exact prompt, outcome, 54 usage events, 25 actions and 19 PNGs in three
+encrypted batches (209 records), with one finalization.
+
+The preceding targeted Go to Folder regression completed in 58.737 seconds, thread
+`12521053-19e9-4cc1-93b7-36830e039d52`, turn `dcee37d5-832b-40d4-bdb1-ab93db2a0f8c`.
+CUA confirmed the destination folder and file; protected files and an unrelated draft stayed
+intact. AWS matches 10 actions, seven PNGs and 22 usage events in two batches (73 stored / 69
+logical records). This isolates the repaired panel path; it is not another useful workflow.
+Private receipts: `sheet-visibility-acceptance`. Failed predecessor runs remain recorded there.
+Continuous focus/clipboard preservation, two simultaneous native tasks and exact-installer
+acceptance remain open.
 
 ### Dinner research: useful-task pass; continuous isolation remains open
 

@@ -76,39 +76,45 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-Current signed QA `04fdb7d` still fails the targeted Go to Folder panel path. Its repair derives
-non-minimized state only for an exact focused sheet with fresh onscreen/current-Space proof,
-preserving explicit AX minimized values. The native regression and signed package gates pass,
-but the live panel still reports `minimized_or_hidden_window`. The 35.122-second diagnostic
-opened the panel through background input, then stopped without operator rescue or document
-changes. All five original file hashes are unchanged. AWS matches the failed outcome, seven
-actions, four PNGs and 14 usage events in one encrypted 50-record batch with one finalization.
-Private receipts: `sheet-visibility-acceptance`. This is a failed diagnostic, not useful-task
-acceptance. Full pilot has not run on this candidate. Before another repair/build, determine
-which live visibility fact is missing; the pure regression does not establish the panel meets
-its premises. Do not remove visibility or exact-target checks to make the route available.
+Current signed QA `6b24a04` passes the previously failing Finder Go to Folder path in 58.737
+seconds. It selects the field, types the requested path through keyboard events and opens the
+correct folder without operator rescue. Independent CUA inspection confirms the folder and file;
+five protected RTFs retain their hashes. An unrelated Sia draft remains exact. This is a targeted
+regression pass, not broad usefulness or continuous input-isolation acceptance.
 
-Included signed QA `52a81f3` completed a fresh ordinary reviewer-copy request in 225.015 seconds
-without task-time rescue. It copied, renamed, edited, saved, closed and reopened the RTF through
-background Finder/TextEdit control. Independent disk checks match all 12 original checklist items
-and the exact added note; all four prior documents retain their hashes. CUA entered an unrelated
-Sia draft during the run, verified both additions, and opened the completed result from Sia in
-TextEdit. No event gap exceeded 10.314 seconds. Continuous focus/clipboard preservation and two
-successful simultaneous workflows remain unproved.
+A fresh ordinary personal request on the same installed build completed in 206.524 seconds:
+Finder duplicated and named the source; TextEdit reorganized the reminders into a dated,
+printable checklist, saved, closed and reopened it. Independent disk and CUA checks confirm the
+exact filename, three requested sections and 14 unchecked items covering every original reminder.
+All five prior RTFs are byte-identical. Both additions to an unrelated Sia draft stayed intact.
+The longest event gap was 33.459 seconds during keyboard-only entry of 748 characters. A checkpoint
+update was rejected after the model changed an existing source label; the agent restored the label
+and continued. The historical failed step remains visible. No task-time operator rescue occurred.
+Continuous focus/clipboard preservation and two simultaneous native workflows remain unproved.
 
-The targeted native change adds bounded `AXFocusedWindow` discovery only when the focused native
-surface's process and backing window ID exactly match the requested target. It closes the observed
-`ax_unresolved` discovery failure. **Input into Finder's Go to Folder panel still fails**: the new
-snapshot resolves the panel exactly but reports `minimized_or_hidden_window`. The agent completed
-this request through another existing Finder window. That autonomous recovery is a useful-task
-pass, not a panel-input pass. Next isolate the sheet's missing visibility proof; preserve explicit
-hidden/minimized refusal and exact-window checks rather than treating unknown state as available.
+AWS independently matches both completed outcomes: the panel run has 10 actions, seven PNGs and
+22 usage events in two batches (73 stored / 69 logical records); the personal task has 25 actions,
+19 PNGs and 54 usage events in three batches (209 records). Each has one finalization. Private
+receipts: `sheet-visibility-acceptance/field-acceptance.json` and
+`personal-checklist-acceptance.json`, with signed identities and read-only archive receipts nearby.
 
-AWS independently matches the exact prompt, completed outcome, all 33 action results and 25 PNGs
-in five encrypted batches (222 records, including 68 provider-usage events), with one finalization.
-Private receipts: `focused-panel-acceptance`. Native, signed package/runtime and installed strict
-signature checks pass. The complete pilot suite passed: 2,100 desktop tests (23 skipped),
-46 Electron (five skipped), 48 renderer and 72 companion checks plus build/static/shared/cloud.
+The repairs preserve exact sheet identity in three host checks: visibility, native menu context
+and focused-field ownership. Parent-document ownership still applies to ordinary ownership reads;
+a different window, replaced sheet, missing visibility or unproved ancestry still refuses input.
+The model receives screenshots, not AX content, and visual text entry uses keyboard events.
+An explicit `no_focused_text_input` preflight refusal is now recorded as refused rather than
+uncertain delivery. Each correction has a failing-before/passing-after regression. Signed
+package/runtime and installed strict-signature checks passed. The current full pilot stopped at
+a documentation-formatting error; correct that and rerun before review or handoff.
+
+Failed diagnostics remain failed: `04fdb7d` refused visibility (35.122 seconds), `b15d68c` fixed
+visibility but refused the sheet's Select All menu context (55.279 seconds), and `d4b4f73` fixed
+that route but refused focused-field ownership (51.248 seconds). All preserved source files;
+AWS matches their exact failed outcomes. The `0385bc4` opt-in diagnostic distinguished the raw
+focused sheet from its parent without changing input decisions. These are repair evidence,
+not additional successful use cases. Earlier `52a81f3` completed an ordinary reviewer-copy task
+in 225.015 seconds by using another Finder window; its full pilot passed, but did not prove panel
+input. Current evidence supersedes that panel limitation, not the remaining browser/isolation gates.
 
 Included `e2c1dd7` backports upstream Cua [#6182](https://github.com/trycua/cua/pull/6182), replacing
 a potentially cached AppKit foreground PID with a live WindowServer query. Upstream reproduced
@@ -242,10 +248,10 @@ repeated on the exact final DMG. The earlier unexpected filename input remains u
 
 ## Current artifacts
 
-- Installed internal arm64 QA: `04fdb7da1fe6e8e17045d9c4bd784606933d1c96`, Developer ID signed,
+- Installed internal arm64 QA: `6b24a04dc36f35cac12c711f53bd9c7139925853`, Developer ID signed,
   package/runtime and installed strict-signature checks passed. Not notarized and not a DMG.
-  Native gate passed; full pilot has not run on this candidate. The preceding `52a81f3` full
-  pilot passed. The live panel diagnostic remains failed; this is not a handoff candidate.
+  Targeted native and desktop regressions passed; full pilot awaits a documentation-format fix
+  and rerun. Panel navigation and ordinary personal-document work passed; handoff remains held.
 - Held universal alpha.122 DMG: source `7531ee7f3115265817e8dd56cf081672799bd8f4`, signed,
   notarized, stapled and verified, but missing later fixes. Do not hand it to the RA yet.
 - Exact hashes, task identities, timings and private receipt locations are in the concise
@@ -255,7 +261,7 @@ repeated on the exact final DMG. The earlier unexpected filename input remains u
 
 | Requirement | Evidence | Remaining work |
 | --- | --- | --- |
-| Useful native work | Fresh copy/edit/save/close/reopen pass on `a2d63b8`; original documents unchanged; result opens from Sia | Repeat on final DMG; broader native workflows |
+| Useful native work | `6b24a04` repairs panel navigation and completes an ordinary personal checklist through Finder/TextEdit; originals and unrelated draft preserved; result opens from Sia | Repeat on final DMG; broader native workflows |
 | Useful browser work | Visitor plan on `b7c1f36`; checked dinner plan on `0c72ce8` after explicit setup, without task-time rescue | Repeat on final DMG; restart recovery, repeatability and unexplained stalls |
 | Reuse access | Retained exact public window recovered autonomously on `b7c1f36` | Broader recovery while another Chrome window is in use |
 | Input isolation and CUA controls | Native run preserved sources, draft and clipboard; dinner run preserved concurrent notes; CUA Stop on `5bab2f5` settled in 350 ms | Intermittent CUA errors, earlier filename incident, continuous focus/latency and native-write cancellation |
