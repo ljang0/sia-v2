@@ -14,7 +14,7 @@ pnpm-lock.yaml
 *.png
 _old-builds
 release
-release-*
+release-*/
 *.woff2
 research/rl-environments/local
 

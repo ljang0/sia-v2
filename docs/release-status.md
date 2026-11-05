@@ -145,14 +145,14 @@ new causal distinction. Detailed failed and successful runs remain in the
 
 ## Current evidence and open gates
 
-| Requirement | Evidence | Remaining work |
-| --- | --- | --- |
-| Useful native work | Earlier `6b24a04` completed an ordinary Finder/TextEdit checklist in 207 seconds; current Saturday comparison fails in Open | Fix and repeat the failing document workflow; verify on final DMG |
-| Useful browser work | Sourced Phipps plan on `bed8a3c` (457 seconds); museum plan after visible restart on `1269df9` (496 seconds) | Repeat on final DMG; hidden-startup recovery and unexplained stalls |
-| Reuse access | `1269df9` restored the chosen public Chrome connection during visible startup without task-time setup | Hidden/background-only startup and broader recovery |
+| Requirement                      | Evidence                                                                                                                                 | Remaining work                                                                                                                   |
+| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| Useful native work               | Earlier `6b24a04` completed an ordinary Finder/TextEdit checklist in 207 seconds; current Saturday comparison fails in Open              | Fix and repeat the failing document workflow; verify on final DMG                                                                |
+| Useful browser work              | Sourced Phipps plan on `bed8a3c` (457 seconds); museum plan after visible restart on `1269df9` (496 seconds)                             | Repeat on final DMG; hidden-startup recovery and unexplained stalls                                                              |
+| Reuse access                     | `1269df9` restored the chosen public Chrome connection during visible startup without task-time setup                                    | Hidden/background-only startup and broader recovery                                                                              |
 | Input isolation and CUA controls | Latest runs preserve protected files and unrelated typing; Sia composer/settings/Send are CUA-operated; `5bab2f5` Stop settled in 350 ms | Continuous focus/clipboard isolation, unexplained prior filename input and `pwd` → `pwda`, native-write cancellation and latency |
-| Automatic AWS recording | Exact prompts, usage, actions, screenshot bytes and terminal outcomes match useful and failed runs; cancellation has one finalization | Reverify complete useful runs on final DMG |
-| Distribution | Older DMG passed signing/notarization/package checks | One final installer with accepted functionality and full pilot gate |
+| Automatic AWS recording          | Exact prompts, usage, actions, screenshot bytes and terminal outcomes match useful and failed runs; cancellation has one finalization    | Reverify complete useful runs on final DMG                                                                                       |
+| Distribution                     | Older DMG passed signing/notarization/package checks                                                                                     | One final installer with accepted functionality and full pilot gate                                                              |
 
 The last complete pilot gate passed on `1269df9`: 2,123 desktop tests (23 skipped), 46 Electron
 checks (five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native

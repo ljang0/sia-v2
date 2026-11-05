@@ -51,8 +51,8 @@ guarantee; Codex remains the fallback.
 
 ## Signed artifacts
 
-| Artifact | Bytes | SHA-256 |
-| --- | ---: | --- |
+| Artifact                           |       Bytes | SHA-256                                                            |
+| ---------------------------------- | ----------: | ------------------------------------------------------------------ |
 | `Sia-0.1.0-alpha.24-universal.dmg` | 257,730,192 | `d842ecbc208c134187b46fdf9e0bc18bb7a5fc563f4bc8f055b275356cfa8d72` |
 | `Sia-0.1.0-alpha.24-universal.zip` | 257,068,280 | `9cd575926d22e813e6b0d8c7ec627b821fb15b68520de9e408750fd5e393285b` |
 

@@ -128,11 +128,11 @@ Voice activation provides app identity only; `mac/activation-context.ts` also st
 context before it reaches the model. The native memory adapter retains saved notes without UI
 extraction or executable native-script instructions. The skills library uses the same visual policy:
 foreground/background settings cannot enable native-script launch or model guidance. Existing native
-source remains owner-editable; new skills use the sandboxed gateway. See [release status](./release-status.md)
-for signed-app acceptance gaps: alpha.59 confirms the corrected browser click path, while
-network-error recovery and restart setup remain open. Alpha.60 native Save and its parent-document
-recovery diagnostic still failed. Remaining assisted
-implementation branches are internal test seams and must be retired after the visual cutover passes.
+source remains owner-editable; new skills use the sandboxed gateway. [Release status](./release-status.md)
+is the current record of signed-app evidence and open gates. Useful browser workflows have passed,
+but native Open-dialog input still fails in the background; enforcement of the visual policy alone
+does not prove working desktop control. Remaining assisted implementation branches are internal
+test seams and must be retired after the visual cutover passes.
 
 Keep each stateful domain's lifecycle in its owning module. Extract a collaborator when it has a
 separate responsibility and a narrow interface; avoid splitting declarative catalogs just to reduce

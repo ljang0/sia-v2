@@ -8,7 +8,7 @@ Arena's [Agent Mode](https://help.arena.ai/articles/5432423882-how-to-use-agent-
 
 ## What is available
 
-- A signed, notarized universal **alpha.122 DMG** for macOS 14+, with email sign-in, guided permission setup, task progress, Stop and feedback. It is held from RA handoff pending the gates below and lacks later internal native, browser and capture fixes. Installation and package/runtime checks passed on Apple silicon; Intel received static package verification. Mac first; iPhone follows.
+- An internal signed Mac client with email sign-in, guided permission setup, task progress, Stop and feedback. **RA distribution is held:** the current Apple-silicon build has unresolved native background-input failures. The older notarized universal alpha.122 DMG lacks subsequent fixes and must not be handed out. Exact artifact identities and checks are in the [acceptance record](./public-release.md). Mac first; iPhone follows.
 - Vision-only computer control by default: screenshots in, pointer/keyboard actions out. Explicit workspace-file and connector tools are labeled separately. macOS access remains person-approved.
 - An [installed-app walkthrough](./ra-onboarding.md#use-the-installed-mac-app) that needs no checkout, AWS credentials or API key, practical [demo prompts](./demo.md), [artifact evidence](./public-release.md) and a [repository walkthrough](./architecture.md#reviewing-the-computer-use-path). The [README](../README.md) also supports local UI review without model spend; actual evaluation uses a real admitted model.
 
@@ -38,8 +38,8 @@ repeatability, responsiveness or continuous focus/clipboard isolation.
 
 The current ordinary document task remains incomplete. Finder's file menu is now visible, but
 its Open With submenu does not operate reliably. Sia's recovery guidance now chooses the editor's
-own Open dialog; the latest run reached that dialog but background navigation had no visible
-effect (70 seconds, no output). A bounded foreground shortcut works on the same build;
+own Open dialog; the retained candidate reached that dialog but background navigation had no visible
+effect (70 seconds, no output). Subsequent unsuccessful input trials were removed. A bounded foreground shortcut works on the same build;
 that comparison does not satisfy background acceptance. Protected sources and unrelated typing survived, and automatic
 AWS records matched the failure. Native dispatch and input isolation remain release gates;
 these failed runs are retained in the [acceptance record](./public-release.md).
