@@ -69,6 +69,17 @@ any input guard. Sia's separate signed observer already runs a main loop and is 
 This backport removes the known native query defect; it is not proof that it caused Sia's
 observed Chrome recovery or input failures. Signed-app background acceptance remains required.
 
+## Standalone native panels
+
+The signed reviewer-copy task exposed Finder's Go to Folder panel through operator CUA while
+Sia reported `ax_unresolved`. Exact-window discovery now also checks `AXFocusedWindow` when
+neither `AXWindows` nor application children contains the requested surface. It accepts only an
+`AXWindow` or `AXSheet` with the exact requested backing window ID and process ID. Focus alone
+never selects or authorizes a different window. The read is bounded, retains only a matched
+element and leaves hidden/minimized, key-window and dispatch checks intact. This supplies the
+same acquisition path to observation and input validation; no AX content is exposed to the model.
+The signed document rerun determines whether this closes the observed failure.
+
 ## Background links
 
 The same patch checks an exactly bound link before background click dispatch. A signed alpha.50

@@ -2730,7 +2730,7 @@ index af80ee2..eb8be76 100644
  
  /// Re-activate the app with `pid` via
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
-index ca39f14..f7b08b7 100644
+index ca39f14..a7103ad 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/bindings.rs
 @@ -83,6 +83,7 @@ extern "C" {
@@ -2792,14 +2792,14 @@ index ca39f14..f7b08b7 100644
  /// `AXWindows` of `pid`'s application element, plus the requested window when
 -/// `AXWindows` does not list it because it is on another Space. Returns
 -/// retained elements the caller must release.
-+/// `AXWindows` does not list it: a standalone sheet can be an application child,
-+/// and an off-Space window may require the bounded remote-token probe. Returns
++/// `AXWindows` does not list it: a standalone sheet can be an application child
++/// or AXFocusedWindow, and an off-Space window may require the bounded remote-token probe. Returns
 +/// retained elements the caller must release. This changes discovery only;
 +/// minimized/hidden, exact ownership and input-focus checks remain required.
  ///
  /// # Safety
  ///
-@@ -1017,9 +1032,32 @@ pub unsafe fn copy_ax_windows_including(
+@@ -1017,9 +1032,54 @@ pub unsafe fn copy_ax_windows_including(
      window_id: u32,
  ) -> Vec<AXUIElementRef> {
      let mut windows = copy_ax_windows(app);
@@ -2828,6 +2828,28 @@ index ca39f14..f7b08b7 100644
 +                }
 +            }
 +            CFRelease(child as CFTypeRef);
++        }
++    }
++    // Finder's Go to Folder can be an AXFocusedWindow sheet absent from
++    // both AXWindows and AXChildren, even on the current Space. Focus is only
++    // a discovery hint: require the exact requested backing window and PID.
++    // Never substitute the process's focused sibling for the requested target.
++    if !listed {
++        AXUIElementSetMessagingTimeout(app, AX_WINDOW_IDS_TIMEOUT_SECONDS);
++        if let Some(focused) = copy_element_attr(app, "AXFocusedWindow") {
++            AXUIElementSetMessagingTimeout(focused, REMOTE_TOKEN_CANDIDATE_TIMEOUT_SECONDS);
++            let role = copy_string_attr(focused, "AXRole").unwrap_or_default();
++            let mut focused_pid = 0;
++            if super::window_scope::is_window_surface_role(&role)
++                && ax_get_window_id(focused) == Some(window_id)
++                && AXUIElementGetPid(focused, &mut focused_pid) == kAXErrorSuccess
++                && focused_pid == pid
++            {
++                windows.push(focused); // Transfer the retained reference.
++                listed = true;
++            } else {
++                CFRelease(focused as CFTypeRef);
++            }
 +        }
 +    }
      if should_probe_off_space_window(listed, || {
