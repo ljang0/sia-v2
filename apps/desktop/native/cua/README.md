@@ -52,7 +52,10 @@ dispatches mouse events through that policy. Consent action retries now leave th
 double-click interval plus 50 ms quiet, bounded by the original deadline. Observation-only
 polls retain their short interval. Exact native-sheet matching, ambiguous-target refusal and
 disappearance verification remain unchanged. A regression models the external policy and fails
-with the prior 100 ms cadence. Installed-app acceptance of this repair is still pending.
+with the prior 100 ms cadence. Signed internal `4e5724b` then found the sheet in 17 ms and
+confirmed its disappearance at 1,148 ms without operator consent input; Sia showed Attached.
+The subsequent fresh task retained the selected window after restart, but connection recovery
+paused before input when Chrome was foreground. Useful restart/concurrent acceptance remains open.
 
 ## Background links
 

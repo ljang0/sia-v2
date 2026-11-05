@@ -24,7 +24,7 @@ This build also includes native-sheet recognition, a fix for memory reviews repe
 
 First-run setup selects **Save prompts, usage, and trajectories to AWS** and explains the choice before Continue. Eligible prompts, replies, provider-reported token usage, actions/results and task screenshots then upload automatically to Sia's encrypted private AWS archive. Authorized administrators can inspect them for evaluation and debugging. Active cloud records expire after 90 days; they are not used for model training.
 
-**Settings → Privacy** shows recording status, queued uploads and errors, with pause/export/delete controls. Existing declines and pauses remain off. Local historical records are not uploaded retroactively. Google Workspace connector turns and internal operator/model-tester-only accounts are excluded. Real installed-app uploads have been independently verified; see the [recording evidence](./public-release.md#default-recording-and-live-aws-proof).
+**Settings → Privacy** shows recording status, queued uploads and errors, with pause/export/delete controls. Existing declines and pauses remain off. Local historical records are not uploaded retroactively. Google Workspace connector turns and internal operator/model-tester-only accounts are excluded. Real installed-app uploads have been independently verified; see the [recording evidence](./public-release.md#recording-and-voice-baseline).
 
 ## Voice
 

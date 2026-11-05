@@ -76,280 +76,64 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-### Fresh native workflow passed; isolation and installer acceptance remain open
+Signed internal `4e5724b` fixes an evidenced Chrome consent timing failure. The preceding
+candidate found the exact sheet in 9 ms but retried its button every 100 ms; Chrome's rapid-input
+protection kept rejecting those events. Action retries now respect the system double-click
+interval plus 50 ms. The deadline, native-sheet identity and disappearance checks remain.
+The regression failed before the change; 14 consent checks pass after it.
 
-Signed internal QA `8dc8e14` completed the ordinary checklist request with a fresh agent and no
-operator Finder/TextEdit input or recovery coaching. It renamed the document, read the three
-sections and 12 checklist items, closed it, verified its absence, reopened it and checked the
-visible contents. The run finished November 4 at 23:46:09 UTC, about 150 seconds after submission.
-Independent screenshot review and the renamed file's unchanged 1,874 bytes/SHA-256
-`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14` corroborate completion.
+The installed repair completed initial setup through Sia Settings: consent settled in 1,148 ms
+and the approved public window showed **Attached**, without operator Allow input. After restart,
+a fresh agent identified that same window and attempted recovery itself. The useful visitor-plan
+request then paused before input because the host reported Chrome foreground. No research result
+was produced. This proves initial setup and retained selection, not completed browser recovery.
+Do not relax the setup guard merely because already-bound page actions can use a different Chrome
+window: a new consent dialog may affect the person's active browser window.
 
-The prior `706b3e7` fresh-agent run failed in Finder's transient inline editor. The repair preserves
-native input guards, distinguishes keyboard-focus refusal from a blanket foreground requirement,
-and prefers the visible Get Info naming field. The new run recovered its initial selection itself.
-This is one useful native workflow pass, not general desktop reliability.
-
-An unsent draft typed into Sia during background work remained exactly intact and was cleared
-through CUA after completion. Initial observations after typing were stale; delivery latency,
-continuous focus/clipboard preservation and the earlier misdirected-input incident remain open.
-No complete surrounding-files baseline was available for this run; preservation of the target
-file is independently verified, while the model's broader preservation claim is not accepted
-as independent evidence.
-
-AWS automatically archived the exact prompt, 175 events, 48 provider-usage records, 27 matching
-action results and 17 byte-matching PNGs, including the terminal event. Object hashes, lengths and
-KMS encryption passed read-only verification. Private `alpha122-rename-recovery-internal`
-contains `fresh-native-acceptance.json`, installation/signature records and the archive receipt.
-The installed repair passed 117 affected tests and the full pilot gate (2,083 desktop, 46 Electron,
-48 renderer and 72 companion checks, plus cloud/shared/native/build/static checks). The gate ran
-on documentation-only successor `465e555`; application code is identical to installed `8dc8e14`.
-It is Developer ID signed and package/runtime verified, but is not notarized or a distribution DMG.
-
-### Earlier supported native sequence
-
-Internal `7b1562e` completed folder naming and TextEdit close/reopen in coached continuations. An
-explicit background click established native focus, after which selection, typing and menu key
-equivalents worked. Sia closed the checklist, verified its absence, reopened it in Finder and checked
-all 12 items and three headings. Independent screenshots and the unchanged file hash corroborate
-that result. The document's earlier transition from a missing Open panel to an open editor remains
-unexplained. A service-panel mapping prototype was removed without packaging; no speculative
-transport or generic helper access was added.
-
-Those eight turns automatically archived 358 events, eight matching prompts, 108 usage records,
-39 matching actions and 23 byte-matching PNGs. Private `alpha122-menu-routing-internal` receipts
-preserve exact identities and intervention limits. These diagnostic successes inform the repair;
-they do not replace the fresh-agent evidence above or exact-DMG acceptance.
-
-### Browser recovery
-
-A fresh-agent visitor-planning request after restarting `8dc8e14` failed on November 5 at
-00:02:12 UTC (November 4 Eastern), about 18 seconds after submission. All eight browser window
-identities were unavailable; the agent could not identify the previously chosen public window
-and stopped after inventory, without inspecting it or attempting the existing recovery route.
-No operator supplied a browser choice or continuation. This is a failed restart acceptance run.
-The foreground draft was correct and clipboard text compared equal privately, but no browser
-writes occurred, so this does not establish input isolation. AWS automatically archived the
-prompt, 24 events, six usage records, the matching inventory and terminal event; hashes and KMS
-passed. Private `alpha122-rename-recovery-internal/browser-restart` retains the receipt.
-
-The targeted source repair retains only a private selection hint (process id, start time and
-window id), never a session or access grant. Discovery labels it only when the same live Chrome
-process and exact window still exist; disconnect removes it and process replacement invalidates
-it. The existing snapshot/setup checks still establish fresh authority. The discovery regression
-failed before this change; 138 affected checks pass. This repair has not yet passed installed-app
-acceptance. Existing profiles need one explicit window selection to establish the new hint.
-
-Installed, Developer ID signed `e244d5a` failed that initial selection through Sia's own chooser:
-the previously approved public USDA window returned **Connection needs attention**, with native
-diagnostic `browser_prepare / consent_not_settled`. No visitor task was started, no restart
-acceptance occurred and no manual connection rescue was applied. This is a failed product setup
-check, not a pass for the selection repair. Private `alpha122-browser-selection-internal` retains
-the exact installed identity and `setup-acceptance.json`. Resolve this evidenced connection failure
-before rerunning the ordinary workflow or making another distribution package.
-
-A same-build diagnostic found the native sheet in 9 ms and repeatedly acknowledged its exact
-Allow action, but the sheet remained throughout the 8-second deadline. Chrome 156's input
-protection resets on closely spaced actions, including ignored ones; Sia's 100 ms action retries
-can therefore keep it armed. The targeted native change respects the system double-click interval
-plus 50 ms between action attempts without extending the deadline or changing target/consent
-checks. The external-policy regression failed before the change; all 14 consent tests pass after
-it. Signed-app verification remains required. Operator cancellation of failed dialogs and selection
-of the public Chrome window through its Window menu were diagnostic setup, not task acceptance;
-no consent was manually accepted.
-
-Signed internal QA `7fe2089` completed the practical commute-card follow-up using the same
-approved public Chrome window after app restart. Two evidenced browser defects were repaired:
-
-- The consent observer missed a native focused sheet that operator CUA could see. The bounded
-  fallback inspects only a native sheet belonging to the already-approved process and retains
-  exact consent matching. In this live run, its diagnostic confirms that the fallback found the
-  sheet and acceptance settled in 143 ms.
-- WindowServer middle-elided the approved window's title while several Chrome windows shared
-  its geometry. Full-title containment refused the binding. Substantial exact prefix/suffix
-  matching around one ellipsis now preserves unique-or-refuse decisions. The regression failed
-  before the fix; the live diagnostic found one exact binding among 29 tabs in seven windows.
-  Duplicate candidates still refuse; missing geometry still permits only a read-only heuristic.
-
-All 20 focused binding tests and the full local pilot gate passed on the exact source: 2,075
-desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/
-static checks. Developer ID signing, installed strict signature and package/runtime verification
-passed. CI run 384 passed its pilot step but was cancelled during unsigned universal packaging;
-release signing was skipped. This app is not notarized and is not the distribution DMG.
-
-The commute task completed at **03:48:20.526 UTC November 4** (November 3 Eastern), **109.402
-seconds** after its final continuation. Initial execution paused on Mac sleep. After the owner
-unlocked, the first continuation correctly paused while Chrome was still foreground. Operator CUA
-activated the exact Sia window through its native Window menu and clicked Continue. No operator
-reconnected Chrome, selected a browser window or supplied browser input during the run. Sia
-recovered the approved window, captured/scrolled USDA guidance and saved/read back the card.
-This is one recovered useful task, not repeatable unattended recovery acceptance.
-
-Independent review checked the 5¼-hour interval, discard deadlines, conditional cold-holding
-advice, shelf-stable alternative, quantities and separate grocery/equipment costs against three
-readable source screenshots and the saved plans. All nine baseline planning files are byte-for-byte
-unchanged. Sia Preview opened with matching content and a readable signed-app screenshot after
-an initial stale capture. An unsent foreground reminder eventually appeared intact and was cleared;
-its delivery timing was not established. It does not prove
-concurrent input isolation.
-
-AWS uploaded all three segments automatically: **174 events**, including the original prompt,
-**28 usage records, 15 matching action results and three byte-matching PNGs**, interruption and
-completion events. Object hashes and KMS encryption passed. Private receipts in
-`alpha122-elided-title-internal` include `commute-acceptance.json`,
-`aws-recording-verification.json`, `installation.json` and `pilot-result.json`.
-
-### Earlier native workflow evidence
-
-Earlier signed QA passed Finder field typing and file rename. Folder creation/move succeeded only
-following operator File-menu preparation; the initial shortcut had produced no effect. Other
-continuations lost capture or could not verify inline rename. A matched TextEdit comparison
-inserted text in foreground but failed in background. None establishes general native reliability.
-The older unexpected filename input remains unexplained; restoring its original name and bytes
-resolved data recovery, not input isolation. Do not count operator cleanup as vision-only acceptance.
-
-Exact earlier builds, turns, automatic-upload receipts and interventions remain in the
-[distribution record](./public-release.md) and Git history. The current edit-session result above
-supersedes only the failed Finder selection/rename prerequisite. Initial macOS/Chrome grants remain
-person-owned, ordinary task authorization was automatic, and Sia itself need not be foreground.
+A fresh native workflow on earlier signed `8dc8e14` did pass without rescue: Finder rename,
+TextEdit review of three headings/12 items, close and reopen, in about 150 seconds. Independent
+screenshots, window inventory and unchanged file bytes support that bounded result. It must be
+repeated on the exact final DMG. The earlier unexpected filename input remains unresolved.
 
 ## Current artifacts
 
-| Artifact | Exact source and verification | Scope |
-| --- | --- | --- |
-| RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `8dc8e14eb3a0b32a565643b25ddfdd761b2e62e6`; ASAR `facfbf45dda4cf712449aaee2b7b103e5379613e9096a88da6be8c1f80a05d28`; Developer ID and package/runtime checks passed. | Fresh native workflow passed without rescue. Continuous input isolation and exact-DMG acceptance remain open. Not notarized or a replacement DMG. |
-
-Exact paths, hashes, operator interventions and private receipts are in the
-[distribution record](./public-release.md). Older candidate history remains there and in Git;
-this page describes current evidence and outstanding requirements.
+- Installed internal arm64 QA: `4e5724b69b9d96a41aface3d688e8de49742fa47`, Developer ID signed,
+  package/runtime and installed strict-signature checks passed. Not notarized and not a DMG.
+  The full pilot gate passed: 2,089 desktop, 46 Electron, 48 renderer and 72 companion tests,
+  plus cloud/shared/native/build/static checks.
+- Held universal alpha.122 DMG: source `7531ee7f3115265817e8dd56cf081672799bd8f4`, signed,
+  notarized, stapled and verified, but missing later fixes. Do not hand it to the RA yet.
+- Exact hashes, task identities, timings and private receipt locations are in the concise
+  [distribution acceptance record](./public-release.md).
 
 ## Current evidence and open gates
 
-| Area | Observed evidence | Still required |
+| Requirement | Evidence | Remaining work |
 | --- | --- | --- |
-| Automated checks | Previous source `706b3e7` passed the full pilot gate: 2,082 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. Installed `8dc8e14` subsequently passed the fresh native workflow and the full pilot on its documentation-only successor `465e555` (2,083 desktop tests). Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Earlier `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
-| Useful personal tasks | On signed QA, recipe research and an outing checklist completed with 67.582 seconds of overlapping successful turns and interleaved actions. Independent recipe/quantity/budget/timing review and both Sia Previews passed. All 11 original source hashes stayed unchanged. | Repeatability and unattended completion. Browser setup required operator reconnection; the checklist included an intentional Stop and continuation. This was browser plus file work, not two native-app tasks. |
-| Stop and performance | Stopping the checklist left browser research running. Resumed checklist: 67.582 seconds. Recipe task after reconnect: 241.765 seconds. | Two native workflows, same-window contention, continuous foreground/clipboard preservation, wider cancellation/recovery, and acceptable repeated end-to-end latency. Before/after focus samples are insufficient. |
-| Native workflow | Finder background typing and file rename passed. Folder creation/move passed after operator File-menu preparation, with all original bytes intact. TextEdit background field typing failed in the matched comparison. | Fresh `8dc8e14` completed rename, inspection and close/reopen without operator preparation or step-by-step instructions. Exact-DMG repetition, the earlier unexpected input’s origin and continuous input isolation remain unresolved. |
-| Browser recovery | After QA restart, Chrome recovery selected the same approved public window and resumed the task automatically. Five stale-page refusals recovered through fresh observations. Exact SDK lease-expiry envelopes now reach connection recovery. | Natural idle-expiry recovery, repeatable restart recovery, permission-prompt dismissal, network errors, and live same-browser coexistence. The previous raw native lease envelope was not retained, so its cause is not proved. |
-| AWS recording | Four automatic batches for the successful personal tasks contained prompts, usage, action results and 12 screenshots. Stored payload hashes and KMS encryption were verified. | Retain default disclosure, explicit opt-outs, paused capture, deletion and exclusions. These records do not establish research-release consent or permissions for other people. |
-| Handoff and public disclosure | Installed-app onboarding now separates evaluation from developer setup. Repository privacy/site/infrastructure copy matches default-on recording and ordinary-user eligibility; site build/check and download tests pass. | Publish the reviewed disclosure changes only with authorization, then verify live pages. Direct HTTP checks on November 3 at 00:24 UTC found no default-on notice in the live privacy page and `/download/` returned 404. No site or installer was published. |
-| Keep-awake, voice and installation | Before restart, native tasks and an independent process failed to create idle-sleep prevention (`0xe00002bd`). After restart, the independent probe and Sia’s live assertions succeeded. Owner reported the microphone works after duplicate Fn helpers were resolved. | Explain the prior host assertion failure and verify sustained keep-awake and lock/sleep recovery. Physical Fn/spoken-command coverage is owner-reported, not independently reproduced. Fresh sign-in/permissions and Intel runtime remain unverified; no fresh account or second Mac is available. |
+| Useful native work | One fresh-agent rename/review/close/reopen pass on `8dc8e14`; target file unchanged | Repeat on final DMG; broader native workflows |
+| Useful browser work | Earlier research outputs required interventions; current initial connection succeeds | Finish an ordinary task after restart without rescue |
+| Reuse access | Exact public-window selection survives Sia restart; agent attempts recovery | Recover without disrupting the person's active work |
+| Input isolation and CUA controls | Prompt submission works after rebinding to restarted QA; earlier draft stayed intact | Current draft attempt did not appear; no continuous focus/clipboard/latency pass; resolve filename incident |
+| Automatic AWS recording | Earlier native pass: exact prompt, 175 events, 48 usage, 27 actions, 17 matching PNGs. Latest failed restart: 40 events, 6 usage, 6 actions, terminal capture | Reverify complete useful runs on final DMG |
+| Distribution | Older DMG's signing/notarization/package checks passed | One final installer containing accepted functional repairs |
 
-The native task ended at 23:51:09.467 UTC and its supervised diagnostic at 23:57:01.244 UTC,
-November 2. The post-restart typing diagnostic also failed at 02:40:42.115 UTC, November 3.
-At those historical checks, both RTFs were 1,874 bytes with SHA-256
-`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14`.
-Private receipts in `alpha122-browser-lease-internal` preserve action records, file checks and
-power samples. Failure outside Sia does not establish the underlying system cause.
+Latest restart thread `9ed5a7ab-7ddb-4f57-875e-8d941aa50192`, turn
+`ba9232f2-92a5-4fbc-852a-3efd8b6a2e92`, ended after 20.274 seconds. Inventory initially reported
+Slack active; the later setup guard reported Chrome active. The cause of the switch is not
+established. No operator clicked Continue, reconnected Chrome or supplied browser input during
+that task. The failed attempt remains failed. AWS hashes, lengths and KMS encryption matched via
+read-only verification; zero screenshots is appropriate because no browser image was obtained.
 
-Earlier signed diagnostics already found matching window/field process identities and granted
-Accessibility/event-posting access; switching native typing to public `CGEventPostToPid` also
-failed. A newly prepared duplicate experiment was abandoned before installation and its source
-changes removed. Inspect those receipts before proposing another transport variant.
+The current full pilot passed on application source `4e5724b`; only evidence/docs changed afterward.
+The earlier native-workflow pass was on `8dc8e14`. Neither automated gate substitutes for complete
+installed-task acceptance.
+The managed voice transport passed earlier live AWS/ElevenLabs checks and the owner confirmed
+that the microphone works. Physical Fn and a full spoken command remain independently unverified.
 
-The owner restarted the Mac at 9:26 PM Eastern on November 2. The independent IOKit assertion
-then succeeded, and both Electron and Cua Driver keep-awake assertions were present during a
-signed QA task. This resolves that reproduction of assertion creation failure; physical sleep/lock
-and sustained behavior still need acceptance. CI run 371 passed for `07a685d`, including the full
-pilot gate and unsigned universal package verification; signing was not run.
-
-Two post-restart attempts on an off-Space TextEdit window stopped when capture failed after
-opening its title control. After relaunching the unchanged QA with diagnostic logging, a read-only
-capture showed the selected filename. Coordinate-addressed background typing still did not change
-the name in Sia's returned image. A later independent operator accessibility observation showed
-different uncommitted text in that field. Its origin and the image/state mismatch remain unresolved;
-the owner has been asked whether they typed that text elsewhere. Further diagnostics must establish
-where input lands and whether captures update before attempting the remaining workflow. Private evidence is in
-`alpha122-after-restart`; no rename, move or close/reopen pass is claimed.
-
-A subsequent source review found a separate cleanup gap: failed private activation could leave
-the exact target holding keyboard focus without triggering restoration. The correction restores
-that observed target only while the user’s app remains foreground; unknown and unrelated focus
-holders remain untouched. The regression failed before the fix and all 19 focused click tests
-passed afterward. The full local `pnpm test:pilot` gate then passed, including 2,075 desktop,
-46 Electron, 48 renderer and 72 phone-browser tests, plus shared, cloud and native checks.
-The correction is installed in signed internal QA, but not the DMG. On November 3 at 19:58–20:00 UTC,
-read-only capture and one title-control click produced screenshots matching independent TextEdit
-observations. One coordinate-addressed background typing attempt still left the original name selected.
-This time Sia’s returned image and the subsequent independent accessibility observation agreed; no
-new unexpected field text was observed. No rename was committed, and both file hashes remain unchanged.
-The partial-focus fix does not resolve text delivery or explain the earlier mismatch. Private receipt:
-`alpha122-focus-restoration-internal/live-diagnostic.json`.
-
-A later read-only preflight ended at 20:36:08.706 UTC with
-`visual_observation_unavailable`; the designated TextEdit window was off the current Space.
-No input was attempted by Sia, and both document hashes remain unchanged. The owner approved
-one bounded foreground keyboard comparison, but unreliable operator CUA input prevented
-opening Settings, so that first attempt did not reach the comparison or change background policy.
-This adds no foreground or background keyboard acceptance. Private receipt:
-`alpha122-focus-restoration-internal/foreground-comparison-preflight.json`.
-
-The subsequent approved foreground comparison reached a fresh screenshot at 20:44:33.822 UTC.
-The uncommitted Name field contained unexpected text, so the conditional diagnostic stopped
-without clicking or typing. It completed at 20:44:42.629 UTC; this is not a keyboard-delivery
-pass. Both file hashes remain unchanged. The operator restored and verified Work in background
-with Pause and tell me. Moving QA through its native Window menu had restored operator input;
-that intervention is not evidence of unattended recovery. The text's origin remains unresolved.
-Private receipt: `alpha122-focus-restoration-internal/foreground-comparison.json`.
-
-A fresh lunch-planning task on the same signed QA stopped at 20:17:23.189 UTC on November 3.
-The agent selected an unrelated Chrome window despite the request to reuse the prior public
-research window. None of the nine Chrome inventory entries had a recognizable recipe/USDA
-identity; eight had no source URL. Observation and prepare-only recovery refused, and no
-navigation, source inspection or output write occurred. All 13 planning-source hashes remain
-unchanged. This is a target-selection failure, not a valid recovery test of the intended window.
-The follow-up source guidance distinguishes connection readiness from task relevance and tells
-the agent to stop when the requested window cannot be identified. Its signed-app retry correctly
-requested the window chooser without observing or navigating an unrelated window; this was
-one successful regression observation, not an authorization change. Private receipt:
-`alpha122-focus-restoration-internal/lunch-recovery/result.json`.
-
-On signed QA `2ac42bc`, a subsequent lunch task completed in 283.113 seconds after the operator
-created and connected a fresh public Chrome window. Sia inspected two Budget Bytes recipes and
-USDA guidance, saved and reread `nov9-lunch-prep.md` and `nov9-lunch-groceries.md`, and recovered
-from three stale-page checks without intervention during that turn. Independent review confirmed
-the recipe scaling, five-lunch allocation, $30 estimated whole-package basket plus $5 cushion,
-and safe late-week freezing. All 13 existing source hashes were preserved. Both previews opened;
-the grocery table's no-wrap header hid its price column beyond the initial viewport. The header-wrap
-correction passed the full pilot gate and signed visual verification on `e7dd676`: all four columns
-and the first two prices are visible without horizontal scrolling. This is a supervised browser-plus-file task, not
-native typing or concurrent-use acceptance. Five automatic AWS batches contained 209 records
-(204 events after reassembling five chunk groups), including prompt, usage, action results and
-15 PNGs whose hashes matched the local trajectory. Stored batch hashes and KMS encryption passed.
-Private receipts: `alpha122-window-selection-internal/lunch-acceptance.json` and
-`aws-recording-verification.json`.
-
-The subsequent cold-lunch follow-up on `e7dd676` failed after restart. Initial inventory could not
-identify the public research window; operator CUA found the USDA tab behind a selected New Tab.
-After selecting the existing USDA tab and resuming without reconnecting, preparation refused with
-`browser_wrong_target_refused` (safe diagnostic: `consent_not_settled`); observation then required
-browser connection. The resumed attempt ended at 21:21:14.812 UTC without an output. Existing
-source documents remain unchanged. This is a failed restart-recovery test, not a useful-task pass.
-Private receipt: `alpha122-table-preview-internal/restart-trial.json`. Automatic recording of both failed attempts was also verified
-from AWS: two encrypted batches, 88 events, prompt, usage, eight action results and two capture
-completion records. Both stored object hashes matched. No screenshot was expected because both
-attempts failed before capture; the earlier successful lunch trial separately verified screenshots.
-All 15 existing workspace documents remain unchanged. Private receipt:
-`alpha122-table-preview-internal/aws-recording-verification.json`.
-
-On `5011ab3`, the first continued attempt again could not identify the public window. Operator
-CUA then selected only the existing USDA tab via Chrome Tab Search and brought Sia forward.
-The subsequent failed connection attempt is described above; neither attempt reached a successful
-screenshot or UI input. All 15 source hashes remain unchanged. Two new automatic AWS batches
-contain 87 events, including 18 usage records, nine action results, automatic authorization and
-two capture completion records. Both stored object hashes and KMS encryption passed. The original
-prompt in the earlier batch for this continued turn exactly matches the local prompt; no new prompt
-was submitted. No screenshot is expected for these failures. Private receipts:
-`alpha122-consent-deadline-internal/live-retry.json` and `aws-recording-verification.json`.
-
-The approved native comparison was not reached on this candidate. Operator CUA initially timed
-out binding TextEdit, then showed no designated duplicate in its Window menu and could not
-provide a screenshot after Open. No text typing, rename commit or Sia settings change occurred.
-A new hash check blocked reading the iCloud document and was interrupted, so no fresh native-file
-integrity claim is made. This is a diagnostic/tool barrier, not a new Sia input result. Private
-receipt: `alpha122-consent-deadline-internal/native-comparison-preflight.json`.
+Earlier experiments and their limits are retained in the
+[prior detailed status](https://github.com/ljang0/sia-v2/blob/4e5724b69b9d96a41aface3d688e8de49742fa47/docs/release-status.md)
+and private evidence. Do not repeat discarded transport, service-panel ownership or timeout
+variants without new evidence that changes the diagnosis. Current work must close a functional gate.
 
 ## Later broad-release requirements
 
@@ -362,7 +146,8 @@ These remain future milestones; they are not the exit criteria for the bounded R
 - Useful personal work must finish on the signed candidate: real-source research and writing,
   file/document preparation and planning, with independently verified deliverables. Smoke fixtures,
   isolated shortcuts and operator-completed steps do not satisfy this requirement.
-- Background work must preserve the person's app and clipboard. The browser-plus-file trial above is one successful overlap. Verify repeatability, two native-app
+- Background work must preserve the person's app and clipboard. Earlier browser-plus-file overlap
+  is preserved in the linked detailed record; it does not prove two completed native workflows. Verify repeatability, two native-app
   workflows, contention, cancellation/recovery and latency before claiming general concurrent usefulness.
   Alpha.122's exact-window exception is packaged and covered by focused and full pilot checks,
   but successful live same-browser coexistence is not yet accepted. Native input and connection
