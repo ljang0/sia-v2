@@ -30,23 +30,16 @@ and explicit limitations. Working-folder file writes alone do not establish nati
 The first handoff must pass those bounded workflows; broader native-app coverage and unattended
 concurrency remain prerequisites for a later rollout that promises those capabilities.
 
-The earlier signed internal candidate `6b24a04` completed a personal errands/lunch checklist through
-background Finder/TextEdit in 207 seconds: it preserved the source, saved a separate RTF with
-three sections and 14 unchecked items, then reopened it. Independent checks verified the full
-contents, filename and unchanged originals. Earlier candidates completed a sourced visitor
-itinerary after restart (214 seconds) and a three-dinner plan with a combined shopping list after
-explicit Chrome setup (352 seconds). Unrelated drafts or notes survived at observed points;
-continuous focus/clipboard isolation and two successful simultaneous native workflows remain
-unproved. The dinner run included an unexplained 96-second gap before file writing. Newer internal
-`1cf54d8` reused an approved Chrome connection and performed background research while an
-unrelated Chrome draft remained intact, but a restaurant-site timeout stopped the task without
-saving its plan. Follow-up `5a8b1e5` preserved a clearly labeled partial plan in 328 seconds,
-but missing lunch and visit details still failed acceptance. Current `bed8a3c` then completed
-the ordinary outing request in 457 seconds: it recovered from the failed domain through search,
-verified the full visit and lunch details, and saved a checked plan while an unrelated Chrome
-draft stayed intact. AWS matched all 47 actions, 38 screenshots and 96 usage events. A 72-second
-gap before writing and an intermittent operator observation timeout remain recorded; this does
-not establish general responsiveness, continuous isolation or cold restart recovery.
+Signed internal builds completed three useful workflows without task-time rescue: a personal
+errands/lunch checklist through background Finder/TextEdit (207 seconds), a sourced outing plan
+including recovery from a failed website (457 seconds), and museum research after visible app
+restart with automatic restoration of the chosen Chrome connection (496 seconds). Independently
+checked outputs and unchanged originals support these results. Unrelated drafts survived at
+observed points; continuous focus/clipboard isolation and two simultaneous native workflows
+remain unproved. The latest run, `1269df9`, has matching AWS records for 45 actions, 36 screenshots
+and 94 usage events. A roughly 91-second interval between tool calls, earlier intermittent input
+and observation failures, and hidden-startup recovery remain open. These are useful workflow
+results, not evidence of general responsiveness or arbitrary-app reliability.
 
 Automatic AWS archives matched the useful runs' prompts, results, actions and screenshots. A
 subsequent Stop test exposed duplicate capture finalization; the repaired signed candidate then

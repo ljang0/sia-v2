@@ -1,30 +1,59 @@
 # Distribution acceptance record
 
-**RA handoff is held.** Current signed internal `bed8a3c` completed an ordinary background
-outing plan, including recovery from a failed restaurant site without new setup. Earlier `6b24a04` passed
-native checklist creation. Broader input isolation, restart recovery and exact-DMG acceptance
+**RA handoff is held.** Current signed internal `1269df9` completed ordinary background museum
+research after visible app restart with automatic restoration of the chosen Chrome connection.
+Earlier candidates passed an outing plan with website recovery and native checklist creation.
+Broader input isolation, hidden-startup recovery, responsiveness and exact-DMG acceptance
 remain open. Nothing has been published, sent to a recipient or submitted to Arena by this work.
 
 ## Current installed candidate
 
 | Identity               | Value                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| Source                 | `bed8a3c99da304db38b8b8a053f520e884325da9`                                                       |
-| Installed              | November 5, 2026, 07:55:49 UTC                                                                   |
+| Source                 | `1269df929c68c55cc37ed169a1ab6ba462d67cda`                                                       |
+| Installed              | November 5, 2026, 08:44:09 UTC                                                                   |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG                                 |
-| ASAR SHA-256           | `560113c2c670194db519195bda93033437489ebac2a220f036423f0081d84174`                               |
+| ASAR SHA-256           | `031987b22af15aa9b5f061e068e553a3b1d219b442d41e32be346d22fe579275`                               |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`                               |
 | Native patch SHA-256   | `5dfb260e8929e9fceec45932f6250fb2c5a9235160becf598309c1f406690ec7`                               |
 | Private evidence       | `alpha122-browser-selection-internal/sheet-visibility-acceptance` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before network recovery.app`                                                    |
+| Rollback               | `Sia QA alpha122 before startup restore.app`                                                     |
 
-Package/runtime and installed deep/strict signature checks and 274 focused tests passed.
-`pnpm test:pilot` passed on this source: 2,115 desktop tests (23 skipped), 46 Electron checks (five skipped),
-48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates. Log:
-`network-recovery-pilot.log`. The earlier unexplained bare-Electron exit and `pwd` → `pwda` failure
-remain in the evidence; passing checks do not erase input-isolation concerns.
+Package/runtime and installed deep/strict signature checks and 34 focused tests passed.
+`pnpm test:pilot` passed on this source: 2,123 desktop tests (23 skipped), 46 Electron checks
+(five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates.
+Log: `startup-browser-pilot.log`. The earlier unexplained bare-Electron exit and `pwd` → `pwda`
+failure remain in the evidence; passing checks do not establish their cause or erase input-isolation
+concerns.
 
 ## Live results that determine readiness
+
+### Museum research on 1269df9: visible-restart and useful-task pass
+
+Fresh thread `fb15c188-9cd1-412d-a86c-aa11244413bc`, turn
+`cf12668a-14f7-4795-892a-064200e694a8`, completed in 495.546 seconds after restarting the app.
+Visible startup restored the previously chosen, still-live Chrome window without opening Settings,
+choosing another window or rescuing the task. The ordinary request produced a 6,842-byte
+`Rainy Saturday backup.md`, SHA-256
+`28f189214d93f2ccb65113335133acba16a1bc81689922adc336f139cd3df9b6`.
+Independent review matched the saved bytes and captured official sources: Saturday opening hours,
+CMU student eligibility, the companion's admission and a two-hour itinerary. The student timed-ticket
+procedure remained explicitly unresolved; no ticket was bought or free guest benefit assumed.
+The model researched through screenshots and background input; a workspace-file tool saved the report.
+
+Both additions to an unrelated Chrome draft survived, six protected RTFs and the previous Phipps
+plan remained unchanged. This is observed preservation, not continuous focus/clipboard proof.
+Two stale-observation outcomes were recovered. The 45 logged tool intervals total 72.400 seconds
+(median 0.989 seconds); approximately 91 seconds passed between the final file listing and report
+write while no computer-input call was in flight. This locates that delay between tool calls but
+does not separate model inference from upstream/network time. General responsiveness remains open.
+
+Automatic AWS verification matches the exact prompt, completed outcome, all 45 actions, 36 PNGs
+and 94 usage events in nine encrypted batches (369 stored / 356 logical records), with one
+finalization. Receipts: `startup-browser-acceptance.json`, `startup-browser-plan.md` and matching
+archive verification. Hidden startup does not use the visible-startup restoration path.
+The preceding `bed8a3c` restart attempt remains failed: 37.839 seconds, three actions, no screenshots
+or saved plan, with a matching failed AWS archive (`network-recovery-restart-acceptance.json`).
 
 ### Phipps planning on bed8a3c: useful-task pass
 

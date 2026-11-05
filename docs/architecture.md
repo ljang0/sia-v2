@@ -59,6 +59,11 @@ private discovery hint. It stores only PID, process start time and window id in 
 restart still discards sessions and grants. `computer_list` exposes a fresh opaque reference only
 when that same Chrome process and window remain live. Process replacement or explicit disconnect
 invalidates the hint. It never substitutes for snapshot, setup or action authorization.
+During visible startup, the controller may restore that exact live selection through the existing
+connection-setup path before exposing the composer or starting scheduled work. Restoration
+requires automatic approval mode, a signed-in account and verified Sia foreground ownership;
+it rechecks the selection and foreground after discovery. Hidden startup does not take this path.
+Fresh native connection/state proof is still required before any capabilities are created.
 
 The native patch and its build/verification steps are documented in
 [`native/cua/README.md`](../apps/desktop/native/cua/README.md). The service regression suite covers

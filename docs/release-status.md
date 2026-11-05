@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 5, 2026. **Native document creation, visitor research and a fresh dinner-planning task completed without task-time rescue. The dinner run followed explicit Chrome setup; automatic recovery after restart still fails when another Chrome window is active. The duplicate cancellation-capture bug is repaired and verified in signed QA with matching AWS records. RA handoff remains held for recovery, input/observation reliability and exact-installer acceptance. The notarized alpha.122 DMG lacks later fixes; broad distribution and Arena acceptance remain open.**
+Updated November 5, 2026. **Native document creation, visitor research and a fresh dinner-planning task completed without task-time rescue. Signed QA `1269df9` also completed fresh museum research after visible app restart with automatic restoration of the previously chosen Chrome connection. Hidden-startup recovery, input/observation reliability, responsiveness and exact-installer acceptance remain open. Automatic AWS records match the completed museum run. The notarized alpha.122 DMG lacks later fixes; RA handoff, broad distribution and Arena acceptance remain held.**
 
 ## Bounded RA handoff goal
 
@@ -87,7 +87,18 @@ Sia startup, before startup readiness exposes the composer. It checks Sia foregr
 again after discovery, retains explicit confirmation/disconnect choices, and does not select
 a replacement window. It returns from Chrome only while Chrome still owns foreground; hidden
 launch and ordinary background task preparation keep their existing protections. All 34 focused
-checks, typecheck, scoped lint and quality guard pass. Signed live acceptance remains pending.
+checks, typecheck, scoped lint and quality guard pass. Signed live acceptance on `1269df9`
+completed the fresh ordinary museum request in 495.546 seconds without reconnecting through
+Settings or task-time operator rescue. It saved a checked 6,842-byte plan; an unrelated Chrome
+draft and six protected RTFs remained intact. Automatic AWS verification matches the exact
+prompt, completed outcome, 45 actions, 36 screenshot PNGs and 94 usage events in nine encrypted
+batches (369 stored / 356 logical records). Receipt:
+`native-archive-verification-cf12668a-14f7-4795-892a-064200e694a8.json`.
+The run includes two stale-observation outcomes and roughly 91 seconds between the final file
+listing and report write, so completion does not establish responsiveness. Continuous focus and
+clipboard preservation remain unproved. The full pilot gate passed on this source: 2,123 desktop tests (23 skipped), 46 Electron checks
+(five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates.
+Log: `startup-browser-pilot.log`.
 This is restoration during visible startup, not a claim that cold setup is invisible while the
 person uses another app; background-only startup remains a separate limit.
 
