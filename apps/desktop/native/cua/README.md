@@ -44,6 +44,16 @@ the diagnostic reported a focused native sheet and accepted consent settled in 1
 retry used only the ordinary walk. The later run required sleep/focus recovery before continuation,
 so repeatable unattended recovery remains unproved.
 
+Chrome 156 exposed a separate fast-scan failure: the native sheet was found in 9 ms, but
+100 ms action retries left it open until the deadline. Chromium's
+[default input protection](https://chromium.googlesource.com/chromium/src/+/refs/tags/156.0.8078.80/ui/views/input_protection/default_input_protection_policy.cc)
+updates its last-event timestamp even for ignored actions; its accessibility default action
+dispatches mouse events through that policy. Consent action retries now leave the system
+double-click interval plus 50 ms quiet, bounded by the original deadline. Observation-only
+polls retain their short interval. Exact native-sheet matching, ambiguous-target refusal and
+disappearance verification remain unchanged. A regression models the external policy and fails
+with the prior 100 ms cadence. Installed-app acceptance of this repair is still pending.
+
 ## Background links
 
 The same patch checks an exactly bound link before background click dispatch. A signed alpha.50

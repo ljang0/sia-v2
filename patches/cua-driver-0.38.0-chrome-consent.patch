@@ -3915,7 +3915,7 @@ index f23b53b..af937e2 100644
      fn matched_appkit_file_panel_excludes_the_application_menu_bar() {
          let candidates = [
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
-index 82dac61..00bdf27 100644
+index 82dac61..42f6592 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/browser/consent_ui.rs
 @@ -1,7 +1,6 @@
@@ -3926,7 +3926,7 @@ index 82dac61..00bdf27 100644
  
  use core_foundation::base::{CFRelease, CFTypeRef};
  use cua_driver_core::browser::{
-@@ -9,9 +8,15 @@ use cua_driver_core::browser::{
+@@ -9,9 +8,31 @@ use cua_driver_core::browser::{
  };
  
  use crate::ax::bindings::{kAXErrorSuccess, perform_action, AXUIElementRef};
@@ -3940,10 +3940,26 @@ index 82dac61..00bdf27 100644
 +// Allow the exact prompt action and its disappearance check within one bounded
 +// attempt; keep all identity, truncation and ambiguity refusals unchanged.
 +const CONSENT_TIMEOUT: Duration = Duration::from_secs(8);
++
++fn consent_retry_interval(double_click_seconds: f64) -> Duration {
++    // Chrome's native dialog treats AXPress as a mouse event. Events inside
++    // its system double-click interval reset rapid-input protection, including
++    // ignored events. Leave a quiet interval before retrying an exact action;
++    // a successful AX call alone does not prove that Chrome accepted it.
++    Duration::try_from_secs_f64(double_click_seconds)
++        .ok()
++        .filter(|interval| !interval.is_zero())
++        .unwrap_or(Duration::from_secs(1))
++        .saturating_add(Duration::from_millis(50))
++}
++
++fn native_consent_retry_interval() -> Duration {
++    consent_retry_interval(unsafe { objc2_app_kit::NSEvent::doubleClickInterval() })
++}
  
  fn refusal(code: BrowserRefusalCode, message: impl Into<String>) -> BrowserRefusal {
      BrowserRefusal::new(code, message)
-@@ -42,27 +47,15 @@ fn release_actionable_nodes(nodes: &[AXNode]) {
+@@ -42,27 +63,15 @@ fn release_actionable_nodes(nodes: &[AXNode]) {
      }
  }
  
@@ -3980,7 +3996,7 @@ index 82dac61..00bdf27 100644
  }
  
  pub(super) const CHINESE_PROMPT: &str = "要允许远程调试吗？";
-@@ -207,13 +200,24 @@ impl Drop for ConsentTrees {
+@@ -207,13 +216,24 @@ impl Drop for ConsentTrees {
  }
  
  fn read_consent_trees(pid: i32, window_id: u32) -> Result<ConsentTrees, BrowserRefusal> {
@@ -4011,13 +4027,31 @@ index 82dac61..00bdf27 100644
      }
      Ok(trees)
  }
-@@ -310,10 +314,12 @@ pub async fn handle(
+@@ -243,6 +263,7 @@ fn settled_after_scan(
+ /// WebSocket connection already presented.
+ pub fn dismiss(pid: i32, approved_window_id: u32) -> Result<bool, BrowserRefusal> {
+     let deadline = Instant::now() + Duration::from_secs(2);
++    let retry_interval = native_consent_retry_interval();
+     let mut dismissed = false;
+     loop {
+         let trees = read_consent_trees(pid, approved_window_id)?;
+@@ -291,7 +312,7 @@ pub fn dismiss(pid: i32, approved_window_id: u32) -> Result<bool, BrowserRefusal
+                 "the remote-debugging consent sheet remained after its exact cancel action",
+             ));
+         }
+-        std::thread::sleep(Duration::from_millis(100));
++        std::thread::sleep(retry_interval.min(deadline.saturating_duration_since(Instant::now())));
+     }
+ }
+ 
+@@ -310,10 +331,13 @@ pub async fn handle(
              "the approved browser window is outside the macOS window-id range",
          )
      })?;
 -    let deadline = Instant::now() + Duration::from_secs(4);
 +    let started = Instant::now();
 +    let deadline = started + CONSENT_TIMEOUT;
++    let retry_interval = native_consent_retry_interval();
      let mut saw_prompt = false;
      let mut accepted_prompt = false;
      loop {
@@ -4025,7 +4059,7 @@ index 82dac61..00bdf27 100644
          let trees = tokio::task::spawn_blocking(move || read_consent_trees(pid, window_id))
              .await
              .map_err(|error| {
-@@ -326,6 +332,16 @@ pub async fn handle(
+@@ -326,6 +350,16 @@ pub async fn handle(
              .0
              .iter()
              .any(|nodes| remote_debugging_sheet_present(nodes));
@@ -4042,7 +4076,59 @@ index 82dac61..00bdf27 100644
          saw_prompt |= prompt_present;
          if let Some(outcome) = settled_after_scan(
              accepted_prompt,
-@@ -475,6 +491,25 @@ mod tests {
+@@ -360,7 +394,10 @@ pub async fn handle(
+             // inspecting the exact approved process until every matching
+             // sheet is gone, or the bounded deadline/ambiguity checks refuse.
+             accepted_prompt = true;
+-            tokio::time::sleep(Duration::from_millis(100)).await;
++            tokio::time::sleep(
++                retry_interval.min(deadline.saturating_duration_since(Instant::now())),
++            )
++            .await;
+             continue;
+         }
+         drop(trees);
+@@ -384,6 +421,39 @@ pub async fn handle(
+ mod tests {
+     use super::*;
+ 
++    #[test]
++    fn fast_native_scans_do_not_keep_chrome_input_protection_armed() {
++        // Chrome 156 DefaultInputProtectionPolicy updates last_event_timestamp
++        // even for ignored events. The observed first scan took 9 ms; the old
++        // 100 ms retry then kept every action inside the double-click interval.
++        // Model that external behavior, rather than treating AXPress success
++        // as evidence that the dialog accepted the action.
++        for cooldown in [Duration::from_millis(500), Duration::from_millis(1500)] {
++            let accepts = |interval: Duration| {
++                let mut elapsed = Duration::from_millis(9);
++                let mut last_event = None;
++                while elapsed < CONSENT_TIMEOUT {
++                    let rapid = last_event.is_some_and(|last| elapsed < last + cooldown);
++                    last_event = Some(elapsed);
++                    if !rapid && elapsed >= cooldown {
++                        return true;
++                    }
++                    elapsed += interval + Duration::from_millis(7);
++                }
++                false
++            };
++            assert!(!accepts(Duration::from_millis(100)));
++            assert!(accepts(consent_retry_interval(cooldown.as_secs_f64())));
++        }
++    }
++
++    #[test]
++    fn invalid_system_click_intervals_keep_a_quiet_retry_period() {
++        for value in [f64::NAN, f64::INFINITY, -1.0, 0.0] {
++            assert_eq!(consent_retry_interval(value), Duration::from_millis(1050));
++        }
++    }
++
+     #[test]
+     fn confirmed_closed_sheet_wins_over_elapsed_deadline() {
+         assert_eq!(
+@@ -475,6 +545,25 @@ mod tests {
          assert_eq!(exact_allow_button(&no_sheet).unwrap(), None);
      }
  
@@ -4068,7 +4154,7 @@ index 82dac61..00bdf27 100644
      #[test]
      fn matcher_refuses_ambiguous_allow_actions() {
          let nodes = vec![
-@@ -506,37 +541,21 @@ mod tests {
+@@ -506,37 +595,21 @@ mod tests {
      }
  
      #[test]

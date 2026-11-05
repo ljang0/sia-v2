@@ -140,6 +140,24 @@ it. The existing snapshot/setup checks still establish fresh authority. The disc
 failed before this change; 138 affected checks pass. This repair has not yet passed installed-app
 acceptance. Existing profiles need one explicit window selection to establish the new hint.
 
+Installed, Developer ID signed `e244d5a` failed that initial selection through Sia's own chooser:
+the previously approved public USDA window returned **Connection needs attention**, with native
+diagnostic `browser_prepare / consent_not_settled`. No visitor task was started, no restart
+acceptance occurred and no manual connection rescue was applied. This is a failed product setup
+check, not a pass for the selection repair. Private `alpha122-browser-selection-internal` retains
+the exact installed identity and `setup-acceptance.json`. Resolve this evidenced connection failure
+before rerunning the ordinary workflow or making another distribution package.
+
+A same-build diagnostic found the native sheet in 9 ms and repeatedly acknowledged its exact
+Allow action, but the sheet remained throughout the 8-second deadline. Chrome 156's input
+protection resets on closely spaced actions, including ignored ones; Sia's 100 ms action retries
+can therefore keep it armed. The targeted native change respects the system double-click interval
+plus 50 ms between action attempts without extending the deadline or changing target/consent
+checks. The external-policy regression failed before the change; all 14 consent tests pass after
+it. Signed-app verification remains required. Operator cancellation of failed dialogs and selection
+of the public Chrome window through its Window menu were diagnostic setup, not task acceptance;
+no consent was manually accepted.
+
 Signed internal QA `7fe2089` completed the practical commute-card follow-up using the same
 approved public Chrome window after app restart. Two evidenced browser defects were repaired:
 
