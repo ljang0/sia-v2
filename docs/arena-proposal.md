@@ -39,7 +39,8 @@ repeatability, responsiveness or continuous focus/clipboard isolation.
 The current ordinary document task remains incomplete. Finder's file menu is now visible, but
 its Open With submenu does not operate reliably. Sia's recovery guidance now chooses the editor's
 own Open dialog; the latest run reached that dialog but background navigation had no visible
-effect (90 seconds, no output). Protected sources and unrelated typing survived, and automatic
+effect (70 seconds, no output). A bounded foreground shortcut works on the same build;
+that comparison does not satisfy background acceptance. Protected sources and unrelated typing survived, and automatic
 AWS records matched the failure. Native dispatch and input isolation remain release gates;
 these failed runs are retained in the [acceptance record](./public-release.md).
 

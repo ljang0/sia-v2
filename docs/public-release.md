@@ -1,27 +1,26 @@
 # Distribution acceptance record
 
-**RA handoff is held.** Current signed internal `6ce129c` uses TextEdit's own Open workflow,
-but the ordinary native comparison still failed because background navigation in that dialog
-had no visible effect. Finder submenu interaction also remains unresolved.
-The preceding `1269df9` completed background museum research after visible restart; earlier
-candidates passed an outing plan and native checklist creation.
-Native repeatability, input isolation, hidden-startup recovery, responsiveness and exact-DMG acceptance
-remain open. Nothing has been published, sent to a recipient or submitted to Arena by this work.
+**RA handoff is held.** Signed internal `d67df60` corrects stale window-focus cleanup, but the
+ordinary document task still fails in TextEdit's Open dialog. The same build opens Go to Folder
+in a bounded foreground comparison; background delivery remains unresolved. Earlier browser
+and native useful-task passes do not establish current native repeatability, input isolation or
+responsiveness. Nothing has been published, sent to a recipient or submitted to Arena by this work.
 
 ## Current installed candidate
 
 | Identity               | Value                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| Source                 | `6ce129c311d5fe488f68e91dec93a104488570a3`                                                       |
-| Installed              | November 5, 2026, 10:41:04 UTC                                                                   |
+| Source                 | `d67df60156fec3b1d63c7073504ac38cb0d6a78d`                                                       |
+| Installed              | November 5, 2026, 11:25:54 UTC                                                                   |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG                                 |
-| ASAR SHA-256           | `2892072d48f376841f54961242b01d4f28161dc87b82cdaceff3fa23f7a30025`                               |
+| ASAR SHA-256           | `5b0cc02a8039585acd9177b05ca224640287b55c9e87bd75f921152bdb8385c9`                               |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`                               |
-| Native patch SHA-256   | `1a3ebda2dd8ff9c6909cc631f42b008f3a029e97acd543c1c6fff11f1d5851e5`                               |
+| Native patch SHA-256   | `36635f8d732d697e4a690ccbdb3f28e219ae8af9d4bec0884dcd106d599954a1`                               |
 | Private evidence       | `alpha122-browser-selection-internal/sheet-visibility-acceptance` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before native open.app`                                                         |
+| Rollback               | `Sia QA alpha122 before dialog focus.app`                                                        |
 
-Sixteen focused runtime/tool tests, lint, build, quality, package/runtime and installed deep/strict signature checks passed. The unchanged native binary passed the popup-coordinate regression gate on `ddd4af7`.
+The focus-cleanup regression failed before the fix and passed in the native gate. Desktop build,
+quality, package/runtime and installed deep/strict signature checks passed.
 The full pilot gate on this source is pending. `pnpm test:pilot` passed on preceding `1269df9`:
 2,123 desktop tests (23 skipped), 46 Electron checks
 (five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates.
@@ -30,6 +29,25 @@ failure remain in the evidence; passing checks do not establish their cause or e
 concerns.
 
 ## Live results that determine readiness
+
+### Dialog-focus correction: background task fails; bounded foreground comparison works
+
+On `d67df60`, thread `4d9e3ae2-5725-4100-87af-743dc12e82f1`, turn
+`c15ec3cc-eb56-43d2-bdc7-5d9acbc38f1f`, ran the unchanged Saturday comparison without rescue.
+It opened TextEdit's Open dialog, but Cmd+Shift+G and directory-popup input had no visible effect.
+It failed in 70.369 seconds, with no source opened or RTF created. Post-terminal inspection
+confirmed no Go to Folder sheet. All eight sources and both unrelated draft additions survived.
+AWS matches nine actions, seven PNGs and 20 usage events in one 73-record batch, with one
+finalization. Receipt: `dialog-focus-acceptance.json`.
+
+A separate comparison, thread `186ece62-9bb1-4df5-b89d-0a8b14de53f1`, turn
+`35c02d13-43cc-455c-9648-24f1690b895e`, temporarily used On my screen on the same still-open
+panel. Sia's foreground click and one Cmd+Shift+G opened Go to Folder, visibly captured by Sia.
+No text was entered and no file was opened or changed. It finished in 45.733 seconds; AWS
+matches five actions, three PNGs and 12 usage events in one 39-record batch, one finalization.
+Operator cleanup dismissed both dialogs and verified Work in background → Pause and tell me
+was restored. Receipt: `dialog-foreground-comparison.json`. This is a routing diagnosis, not a
+rescued task or background acceptance. All eight file hashes still match after cleanup.
 
 ### Native menu-key trial removed after ordinary-task failure
 
@@ -46,7 +64,7 @@ PID but without a raw window ID; this cannot exclude an AX proxy. Operator CUA t
 Go to Folder on the exact failed dialog without reopening it. AWS matched that diagnostic's
 six actions, four screenshots and 14 usage events (45 records, one batch). It was not acceptance.
 
-Both experiments were removed. The `6ce129c` signed app in the identity table was restored at
+Both experiments were removed. The prior `6ce129c` signed app was restored at
 11:13:37 UTC on November 5, with matching ASAR and strict signature; failed builds and receipts
 remain private evidence. The ordinary document workflow and distribution remain blocked.
 
