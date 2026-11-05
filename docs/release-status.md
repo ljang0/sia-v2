@@ -55,7 +55,7 @@ The exact installed identity, checks and detailed live receipts are in the
 Current internal QA source: `1a1b7e50e4996745d60e0d9814e2ffbcdaf7ff57`, arm64, Developer ID
 signed, not notarized and not a DMG. The full pilot gate passed on exact installed source `1a1b7e5`: 2,127 desktop
 unit tests, 46 Electron, 48 renderer and 72 companion checks, plus static/shared/cloud/native
-checks (23 unit and five Electron skips). The later dependency run encountered one timeout;
+checks (23 unit and five Electron skips). The earlier dependency run encountered one timeout;
 its complete 21-test file passed in isolation, and the exact-source full rerun now passed.
 Private full-gate log: `startup-repaint-pilot.log`.
 [CI 410](https://github.com/ljang0/sia-v2/actions/runs/42118175786) checks the dependency update.
