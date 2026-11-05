@@ -465,3 +465,11 @@ Signed `770360e` also tried the existing unenveloped native menu-key path specif
 an unavailable menu command. The ordinary Open-panel workflow still failed; post-terminal
 inspection confirmed no Go to Folder sheet. That route and the preceding temporary ownership
 label were removed. Do not repeat transport variants without a distinct cause.
+
+Window-key cleanup now re-reads the app's raw focused window before restoring the previous one.
+If another window has taken key since priming (such as Open/Save), cleanup leaves it alone.
+The correction follows the focus-lifetime finding in [upstream PR #5770](https://github.com/trycua/cua/pull/5770)
+without adopting its menu activation changes. A regression reproduces stale restoration of the
+previous document over a newly opened panel; existing normal and hidden-dialog restoration cases
+remain covered. This does not authorize input into a new window: the next action still needs a
+fresh exact-window observation and the normal background gate.

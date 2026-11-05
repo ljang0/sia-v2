@@ -98,8 +98,12 @@ variants. A concrete upstream lead is [Cua PR #5770](https://github.com/trycua/c
 head `5a1b7f8136738b5f92979df9c606fe900baef543`, still open/unmerged when inspected: its
 key-scope cleanup preserves focus when an action opens a different window. Current cleanup
 unconditionally restores the prior window after priming, even if Open just took key. Review
-that narrow lifetime correction against the observed Open transition before another repair;
-the upstream PR's broader menu activation changes and semantic field setters are not adopted.
+that narrow lifetime correction against the observed Open transition. The regression now
+reproduces stale cleanup: a new panel holds key but the old function returns the previous
+document as its restoration target. Cleanup now preserves the newer focus choice; ordinary and
+hidden-dialog restoration remain covered. The before-fix assertion failed (`Some(9)` versus
+`None`); native gate and signed ordinary-task acceptance are pending. The upstream PR's broader
+menu activation changes and semantic field setters are not adopted.
 
 The next evidenced defect is native sheet keyboard routing. On signed `1269df9`, an ordinary
 request to make a printable comparison of the two researched Saturday plans failed after
