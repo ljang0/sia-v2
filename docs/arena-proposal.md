@@ -30,20 +30,19 @@ and explicit limitations. Working-folder file writes alone do not establish nati
 The first handoff must pass those bounded workflows; broader native-app coverage and unattended
 concurrency remain prerequisites for a later rollout that promises those capabilities.
 
-A fresh-agent native workflow completed without operator rescue on internal signed QA: rename
-an RA checklist in Finder, review its three sections and 12 items in TextEdit, close it and reopen
-it. It took about 150 seconds; independent screenshots and the unchanged file hash corroborate
-completion. Earlier browser research produced useful checked outputs but required setup or
-continuation interventions. Overlapping runs do not yet establish two successful native workflows.
+Signed internal candidates completed three useful workflows without task-time rescue: an RA
+checklist copy edited, saved and reopened through Finder/TextEdit (230 seconds); a sourced visitor
+itinerary after restart (214 seconds); and a three-dinner plan with scaled ingredients and a
+combined shopping list after explicit Chrome setup (352 seconds). Independent checks covered the
+saved outputs and sources. Unrelated drafts or notes were preserved at observed points, but
+continuous focus/clipboard isolation and two successful simultaneous native workflows remain
+unproved. The dinner run included an unexplained 96-second gap before file writing.
 
-The current internal candidate completed a fresh visitor-planning task after restart without
-rescue: it recovered the retained public Chrome window, researched official sources and saved a
-checked itinerary and budget. The reply took about 195 seconds, with terminal settlement at 214
-seconds. An unsent Sia draft remained intact during browser work; continuous focus/clipboard
-isolation is not yet established. AWS independently matched the prompt, 23 actions, 13 screenshots,
-44 usage records and completion. The earlier failed restart attempt remains in the evidence.
-Exact identities, timings and limits are in the [acceptance record](./public-release.md);
-these internal repairs are newer than the held DMG.
+Automatic AWS archives matched the useful runs' prompts, results, actions and screenshots. A
+subsequent Stop test exposed duplicate capture finalization; the repaired signed candidate then
+produced one matched cancelled-task archive, including a late in-flight action result. The earlier
+failed runs remain in the evidence. Exact identities, timings and limits are in the
+[acceptance record](./public-release.md); these internal repairs are newer than the held DMG.
 
 Repeatable Chrome recovery, input isolation and exact-installer acceptance remain RA handoff
 gates. Two native-app tasks, contention, off-Space behavior and physical lock/sleep/voice acceptance

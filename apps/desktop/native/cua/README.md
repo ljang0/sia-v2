@@ -57,6 +57,18 @@ confirmed its disappearance at 1,148 ms without operator consent input; Sia show
 The subsequent fresh task retained the selected window after restart, but connection recovery
 paused before input when Chrome was foreground. Useful restart/concurrent acceptance remains open.
 
+## Live foreground identity
+
+The patch backports upstream [#6182](https://github.com/trycua/cua/pull/6182), commit
+`337c62c9a41e340b772b40615624c5f83fa49c43`: `apps::frontmost_pid` reads WindowServer
+instead of `NSWorkspace.frontmostApplication`. The AppKit value can retain the app active at
+the first read in hosts without a main run loop delivering activation notifications. Upstream
+reproduced this across Finder/Calculator switches in a no-overlay daemon. The existing SkyLight
+query supplies the current PID or returns unavailable; it does not activate a window or relax
+any input guard. Sia's separate signed observer already runs a main loop and is unchanged.
+This backport removes the known native query defect; it is not proof that it caused Sia's
+observed Chrome recovery or input failures. Signed-app background acceptance remains required.
+
 ## Background links
 
 The same patch checks an exactly bound link before background click dispatch. A signed alpha.50

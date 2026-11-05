@@ -76,6 +76,14 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
+The source now backports upstream Cua [#6182](https://github.com/trycua/cua/pull/6182),
+which replaces the potentially cached AppKit foreground PID with a live WindowServer query.
+Upstream reproduced stale foreground identity in a no-overlay host; Sia's pinned native code
+still had that implementation. The backport compiles and the native gate passes. Its causal
+relation to Sia's intermittent input and Chrome recovery failures is unproved. The separate
+signed host observer and all foreground/setup guards are unchanged. Signed useful-task
+acceptance of this backport is pending; installed `5bab2f5` remains the last verified candidate.
+
 An ordinary three-dinner research request on installed `a2d63b8`, alongside operator notes in
 TextEdit, failed after 124.621 seconds. It produced no dinner plan. Repeated
 `browser_document_changed` refusals, one `browser_wrong_target_refused` and a final
