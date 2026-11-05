@@ -105,6 +105,14 @@ pre-dispatch reads, so replacement, dismissal, another owner or an unknown conte
 The regression failed before this change; this does not relax menu enablement or permit the
 document Save fallback while a modal sheet is open. Live navigation acceptance remains required.
 
+Signed `d4b4f73` dispatched Select All through that exact sheet, then visual typing refused
+`no_focused_text_input`: the focused-field ownership lookup also replaced the sheet with its
+parent. The shared bounded ancestry resolver now retains the sheet's raw ID only when that
+exact surface is requested. Ordinary ownership reads still return the parent; other windows
+remain rejected. A before/after regression covers both identities and sibling rejection.
+Visual typing still checks the focused field and sends keyboard events only. Sia also classifies
+this explicit pre-input refusal correctly instead of recording an uncertain delivery.
+
 ## Background links
 
 The same patch checks an exactly bound link before background click dispatch. A signed alpha.50

@@ -2874,7 +2874,7 @@ index ca39f14..a7103ad 100644
          crate::windows::window_space_view_by_id(window_id)
      }) {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
-index 7ccdae7..0b1f1f3 100644
+index 7ccdae7..aa02b8a 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
 @@ -17,7 +17,7 @@ use super::bindings::{
@@ -2886,16 +2886,93 @@ index 7ccdae7..0b1f1f3 100644
  
  /// Bounded `AXParent` ascent used when an element does not expose `AXWindow`.
  const MAX_ANCESTRY_DEPTH: usize = 40;
-@@ -141,7 +141,7 @@ unsafe fn element_in_app_menu_bar(app: AXUIElementRef, element: AXUIElementRef)
+@@ -41,13 +41,25 @@ const MAX_SHEET_NESTING: usize = 8;
+ ///
+ /// `element` must be a valid `AXUIElementRef` for the duration of the call.
+ pub unsafe fn element_window_id(element: AXUIElementRef) -> Option<u32> {
++    element_window_id_for_target(element, None)
++}
++
++/// Preserve a sheet's own surface only when that exact surface was requested.
++/// Ordinary ownership readers continue to resolve the containing document.
++unsafe fn element_window_id_for_target(
++    element: AXUIElementRef,
++    requested_surface: Option<u32>,
++) -> Option<u32> {
+     if let Some(window) = copy_element_attr(element, "AXWindow") {
+-        let window_id = owning_window_id(window);
++        let window_id = window_id_for_target(window, requested_surface);
+         CFRelease(window as CFTypeRef);
+-        if window_id.is_some() {
++        if window_id.is_some() && (requested_surface.is_none() || window_id == requested_surface) {
+             return window_id;
+         }
+     }
++    // AXWindow may name the parent document even for a field inside a sheet.
++    // A target mismatch must therefore check the bounded AXParent chain for
++    // the exact requested sheet; it must never accept that different window.
+     // Fallback: ascend AXParent until a window role, then map it.
+     let mut current: AXUIElementRef = element;
+     let mut owned = false;
+@@ -55,7 +67,7 @@ pub unsafe fn element_window_id(element: AXUIElementRef) -> Option<u32> {
+     for _ in 0..MAX_ANCESTRY_DEPTH {
+         match copy_string_attr(current, "AXRole").as_deref() {
+             Some("AXWindow") | Some("AXSheet") => {
+-                resolved = owning_window_id(current);
++                resolved = window_id_for_target(current, requested_surface);
+                 break;
+             }
+             Some("AXApplication") | None => break,
+@@ -141,10 +153,18 @@ unsafe fn element_in_app_menu_bar(app: AXUIElementRef, element: AXUIElementRef)
  /// # Safety
  ///
  /// `window` must be a valid `AXUIElementRef` for the duration of the call.
 -unsafe fn owning_window_id(window: AXUIElementRef) -> Option<u32> {
 +pub(crate) unsafe fn owning_window_id(window: AXUIElementRef) -> Option<u32> {
++    window_id_for_target(window, None)
++}
++
++unsafe fn window_id_for_target(
++    window: AXUIElementRef,
++    requested_surface: Option<u32>,
++) -> Option<u32> {
      resolve_owning_window(
          RetainedElement::retain(window as usize),
          MAX_SHEET_NESTING,
-@@ -213,6 +213,7 @@ pub unsafe fn focused_element_in_window(pid: i32, window_id: u32) -> Option<AXUI
++        requested_surface,
+         |element| copy_string_attr(element.as_ptr() as AXUIElementRef, "AXRole"),
+         |element| {
+             copy_element_attr(element.as_ptr() as AXUIElementRef, "AXParent").map(|parent| {
+@@ -167,11 +187,19 @@ unsafe fn owning_window_id(window: AXUIElementRef) -> Option<u32> {
+ fn resolve_owning_window<E>(
+     start: E,
+     max_nesting: usize,
++    requested_surface: Option<u32>,
+     role: impl Fn(&E) -> Option<String>,
+     parent: impl Fn(&E) -> Option<E>,
+     window_id: impl Fn(&E) -> Option<u32>,
+ ) -> Option<u32> {
+     let own_id = window_id(&start);
++    // A window-addressed focused-field check may name the sheet itself. Keep
++    // that exact raw surface instead of replacing it with its parent; all
++    // ordinary ownership readers pass None and retain document semantics.
++    if own_id.is_some() && own_id == requested_surface && role(&start).as_deref() == Some("AXSheet")
++    {
++        return own_id;
++    }
+     let mut current = start;
+     for _ in 0..=max_nesting {
+         match role(&current).as_deref() {
+@@ -199,7 +227,7 @@ fn resolve_owning_window<E>(
+ /// Caller must `CFRelease` the returned element.
+ pub unsafe fn focused_element_in_window(pid: i32, window_id: u32) -> Option<AXUIElementRef> {
+     let element = focused_element_of_pid(pid)?;
+-    if element_window_id(element) == Some(window_id) {
++    if element_window_id_for_target(element, Some(window_id)) == Some(window_id) {
+         Some(element)
+     } else {
+         CFRelease(element as CFTypeRef);
+@@ -213,6 +241,7 @@ pub unsafe fn focused_element_in_window(pid: i32, window_id: u32) -> Option<AXUI
  struct AxWindowRecord {
      window_id: u32,
      minimized: Option<bool>,
@@ -2903,7 +2980,7 @@ index 7ccdae7..0b1f1f3 100644
  }
  
  /// Map the application's fresh `AXWindows` — plus the requested window when it
-@@ -226,6 +227,7 @@ unsafe fn ax_window_records(app: AXUIElementRef, pid: i32, window_id: u32) -> Ve
+@@ -226,6 +255,7 @@ unsafe fn ax_window_records(app: AXUIElementRef, pid: i32, window_id: u32) -> Ve
              let record = ax_get_window_id(window).map(|window_id| AxWindowRecord {
                  window_id,
                  minimized: copy_bool_attr(window, "AXMinimized"),
@@ -2911,7 +2988,7 @@ index 7ccdae7..0b1f1f3 100644
              });
              CFRelease(window as CFTypeRef);
              record
-@@ -233,6 +235,46 @@ unsafe fn ax_window_records(app: AXUIElementRef, pid: i32, window_id: u32) -> Ve
+@@ -233,6 +263,46 @@ unsafe fn ax_window_records(app: AXUIElementRef, pid: i32, window_id: u32) -> Ve
          .collect()
  }
  
@@ -2958,7 +3035,7 @@ index 7ccdae7..0b1f1f3 100644
  /// One same-session WindowServer row as the keyboard-ambiguity count sees it.
  struct WindowServerRow {
      pid: i32,
-@@ -300,14 +342,14 @@ pub fn gather_background_facts(
+@@ -300,14 +370,14 @@ pub fn gather_background_facts(
      // SAFETY: the application element is created and released here; window
      // elements are released inside ax_window_records; the caller guarantees
      // element_ptr stays retained.
@@ -2975,7 +3052,7 @@ index 7ccdae7..0b1f1f3 100644
              )
          } else {
              // Electron/Chromium apps may need per-process-lifetime enablement
-@@ -323,21 +365,51 @@ pub fn gather_background_facts(
+@@ -323,21 +393,51 @@ pub fn gather_background_facts(
                  let in_menu_bar = window.is_none() && element_in_app_menu_bar(app, element);
                  element_ancestry(window, in_menu_bar, window_id)
              });
@@ -3034,7 +3111,7 @@ index 7ccdae7..0b1f1f3 100644
              pid: window.pid,
              window_id: window.window_id,
              visible: window.is_on_screen
-@@ -345,13 +417,14 @@ pub fn gather_background_facts(
+@@ -345,13 +445,14 @@ pub fn gather_background_facts(
                  && window.bounds.height >= 2.0,
          }),
          &records,
@@ -3051,7 +3128,40 @@ index 7ccdae7..0b1f1f3 100644
          app_hidden,
          competing_keyboard_destinations,
          element: element.unwrap_or(ElementAncestry::NotAddressed),
-@@ -439,6 +512,7 @@ mod tests {
+@@ -373,12 +474,32 @@ mod tests {
+         resolve_owning_window(
+             start,
+             8,
++            None,
+             |&index| Some(tree[index].0.to_owned()),
+             |&index| tree[index].1,
+             |&index| tree[index].2,
+         )
+     }
+ 
++    #[test]
++    fn requested_sheet_surface_keeps_its_own_focused_field() {
++        let tree: &[FakeNode] = &[("AXWindow", None, Some(11)), ("AXSheet", Some(0), Some(22))];
++        let resolve_for = |requested| {
++            resolve_owning_window(
++                1,
++                8,
++                requested,
++                |&index| Some(tree[index].0.to_owned()),
++                |&index| tree[index].1,
++                |&index| tree[index].2,
++            )
++        };
++        assert_eq!(resolve_for(Some(22)), Some(22));
++        assert_eq!(resolve_for(Some(11)), Some(11));
++        assert_ne!(resolve_for(Some(33)), Some(33));
++        assert_eq!(resolve_for(None), Some(11));
++    }
++
+     #[test]
+     fn menu_bar_item_is_proven_only_through_the_app_menu_bar() {
+         use super::element_ancestry;
+@@ -439,6 +560,7 @@ mod tests {
          AxWindowRecord {
              window_id,
              minimized,
@@ -3059,7 +3169,7 @@ index 7ccdae7..0b1f1f3 100644
          }
      }
  
-@@ -452,6 +526,125 @@ mod tests {
+@@ -452,6 +574,125 @@ mod tests {
              .collect()
      }
  

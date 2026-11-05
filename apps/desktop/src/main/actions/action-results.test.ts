@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { classifyFailure, inputWasRefused, resultRefusal } from './action-results.js';
 
+it('records the visual typing preflight refusal as no input sent', () => {
+  expect(inputWasRefused(new Error('CUA refused: no_focused_text_input'))).toBe(true);
+  expect(inputWasRefused(new Error('CUA refused: future_typing_error'))).toBe(false);
+});
+
 it('keeps an exact keyboard-focus refusal local to that interaction', () => {
   const error = new Error('CUA refused: window_not_key');
   expect(classifyFailure(error)).toMatchObject({
