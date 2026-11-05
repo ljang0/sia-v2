@@ -1,26 +1,27 @@
 # Distribution acceptance record
 
-**RA handoff is held.** Current signed internal `6b24a04` passes Finder panel navigation and an
-ordinary personal checklist task through background Finder/TextEdit, with independently checked
-files and matching automatic AWS archives. Browser recovery, broader input isolation and
-exact-DMG acceptance remain open. Earlier useful browser runs and failed attempts remain below.
+**RA handoff is held.** Current signed internal `0428730` failed the fresh Phipps-planning request
+before reading a page: the inactive-Chrome path still blocked reuse. Earlier `6b24a04` passes
+Finder panel navigation and a personal checklist task with checked outputs and matching AWS archives.
+Browser recovery, broader input isolation and exact-DMG acceptance remain open.
 Nothing has been published, sent to a recipient or submitted to Arena by this work.
 
 ## Current installed candidate
 
 | Identity               | Value                                                                |
 | ---------------------- | -------------------------------------------------------------------- |
-| Source                 | `6b24a04dc36f35cac12c711f53bd9c7139925853`                           |
-| Installed              | November 5, 2026, 05:55:00 UTC                                       |
+| Source                 | `0428730cc58e3bb143872bd4da962aab3dc348e4`                           |
+| Installed              | November 5, 2026, 06:31:32 UTC                                       |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG     |
-| ASAR SHA-256           | `5696905e558babd7a5831397fccbadb3851928b60065587c5e53c46c14d998aa`   |
+| ASAR SHA-256           | `9ee714ee0d96918d24190f12af699e1ab2cf10336b84f931a279097c558b7cb0`   |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`   |
-| Native patch SHA-256   | `1f4405f24729be1ea0abe27e1e8245d0200b300e5e34871da5f0e9675f939df5`   |
+| Native patch SHA-256   | `accf1effcb7102e40f3e3fb45b5c50254abfc8d295f154efe13e786a9f673b2c`   |
 | Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before sheet field.app`                             |
+| Rollback               | `Sia QA alpha122 before browser reuse.app`                           |
 
-Package/runtime verification and installed deep/strict signature checks passed. Targeted native
-ownership/menu checks and 37 desktop regressions passed. After fixing this document’s formatting,
+Package/runtime verification and installed deep/strict signature checks passed for `0428730`, as
+did the full native gate and 188 focused desktop tests. It has not passed a full pilot or live
+browser acceptance. Earlier `6b24a04` passed targeted ownership/menu and 37 desktop regressions. After fixing this document’s formatting,
 the full pilot passed on `283d1f4`, with the same functional source as installed `6b24a04`: 2,101
 desktop tests (23 skipped), 46 Electron checks (five skipped), 48 renderer and 72 companion checks,
 plus build/static/shared/cloud/native gates. Both full-run logs are retained. Its preceding unexplained bare-Electron exit and earlier `pwd` → `pwda` failure remain
@@ -28,7 +29,18 @@ in the evidence; a passing targeted workflow does not erase input-isolation conc
 
 ## Live results that determine readiness
 
-### Current personal checklist: useful-task pass
+### Phipps planning: failed before browser work
+
+On `0428730`, thread `53298f91-0fd6-40eb-aa14-e6ddb475db8f`, turn
+`98b5890d-0337-4725-97be-f367d0fa948d`, stopped after 28.953 seconds. The intended public window
+was found, but preparing access returned `background_unavailable` while Chrome was inactive.
+No source research or plan was completed. Six protected RTF hashes are unchanged; no task-time
+rescue occurred. Automatic AWS recording matches all 37 records, 10 usage events and three
+actions, with one failed finalization and no screenshots. The follow-up source repair attempts
+live-connection reuse before applying setup restrictions; it is not yet installed or accepted.
+Private receipts: `sheet-visibility-acceptance/reuse-acceptance.json` and its archive verification.
+
+### Personal checklist on 6b24a04: useful-task pass
 
 On installed `6b24a04`, thread `baca784e-d62e-4acc-8d36-9c55d834f504`, turn
 `4c531f1b-4d6a-432f-82a9-075a9cd000d1`, completed an ordinary background request in 206.524

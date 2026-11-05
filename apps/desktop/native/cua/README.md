@@ -66,7 +66,11 @@ handle native consent, install an activation guard or restore focus. Missing, cl
 sockets refuse. Ordinary explicit setup keeps its original behavior. Native regressions cover
 both reuse and zero-connection refusals; host checks require a different, proved foreground
 window and the host-bound target. This repairs unnecessary blocking of a retained connection;
-it cannot retain a socket across a complete Sia process exit. Signed live acceptance remains open.
+it cannot retain a socket across a complete Sia process exit. The signed `0428730` trial found
+that ordinary preparation still blocked reuse while Chrome was inactive. The follow-up tries reuse
+before any setup guard for ordinary preparation too. Only missing endpoint/socket proof before
+host authorization falls through to ordinary setup; denial and a post-approval race remain terminal.
+This preserves the setup guard for cold connections. Signed live acceptance remains open.
 
 ## Live foreground identity
 

@@ -76,14 +76,20 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-Source follow-up separates existing Chrome connection reuse from setup when another exact Chrome
-window is active. The host requests reuse only; the native pool joins an already-approved live
-socket or refuses without dialing, setup, consent UI or focus restoration. Process/window and
-authorization checks remain. Regressions reproduced the unnecessary foreground refusal and
-the previous prepare route's ability to open a new connection. Missing/closed/expired socket
-checks now pass. This is not installed or live-verified yet and does not solve a cold connection
-after the Sia process exits. The full native gate and 188 focused desktop tests passed; the
-installed candidate below remains the live-evidence baseline.
+Signed `0428730` separates connection reuse from setup when another exact Chrome window is
+active. Its ordinary Phipps-planning trial failed in 28.953 seconds before reading a page or
+saving a plan: Chrome was inactive, and the ordinary native prepare path still applied the
+new-connection guard before trying to reuse its retained socket. Six protected RTFs are unchanged;
+no operator rescue occurred. AWS matches the prompt, failed outcome, 10 usage events and three
+actions in one encrypted batch (37 records, no PNGs). Receipt: `sheet-visibility-acceptance/reuse-acceptance.json`.
+
+The source follow-up tries reuse before the setup guard for ordinary preparation too. Only
+absence proved before host authorization can fall through to the original setup path; denied
+authorization and a socket lost after approval are not retried. Another active Chrome window
+still requires the explicit reuse-only ceiling. Missing/closed/expired connections cannot open a
+new socket through that ceiling. Regressions reproduce the inactive-Chrome failure and now pass, as does the full native gate.
+Signed live acceptance of this follow-up remains pending. This does not
+retain a socket across a complete Sia process exit.
 
 Current signed QA `6b24a04` passes the previously failing Finder Go to Folder path in 58.737
 seconds. It selects the field, types the requested path through keyboard events and opens the
