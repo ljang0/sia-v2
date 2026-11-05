@@ -1,6 +1,6 @@
 # Sia 0.1.0-alpha.122
 
-Signed and notarized evaluation DMG for macOS 14+, Apple silicon and Intel. The exact DMG was installed and checked on Apple silicon; Intel received static package checks. This build is for supervised RA evaluation. Broad distribution and Arena acceptance remain open; see the [evidence and known blockers](./release-status.md).
+**Held — do not distribute this DMG to the RA.** This signed and notarized alpha.122 installer targets macOS 14+, Apple silicon and Intel, but lacks subsequent internal fixes. It was installed and checked on Apple silicon; Intel received static package checks. The current internal app also has unresolved native background-input failures. These notes describe the held installer, not an approved handoff; see [current evidence and blockers](./release-status.md).
 
 ## Start using Sia
 

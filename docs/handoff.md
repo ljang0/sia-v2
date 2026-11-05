@@ -1,6 +1,6 @@
 # Sia development handoff
 
-Updated October 31, 2026. **The Mac distribution is not ready.** Start with
+Updated November 5, 2026. **The Mac distribution is not ready.** Start with
 [release status](./release-status.md), then [exact artifact evidence](./public-release.md).
 Those records own candidate versions, hashes, test results and remaining gates; this guide does
 not duplicate them. The owner selected Mac first, with iPhone following later. Lawrence Jang is
@@ -38,8 +38,9 @@ OS grants and Chrome connection, with a deliberate Chrome opt-out. macOS grants 
 person's decision; task tools cannot approve permission dialogs. Connected apps only needs no Mac
 permissions. Public connectors, sponsor models and research recruitment retain separate gates.
 
-Sia-hosted tools block protected authentication and credential surfaces. Native shell/file tools
-follow the provider's sandbox/approval boundary; prompt instructions are not OS enforcement.
+Sia-hosted tools block protected authentication and credential surfaces. Vision-only sessions
+disable provider-native shell and UI tools. Explicit workspace-file tools retain their separate
+validated boundary; they do not substitute for demonstrated desktop control.
 Local tasks and schedules require Sia open and the Mac awake. Do not imply always-on cloud
 execution or use a simulated receipt as evidence of a real purchase, message or cancellation.
 

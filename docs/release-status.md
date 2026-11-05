@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 5, 2026. **Signed internal `d67df60` fixes stale window-focus cleanup, but the ordinary native document task still fails in TextEdit's Open dialog. A bounded comparison on the same build opens Go to Folder in foreground mode; background mode is restored. AWS matches both runs and all eight protected files are unchanged. Native background delivery, input isolation, responsiveness, the current full pilot gate and exact-DMG acceptance remain open. RA distribution and Arena acceptance are held.**
+Updated November 5, 2026. **Signed internal `d67df60` fixes stale window-focus cleanup, but the ordinary native document task still fails in TextEdit's Open dialog. A bounded foreground comparison works; subsequent input trials were removed and background mode restored. AWS matches the runs and protected files are unchanged. The full pilot suite passed on the retained runtime source. Native background delivery, input isolation, responsiveness and exact-DMG acceptance remain open. RA distribution and Arena acceptance are held.**
 
 ## Bounded RA handoff goal
 
@@ -137,7 +137,8 @@ new causal distinction. Detailed failed and successful runs remain in the
 
 - Installed internal arm64 QA: `d67df60156fec3b1d63c7073504ac38cb0d6a78d`, Developer ID signed.
   Native regression, desktop build, quality, package/runtime and installed strict-signature
-  checks passed. The full pilot gate on this source is pending. Not notarized; not a DMG.
+  checks passed. The full pilot gate passed on `8326bcb`, whose runtime source matches this
+  installed candidate. Not notarized; not a DMG.
 - Held universal alpha.122 DMG: source `7531ee7f3115265817e8dd56cf081672799bd8f4`, signed,
   notarized, stapled and verified, but missing later fixes. Do not hand it to the RA.
 - Exact hashes, installed time, rollback and receipts have one authoritative table in the
@@ -154,9 +155,10 @@ new causal distinction. Detailed failed and successful runs remain in the
 | Automatic AWS recording          | Exact prompts, usage, actions, screenshot bytes and terminal outcomes match useful and failed runs; cancellation has one finalization    | Reverify complete useful runs on final DMG                                                                                       |
 | Distribution                     | Older DMG passed signing/notarization/package checks                                                                                     | One final installer with accepted functionality and full pilot gate                                                              |
 
-The last complete pilot gate passed on `1269df9`: 2,123 desktop tests (23 skipped), 46 Electron
+The full pilot gate passed on `8326bcb`: 2,123 desktop tests (23 skipped), 46 Electron
 checks (five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native
-gates (`startup-browser-pilot.log`). Passing tests do not explain the earlier bare-Electron exit,
+gates (`retained-native-pilot.log`). The desktop, native patch, shared runtime, cloud and
+infrastructure source match installed `d67df60`; intervening input trials are removed. Passing tests do not explain the earlier bare-Electron exit,
 filename incident or input mismatch; those failures remain in the evidence.
 
 Browser tasks still recorded long intervals before report writing (including 72 and 91 seconds),

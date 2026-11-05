@@ -23,10 +23,12 @@ The focus-cleanup regression failed before the fix and passed in the native gate
 quality, package/runtime and installed deep/strict signature checks passed.
 This same signed app was last restored at 12:11:56 UTC after the `9cd0718` logging-only
 diagnostic; its ASAR and strict signature matched (`focus-guard-diagnostic-rollback.json`).
-The full pilot gate on this source is pending. `pnpm test:pilot` passed on preceding `1269df9`:
+`pnpm test:pilot` passed on retained source `8326bcb`:
 2,123 desktop tests (23 skipped), 46 Electron checks
 (five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates.
-Log: `startup-browser-pilot.log`. The earlier unexplained bare-Electron exit and `pwd` → `pwda`
+Log: `retained-native-pilot.log`. Desktop, native patch, shared runtime, cloud and infrastructure
+source match installed `d67df60`; intervening input trials are removed. This source gate does
+not replace exact-DMG live acceptance. The earlier unexplained bare-Electron exit and `pwd` → `pwda`
 failure remain in the evidence; passing checks do not establish their cause or erase input-isolation
 concerns.
 
