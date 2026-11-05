@@ -473,3 +473,9 @@ without adopting its menu activation changes. A regression reproduces stale rest
 previous document over a newly opened panel; existing normal and hidden-dialog restoration cases
 remain covered. This does not authorize input into a new window: the next action still needs a
 fresh exact-window observation and the normal background gate.
+
+Signed `6953337` then scoped target-only focus/make-key preparation around the unavailable
+native-menu shortcut fallback, keeping the original keyboard transport. Exact-focus checks
+completed, but the ordinary Open-panel workflow still failed. That trial was removed and signed
+`d67df60` restored. Additional key-window preparation alone did not fix delivery; do not repeat
+it or combine it with the removed transport variant without new causal evidence.

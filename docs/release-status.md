@@ -100,10 +100,20 @@ is also described in [upstream PR #5770](https://github.com/trycua/cua/pull/5770
 focus-lifetime correction is included, not that PR's broader menu activation changes. Its
 causal role in this live Open-panel failure remains unproved.
 
-Next, compare inactive-app handling and the actual event destination of the remote Open/Save
-panel. The existing background click prologue already uses activation without defocusing the
-user's front app; adding it blindly to more routes is not a diagnosis. Do not guess a service PID,
-relax exact-window guards, silently use foreground control or repeat unchanged task loops.
+A subsequent signed trial, `6953337`, prepared the exact native window with target-only focus
+and make-key records before the unchanged PID-addressed shortcut, then restored its inactive
+state. The ordinary task still failed after 76.808 seconds. The preparation and focus checks
+completed, but Go to Folder did not appear. All eight protected files and unrelated typing
+survived; AWS matched ten actions, eight screenshots and 22 usage events in two batches with
+one finalization. The trial was removed, and signed `d67df60` was restored at 11:56:32 UTC.
+Receipt: `native-key-preparation-acceptance.json`. Additional key-window preparation alone is
+not sufficient; do not repeat it or combine it with an already failed transport variant without
+new causal evidence.
+
+The actual event destination and remote Open/Save panel's handling of background events remain
+unresolved. The existing background click prologue already uses activation without defocusing
+the user's front app. Do not guess a service PID, relax exact-window guards, silently use
+foreground control or repeat unchanged task loops.
 
 The earlier native menu-key transport trial `770360e` did not fix the task and was removed,
 along with temporary ownership logging. The `9e7e436` diagnostic reported the focused input

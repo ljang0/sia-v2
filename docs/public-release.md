@@ -21,6 +21,8 @@ responsiveness. Nothing has been published, sent to a recipient or submitted to 
 
 The focus-cleanup regression failed before the fix and passed in the native gate. Desktop build,
 quality, package/runtime and installed deep/strict signature checks passed.
+This same signed app was restored at 11:56:32 UTC after the failed `6953337` trial; its ASAR and
+strict signature matched (`native-key-preparation-rollback.json`).
 The full pilot gate on this source is pending. `pnpm test:pilot` passed on preceding `1269df9`:
 2,123 desktop tests (23 skipped), 46 Electron checks
 (five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates.
@@ -29,6 +31,25 @@ failure remain in the evidence; passing checks do not establish their cause or e
 concerns.
 
 ## Live results that determine readiness
+
+### Native key-window preparation trial removed after ordinary-task failure
+
+Signed `6953337`, thread `6d71348d-7e44-41ac-a01d-08bc0b034019`, turn
+`ae47b229-373b-4468-9286-908dcc931580`, ran the unchanged Saturday comparison without rescue.
+The trial added target-only focus/make-key records around the unavailable native-menu fallback,
+retaining the original PID-addressed keyboard transport. Preparation and exact-focus checks
+completed, but Cmd+Shift+G and the directory popup still had no visible effect. The task failed
+in 76.808 seconds; no source opened and no RTF was created. Post-terminal CUA confirmed only
+the Open dialog, then dismissed it without opening or changing a file.
+
+All eight protected file hashes and both unrelated Chrome draft additions survived. AWS matched
+the prompt, ten actions, eight PNGs, 22 usage events and failed outcome: two encrypted batches,
+79 records, one finalization. Continuous focus/clipboard isolation remains unproved.
+Receipt: `native-key-preparation-acceptance.json`.
+
+The trial was removed from the canonical patch and generated native source. Signed `d67df60`
+was restored with matching ASAR and strict signature. This rules out that extra preparation as
+a sufficient fix; it does not establish the cause of the remote panel's background input failure.
 
 ### Dialog-focus correction: background task fails; bounded foreground comparison works
 
