@@ -94,8 +94,16 @@ function harness() {
         };
       }
       if (tool === 'browser_navigate') {
-        if (state.navigationFailure)
-          decodeDriverResult(tool, args, state.navigationFailure, { started: 0, completed: 0 });
+        if (state.navigationFailure) {
+          const decoded = decodeDriverResult(tool, args, state.navigationFailure, {
+            started: 0,
+            completed: 0,
+          });
+          if (decoded.nativeToolError) {
+            state.url = String(args.url);
+            throw decoded.navigationFailure ?? new Error('Native tool failed');
+          }
+        }
         state.url = String(args.url);
         state.observationError = state.afterNavigateError;
         return { effect: 'confirmed' };
@@ -149,6 +157,65 @@ function harness() {
 }
 
 describe('Mac background Chromium uses the dedicated Cua browser route', () => {
+  it('keeps a network failure local and can navigate the same tab to a different source without new setup', async () => {
+    const h = harness();
+    h.state.prepared = true;
+    h.state.url = 'https://public.example/guide';
+    const target = await h.target();
+    const first = await h.backend.invoke(h.request('computer_snapshot', target));
+    const data = first.data as {
+      tab_id: string;
+      snapshot_id: string;
+      elements: { element_ref: string }[];
+    };
+    h.state.navigationFailure = {
+      rawJson: JSON.stringify({
+        isError: true,
+        content: [{ type: 'text', text: 'navigation failed: net::ERR_NAME_NOT_RESOLVED' }],
+      }),
+    };
+    const failed = await h.backend.invoke(
+      h.request('computer_open_url', {
+        ...target,
+        tab_id: data.tab_id,
+        url: 'https://unavailable.example/',
+      }),
+    );
+    expect(failed).toMatchObject({
+      outcome: 'accepted_unverified',
+      data: {
+        blocker_code: 'browser_navigation_failed',
+        network_error: 'ERR_NAME_NOT_RESOLVED',
+      },
+    });
+    expect(failed.images).toBeUndefined();
+    expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_navigate')).toHaveLength(1);
+    h.state.navigationFailure = undefined;
+    const recovered = await h.backend.invoke(
+      h.request('computer_open_url', {
+        ...target,
+        tab_id: data.tab_id,
+        url: 'https://search.example/',
+      }),
+    );
+    expect(recovered.outcome).toBe('verified');
+    expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_navigate')).toHaveLength(2);
+    expect(h.call.mock.calls.some(([tool]) => tool === 'browser_prepare')).toBe(false);
+    expect(
+      (
+        await h.backend.invoke(
+          h.request('computer_action', {
+            ...target,
+            snapshot_id: data.snapshot_id,
+            element_ref: data.elements[0]!.element_ref,
+            action: 'click',
+          }),
+        )
+      ).outcome,
+    ).toBe('stale');
+    expect(h.call.mock.calls.some(([tool]) => tool === 'browser_click')).toBe(false);
+  });
+
   it.each(['explicit', 'implicit'])(
     'reserves the physical window before %s URL selection can read or navigate',
     async (selection) => {

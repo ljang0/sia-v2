@@ -2,6 +2,7 @@
 
 import type { ActionExecutionResult } from '@sia/action-gateway';
 import { BrowserAttestationError } from '../mac/browser-attestation.js';
+import { BrowserNavigationError } from '../mac/browser-navigation-error.js';
 import { browserGuardRefusalCode, isCuaCallResult } from '../mac/cua-results.js';
 import { asRecord, compact, findNestedString, findString } from './driver-records.js';
 
@@ -63,6 +64,17 @@ export function browserInputTrustFailure(error: unknown): ActionExecutionResult 
 }
 
 export function classifyFailure(error: unknown): ActionExecutionResult {
+  if (error instanceof BrowserNavigationError)
+    return {
+      outcome: 'accepted_unverified',
+      summary:
+        'The requested website failed to load because of a network error. This is not a missing browser permission. Do not repeat setup or replay the failed navigation. For research, use a known public search page in the same exact tab to find a current alternative instead of guessing another website address. If the search page also cannot be observed, stop browser attempts and save verified findings with the gaps clearly stated.',
+      data: {
+        blocker_code: 'browser_navigation_failed',
+        network_error: error.networkCode,
+        input_delivery_uncertain: true,
+      },
+    };
   if (error instanceof BrowserAttestationError)
     return {
       outcome: 'refused',
@@ -95,7 +107,7 @@ export function classifyFailure(error: unknown): ActionExecutionResult {
     return {
       outcome: 'refused',
       summary:
-        'The browser page did not respond after one bounded read retry. This does not mean permission was denied. Treat this source as unavailable, not the whole task. Continue independent work and save verified findings with the gap clearly stated. For research, you may use computer_open_url to navigate the same exact tab to a different known, permitted public source; this is a new navigation, not a retry of the failed one. If that also fails, stop using this tab and report the remaining gap. Do not repeat setup or replay earlier navigation or input whose result is uncertain, and do not claim the unfinished parts are complete.',
+        'The browser page did not respond after one bounded read retry. This does not mean permission was denied. Treat this source as unavailable, not the whole task. Continue independent work and save verified findings with the gap clearly stated. For research, use computer_open_url to navigate the same exact tab to a known public search page and find a current alternative, instead of guessing another website address. This is a new navigation, not a retry of the failed one. If the search page also cannot be observed, stop browser attempts and report the remaining gap. Do not repeat setup or replay earlier navigation or input whose result is uncertain, and do not claim the unfinished parts are complete.',
       reason: message,
       data: { blocker_code: 'browser_observation_timeout' },
     };

@@ -76,6 +76,13 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
+The source follow-up preserves only allowlisted native network-error codes, recognizes the
+exact browser error-document URL without exposing its pixels or controls, and directs research
+recovery through a known public search page instead of guessed replacement domains. It preserves
+post-action focus checks, rejects stale input, and does not reinterpret certificate or policy
+errors as network failures. All 274 focused checks pass; signed live acceptance and the full
+pilot gate for this follow-up remain pending.
+
 Signed `5a8b1e5` changes the browser timeout guidance: keep a failed source local, allow a
 bounded attempt at a different permitted source in the same tab, and save verified findings
 with explicit gaps. It does not repeat uncertain input or widen permissions. A preceding

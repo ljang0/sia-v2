@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { BrowserNavigationError } from '../mac/browser-navigation-error.js';
 import { actionExecutionId } from './action-execution.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
@@ -743,7 +744,8 @@ export class MacBrowserControl {
   ): ActionExecutionResult {
     if (error instanceof Error && /\bsession_ended\b/.test(error.message))
       this.#expire(window, session);
-    if (inputWasRefused(error)) return classifyFailure(error);
+    if (error instanceof BrowserNavigationError || inputWasRefused(error))
+      return classifyFailure(error);
     return {
       outcome: 'accepted_unverified',
       summary:

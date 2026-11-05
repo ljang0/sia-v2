@@ -15,6 +15,7 @@ async function fixture() {
     protected: false,
     scale: 0.5,
     url: 'https://example.com/plan',
+    captureUrl: '',
     permission: true,
     inputError: '',
     incompleteReceipt: false,
@@ -32,7 +33,7 @@ async function fixture() {
     value: {
       target_id: 'driver-target',
       tab_id: 'driver-tab',
-      url: state.url,
+      url: state.captureUrl || state.url,
       outline: 'DOM-only content must never reach the model',
       elements: [
         {
@@ -116,6 +117,28 @@ async function fixture() {
       ),
   };
 }
+
+it('classifies a browser error document without exposing its pixels or retaining old input', async () => {
+  const h = await fixture();
+  const first = await h.snapshot();
+  h.state.captureUrl = 'chrome-error://chromewebdata/';
+  const failed = await h.snapshot();
+  expect(failed).toMatchObject({
+    outcome: 'refused',
+    reason: 'browser_error_document',
+    data: { blocker_code: 'browser_error_document', pixel_actions_available: false },
+  });
+  expect(failed.images).toBeUndefined();
+  expect(failed.data).not.toHaveProperty('snapshot_id');
+  expect(JSON.stringify(failed)).not.toContain('Hidden semantic label');
+  expect(
+    (await h.act(dataRecord(first.data).snapshot_id, { action: 'click', x: 10, y: 10 }))
+      .outcome,
+  ).toBe('stale');
+  expect(h.state.inputCalls).toHaveLength(0);
+  h.state.captureUrl = '';
+  expect((await h.snapshot()).outcome).toBe('verified');
+});
 
 it.each(['exception', 'structured'])(
   'recaptures a stale protection/image pair once without replaying delivered input (%s)',

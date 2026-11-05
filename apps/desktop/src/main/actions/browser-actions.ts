@@ -272,6 +272,20 @@ export class BrowserActions {
     });
     const refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
+    const document = asRecord(raw);
+    if (
+      document?.url === 'chrome-error://chromewebdata/' &&
+      (!document.target_id || document.target_id === binding.targetId) &&
+      (!document.tab_id || document.tab_id === binding.tabId)
+    ) {
+      return {
+        outcome: 'refused',
+        reason: 'browser_error_document',
+        summary:
+          'The tab contains a browser-generated error page, not the requested website. This does not establish a missing permission or a sign-in requirement. No page content or input references were returned. For research, navigate this same exact tab to a known public search page and find a current alternative instead of guessing another website address. Do not interact with or bypass security warnings; do not repeat setup or replay uncertain actions. Save verified findings if research cannot continue.',
+        data: { blocker_code: 'browser_error_document', pixel_actions_available: false },
+      };
+    }
     this.ctx.browser.indexBindings(raw);
     const location = findBrowserLocation(raw, binding.targetId, binding.tabId);
     const origin = location?.origin;

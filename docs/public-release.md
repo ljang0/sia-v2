@@ -17,7 +17,7 @@ remain open. Nothing has been published, sent to a recipient or submitted to Are
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`                               |
 | Native patch SHA-256   | `5dfb260e8929e9fceec45932f6250fb2c5a9235160becf598309c1f406690ec7`                               |
 | Private evidence       | `alpha122-browser-selection-internal/sheet-visibility-acceptance` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before source recovery.app`                                                     |
+| Rollback               | `Archived QA packages/Sia QA alpha122 before source recovery.app.zip`                            |
 
 Package/runtime and installed deep/strict signature checks passed. `pnpm test:pilot` passed on
 this exact functional source: 2,106 desktop tests (23 skipped), 46 Electron checks (five skipped),

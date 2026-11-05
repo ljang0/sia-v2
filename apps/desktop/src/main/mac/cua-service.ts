@@ -452,7 +452,10 @@ export class CuaService {
         }
       }
       if (nativeToolError)
-        throw new Error(`CUA tool ${tool} failed without a structured result.`);
+        throw (
+          decoded.navigationFailure ??
+          new Error(`CUA tool ${tool} failed without a structured result.`)
+        );
       return withDriverImages(parsed, result.images);
     } finally {
       clock.pause();

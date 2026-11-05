@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CuaService } from './cua-service.js';
+import { BrowserNavigationError, browserNavigationError } from './browser-navigation-error.js';
+import { classifyFailure, inputWasRefused } from '../actions/action-results.js';
 
 const permissionUi = vi.hoisted(() => ({
   accessibility: vi.fn(),
@@ -825,6 +827,56 @@ it.each(['get_window_state', 'list_windows'])(
     }
   },
 );
+
+it('preserves a proven DNS navigation failure without replaying it or treating it as unsent input', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const driver = successfulDriver({
+    isError: true,
+    content: [{ type: 'text', text: 'navigation failed: net::ERR_NAME_NOT_RESOLVED' }],
+  });
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    const failure = await service.call('browser_navigate', {}, directContext).catch((e) => e);
+    expect(failure).toBeInstanceOf(BrowserNavigationError);
+    expect(inputWasRefused(failure)).toBe(false);
+    expect(classifyFailure(failure)).toMatchObject({
+      outcome: 'accepted_unverified',
+      data: {
+        blocker_code: 'browser_navigation_failed',
+        network_error: 'ERR_NAME_NOT_RESOLVED',
+        input_delivery_uncertain: true,
+      },
+    });
+    expect(driver.callTool).toHaveBeenCalledOnce();
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
+});
+
+it.each([
+  'navigation failed: net::ERR_CERT_AUTHORITY_INVALID',
+  'navigation failed: net::ERR_BLOCKED_BY_ADMINISTRATOR',
+  'navigation failed: net::ERR_NAME_NOT_RESOLVED private page content',
+  'Page.navigate failed: CDP Page.navigate timed out after 20s',
+  'private page mentions navigation failed: net::ERR_NAME_NOT_RESOLVED',
+])('does not infer a recoverable network failure from %s', (text) => {
+  const envelope = { isError: true, content: [{ type: 'text', text }] };
+  expect(browserNavigationError('browser_navigate', envelope)).toBeUndefined();
+  expect(browserNavigationError('browser_click', envelope)).toBeUndefined();
+});
+
+it('requires a single native navigate error envelope before preserving a network code', () => {
+  const content = [{ type: 'text', text: 'navigation failed: net::ERR_NAME_NOT_RESOLVED' }];
+  expect(browserNavigationError('browser_click', { isError: true, content })).toBeUndefined();
+  expect(browserNavigationError('browser_navigate', { content })).toBeUndefined();
+  expect(
+    browserNavigationError('browser_navigate', {
+      isError: true,
+      content: [...content, ...content],
+    }),
+  ).toBeUndefined();
+});
 
 it('records a browser transport timeout without leaking page content or retrying input', async () => {
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});

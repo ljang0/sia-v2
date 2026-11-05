@@ -1,4 +1,8 @@
 import { browserAttestationFailure } from './browser-attestation.js';
+import {
+  browserNavigationError,
+  type BrowserNavigationError,
+} from './browser-navigation-error.js';
 
 export interface DriverResult {
   rawJson: string;
@@ -111,7 +115,7 @@ export function decodeDriverResult(
   args: Record<string, unknown>,
   result: DriverResult,
   progress: { started: number; completed: number },
-): { value: unknown; nativeToolError: boolean } {
+): { value: unknown; nativeToolError: boolean; navigationFailure?: BrowserNavigationError } {
   if (result.errorCode) {
     if (result.errorCode === 'window_not_key')
       console.warn(
@@ -212,13 +216,18 @@ export function decodeDriverResult(
   // Some driver failures use an MCP envelope instead of errorCode. Its text
   // can contain app content, so never release it as an observation or error.
   const nativeToolError = isNativeToolError(parsed);
+  const navigationFailure = browserNavigationError(tool, parsed);
   if (nativeToolError && tool.startsWith('browser_')) {
     console.warn(
       `[sia:cua-browser] native_error tool=${tool} hint=${/CDP [A-Za-z.]+ timed out/.test(json) ? 'browser_transport_timeout' : 'unspecified'}`,
     );
   }
   if (nativeToolError) parsed = { native_tool_error: true };
-  return { value: parsed, nativeToolError };
+  return {
+    value: parsed,
+    nativeToolError,
+    ...(navigationFailure ? { navigationFailure } : {}),
+  };
 }
 
 /** Live native inventory only; never infer focus from a window title or cached snapshot. */
