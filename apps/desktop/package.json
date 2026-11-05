@@ -73,7 +73,7 @@
     "postprocessing": "^6.39.5",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
-    "rimraf": "^6.1.2",
+    "rimraf": "^6.1.4",
     "three": "^0.180.0",
     "typescript": "^7.0.2",
     "vite": "^7.3.7",
