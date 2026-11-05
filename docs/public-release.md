@@ -21,8 +21,8 @@ responsiveness. Nothing has been published, sent to a recipient or submitted to 
 
 The focus-cleanup regression failed before the fix and passed in the native gate. Desktop build,
 quality, package/runtime and installed deep/strict signature checks passed.
-This same signed app was restored at 11:56:32 UTC after the failed `6953337` trial; its ASAR and
-strict signature matched (`native-key-preparation-rollback.json`).
+This same signed app was last restored at 12:11:56 UTC after the `9cd0718` logging-only
+diagnostic; its ASAR and strict signature matched (`focus-guard-diagnostic-rollback.json`).
 The full pilot gate on this source is pending. `pnpm test:pilot` passed on preceding `1269df9`:
 2,123 desktop tests (23 skipped), 46 Electron checks
 (five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates.
@@ -31,6 +31,26 @@ failure remain in the evidence; passing checks do not establish their cause or e
 concerns.
 
 ## Live results that determine readiness
+
+### Focus guard diagnostic: no intervention during the failed shortcut
+
+Signed `9cd0718`, thread `50fc95ea-db0c-40de-9702-e9bf74f9665e`, turn
+`edf5dee0-faa9-4dd5-bb74-d863b1617792`, added fixed-label logging only; guards and input delivery
+were unchanged. The bounded diagnostic opened TextEdit's Open dialog, sent Cmd+Shift+G once,
+and stopped after 56.948 seconds. Go to Folder did not appear, confirmed after termination
+through CUA. No text was entered into TextEdit, files opened or documents changed.
+
+The runtime recorded five guard requests and zero order restorations, activation reversals,
+successful key-focus theft releases or failed release attempts. This excludes those guard
+interventions during this run; it does not exclude every possible OS or driver focus mechanism.
+The diagnosis does not justify disabling input-isolation protections.
+
+All eight protected file hashes and both unrelated draft additions survived. Automatic AWS
+verification matched the prompt, seven actions, five PNGs, 16 usage events and terminal outcome
+in one 51-record encrypted batch with one finalization. Receipt:
+`focus-guard-diagnostic-result.json`. The completed diagnostic is not an acceptance pass for
+background document work. Temporary logging was removed, the canonical native source restored,
+and signed `d67df60` reinstalled with matching ASAR and strict signature.
 
 ### Native key-window preparation trial removed after ordinary-task failure
 

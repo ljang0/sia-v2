@@ -479,3 +479,8 @@ native-menu shortcut fallback, keeping the original keyboard transport. Exact-fo
 completed, but the ordinary Open-panel workflow still failed. That trial was removed and signed
 `d67df60` restored. Additional key-window preparation alone did not fix delivery; do not repeat
 it or combine it with the removed transport variant without new causal evidence.
+
+A subsequent logging-only `9cd0718` diagnostic recorded five guard requests but no order restore,
+activation reversal or key-focus theft release while the background Open shortcut still failed.
+The logging was removed. That run supplies no evidence for weakening or disabling the guards.
+It does not exclude other event-routing or OS focus mechanisms.

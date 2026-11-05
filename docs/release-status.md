@@ -115,6 +115,17 @@ unresolved. The existing background click prologue already uses activation witho
 the user's front app. Do not guess a service PID, relax exact-window guards, silently use
 foreground control or repeat unchanged task loops.
 
+A logging-only signed diagnostic, `9cd0718`, reproduced the missing Go to Folder dialog in
+56.948 seconds. Five guard entries were observed, with **zero** order restorations, activation
+reversals or keyboard-focus theft releases. Those guard interventions did not cause this run's
+failure; do not disable them as a workaround. The diagnostic changed no files, preserved the
+unrelated draft and matched AWS (seven actions, five screenshots, 16 usage events, one 51-record
+batch and one finalization). Logging was removed and signed `d67df60` restored at 12:11:56 UTC.
+Receipt: `focus-guard-diagnostic-result.json`. This is diagnostic evidence, not useful-task
+acceptance. A sanitized comment for upstream issue #3351 is drafted privately; posting requires
+the owner's explicit authorization. It identifies the patched host and does not claim a clean
+upstream reproduction.
+
 The earlier native menu-key transport trial `770360e` did not fix the task and was removed,
 along with temporary ownership logging. The `9e7e436` diagnostic reported the focused input
 under TextEdit's PID without a raw window ID; that cannot rule out a remote AX proxy. Envelope,
