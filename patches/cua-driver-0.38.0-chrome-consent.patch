@@ -8361,10 +8361,10 @@ index 841d8d0..e3f1d4a 100644
          let result = unbound_menu_window(42, 7, Some(8), None);
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu/context.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu/context.rs
 new file mode 100644
-index 0000000..866790f
+index 0000000..796978c
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu/context.rs
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,182 @@
 +//! AppKit menu commands belong to the current document or its attached sheet.
 +//! Keep raw modal identity as well as ownership: replacing/dismissing a sheet
 +//! during lookup must invalidate the command even when its parent is unchanged.
@@ -8393,17 +8393,29 @@ index 0000000..866790f
 +        self.focused.sheet
 +    }
 +
-+    fn bind(requested: u32, focused: Option<Window>, main: Option<Window>) -> Option<Self> {
-+        let (focused, main) = (focused?, main?);
++    fn bind(
++        requested: u32,
++        focused: Option<Window>,
++        main: Option<Window>,
++    ) -> Result<Self, &'static str> {
++        let focused = focused.ok_or("focused_unresolved")?;
++        let main = main.ok_or("main_unresolved")?;
 +        // Bind either the document or its exact focused sheet. The same proven
 +        // main document must own both; an unrelated sheet or sibling is refused.
 +        // Retain raw sheet identity for the pre-dispatch replacement check.
-+        ((requested == main.raw || (focused.sheet && requested == focused.raw))
-+            && main.owner == main.raw
-+            && !main.sheet
-+            && focused.owner == main.raw
-+            && (focused.raw == main.raw || focused.sheet))
-+            .then_some(Self { focused, main })
++        if requested != main.raw && !(focused.sheet && requested == focused.raw) {
++            return Err("requested_outside_context");
++        }
++        if main.owner != main.raw || main.sheet {
++            return Err("main_not_document");
++        }
++        if focused.owner != main.raw {
++            return Err("focused_owner_mismatch");
++        }
++        if focused.raw != main.raw && !focused.sheet {
++            return Err("focused_not_modal");
++        }
++        Ok(Self { focused, main })
 +    }
 +}
 +
@@ -8430,7 +8442,12 @@ index 0000000..866790f
 +) -> Result<MenuContext, (Option<u32>, Option<u32>)> {
 +    let focused = window(app, "AXFocusedWindow");
 +    let main = window(app, "AXMainWindow");
-+    MenuContext::bind(requested, focused, main).ok_or((focused.map(|w| w.raw), main.map(|w| w.raw)))
++    MenuContext::bind(requested, focused, main).map_err(|reason| {
++        // Fixed labels only: no IDs, titles, field contents or raw AX payloads.
++        // Distinguish failed document-menu binding from key-window priming.
++        eprintln!("[sia:cua-input] menu_context={reason}");
++        (focused.map(|w| w.raw), main.map(|w| w.raw))
++    })
 +}
 +
 +#[cfg(test)]
@@ -8468,7 +8485,7 @@ index 0000000..866790f
 +        let focused = Some(sheet(9, 7));
 +        let context = MenuContext::bind(9, focused, doc).unwrap();
 +        assert!(context.is_modal());
-+        assert_eq!(Some(context), MenuContext::bind(7, focused, doc));
++        assert_eq!(Ok(context), MenuContext::bind(7, focused, doc));
 +    }
 +
 +    #[test]
@@ -8484,7 +8501,7 @@ index 0000000..866790f
 +            (None, doc),
 +            (Some(sheet(9, 7)), None),
 +        ] {
-+            assert!(MenuContext::bind(9, focused, main).is_none());
++            assert!(MenuContext::bind(9, focused, main).is_err());
 +        }
 +    }
 +
@@ -8502,7 +8519,22 @@ index 0000000..866790f
 +            (doc, None),
 +            (None, None),
 +        ] {
-+            assert!(MenuContext::bind(7, focused, main).is_none());
++            assert!(MenuContext::bind(7, focused, main).is_err());
++        }
++    }
++
++    #[test]
++    fn refusal_distinguishes_missing_focus_from_conflicting_ownership() {
++        let doc = Some(document(7));
++        for (focused, main, expected) in [
++            (None, doc, "focused_unresolved"),
++            (Some(sheet(9, 7)), None, "main_unresolved"),
++            (Some(sheet(9, 8)), doc, "focused_owner_mismatch"),
++            (Some(sheet(9, 9)), doc, "focused_owner_mismatch"),
++            (Some(sheet(9, 7)), Some(sheet(7, 7)), "main_not_document"),
++            (Some(sheet(10, 7)), doc, "requested_outside_context"),
++        ] {
++            assert_eq!(MenuContext::bind(9, focused, main), Err(expected));
 +        }
 +    }
 +
@@ -8510,9 +8542,9 @@ index 0000000..866790f
 +    fn modal_replacement_or_dismissal_changes_dispatch_context() {
 +        let doc = Some(document(7));
 +        let before = MenuContext::bind(7, Some(sheet(9, 7)), doc).unwrap();
-+        assert_ne!(Some(before), MenuContext::bind(7, Some(sheet(10, 7)), doc));
-+        assert_ne!(Some(before), MenuContext::bind(7, doc, doc));
-+        assert_eq!(Some(before), MenuContext::bind(7, Some(sheet(9, 7)), doc));
++        assert_ne!(Ok(before), MenuContext::bind(7, Some(sheet(10, 7)), doc));
++        assert_ne!(Ok(before), MenuContext::bind(7, doc, doc));
++        assert_eq!(Ok(before), MenuContext::bind(7, Some(sheet(9, 7)), doc));
 +    }
 +}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs

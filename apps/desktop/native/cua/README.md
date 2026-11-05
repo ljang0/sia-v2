@@ -419,6 +419,12 @@ the requested target, or another window. Unknown envelope shapes produce `unavai
 IDs and content are never logged. This diagnostic does not relax the gate or retry input. Use it
 to distinguish missing focus from conflicting focus before proposing another routing change.
 
+Menu-context refusal uses the same public error code but a different producer reason. The native
+`invoke_menu/context.rs` boundary now logs a fixed `menu_context` label for missing focused/main
+window information, a non-document main window, or conflicting target/owner identity. It retains
+the same binding predicate and logs no native IDs or content. This diagnostic distinguishes the
+fresh Saturday-comparison failure from key-window priming before any routing change is justified.
+
 Native hotkeys also log fixed `menu_lookup` labels: `enabled_match`, `disabled_match`,
 `no_match`, `target_active` or `non_native`. A matched command logs `menu_dispatch=returned`
 or `unavailable_key_fallback`. These distinguish the paths that otherwise all end in synthetic

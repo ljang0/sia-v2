@@ -91,6 +91,13 @@ focus proof is not yet distinguished. Compare this exact clicked-sheet route wit
 successful typing into the initially selected field before changing routing. Do not replace the
 failed run with foreground rescue, weaken the exact-window guard or build speculative transports.
 
+Further inspection locates the refusal after native menu lookup, not key-window priming: both
+commands reached `menu_dispatch=returned` before the failure. Operator CUA selected the same
+path field without changing its contents. A single diagnostic candidate adds fixed labels to the
+existing menu-context predicate, preserving its decisions. Its bounded question is whether the
+sheet loses main-window proof or conflicts with another document's ownership; no input-route
+change or passing acceptance is claimed from that diagnostic.
+
 Cold restart on signed `bed8a3c` failed a fresh rainy-day museum request in 37.839 seconds:
 the saved choice survived but native preparation refused `background_unavailable` before
 research. No output was saved or task rescued. The independent draft and six RTFs remained
