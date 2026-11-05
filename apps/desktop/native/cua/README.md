@@ -432,14 +432,16 @@ document, missing owner or sibling still refuses. This preserves modal command e
 does not permit the document Save fallback. The regression fails before the fix; useful signed
 acceptance remains required.
 
-The next bounded diagnostic logs fixed `popup_lookup` outcomes from capture: unresolved focused
-root, no visible menu window, no owned menu in the root, matched owned menu, or failed ownership
-scan. It changes no capture or input predicates and logs no menu text or native IDs. On `e1bebca`,
-the ordinary task passed folder navigation but missed Finder's file menus; a post-terminal
-operator pixel right-click exposed a persistent AX menu while the operator screenshot omitted it.
-These labels settle whether Sia omits that surface before window matching or fails ownership.
-Remove this temporary capture diagnostic once that distinction is established; it is not task
-acceptance and does not justify another unchanged workflow loop.
+Signed `20f5616` diagnosed the missing Finder file menu: after one background right-click,
+capture reported `focused_root_unresolved` while post-terminal operator inspection still found
+the open menu under the exact Finder document. The temporary capture labels were then removed.
+`ax/window_point/popup/root.rs` retains the existing proven focused-sheet route, but otherwise
+resolves a unique exact document from the application's `AXWindows` using raw window ID, role
+and PID. Popup capture no longer depends on keyboard focus remaining in that document.
+Menu ancestry, unique visible popup-window identity and geometry checks remain required; the
+root is re-read before returning it and the surface is revalidated before capture/input.
+Missing, ambiguous, replaced and wrong-process roots remain refused. This changes observation
+and pixel-surface ownership only, not keyboard authorization or model-visible semantics.
 
 Native hotkeys also log fixed `menu_lookup` labels: `enabled_match`, `disabled_match`,
 `no_match`, `target_active` or `non_native`. A matched command logs `menu_dispatch=returned`

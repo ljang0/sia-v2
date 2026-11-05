@@ -4265,13 +4265,14 @@ index 0000000..c22108d
 +}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup.rs
 new file mode 100644
-index 0000000..954e322
+index 0000000..53bf691
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup.rs
-@@ -0,0 +1,292 @@
+@@ -0,0 +1,279 @@
 +//! An owned popover and its menu, or one menu under an exact window or sheet.
 +//! AX proves ancestry/process/geometry; WindowServer supplies the capturable ID.
 +mod popover;
++mod root;
 +
 +use super::*;
 +use crate::capture::frame::{Popup, Rect};
@@ -4348,8 +4349,7 @@ index 0000000..954e322
 +}
 +
 +unsafe fn owned_popups(pid: i32, window_id: u32) -> anyhow::Result<Vec<(RetainedElement, Popup)>> {
-+    let Some(sheet) = focused_root(pid, window_id) else {
-+        eprintln!("[sia:cua-capture] popup_lookup=focused_root_unresolved");
++    let Some(sheet) = root::read(pid, window_id)? else {
 +        return Ok(Vec::new());
 +    };
 +    let windows = crate::windows::on_screen_windows_any_layer();
@@ -4373,7 +4373,6 @@ index 0000000..954e322
 +    // a potentially enormous file listing when there is no popup to capture.
 +    // Full surface validation repeats this observation after capture/at dispatch.
 +    if !windows.iter().any(|w| w.layer == 101 && w.is_on_screen) {
-+        eprintln!("[sia:cua-capture] popup_lookup=no_visible_menu_window");
 +        return Ok(found);
 +    }
 +    let mut stack = vec![(root, 0)];
@@ -4412,7 +4411,6 @@ index 0000000..954e322
 +                "popup process is unavailable"
 +            );
 +            let proof = match_window(pid, menu_pid, bounds, &windows, is_document_service)?;
-+            eprintln!("[sia:cua-capture] popup_lookup=owned_menu_matched");
 +            found.push((element.clone(), proof));
 +            // match_window proves there is only one popup for this client,
 +            // across all bounds, before this ancestry proof is accepted. It is
@@ -4421,29 +4419,18 @@ index 0000000..954e322
 +        }
 +        stack.extend(children.into_iter().map(|child| (child, depth + 1)));
 +    }
-+    if !found.iter().any(|(_, proof)| {
-+        windows
-+            .iter()
-+            .any(|w| w.layer == 101 && w.window_id == proof.window_id)
-+    }) {
-+        eprintln!("[sia:cua-capture] popup_lookup=no_owned_menu_in_root");
-+    }
 +    let current =
-+        focused_root(pid, window_id).ok_or_else(|| anyhow::anyhow!("sheet disappeared"))?;
++        root::read(pid, window_id)?.ok_or_else(|| anyhow::anyhow!("popup document disappeared"))?;
 +    anyhow::ensure!(
 +        CFEqual(current.as_ptr() as CFTypeRef, sheet.as_ptr() as CFTypeRef) != 0,
-+        "sheet changed during popup lookup"
++        "popup document changed during lookup"
 +    );
 +    Ok(found)
 +}
 +
 +pub(crate) fn read(pid: i32, window_id: u32) -> anyhow::Result<Vec<Popup>> {
 +    unsafe {
-+        Ok(owned_popups(pid, window_id)
-+            .map_err(|error| {
-+                eprintln!("[sia:cua-capture] popup_lookup=ownership_scan_failed");
-+                error
-+            })?
++        Ok(owned_popups(pid, window_id)?
 +            .into_iter()
 +            .map(|(_, proof)| proof)
 +            .collect())
@@ -4717,6 +4704,161 @@ index 0000000..f8ba6b1
 +        let mut invalid = bounds;
 +        invalid.width = f64::NAN;
 +        assert!(match_owned_geometry(20, 7, invalid, &[]).is_err());
++    }
++}
+diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup/root.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup/root.rs
+new file mode 100644
+index 0000000..ec6f76a
+--- /dev/null
++++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup/root.rs
+@@ -0,0 +1,149 @@
++//! Popup observation belongs to the requested document, not the keyboard-focus holder.
++//! A background menu can make AXFocusedWindow unavailable while its exact AXWindows
++//! document and menu ancestry remain intact. This does not authorize keyboard input.
++use super::*;
++use crate::ax::bindings::{ax_get_window_id, copy_ax_windows, AXUIElementGetPid};
++
++fn exact_document(
++    role: Option<&str>,
++    raw: Option<u32>,
++    owner: Option<i32>,
++    pid: i32,
++    requested: u32,
++) -> bool {
++    pid > 0
++        && requested > 0
++        && role == Some("AXWindow")
++        && raw == Some(requested)
++        && owner == Some(pid)
++}
++
++fn select<E>(
++    focused: Option<E>,
++    listed: impl FnOnce() -> Vec<E>,
++    matches: impl Fn(&E) -> bool,
++) -> anyhow::Result<Option<E>> {
++    // Keep the existing exact focused-sheet route. Do not replace an attached
++    // modal surface with its parent document just because both are listed.
++    if focused.is_some() {
++        return Ok(focused);
++    }
++    let mut candidates = listed().into_iter().filter(matches);
++    let selected = candidates.next();
++    anyhow::ensure!(
++        candidates.next().is_none(),
++        "popup document identity is ambiguous"
++    );
++    Ok(selected)
++}
++
++pub(super) unsafe fn read(pid: i32, window_id: u32) -> anyhow::Result<Option<RetainedElement>> {
++    select(
++        focused_root(pid, window_id),
++        || {
++            let app = AXUIElementCreateApplication(pid);
++            if app.is_null() {
++                return Vec::new();
++            }
++            let windows = copy_ax_windows(app);
++            CFRelease(app as CFTypeRef);
++            windows.into_iter().map(|window| adopt(window)).collect()
++        },
++        |element| {
++            let ptr = element.as_ptr() as AXUIElementRef;
++            let mut owner = 0;
++            let owner = (AXUIElementGetPid(ptr, &mut owner) == 0).then_some(owner);
++            exact_document(
++                copy_string_attr(ptr, "AXRole").as_deref(),
++                ax_get_window_id(ptr),
++                owner,
++                pid,
++                window_id,
++            )
++        },
++    )
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++
++    #[derive(Clone, Debug, PartialEq)]
++    struct Candidate {
++        role: Option<&'static str>,
++        raw: Option<u32>,
++        pid: Option<i32>,
++    }
++    fn doc(raw: u32) -> Candidate {
++        Candidate {
++            role: Some("AXWindow"),
++            raw: Some(raw),
++            pid: Some(20),
++        }
++    }
++    fn matches(candidate: &Candidate) -> bool {
++        exact_document(candidate.role, candidate.raw, candidate.pid, 20, 7)
++    }
++
++    #[test]
++    fn missing_focus_still_observes_only_the_exact_listed_document() {
++        assert_eq!(
++            select(None, || vec![doc(8), doc(7), doc(9)], matches).unwrap(),
++            Some(doc(7))
++        );
++        assert_eq!(select(None, || vec![doc(8)], matches).unwrap(), None);
++        assert_eq!(select(None, Vec::<Candidate>::new, matches).unwrap(), None);
++        assert!(select(None, || vec![doc(7), doc(7)], matches).is_err());
++    }
++
++    #[test]
++    fn wrong_process_role_or_unknown_identity_cannot_supply_a_root() {
++        for candidate in [
++            Candidate {
++                pid: Some(21),
++                ..doc(7)
++            },
++            Candidate {
++                pid: None,
++                ..doc(7)
++            },
++            Candidate {
++                raw: None,
++                ..doc(7)
++            },
++            Candidate {
++                role: None,
++                ..doc(7)
++            },
++            Candidate {
++                role: Some("AXSheet"),
++                ..doc(7)
++            },
++            Candidate {
++                role: Some("AXMenu"),
++                ..doc(7)
++            },
++        ] {
++            assert_eq!(select(None, || vec![candidate], matches).unwrap(), None);
++        }
++        assert!(!exact_document(Some("AXWindow"), Some(0), Some(20), 20, 0));
++    }
++
++    #[test]
++    fn proven_focused_sheet_retains_priority_without_scanning_other_windows() {
++        let sheet = Candidate {
++            role: Some("AXSheet"),
++            raw: Some(10),
++            pid: Some(20),
++        };
++        assert_eq!(
++            select(
++                Some(sheet.clone()),
++                || panic!("must retain the proven modal root"),
++                matches
++            )
++            .unwrap(),
++            Some(sheet)
++        );
 +    }
 +}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/window_scope.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_scope.rs

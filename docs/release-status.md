@@ -115,6 +115,16 @@ batches (135 logical records, one finalization). Receipt: `main-sheet-acceptance
 Native regression, build, quality and signed package/runtime checks passed; the full pilot gate
 on this source is pending. This is a verified step repair, not a useful native-task pass.
 
+The signed `20f5616` menu-only diagnostic established a capture defect: after one background
+right-click, the popup lookup reported `focused_root_unresolved`, although post-terminal
+operator inspection still found Finder's open file menu. The 34.762-second diagnostic made no
+file changes; AWS matched four actions, three PNGs, ten usage events and the completed diagnostic
+in one 33-record batch (`popup-diagnostic.json`). It is not useful-task acceptance.
+The source repair resolves the exact document through its raw AXWindows identity when focused
+ownership is unavailable, preserving the focused-sheet route and all menu ancestry, process,
+geometry and before/after surface checks. It removes the temporary capture diagnostics and
+changes no input transport. Signed ordinary-task acceptance of that repair is pending.
+
 Cold restart on signed `bed8a3c` failed a fresh rainy-day museum request in 37.839 seconds:
 the saved choice survived but native preparation refused `background_unavailable` before
 research. No output was saved or task rescued. The independent draft and six RTFs remained
