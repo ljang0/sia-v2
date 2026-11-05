@@ -464,17 +464,27 @@ export class BrowserActions {
         asRecord(observed.data)?.snapshot_id,
       );
       if ('outcome' in latest) return latest;
+      // A child frame can refresh without changing the observed pixels. Reuse the
+      // requested action only with exact image equality and a native proof that the
+      // top-level document AND viewport are unchanged. Root reloads still revoke it.
+      const identicalView =
+        capability.visualRoot !== undefined &&
+        capability.visualRoot === latest.visualRoot &&
+        capability.imageHash !== undefined &&
+        capability.imageHash === latest.imageHash;
+      const documentChanged =
+        latest.visualDocument !== capability.visualDocument && !identicalView;
       if (
         capability.capturedAt === undefined ||
         Date.now() - capability.capturedAt > 30_000 ||
         latest.url !== capability.url ||
-        latest.visualDocument !== capability.visualDocument ||
+        documentChanged ||
         JSON.stringify(latest.pixels) !== JSON.stringify(capability.pixels)
       ) {
         const code =
           latest.url !== capability.url
             ? 'browser_page_changed'
-            : latest.visualDocument !== capability.visualDocument
+            : documentChanged
               ? 'browser_document_changed'
               : JSON.stringify(latest.pixels) !== JSON.stringify(capability.pixels)
                 ? 'browser_geometry_changed'
@@ -495,7 +505,9 @@ export class BrowserActions {
         };
       }
       tool = visual.tool;
-      input = visual.input;
+      // The driver rechecks the entire fresh frame tree immediately before input.
+      // This is the first dispatch, never a replay of an uncertain write.
+      input = { ...visual.input, visual_document: latest.visualDocument };
     } else
       switch (args.action) {
         case 'click':

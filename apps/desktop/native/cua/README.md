@@ -125,6 +125,13 @@ invalid viewport metadata refuses input; optional zoom metadata remains explicit
 Chrome does not report it. This token never reaches model responses. Its host-only check
 returns a boolean, never field contents or an element target.
 
+The host also retains a separate native fingerprint of the top-level document and viewport,
+plus the exact PNG hash. When a child frame refreshes between observations, an identical image
+with the same root/viewport may carry the requested action forward using the **new** full-frame
+token. A root reload, changed image, URL, geometry, expired observation or missing proof still
+revokes the old action. Native capture-time and immediately-before-input checks remain unchanged;
+this never replays a dispatched action or exposes document fingerprints to the model.
+
 The `focused_key` mode treats the text argument as one named page key, with optional Cmd, Shift
 or Option modifiers. It sends one CDP key-down/up pair to the bound page, using reviewed editor
 commands for selection, undo/redo and caret movement. A side-effect-checked focus guard rejects

@@ -10,6 +10,8 @@ async function fixture() {
   const state = {
     image: true,
     document: 'a'.repeat(64),
+    root: undefined as string | undefined,
+    imageSuffix: '',
     protected: false,
     scale: 0.5,
     url: 'https://example.com/plan',
@@ -42,6 +44,7 @@ async function fixture() {
       screenshot: {
         source: 'cdp_tab',
         visual_document: state.document,
+        visual_root: state.root,
         scope: 'viewport',
         coordinate_space: 'viewport_css_px',
         width: 1600,
@@ -52,7 +55,14 @@ async function fixture() {
         pixel_to_css_scale_y: state.scale,
       },
     },
-    images: state.image ? [{ mimeType: 'image/png', dataBase64: png.toString('base64') }] : [],
+    images: state.image
+      ? [
+          {
+            mimeType: 'image/png',
+            dataBase64: Buffer.concat([png, Buffer.from(state.imageSuffix)]).toString('base64'),
+          },
+        ]
+      : [],
   });
   const cua = fakeCua(async (name, args) => {
     if (name === 'list_apps')
@@ -474,3 +484,45 @@ it('returns the already captured fresh image when preflight detects a changed do
   expect(h.state.inputCalls).toHaveLength(1);
   expect(h.state.inputCalls[0]!.args.visual_document).toBe('b'.repeat(64));
 });
+
+it('continues an identical viewport after child-frame churn using only the newly verified document token', async () => {
+  const h = await fixture();
+  h.state.root = 'c'.repeat(64);
+  const first = await h.snapshot();
+  h.state.document = 'b'.repeat(64);
+  const args = { action: 'click', x: 200, y: 100 };
+  const result = await h.act(dataRecord(first.data).snapshot_id, args);
+  expect(result.outcome).toBe('accepted_unverified');
+  expect(h.state.inputCalls).toHaveLength(1);
+  expect(h.state.inputCalls[0]!.args).toMatchObject({
+    visual_document: 'b'.repeat(64),
+    x: 100,
+    y: 50,
+    delivery_mode: 'background',
+  });
+  expect(JSON.stringify(result)).not.toContain('visual_root');
+  expect(JSON.stringify(result)).not.toContain('c'.repeat(64));
+  expect((await h.act(dataRecord(first.data).snapshot_id, args)).outcome).toBe('stale');
+  expect(h.state.inputCalls).toHaveLength(1);
+});
+
+it.each(['root', 'image', 'missing', 'malformed'] as const)(
+  'does not reuse visual input after a frame change with changed %s proof',
+  async (kind) => {
+    const h = await fixture();
+    h.state.root = 'c'.repeat(64);
+    const first = await h.snapshot();
+    h.state.document = 'b'.repeat(64);
+    if (kind === 'root') h.state.root = 'd'.repeat(64);
+    if (kind === 'image') h.state.imageSuffix = 'changed screenshot bytes';
+    if (kind === 'missing') h.state.root = undefined;
+    if (kind === 'malformed') h.state.root = 'not a native fingerprint';
+    const result = await h.act(dataRecord(first.data).snapshot_id, {
+      action: 'click',
+      x: 200,
+      y: 100,
+    });
+    expect(result).toMatchObject({ outcome: 'stale', reason: 'browser_document_changed' });
+    expect(h.state.inputCalls).toEqual([]);
+  },
+);

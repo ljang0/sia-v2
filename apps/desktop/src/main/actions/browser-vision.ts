@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { ActionExecutionResult } from '@sia/action-gateway';
 import { actionImages, refused, screenshotDimensions, stale } from './action-results.js';
 import type { BrowserBinding, BrowserSnapshotCapability } from './browser-grants.js';
@@ -57,6 +57,7 @@ export function browserVisualSnapshot(
   const image = actionImages(raw).images?.find((entry) => entry.mimeType === 'image/png');
   const pixels = browserImageGeometry(raw);
   const visualDocument = asRecord(asRecord(raw)?.screenshot)?.visual_document;
+  const visualRoot = asRecord(asRecord(raw)?.screenshot)?.visual_root;
   if (
     privateLinks ||
     !image ||
@@ -80,6 +81,12 @@ export function browserVisualSnapshot(
     url,
     capturedAt: Date.now(),
     visualDocument,
+    ...(typeof visualRoot === 'string' && /^[a-f0-9]{64}$/.test(visualRoot)
+      ? { visualRoot }
+      : {}),
+    imageHash: createHash('sha256')
+      .update(Buffer.from(image.dataBase64, 'base64'))
+      .digest('hex'),
     pixels,
     elements: new Map(),
   });

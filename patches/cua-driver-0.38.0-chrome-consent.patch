@@ -201,7 +201,7 @@ index c401f20..a11a0a7 100644
  
      #[tokio::test]
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
-index 1d0940c..0dc34f0 100644
+index 1d0940c..d7c9c0a 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/engine.rs
 @@ -247,6 +247,43 @@ fn endpoint_access_class(
@@ -257,15 +257,16 @@ index 1d0940c..0dc34f0 100644
  }
  
  fn viewport_point_to_screen(
-@@ -450,6 +487,7 @@ pub(crate) struct SemanticSnapshotOutcome {
+@@ -450,6 +487,8 @@ pub(crate) struct SemanticSnapshotOutcome {
  }
  
  pub(crate) struct BrowserTabScreenshot {
 +    pub visual_document: Option<String>,
++    pub visual_root: Option<String>,
      pub data_base64: String,
      pub width: u32,
      pub height: u32,
-@@ -515,6 +553,47 @@ fn browser_screenshot_viewport(
+@@ -515,6 +554,47 @@ fn browser_screenshot_viewport(
      })
  }
  
@@ -313,10 +314,16 @@ index 1d0940c..0dc34f0 100644
  /// Whether OOPIF content could be composed into the snapshot.
  #[derive(Debug, Clone, Copy, PartialEq, Eq)]
  pub(crate) enum OopifStatus {
-@@ -551,6 +630,13 @@ pub(crate) struct LocalFrameTree {
+@@ -551,6 +631,19 @@ pub(crate) struct LocalFrameTree {
  }
  
  impl LocalFrameTree {
++    fn visual_root(&self) -> String {
++        let encoded = serde_json::to_vec(&(&self.main_frame_id, &self.frames[&self.main_frame_id]))
++            .expect("frame strings serialize");
++        format!("{:x}", Sha256::digest(encoded))
++    }
++
 +    fn visual_document(&self) -> String {
 +        let mut frames: Vec<_> = self.frames.iter().collect();
 +        frames.sort();
@@ -327,7 +334,7 @@ index 1d0940c..0dc34f0 100644
      fn main_identity(&self) -> FrameIdentity {
          FrameIdentity {
              frame_id: self.main_frame_id.clone(),
-@@ -1260,9 +1346,9 @@ impl BrowserEngine {
+@@ -1260,9 +1353,9 @@ impl BrowserEngine {
      /// Attach (flattened) to a tab's target and return the CDP session id.
      async fn attach(
          &self,
@@ -339,7 +346,7 @@ index 1d0940c..0dc34f0 100644
          let attached = conn
              .call(
                  None,
-@@ -1276,7 +1362,7 @@ impl BrowserEngine {
+@@ -1276,7 +1369,7 @@ impl BrowserEngine {
                      format!("cannot attach to tab target {cdp_target_id}: {e}"),
                  )
              })?;
@@ -348,7 +355,7 @@ index 1d0940c..0dc34f0 100644
              .get("sessionId")
              .and_then(Value::as_str)
              .map(str::to_owned)
-@@ -1285,7 +1371,8 @@ impl BrowserEngine {
+@@ -1285,7 +1378,8 @@ impl BrowserEngine {
                      BrowserRefusalCode::BrowserTabNotFound,
                      format!("attach to {cdp_target_id} returned no sessionId"),
                  )
@@ -358,7 +365,7 @@ index 1d0940c..0dc34f0 100644
      }
  
      // ── Binding (get_browser_state, pid + window_id mode) ──────────────
-@@ -1350,6 +1437,27 @@ impl BrowserEngine {
+@@ -1350,6 +1444,27 @@ impl BrowserEngine {
          let candidates = self.window_candidates(&conn).await?;
  
          let correlation = correlate(&native, &candidates, BOUNDS_TOLERANCE_PX);
@@ -386,7 +393,7 @@ index 1d0940c..0dc34f0 100644
          let (candidate, quality) = match correlation {
              BindingOutcome::Bound {
                  candidate,
-@@ -1745,7 +1853,7 @@ impl BrowserEngine {
+@@ -1745,7 +1860,7 @@ impl BrowserEngine {
          // feedback is safer than drawing a cursor over another tab.
          let tab_is_active = tab_visibility_proven(&validated.conn, &validated.cdp_session).await;
  
@@ -395,7 +402,7 @@ index 1d0940c..0dc34f0 100644
              validated
                  .conn
                  .call(Some(cdp_session), "Page.getLayoutMetrics", json!({}))
-@@ -1977,6 +2085,22 @@ impl BrowserEngine {
+@@ -1977,6 +2092,22 @@ impl BrowserEngine {
          }
      }
  
@@ -418,7 +425,7 @@ index 1d0940c..0dc34f0 100644
      // ── Read-side: page snapshot (ref minting) ──────────────────────────
  
      /// Capture the exact page target's current viewport through its attached
-@@ -1988,6 +2112,7 @@ impl BrowserEngine {
+@@ -1988,6 +2119,7 @@ impl BrowserEngine {
          session: &str,
          target_id: &str,
          tab_id: &str,
@@ -426,7 +433,7 @@ index 1d0940c..0dc34f0 100644
      ) -> Result<BrowserTabScreenshot, BrowserRefusal> {
          let record = self.store.get_target(session, target_id)?;
          let tab = record.tabs.get(tab_id).cloned().ok_or_else(|| {
-@@ -1998,11 +2123,28 @@ impl BrowserEngine {
+@@ -1998,11 +2130,30 @@ impl BrowserEngine {
          })?;
          let conn = self.connection_for_record(session, &record).await?;
          let cdp_session = self.attach(&conn, &tab.cdp_target_id).await?;
@@ -443,19 +450,21 @@ index 1d0940c..0dc34f0 100644
 +                return Err(refuse(BrowserRefusalCode::BrowserRefStale,
 +                    "the document changed after its protection snapshot; no image returned"));
 +            }
-+            Some(tree.visual_document())
++            Some((tree.visual_document(), tree.visual_root()))
 +        } else { None };
          let metrics = conn
              .call(Some(&cdp_session), "Page.getLayoutMetrics", json!({}))
              .await
              .map_err(|error| route_err("Page.getLayoutMetrics failed", error))?;
          let viewport = browser_screenshot_viewport(&metrics)?;
-+        let visual_document = document_identity.as_deref()
++        let visual_document = document_identity.as_ref().map(|(document, _)| document)
 +            .map(|document| visual_observation_token(document, &metrics)).transpose()?;
++        let visual_root = document_identity.as_ref().map(|(_, root)| root)
++            .map(|root| visual_observation_token(root, &metrics)).transpose()?;
          let response = conn
              .call(
                  Some(&cdp_session),
-@@ -2065,7 +2207,18 @@ impl BrowserEngine {
+@@ -2065,7 +2216,19 @@ impl BrowserEngine {
                  "PNG dimensions must be non-zero",
              ));
          }
@@ -471,10 +480,11 @@ index 1d0940c..0dc34f0 100644
 +        }
          Ok(BrowserTabScreenshot {
 +            visual_document,
++            visual_root,
              data_base64,
              width,
              height,
-@@ -2603,7 +2756,7 @@ impl BrowserEngine {
+@@ -2603,7 +2766,7 @@ impl BrowserEngine {
                  continuation.offset,
                  DEFAULT_SEMANTIC_NODE_BUDGET,
                  continuation.query.as_deref(),
@@ -483,7 +493,7 @@ index 1d0940c..0dc34f0 100644
              );
              let start_index = snapshot
                  .refs
-@@ -2643,7 +2796,7 @@ impl BrowserEngine {
+@@ -2643,7 +2806,7 @@ impl BrowserEngine {
                              SemanticContinuation {
                                  offset,
                                  query: continuation.query.clone(),
@@ -492,7 +502,7 @@ index 1d0940c..0dc34f0 100644
                                  oopif_supported: continuation.oopif_supported,
                                  oopif_frames: continuation.oopif_frames,
                              },
-@@ -2654,12 +2807,10 @@ impl BrowserEngine {
+@@ -2654,12 +2817,10 @@ impl BrowserEngine {
              return Ok(outcome);
          }
  
@@ -509,7 +519,7 @@ index 1d0940c..0dc34f0 100644
              None => None,
          };
          let record = self.store.get_target(session, target_id)?;
-@@ -2791,11 +2942,21 @@ impl BrowserEngine {
+@@ -2791,11 +2952,21 @@ impl BrowserEngine {
              semantic.complete = false;
          }
  
@@ -532,7 +542,7 @@ index 1d0940c..0dc34f0 100644
          );
          let next_offset = page.next_offset;
          let snapshot_id = self.store.mint_snapshot_id();
-@@ -2829,7 +2990,7 @@ impl BrowserEngine {
+@@ -2829,7 +3000,7 @@ impl BrowserEngine {
                              SemanticContinuation {
                                  offset,
                                  query: query.map(str::to_owned),
@@ -541,7 +551,7 @@ index 1d0940c..0dc34f0 100644
                                  oopif_supported: matches!(oopif, OopifStatus::Attached(_)),
                                  oopif_frames: oopif.frames(),
                              },
-@@ -3013,6 +3174,54 @@ async fn live_title(conn: &Arc<CdpConnection>, cdp_target_id: &str, fallback: &s
+@@ -3013,6 +3184,54 @@ async fn live_title(conn: &Arc<CdpConnection>, cdp_target_id: &str, fallback: &s
  
  #[cfg(test)]
  mod tests {
@@ -1101,7 +1111,7 @@ index 68f2099..96f1e08 100644
      pub oopif_frames: usize,
  }
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
-index df04401..83a0ff8 100644
+index df04401..6c462d6 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 @@ -51,6 +51,106 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
@@ -1224,15 +1234,16 @@ index df04401..83a0ff8 100644
      let target = validated.record;
      let tab = validated.tab;
      let requested_origin = if tool_name == "browser_navigate" {
-@@ -381,6 +485,7 @@ fn with_tab_screenshot(mut result: ToolResult, screenshot: BrowserTabScreenshot)
+@@ -381,6 +485,8 @@ fn with_tab_screenshot(mut result: ToolResult, screenshot: BrowserTabScreenshot)
      if let Some(structured) = result.structured_content.as_mut() {
          structured["screenshot"] = json!({
              "source": "cdp_tab",
 +            "visual_document": screenshot.visual_document,
++            "visual_root": screenshot.visual_root,
              "scope": "viewport",
              "mime_type": "image/png",
              "width": screenshot.width,
-@@ -453,6 +558,10 @@ impl GetBrowserStateTool {
+@@ -453,6 +559,10 @@ impl GetBrowserStateTool {
                          "type": "string",
                          "description": "Opaque continuation minted by an earlier semantic_v2 response."
                      },
@@ -1243,7 +1254,7 @@ index df04401..83a0ff8 100644
                      "include_screenshot": {
                          "type": "boolean",
                          "default": false,
-@@ -618,9 +727,18 @@ impl Tool for GetBrowserStateTool {
+@@ -618,9 +728,18 @@ impl Tool for GetBrowserStateTool {
                      Err(refusal) => return refusal.to_tool_result(),
                  };
                  if include_screenshot {
@@ -1263,7 +1274,7 @@ index df04401..83a0ff8 100644
                          .await
                      {
                          Ok(screenshot) => with_tab_screenshot(snapshot, screenshot),
-@@ -673,7 +791,7 @@ impl Tool for GetBrowserStateTool {
+@@ -673,7 +792,7 @@ impl Tool for GetBrowserStateTool {
              if include_screenshot {
                  return match self
                      .engine
@@ -1272,7 +1283,7 @@ index df04401..83a0ff8 100644
                      .await
                  {
                      Ok(screenshot) => with_tab_screenshot(snapshot, screenshot),
-@@ -1158,6 +1276,7 @@ impl BrowserClickTool {
+@@ -1158,6 +1277,7 @@ impl BrowserClickTool {
                  "properties": {
                      "target_id": schema_target_id(),
                      "tab_id": schema_tab_id(),
@@ -1280,7 +1291,7 @@ index df04401..83a0ff8 100644
                      "session": schema_session(),
                      "ref": schema_ref(),
                      "x": { "type": "number", "description": "Viewport x (CSS px) — alternative to ref." },
-@@ -1338,6 +1457,19 @@ impl Tool for BrowserClickTool {
+@@ -1338,6 +1458,19 @@ impl Tool for BrowserClickTool {
          let conn = &validated.conn;
          let cdp = cdp_session.as_str();
  
@@ -1300,7 +1311,7 @@ index df04401..83a0ff8 100644
          // dom_event route: explicit opt-in only.
          if route == "dom_event" {
              let backend = backend_node_id.expect("checked above");
-@@ -1486,6 +1618,16 @@ impl Tool for BrowserClickTool {
+@@ -1486,6 +1619,16 @@ impl Tool for BrowserClickTool {
              (None, None) => unreachable!("validated above"),
          };
  
@@ -1317,7 +1328,7 @@ index df04401..83a0ff8 100644
          self.engine
              .visualize_browser_action(
                  &session,
-@@ -1515,6 +1657,11 @@ impl Tool for BrowserClickTool {
+@@ -1515,6 +1658,11 @@ impl Tool for BrowserClickTool {
          }
          tokio::time::sleep(std::time::Duration::from_millis(25)).await;
  
@@ -1329,7 +1340,7 @@ index df04401..83a0ff8 100644
          let mut delivery_error = None;
          for (event_type, click_count) in [("mousePressed", 1), ("mouseReleased", 1)] {
              if let Err(error) = conn
-@@ -1813,21 +1960,23 @@ impl BrowserTypeTool {
+@@ -1813,21 +1961,23 @@ impl BrowserTypeTool {
                  at the caret, so typing into a field that already holds text appends \
                  to it; pass replace=true to set the field instead, or to clear it by \
                  typing an empty string. Pass a ref to an editable element from the \
@@ -1357,7 +1368,7 @@ index df04401..83a0ff8 100644
                      },
                      "replace": {
                          "type": "boolean",
-@@ -1839,7 +1988,7 @@ impl BrowserTypeTool {
+@@ -1839,7 +1989,7 @@ impl BrowserTypeTool {
                              framework state stays consistent."
                      },
                  },
@@ -1366,7 +1377,7 @@ index df04401..83a0ff8 100644
                  "additionalProperties": true
              }),
              read_only: false,
-@@ -1895,9 +2044,9 @@ impl Tool for BrowserTypeTool {
+@@ -1895,9 +2045,9 @@ impl Tool for BrowserTypeTool {
              Err(e) => return e,
          };
          let mode = args.opt_str("mode").unwrap_or_else(|| "insert_text".into());
@@ -1378,7 +1389,7 @@ index df04401..83a0ff8 100644
              ));
          }
          let replace = args.opt_bool("replace").unwrap_or(false);
-@@ -1919,6 +2068,22 @@ impl Tool for BrowserTypeTool {
+@@ -1919,6 +2069,22 @@ impl Tool for BrowserTypeTool {
              Err(refusal) => return refusal.to_tool_result(),
          };
  
@@ -1402,7 +1413,7 @@ index df04401..83a0ff8 100644
              Ok(value) => value,
              Err(error) => return error,
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-index d5f50d2..b5395d3 100644
+index d5f50d2..70fbc6d 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 @@ -57,14 +57,31 @@ pub(super) struct FixtureState {
@@ -1807,7 +1818,7 @@ index d5f50d2..b5395d3 100644
  #[tokio::test]
  async fn click_routes_oopif_refs_through_the_contained_child_session() {
      let f = fixture().await;
-@@ -3603,3 +3862,327 @@ async fn method_unsupported_keeps_the_electron_none_path() {
+@@ -3603,3 +3862,354 @@ async fn method_unsupported_keeps_the_electron_none_path() {
      assert_eq!(tabs.len(), 1, "{s}");
      assert_eq!(tabs[0]["url"], "https://fixture.test/");
  }
@@ -1918,6 +1929,33 @@ index d5f50d2..b5395d3 100644
 +    })).await;
 +    assert_eq!(structured(&result)["refusal"]["code"], "browser_ref_stale");
 +    assert!(!result.content.iter().any(|c| matches!(c, Content::Image { .. })));
++}
++
++#[tokio::test]
++async fn visual_root_distinguishes_child_refresh_from_root_reload_and_viewport_change() {
++    for change in ["child", "root", "viewport"] {
++        let f = fixture().await;
++        let (target, tab) = bind(&f).await;
++        let args = json!({"target_id": target, "tab_id": tab, "session": SESSION,
++            "snapshot_format": "semantic_v2", "include_screenshot": true, "require_visual_identity": true});
++        let before = GetBrowserStateTool::new(f.engine.clone()).invoke(args.clone()).await;
++        let before = structured(&before);
++        assert_eq!(before["screenshot"]["visual_root"].as_str().unwrap().len(), 64);
++        {
++            let mut state = f.state.lock().unwrap();
++            match change {
++                "child" => state.iframe_loader = "refreshed".into(),
++                "root" => state.main_loader = "reloaded".into(),
++                "viewport" => state.viewport_page_y = 120.0,
++                _ => unreachable!(),
++            }
++        }
++        let after = GetBrowserStateTool::new(f.engine.clone()).invoke(args).await;
++        let after = structured(&after);
++        assert_eq!(after["screenshot"]["visual_root"].as_str().unwrap().len(), 64);
++        assert_ne!(before["screenshot"]["visual_document"], after["screenshot"]["visual_document"], "{change}");
++        assert_eq!(before["screenshot"]["visual_root"] == after["screenshot"]["visual_root"], change == "child", "{change}");
++    }
 +}
 +
 +#[tokio::test]

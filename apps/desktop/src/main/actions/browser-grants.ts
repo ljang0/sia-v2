@@ -23,6 +23,9 @@ export interface BrowserSnapshotCapability {
   readonly url: string;
   readonly capturedAt?: number;
   readonly visualDocument?: string;
+  /** Host-only top-level document/viewport and exact PNG fingerprints. */
+  readonly visualRoot?: string;
+  readonly imageHash?: string;
   readonly pixels?: BrowserImageGeometry;
   /** Driver-owned read continuation; never sent directly to the model. */
   readonly continuation?: string;

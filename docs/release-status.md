@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 4, 2026. **Useful browser research after restart and native document creation have completed without rescue on signed internal builds. The latest native result opens correctly from Sia and its automatic AWS archive matches. RA handoff remains held for unresolved input/observation reliability and exact-installer acceptance. The notarized alpha.122 DMG lacks these later fixes; broad distribution and Arena acceptance remain open.**
+Updated November 4, 2026. **Native document creation and an earlier browser research task completed without rescue, but the latest dinner-research task failed repeated browser freshness checks. Automatic AWS archives match both completed and failed runs. RA handoff remains held for browser and input/observation reliability and exact-installer acceptance. The notarized alpha.122 DMG lacks later fixes; broad distribution and Arena acceptance remain open.**
 
 ## Bounded RA handoff goal
 
@@ -75,6 +75,31 @@ checksums, pass/fail results and known limits. Publishing, invitations and Arena
 separate actions requiring authorization.
 
 ## Current targeted repair
+
+An ordinary three-dinner research request on installed `a2d63b8`, alongside operator notes in
+TextEdit, failed after 124.621 seconds. It produced no dinner plan. Repeated
+`browser_document_changed` refusals, one `browser_wrong_target_refused` and a final
+`browser_ref_stale` are observed; the assistant's claim that the connection was lost is not
+established. Two rejected actions returned PNGs byte-for-byte identical to their previous
+observations. Child-frame refresh is a candidate cause, not a confirmed diagnosis of all failures.
+The notes contain exactly the operator's three additions and the earlier documents are unchanged.
+Continuous foreground focus and the post-run clipboard have not been verified for this run.
+AWS independently matches its exact prompt, failed terminal outcome, 14 action results,
+32 usage records and six PNGs in eight encrypted batches (125 stored / 110 logical records).
+
+The targeted repair separates root/viewport identity from the full frame-tree token. A pending
+visual action may continue only when the fresh protected screenshot is byte-identical and the
+native root/viewport proof, URL, geometry and age agree. Input uses the latest full-frame token;
+native reload, protection and dispatch checks remain in force. Focused regressions reproduce the
+previous refusal and cover changed-image/root rejection. Signed real-task acceptance is pending;
+the failed dinner run remains failed.
+
+The repair's focused tests and native gate pass. The full pilot command passed build, static and
+unit checks, then failed one terminal UI case: the fixture filled `pwd`, while the executed value
+was `pwda`. An immediate isolated rerun passed without a code change. Its trace is retained;
+the extra character's source is unresolved and the rerun does not establish a fix. The four
+unrun desktop cases, 48 renderer checks and 72 companion-browser checks subsequently passed.
+The original full command remains recorded as failed. Signed useful-task acceptance is pending.
 
 Installed `a2d63b8` fixes native result registration. The preceding task on `b7c1f36` saved the
 correct document but failed because its requested location was outside the conversation folder.
