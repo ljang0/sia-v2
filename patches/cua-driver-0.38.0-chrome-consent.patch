@@ -7415,7 +7415,7 @@ index 136e0c9..7cd1795 100644
  
      /// The Find & Replace leak: the dialog keeps key, nothing redirects. Must
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/key_focus_guard.rs b/libs/cua-driver/rust/crates/platform-macos/src/key_focus_guard.rs
-index 4d1fee1..c16f930 100644
+index 4d1fee1..e526b7d 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/key_focus_guard.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/key_focus_guard.rs
 @@ -106,6 +106,11 @@ pub fn restore_order_now(target: i32, front: i32) -> bool {
@@ -7430,15 +7430,7 @@ index 4d1fee1..c16f930 100644
      if crate::ax::bindings::raise_focused_window_of_pid(front) {
          return true;
      }
-@@ -129,6 +134,7 @@ fn restore_front_if_raised(target: i32, front: i32) -> bool {
-     }
-     let restored = put_front_window_back(front);
-     RESTORED.fetch_add(1, Ordering::Relaxed);
-+    eprintln!("[sia:cua-focus] order_restore={restored}");
-     tracing::debug!(
-         target,
-         front,
-@@ -176,14 +182,15 @@ fn revert_self_activation(target: i32, front: i32) -> bool {
+@@ -176,12 +181,12 @@ fn revert_self_activation(target: i32, front: i32) -> bool {
          && skylight::front_process_pid() == Some(front);
      if !restored {
          use objc2_app_kit::{NSApplicationActivationOptions, NSRunningApplication};
@@ -7452,11 +7444,8 @@ index 4d1fee1..c16f930 100644
 +        });
      }
      REVERTED.fetch_add(1, Ordering::Relaxed);
-+    eprintln!("[sia:cua-focus] activation_revert={restored}");
      tracing::debug!(
-         target,
-         front,
-@@ -453,27 +460,53 @@ impl Drop for Lease {
+@@ -453,27 +458,52 @@ impl Drop for Lease {
      }
  }
  
@@ -7492,7 +7481,6 @@ index 4d1fee1..c16f930 100644
 +/// background. The embedding host gets rollback without an event tap on
 +/// itself. Other front apps also get key-theft interception when available.
  pub fn protect(target_pid: i32) -> Option<Lease> {
-+    eprintln!("[sia:cua-focus] guard_requested");
      if std::env::var_os("CUA_DRIVER_DISABLE_KEY_FOCUS_GUARD").is_some() {
          return None;
      }
@@ -7519,7 +7507,7 @@ index 4d1fee1..c16f930 100644
      // Register first, so an idle teardown cannot remove the tap right after
      // ensure_tap.
      {
-@@ -493,6 +526,9 @@ pub fn protect(target_pid: i32) -> Option<Lease> {
+@@ -493,6 +523,9 @@ pub fn protect(target_pid: i32) -> Option<Lease> {
          above_before: target_above_front(target_pid, front),
          epoch: crate::window_change_detector::intentional_epoch(),
      };
@@ -7529,19 +7517,7 @@ index 4d1fee1..c16f930 100644
      // Do not touch key focus here. This runs before every background action
      // while the user may be typing, and any key event that reaches
      // WindowServer while focus is away from their app is lost.
-@@ -627,9 +663,11 @@ extern "C" fn tap_callback(
-                     }
-                     if release_target_theft() {
-                         RELEASED.fetch_add(1, Ordering::Relaxed);
-+                        eprintln!("[sia:cua-focus] key_theft_released");
-                         tracing::debug!(thief_pid, "released a background key-focus theft");
-                     } else {
-                         MISSED.fetch_add(1, Ordering::Relaxed);
-+                        eprintln!("[sia:cua-focus] key_theft_release_failed");
-                         tracing::warn!(thief_pid, "could not release a background key-focus theft");
-                     }
-                 });
-@@ -806,6 +844,29 @@ fn schedule_idle_teardown() {
+@@ -806,6 +839,29 @@ fn schedule_idle_teardown() {
  
  #[cfg(test)]
  mod tests {
