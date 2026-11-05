@@ -142,7 +142,21 @@ event-readback regression (no input posted) fails before repair: for a point 50 
 The targeted correction flips only popup-local Y; routing, focus guards, exact ownership and
 the single event sequence stay unchanged. The original global-point-only check passed and did
 not establish this defect; the window-location readback is the relevant regression.
-Signed ordinary-task acceptance is pending.
+Signed `ddd4af7` passes that regression but still dismisses Open With in the ordinary task.
+The run failed after 48.123 seconds, without a saved RTF or operator rescue. All eight protected
+files remained unchanged. The initial unrelated draft survived; a later addition was verified
+afterward but its overlap with the task is not established. AWS matches four actions, three PNGs,
+12 usage events and the failed outcome in one 45-record batch (`popup-cocoa-acceptance.json`).
+Do not claim the coordinate correction resolves menu tracking or repeat coordinate/transport
+variants without new evidence.
+
+The follow-up targets an independently observed recovery failure: Sia immediately requested
+manual file opening after the submenu failed, without trying the requested editor's own Open
+dialog. General visual guidance now prefers that ordinary editor route and distinguishes a
+failed interaction from an unavailable task. It allows a distinct authorized background UI
+route after fresh observation, never uncertain write replay, semantic delivery, permission
+bypass or foreground activation. Signed ordinary-task acceptance is pending; this does not
+waive the unresolved submenu-control requirement.
 
 Cold restart on signed `bed8a3c` failed a fresh rainy-day museum request in 37.839 seconds:
 the saved choice survived but native preparation refused `background_unavailable` before
