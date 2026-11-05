@@ -76,6 +76,16 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
+The next bounded diagnostic distinguishes the Open panel's input owner from its host window.
+Operator CUA reported an out-of-process click failure, while its app keyboard route opened
+Go to Folder. The temporary native label records only whether the focused input belongs to the
+target process and requested raw window, immediately before background key delivery. No names,
+IDs, values or keys are logged, and dispatch is unchanged. If the input belongs to another
+process, investigate exact service ownership; if it belongs to TextEdit, reject that hypothesis
+and compare the window-key preparation. This is a diagnostic decision, not useful-task acceptance;
+remove the temporary label after it resolves the distinction. Do not repeat the old envelope-free
+or public-event transport experiments without new evidence.
+
 The next evidenced defect is native sheet keyboard routing. On signed `1269df9`, an ordinary
 request to make a printable comparison of the two researched Saturday plans failed after
 143.132 seconds. Finder opened Go to Folder and accepted a pixel click in its field; Cmd+A then

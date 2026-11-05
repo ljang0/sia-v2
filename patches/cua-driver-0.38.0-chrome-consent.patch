@@ -8152,7 +8152,7 @@ index 133dff9..dceb43f 100644
          }
          for prefetched in [Some(Err(anyhow::anyhow!("old error"))), None] {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
-index 2bf28e0..44c1337 100644
+index 2bf28e0..480fa9c 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
 @@ -68,6 +68,7 @@ fn def() -> &'static ToolDef {
@@ -8351,6 +8351,63 @@ index 2bf28e0..44c1337 100644
          let _hold_key_scope = &key_scope;
  
          // A focus click already moved the cursor. Otherwise place a named
+@@ -538,6 +546,9 @@ impl Tool for HotkeyTool {
+                 tokio::task::spawn_blocking(move || {
+                     let element_ptr = element_guard.as_ref().map(|guard| guard.as_ptr());
+                     let m: Vec<&str> = modifiers.iter().map(String::as_str).collect();
++                    if !fg {
++                        log_background_focus_owner(pid, window_id);
++                    }
+                     match (fg, coordinate_focus, window_id, element_ptr) {
+                         // Chrome's native omnibox and Chromium/Electron inputs
+                         // require a genuine foreground HID chord. Keep the exact
+@@ -616,6 +627,46 @@ impl Tool for HotkeyTool {
+     }
+ }
+ 
++// Temporary diagnosis for the native Open-panel failure. Read only identity
++// relationships, never field contents, names, IDs or the requested key. This
++// distinguishes a remote focused input from same-process key delivery without
++// changing the target, focus guard or transport.
++fn log_background_focus_owner(pid: i32, requested_window: Option<u32>) {
++    use crate::ax::bindings::{
++        ax_get_window_id, copy_element_attr, focused_element_of_pid, kAXErrorSuccess,
++        AXUIElementGetPid,
++    };
++    use core_foundation::base::{CFRelease, CFTypeRef};
++
++    unsafe {
++        let Some(focused) = focused_element_of_pid(pid) else {
++            eprintln!("[sia:cua-input] key_focus_owner=unavailable key_focus_window=unavailable");
++            return;
++        };
++        let mut owner = 0;
++        let owner_label = if AXUIElementGetPid(focused, &mut owner) != kAXErrorSuccess {
++            "unavailable"
++        } else if owner == pid {
++            "target_process"
++        } else {
++            "other_process"
++        };
++        let focused_window = copy_element_attr(focused, "AXWindow");
++        let raw_window = focused_window.and_then(|window| {
++            let id = ax_get_window_id(window);
++            CFRelease(window as CFTypeRef);
++            id
++        });
++        CFRelease(focused as CFTypeRef);
++        let window_label = match (raw_window, requested_window) {
++            (Some(actual), Some(requested)) if actual == requested => "requested_surface",
++            (Some(_), Some(_)) => "other_surface",
++            _ => "unavailable",
++        };
++        eprintln!("[sia:cua-input] key_focus_owner={owner_label} key_focus_window={window_label}");
++    }
++}
++
+ fn menu_allows_key_fallback(result: &ToolResult) -> bool {
+     result.is_error == Some(true)
+         && result
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs
 index 841d8d0..e3f1d4a 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs
