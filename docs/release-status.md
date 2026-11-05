@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 4, 2026. **Useful browser research after restart and an earlier native document workflow have completed without rescue on signed internal builds. RA handoff remains held for input isolation and exact-installer acceptance. The notarized alpha.122 DMG lacks these later fixes; broad distribution and Arena acceptance remain open.**
+Updated November 4, 2026. **Useful browser research after restart and native document creation have completed without rescue on signed internal builds. The latest native result opens correctly from Sia and its automatic AWS archive matches. RA handoff remains held for unresolved input/observation reliability and exact-installer acceptance. The notarized alpha.122 DMG lacks these later fixes; broad distribution and Arena acceptance remain open.**
 
 ## Bounded RA handoff goal
 
@@ -76,13 +76,24 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-The latest native copy/edit/save/close/reopen task on `b7c1f36` produced the correct reviewer
-document and preserved both source documents, the concurrent unsent draft and the clipboard.
-The whole turn still failed: result registration rejected the requested save location outside
-the conversation folder. The targeted repair retains an exact local file reference for explicit
-Open/Reveal, without granting content preview or remote export. Regression checks pass; installed
-acceptance of this repair is pending. This failed run remains failed. Its automatic AWS archive
-matched the exact prompt, 225 events, 66 usage records, 34 actions and 23 screenshot PNGs.
+Installed `a2d63b8` fixes native result registration. The preceding task on `b7c1f36` saved the
+correct document but failed because its requested location was outside the conversation folder.
+Native results now retain an exact local reference for explicit Open/Reveal, without granting
+content preview or remote export. That earlier failed run remains failed.
+
+A fresh ordinary request on the signed repair completed Finder/TextEdit copy, edit, save, close
+and reopen without operator rescue. The reply arrived in 221.809 seconds and the terminal outcome
+settled in 229.959 seconds. Independent file comparison preserved both existing documents and
+confirmed the new copy's complete source text plus the exact requested note. CUA opened the
+result from Sia in TextEdit. An unrelated draft's text and the before/after clipboard matched;
+the operator's own later draft extension landed at the clicked caret. AWS matched the prompt,
+reply, completion, 33 actions and 21 PNGs across 219 records, including 62 usage records.
+
+CUA still produced stale observations, one `noWindowsAvailable` error, a stale-element error and
+ScreenCaptureKit invalid-parameter errors. Refreshed observations and keyboard navigation
+recovered operator access. The trajectory shows the initial Send action started the task before
+CUA displayed the working state. This is a bounded workflow pass, not a responsiveness or
+universal-control pass. Continuous focus, Stop and the earlier filename incident remain open.
 
 Signed internal `b7c1f36` activates Sia as well as its window when the person explicitly opens it,
 and exposes that canonical action as **Sia → Open Sia**. Merely showing/focusing the Electron
@@ -114,9 +125,9 @@ repeated on the exact final DMG. The earlier unexpected filename input remains u
 
 ## Current artifacts
 
-- Installed internal arm64 QA: `b7c1f36222057936f3cced1f39ccf9ef0997bc24`, Developer ID signed,
+- Installed internal arm64 QA: `a2d63b8dfb2d70ac0b8ff3fa00c858581f4d71b6`, Developer ID signed,
   package/runtime and installed strict-signature checks passed. Not notarized and not a DMG.
-  The full pilot gate passed: 2,089 desktop, 46 Electron, 48 renderer and 72 companion tests,
+  The full pilot gate passed: 2,091 desktop, 46 Electron, 48 renderer and 72 companion tests,
   plus cloud/shared/native/build/static checks. The window-close/reopen check passed too.
 - Held universal alpha.122 DMG: source `7531ee7f3115265817e8dd56cf081672799bd8f4`, signed,
   notarized, stapled and verified, but missing later fixes. Do not hand it to the RA yet.
@@ -127,11 +138,11 @@ repeated on the exact final DMG. The earlier unexpected filename input remains u
 
 | Requirement | Evidence | Remaining work |
 | --- | --- | --- |
-| Useful native work | One fresh-agent rename/review/close/reopen pass on `8dc8e14`; target file unchanged | Repeat on final DMG; broader native workflows |
+| Useful native work | Fresh copy/edit/save/close/reopen pass on `a2d63b8`; original documents unchanged; result opens from Sia | Repeat on final DMG; broader native workflows |
 | Useful browser work | Fresh conversation on `b7c1f36` completed sourced visitor plan after restart, without rescue; reply in 195 seconds | Repeat on final DMG; repeatability |
 | Reuse access | Retained exact public window recovered autonomously on `b7c1f36` | Broader recovery while another Chrome window is in use |
-| Input isolation and CUA controls | CUA submitted prompt, edited an unsent draft during browser work and opened the result preview | No continuous focus/clipboard/latency pass; resolve earlier filename incident |
-| Automatic AWS recording | Current browser run: exact prompt, 175 stored records / 157 logical events, 44 usage, 23 actions, 13 byte-matching PNGs and completion; earlier native pass also matched | Reverify complete useful runs on final DMG |
+| Input isolation and CUA controls | Current native run preserved source files, concurrent draft text and before/after clipboard; result opens through CUA | Resolve intermittent CUA observation/input errors and earlier filename incident; continuous focus/latency and Stop |
+| Automatic AWS recording | Current native run: exact prompt/reply/completion, 219 events, 62 usage, 33 actions and 21 byte-matching PNGs; browser run also matched | Reverify complete useful runs on final DMG |
 | Distribution | Older DMG's signing/notarization/package checks passed | One final installer containing accepted functional repairs |
 
 Earlier failed restart thread `9ed5a7ab-7ddb-4f57-875e-8d941aa50192`, turn
@@ -148,8 +159,9 @@ The archive verifier initially skipped large chunked events; reassembly confirme
 action and image. This was a verifier defect, not missing application uploads. Exact evidence and
 remaining limits are in the [acceptance record](./public-release.md).
 
-The earlier native-workflow pass was on `8dc8e14`; full pilot results alone do not substitute for
-complete installed-task acceptance.
+The earlier native-workflow pass was on `8dc8e14`; the current `a2d63b8` pass adds document editing,
+usable result delivery and before/after clipboard verification. Neither substitutes for the exact
+final installer or closes the remaining input-isolation gates.
 The managed voice transport passed earlier live AWS/ElevenLabs checks and the owner confirmed
 that the microphone works. Physical Fn and a full spoken command remain independently unverified.
 

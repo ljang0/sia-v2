@@ -1,7 +1,7 @@
 # Distribution acceptance record
 
-**RA handoff is held.** A useful browser task after restart passed on the current internal
-candidate, and one native workflow passed on an earlier candidate. Input isolation and exact-DMG
+**RA handoff is held.** Useful browser research after restart passed on `b7c1f36`, and a native
+copy/edit/reopen task with working result delivery passed on current `a2d63b8`. Input reliability and exact-DMG
 acceptance remain open. Nothing has been
 published, sent to a recipient or submitted to Arena by this work.
 
@@ -9,26 +9,27 @@ published, sent to a recipient or submitted to Arena by this work.
 
 | Identity               | Value                                                                |
 | ---------------------- | -------------------------------------------------------------------- |
-| Source                 | `b7c1f36222057936f3cced1f39ccf9ef0997bc24`                           |
-| Installed              | November 5, 2026, 01:49:02 UTC (November 4 Eastern)                  |
+| Source                 | `a2d63b8dfb2d70ac0b8ff3fa00c858581f4d71b6`                           |
+| Installed              | November 5, 2026, 02:41:30 UTC (November 4 Eastern)                  |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG     |
-| ASAR SHA-256           | `38992a1089b818e2d145a7e330b79dbe0c3344400e3394df57e836554f9fa8ee`   |
+| ASAR SHA-256           | `02ed9d54c811ab785bb03210b2756de2b274d3eb9134fd750ebc5eee189f2b75`   |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`   |
 | Native patch SHA-256   | `bbcfb1c11772237654983f967756cea4458ea662e3ecc9993cbdf71fc2b964ff`   |
 | Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before window activation.app`                       |
+| Rollback               | `Sia QA alpha122 before local results.app`                           |
 
 Package/runtime verification and installed deep, strict signature checks passed. The current
-activation change passed build, type/lint/format and the existing window-close/reopen Electron
-check. Its full pilot passed: 2,089 desktop tests (23 skipped), 46 Electron (five skipped),
+native-result repair passed the full pilot: 2,091 desktop tests (23 skipped), 46 Electron (five skipped),
 48 renderer and 72 companion tests, plus cloud/shared/native/build/static checks. The external
 Chrome-policy regression failed with the old 100 ms retry cadence; all 14 native consent checks
 pass after the change. The selection repair passed 138 affected checks. These automated checks
-do not establish useful-task acceptance.
+do not establish useful-task acceptance. The first pilot attempt exhausted disk space in temporary
+Electron copies. Obsolete generated QA packages were removed; the complete retry passed. The
+native-result regression failed before the repair and passes after it.
 
 ## Live results that determine readiness
 
-### Initial Chrome setup: passed on the installed candidate
+### Initial Chrome setup: passed on an included earlier repair
 
 On `e244d5a`, selecting the approved public USDA window through Sia Settings failed. The
 same-build diagnostic found its native consent sheet in 9 ms, but 68 scans over 8.114 seconds
@@ -43,7 +44,7 @@ of earlier failed dialogs and selection of the public window through Chrome's Wi
 diagnostic setup, not autonomous task evidence. Receipts: `consent-diagnostic.json`,
 `consent-installation.json`, `consent-setup-pass.json` and their logs.
 
-### Fresh browser task after restart: passed on the current candidate
+### Fresh browser task after restart: passed on `b7c1f36`
 
 `b7c1f36` makes explicit app opening activate Sia as well as its Electron window, and adds
 **Sia → Open Sia** to the same path. After installed-app replacement/restart, CUA used that menu,
@@ -99,27 +100,49 @@ and six matching action results in one batch. Zero screenshots is correct for th
 Read-only verification matched object hashes, lengths and KMS encryption. Receipts live in
 `restart-acceptance/acceptance.json` and its archive-verification files.
 
-### Native document workflow: one earlier autonomous pass
+### Native document work and result delivery: passed on `a2d63b8`
 
-Signed internal `8dc8e14` completed the ordinary checklist request with fresh agent **RA handoff
-check**: rename in Finder, read three sections and 12 checklist items in TextEdit, close, verify
-absence, reopen and review. Thread `f371af2b-9f3d-4522-abbf-832613d3cee6`, turn
-`c2f769cb-e3dd-4947-8173-69da565abb66`, finished November 4 at 23:46:09 UTC, about 150 seconds after
-submission. There was no task-time operator input or recovery coaching.
+A fresh conversation with **Reviewer document assistant** received an ordinary request to make
+an RA checklist copy using Finder and TextEdit, preserve its three sections/12 items, append an
+exact reviewer note, save under the requested name, close, reopen and link the finished file.
+The operator supplied no target-app input, Continue action or task coaching during execution.
+Thread `64671fdd-630f-4ec3-9f8f-d13885689949`, turn `2142a4f7-4de4-4c55-b2e8-51e83758667a`,
+started November 5 at 02:42:36.347 UTC. The reply arrived in **221.809 seconds**, and completion
+settled in **229.959 seconds**. The largest gap between recorded action results was 14.677 seconds;
+this does not measure interactive UI latency. One computer-action step and one checkpoint step
+failed; the task recovered autonomously.
 
-Independent screenshots and the renamed file's unchanged 1,874 bytes/SHA-256
-`bfcd55c3e66d3118ab4b709c667f7ccac3dd5c057b3b3932171690eb40085d14` corroborate the result. The old
-filename is absent. The three sections contain 3, 7 and 2 items. An unsent Sia draft remained
-intact; initial observations were stale, so continuous focus/clipboard preservation and latency
-are not established. Only the target file had a full baseline; other-file preservation is not
-independently claimed.
+Independent file comparison confirmed both existing RTF documents were byte-for-byte unchanged.
+The 1,989-byte `RA distribution checklist.rtf` preserves the complete source text and appends the
+exact note with a blank separator line. SHA-256:
+`2f68e08a64f533dbff530da45825dcf1151b29d70ca35f6c91bee398f5b60ab5`.
+The verifier initially expected no blank separator; inspecting the difference confirmed correct
+content. CUA used **View saved file → Open file** in Sia and visually checked the correct named
+TextEdit document. No draft or clipboard marker appeared in the output.
 
-AWS automatically archived the prompt, 175 events, 48 usage records, 27 matching action results
-and 17 byte-matching PNGs, including completion. Hashes, lengths and KMS encryption passed.
-Private `alpha122-rename-recovery-internal` retains screenshots and receipts. Its application
-code passed the full pilot gate on documentation-only successor `465e555`: 2,083 desktop,
-46 Electron, 48 renderer and 72 companion checks, plus cloud/shared/native/build/static checks.
-This earlier pass must be repeated on the final DMG.
+During the task the operator typed an unrelated unsent draft and used Access. The original draft
+text remained intact; a later operator extension landed at the clicked caret because the attempted
+end-of-document shortcut did not move it. A post-task paste matched the exact pre-task clipboard
+marker. These are bounded observations, not continuous foreground monitoring. CUA returned stale
+views, `noWindowsAvailable`, a stale-element error and ScreenCaptureKit invalid-parameter errors.
+The trajectory proves the first Send action started the task before CUA showed it running.
+Refreshed observations and keyboard navigation recovered operator access. No broad responsiveness
+or Stop claim is made; the earlier unexplained filename incident remains unresolved.
+
+Automatic AWS verification matched the exact prompt, final reply, terminal outcome, all **33
+actions** and **21 PNGs** across **four batches / 219 records**, including **62 usage records**.
+Object hashes, lengths and KMS checks passed; no manual upload was performed. Private
+`local-result-acceptance/acceptance.json`, installation/pilot receipts and archive verification
+record the source, hashes and limits. The first archive-verifier invocation still pointed at the
+preceding local thread; correcting that input allowed the exact current-thread comparison.
+
+The preceding `b7c1f36` task, thread `15c13c0c-45a0-4e0f-bec9-a15627de0bfe`, turn
+`23042d4b-cda2-4b41-a378-9630723977f9`, saved and reopened the correct document but **failed** at
+result registration outside the conversation folder. It remains failed. Its original documents,
+draft and clipboard were preserved; its automatic archive matched 225 records, 66 usage records,
+34 actions and 23 PNGs. The repair gives structured native results an exact local Open/Reveal
+reference with existing file guards, without content preview or remote export. The earlier
+`8dc8e14` rename/review pass and its detailed evidence remain in Git history.
 
 ## Held distribution artifact
 
