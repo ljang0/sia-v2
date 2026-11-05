@@ -101,6 +101,18 @@ records), including the exact prompt and failed outcome. Receipt:
 useful-task pass remain required. This does not retain a socket across a complete Sia process
 exit or establish continuous global focus/clipboard isolation.
 
+A bounded follow-up on the same installed candidate successfully left the failed restaurant
+page and loaded Phipps in the same single-tab background window without new setup. This is a
+diagnostic, not a rescue or pass of the failed plan. It establishes that the next repair can stay
+in the timeout recovery guidance: treat a source failure locally, allow a different permitted
+public source in the same tab, bound further attempts, and save verified findings with clear
+gaps. Do not replay uncertain actions or claim unfinished work is complete. Source guidance is
+updated; 177 focused tests passed. Full pilot checks and a fresh signed ordinary-request rerun
+are pending. Receipt: `sheet-visibility-acceptance/failed-page-recovery-diagnostic.json`.
+During diagnostic preparation, operator CUA typing introduced punctuation/spacing errors in an
+unsent draft; CUA paste corrected it before submission. This remains input-reliability evidence,
+not a resolved issue.
+
 Earlier signed QA `6b24a04` passes the previously failing Finder Go to Folder path in 58.737
 seconds. It selects the field, types the requested path through keyboard events and opens the
 correct folder without operator rescue. Independent CUA inspection confirms the folder and file;

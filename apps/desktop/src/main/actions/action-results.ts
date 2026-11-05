@@ -95,7 +95,7 @@ export function classifyFailure(error: unknown): ActionExecutionResult {
     return {
       outcome: 'refused',
       summary:
-        'The browser page did not respond after one bounded read retry. This does not mean permission was denied. Pause this task and report the loading problem. Once the page responds, continue by observing the same tab; do not repeat setup or replay earlier navigation or input whose result is uncertain.',
+        'The browser page did not respond after one bounded read retry. This does not mean permission was denied. Treat this source as unavailable, not the whole task. Continue independent work and save verified findings with the gap clearly stated. For research, you may use computer_open_url to navigate the same exact tab to a different known, permitted public source; this is a new navigation, not a retry of the failed one. If that also fails, stop using this tab and report the remaining gap. Do not repeat setup or replay earlier navigation or input whose result is uncertain, and do not claim the unfinished parts are complete.',
       reason: message,
       data: { blocker_code: 'browser_observation_timeout' },
     };

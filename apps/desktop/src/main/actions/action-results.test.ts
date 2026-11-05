@@ -38,7 +38,7 @@ it('distinguishes an exhausted browser read timeout from permission denial or sa
     data: { blocker_code: 'browser_observation_timeout' },
   });
   expect(result.summary).toContain('does not mean permission was denied');
-  expect(result.summary).toContain('do not repeat setup or replay');
+  expect(result.summary).toContain('Do not repeat setup or replay');
   expect(inputWasRefused(error)).toBe(false);
   expect(result.data).not.toHaveProperty('input_not_sent');
 });

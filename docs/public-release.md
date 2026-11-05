@@ -9,16 +9,16 @@ Nothing has been published, sent to a recipient or submitted to Arena by this wo
 
 ## Current installed candidate
 
-| Identity               | Value                                                                |
-| ---------------------- | -------------------------------------------------------------------- |
-| Source                 | `1cf54d8fa651cba0568ddf93d4345677a89e7afd`                           |
-| Installed              | November 5, 2026, 06:50:24 UTC                                       |
-| Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG     |
-| ASAR SHA-256           | `9b7f38b1d0188b2d6ad4fa79f6e8e3c320730f7601bdbb82a2e73b120ec252a6`   |
-| Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`   |
-| Native patch SHA-256   | `5dfb260e8929e9fceec45932f6250fb2c5a9235160becf598309c1f406690ec7`   |
-| Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before default browser reuse.app`                   |
+| Identity               | Value                                                                       |
+| ---------------------- | --------------------------------------------------------------------------- |
+| Source                 | `1cf54d8fa651cba0568ddf93d4345677a89e7afd`                                  |
+| Installed              | November 5, 2026, 06:50:24 UTC                                              |
+| Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG            |
+| ASAR SHA-256           | `9b7f38b1d0188b2d6ad4fa79f6e8e3c320730f7601bdbb82a2e73b120ec252a6`          |
+| Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`          |
+| Native patch SHA-256   | `5dfb260e8929e9fceec45932f6250fb2c5a9235160becf598309c1f406690ec7`          |
+| Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification        |
+| Rollback               | `Archived QA packages/Sia QA alpha122 before default browser reuse.app.zip` |
 
 Package/runtime verification, installed deep/strict signature checks and the full native gate
 passed for `1cf54d8`. Its unchanged desktop source passed 188 focused tests on `0428730`.
