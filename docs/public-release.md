@@ -4,7 +4,8 @@
 ordinary document task still fails in TextEdit's Open dialog. The same build opens Go to Folder
 in a bounded foreground comparison; background delivery remains unresolved. Earlier browser
 and native useful-task passes do not establish current native repeatability, input isolation or
-responsiveness. Nothing has been published, sent to a recipient or submitted to Arena by this work.
+responsiveness. No installer has been published or sent to a recipient, and nothing has been
+submitted to Arena. Source work is on draft PR #34.
 
 ## Current installed candidate
 
@@ -21,8 +22,8 @@ responsiveness. Nothing has been published, sent to a recipient or submitted to 
 
 The focus-cleanup regression failed before the fix and passed in the native gate. Desktop build,
 quality, package/runtime and installed deep/strict signature checks passed.
-This same signed app was last restored at 12:11:56 UTC after the `9cd0718` logging-only
-diagnostic; its ASAR and strict signature matched (`focus-guard-diagnostic-rollback.json`).
+This same signed app was last restored at 13:24:47 UTC after the `e8d47b5` logging-only
+diagnostic; its ASAR and strict signature matched (`window-server-owner-rollback.json`).
 `pnpm test:pilot` passed on retained source `8326bcb`:
 2,123 desktop tests (23 skipped), 46 Electron checks
 (five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates.
@@ -32,7 +33,30 @@ not replace exact-DMG live acceptance. The earlier unexplained bare-Electron exi
 failure remain in the evidence; passing checks do not establish their cause or erase input-isolation
 concerns.
 
+[CI run 407](https://github.com/ljang0/sia-v2/actions/runs/42027820059) passed on `65acc34`,
+including the full pilot gate and unsigned universal package verification. The signed-release
+job was skipped. Receipt: `retained-source-ci407.json`. No new DMG was produced.
+
 ## Live results that determine readiness
+
+### WindowServer ownership diagnostic: input destination matches the panel owner
+
+Signed `e8d47b5`, thread `c71f75a4-388a-435a-9f8c-3ca1becfb88d`, turn
+`b6cbd77d-37f1-482e-bb8b-7f8a54c942e3`, added a read-only owner comparison immediately before
+background keyboard delivery. It resolved the exact WindowServer connection/process without
+AX metadata or a caller-PID fallback. The owner matched the input PID. Go to Folder still did
+not appear after one Cmd+Shift+G; post-terminal CUA confirmed the Open dialog remained.
+The 55.428-second diagnostic excludes this owner/destination mismatch in that run, but does
+not establish how AppKit consumes or forwards the event. No input route was changed.
+
+All eight protected files remained unchanged; no comparison RTF was created. AWS independently
+matched the prompt, seven actions, five PNGs, 16 usage events and terminal outcome in one
+51-record encrypted batch with one finalization. No concurrent typing check was performed.
+The initially blank Sia window required its normal Open Sia menu before the run; this is
+recorded as setup intervention, not successful unattended startup. The restored app also required
+Open Sia to reveal its composer, then showed Ready. CUA dismissed TextEdit's Open afterward,
+temporary logging was removed, and the original signed app was restored. Receipt:
+`window-server-owner-result.json`. The owner requested that the upstream report remain private.
 
 ### Focus guard diagnostic: no intervention during the failed shortcut
 

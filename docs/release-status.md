@@ -122,9 +122,17 @@ failure; do not disable them as a workaround. The diagnostic changed no files, p
 unrelated draft and matched AWS (seven actions, five screenshots, 16 usage events, one 51-record
 batch and one finalization). Logging was removed and signed `d67df60` restored at 12:11:56 UTC.
 Receipt: `focus-guard-diagnostic-result.json`. This is diagnostic evidence, not useful-task
-acceptance. A sanitized comment for upstream issue #3351 is drafted privately; posting requires
-the owner's explicit authorization. It identifies the patched host and does not claim a clean
-upstream reproduction.
+acceptance. The owner requested that the sanitized upstream report remain private; nothing was
+sent. It identifies the patched host and does not claim a clean upstream reproduction.
+
+A final logging-only check, `e8d47b5`, resolved the exact WindowServer owner without an AX proxy
+or caller-PID fallback. The owner matched the keyboard destination, but Go to Folder still did
+not appear (55.428 seconds). This rules out that specific owner/destination mismatch in the run;
+it does not prove how AppKit forwards or consumes the event. All eight files were unchanged.
+AWS matched seven actions, five PNGs, 16 usage events and one 51-record batch. No concurrent
+typing check was performed. The trial needed the normal Open Sia menu to reveal its initially
+blank window. Logging was removed and signed `d67df60` restored at 13:24:47 UTC
+(`window-server-owner-result.json`). No new functional fix or demo acceptance is claimed.
 
 The earlier native menu-key transport trial `770360e` did not fix the task and was removed,
 along with temporary ownership logging. The `9e7e436` diagnostic reported the focused input
@@ -160,6 +168,10 @@ checks (five skipped), 48 renderer and 72 companion checks, plus build/static/sh
 gates (`retained-native-pilot.log`). The desktop, native patch, shared runtime, cloud and
 infrastructure source match installed `d67df60`; intervening input trials are removed. Passing tests do not explain the earlier bare-Electron exit,
 filename incident or input mismatch; those failures remain in the evidence.
+
+[CI run 407](https://github.com/ljang0/sia-v2/actions/runs/42027820059) also passed on `65acc34`,
+including the pilot gate and unsigned universal package verification. Signing/notarization was
+skipped; this is not a new distribution artifact (`retained-source-ci407.json`).
 
 Browser tasks still recorded long intervals before report writing (including 72 and 91 seconds),
 and earlier connected-browser runs had recovery refusals. Successful final files are not a

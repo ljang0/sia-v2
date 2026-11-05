@@ -29,9 +29,10 @@ remain acceptance tests, with the open gates recorded below.
 Chrome connection is part of default Mac setup, with a deliberate opt-out. Choosing a window
 authorizes its explicit connection setup, including the exact Chrome prompt. macOS grants remain
 person-owned. Existing profiles can use the conversation's
-**Connect Chrome & continue** control when the host reports missing browser access. Alpha.59 required explicit
-reconnection after relaunch and exposed a prompt-dismissal failure during a diagnostic retry.
-Restart/expiry and final-candidate repeats remain required.
+**Connect Chrome & continue** control when the host reports missing browser access. The current
+internal candidate restored a previously chosen public Chrome window during visible startup;
+hidden-startup, expiry and final-candidate repeats remain required. See the current
+[browser evidence and open gates](./release-status.md#current-evidence-and-open-gates).
 
 ## Demo 1: prepare a reviewer packet
 
