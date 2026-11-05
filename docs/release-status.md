@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 4, 2026. **Native document creation and an earlier browser research task completed without rescue. Dinner research failed freshness checks; the signed repair's rerun then paused at connection recovery while another Chrome window was active. Automatic AWS archives match these outcomes. RA handoff remains held for browser and input/observation reliability and exact-installer acceptance. The notarized alpha.122 DMG lacks later fixes; broad distribution and Arena acceptance remain open.**
+Updated November 4, 2026. **Native document creation, visitor research and a fresh dinner-planning task completed without task-time rescue. The dinner run followed explicit Chrome setup; automatic recovery after restart still fails when another Chrome window is active. Its automatic AWS archive matches, but Stop on a follow-up exposed duplicate capture finalization. RA handoff remains held for recovery, input/observation reliability, cancellation capture and exact-installer acceptance. The notarized alpha.122 DMG lacks later fixes; broad distribution and Arena acceptance remain open.**
 
 ## Bounded RA handoff goal
 
@@ -104,7 +104,32 @@ No operator rescue occurred. The operator's TextEdit note arrived after the task
 so this is not a concurrency pass. AWS matches all 40 records, six usage events, six action
 results, the exact prompt and terminal outcome in one encrypted batch; no screenshots were
 produced. CUA again showed delayed composer/Send observations, `noWindowsAvailable` and a Dock
-binding timeout. The browser repair's useful-task acceptance remains unproved.
+binding timeout. This restart-recovery attempt remains failed.
+
+After explicit setup selected the already approved public Chrome window in Settings, a fresh
+ordinary dinner-planning request on the same signed `0c72ce8` candidate completed without
+task-time intervention. It saved a usable three-dinner plan for two with recipe links, scaled
+ingredients, a combined shopping list, prep order and an honestly estimated $60 budget.
+Independent source, quantity, budget and file checks passed, and CUA opened the result preview.
+The reply arrived in 331.656 seconds; terminal completion took 351.416 seconds. Four stale-image
+refusals returned genuinely changed images and recovered autonomously. A 95.705-second gap
+between the last file listing and writing the plan remains unexplained; this is not a performance
+pass. TextEdit retained exactly three operator additions made during the run, and the earlier
+documents were unchanged. Continuous foreground focus and clipboard isolation were not measured.
+AWS independently matched the prompt, reply, outcome, 70 usage records, 33 action results and
+23 byte-identical PNGs across 11 encrypted batches (276 stored / 261 logical records).
+This validates useful connected-browser work, not automatic connection recovery.
+
+The follow-up requested a public grocery-price comparison while preserving the completed plan.
+CUA pressed Stop during browser work; the UI showed cancellation, terminal cancellation arrived
+7.806 seconds after the click, no subsequent action results appeared, and the plan stayed unchanged.
+The automatic AWS verifier failed: the same cancelled turn had two `turn.capture_finished`
+records, with five action results in the first episode and late provider events in the second.
+Stop and runtime event handlers were closing capture before the provider stream drained.
+The current source repair makes the runner the sole finalizer for running turns, retaining late
+usage/results in one episode; queued turns still finalize immediately. Four regressions reproduced
+premature sealing before the fix and now pass for completion, failure, Stop and a thrown stream
+error. Signed-app rerun and automatic AWS verification of this repair remain pending.
 
 The repair's focused tests and native gate pass. The full pilot command passed build, static and
 unit checks, then failed one terminal UI case: the fixture filled `pwd`, while the executed value

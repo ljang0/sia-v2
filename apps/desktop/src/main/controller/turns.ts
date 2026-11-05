@@ -423,7 +423,8 @@ export class Turns {
       .map((turn) => turn.id);
     this.queued = this.queued.filter((turn) => turn.threadId !== threadId);
     this.heldThreads.delete(threadId);
-    if (activeTurnId) this.ctx.researchCapture.discardResearchTurn(activeTurnId);
+    // The running turn's runner seals capture after late provider usage/results drain.
+    // Queued turns have no runner and can be discarded immediately.
     for (const turnId of queuedTurnIds) this.ctx.researchCapture.discardResearchTurn(turnId);
     // Stop cancels queued follow-ups too; their unsent messages leave the thread.
     const removedFollowUps = this.removeQueuedMessages(threadId, new Set(queuedTurnIds));

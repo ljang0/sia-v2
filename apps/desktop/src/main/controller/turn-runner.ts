@@ -87,6 +87,7 @@ export class TurnRunner {
     let attachedResult = false;
     const attachedPaths = new Set<string>();
     let taskResult: MacTaskResult | undefined;
+    let captureOutcome: 'completed' | 'discarded' = 'completed';
     const recordNative = async (outcome: 'complete' | 'failed') => {
       if (recordedNative || !recordVault || !macTask) return;
       recordedNative = true;
@@ -156,7 +157,6 @@ export class TurnRunner {
           text: assistantText,
           provider: thread.provider,
         });
-        this.ctx.researchCapture.completeResearchTurn(turn.id);
         this.ctx.turns.settleFinishedTurn(thread);
         delete thread.interruptedTurnId;
         this.markTurnFinished(thread, turn, 'complete');
@@ -442,6 +442,11 @@ export class TurnRunner {
               signal,
             );
         for await (const event of events) {
+          if (
+            event.type === 'error' ||
+            (event.type === 'completion' && event.payload.status !== 'completed')
+          )
+            captureOutcome = 'discarded';
           // After Stop, the thread's status belongs to cancelTurn and to any follow-up sent
           // since; late events from the stopped turn must not overwrite it.
           const stoppedStatus = signal.aborted
@@ -571,7 +576,6 @@ export class TurnRunner {
         if (signal.aborted) return;
         if (thread.status === 'running' || thread.status === 'waiting') {
           this.ctx.turns.settleFinishedTurn(thread);
-          this.ctx.researchCapture.completeResearchTurn(turn.id);
         }
         delete thread.interruptedTurnId;
         this.markTurnFinished(
@@ -584,7 +588,7 @@ export class TurnRunner {
         thread.updatedAt = new Date().toISOString();
       }
     } catch (error) {
-      this.ctx.researchCapture.discardResearchTurn(turn.id);
+      captureOutcome = 'discarded';
       if (!signal.aborted) {
         if (macTask && !macTask.result)
           macTask.result = {
@@ -624,7 +628,6 @@ export class TurnRunner {
       );
       if (signal.aborted) {
         this.completeRunningActivities(turn.threadId, turn.id);
-        this.ctx.researchCapture.discardResearchTurn(turn.id);
         this.ctx.schedules.markScheduleRunFinished(turn, 'cancelled');
         this.ctx.deps.trajectory?.record({
           type: 'turn_finished',
@@ -675,6 +678,15 @@ export class TurnRunner {
         startedAt,
         macTask !== undefined,
       );
+      // One owner closes running capture after the provider stream and terminal bookkeeping.
+      // Stop/error/completion notifications may precede final usage and action results.
+      if (
+        signal.aborted ||
+        captureOutcome === 'discarded' ||
+        this.ctx.requireThread(turn.threadId).status === 'failed'
+      )
+        this.ctx.researchCapture.discardResearchTurn(turn.id);
+      else this.ctx.researchCapture.completeResearchTurn(turn.id);
       this.ctx.approvals.revokeApprovalsForTurn(turn.threadId, turn.id);
       lease?.release();
       this.ctx.turns.releaseTurn(turn.threadId);

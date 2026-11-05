@@ -57,6 +57,11 @@ two seconds; record instrumentation and sampling limits. Check at least ten UI i
 work runs and report observed median/worst time. A task with no progress for 30 seconds needs a
 visible explanation and working cancel control. Do not call performance acceptable without measurements.
 
+For each completed, failed or cancelled task, verify one canonical `turn.capture_finished` in
+the automatic AWS archive after the runner settles. Match late provider usage and action results
+as well as the prompt, images and terminal outcome. Stop acknowledgement must not close capture
+before the provider stream drains; a second episode for its late events fails this check.
+
 On the default setup path, include background Chrome readiness when Chrome is installed. The
 person approves macOS prompts and selects the intended Chrome window during setup, with a clear
 way to decline browser access. Verify a fresh background read, repeat across tasks, and relaunch.
