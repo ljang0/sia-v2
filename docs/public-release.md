@@ -1,7 +1,8 @@
 # Distribution acceptance record
 
-**RA handoff is held.** Current signed internal `e943d92` now captures Finder's file context menu,
-but the ordinary native comparison still failed because Open With dismissed instead of expanding.
+**RA handoff is held.** Current signed internal `6ce129c` uses TextEdit's own Open workflow,
+but the ordinary native comparison still failed because background navigation in that dialog
+had no visible effect. Finder submenu interaction also remains unresolved.
 The preceding `1269df9` completed background museum research after visible restart; earlier
 candidates passed an outing plan and native checklist creation.
 Native repeatability, input isolation, hidden-startup recovery, responsiveness and exact-DMG acceptance
@@ -11,16 +12,16 @@ remain open. Nothing has been published, sent to a recipient or submitted to Are
 
 | Identity               | Value                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| Source                 | `e943d92aa930f27c6e73b256a9e0fc7080358fa4`                                                       |
-| Installed              | November 5, 2026, 10:14:18 UTC                                                                   |
+| Source                 | `6ce129c311d5fe488f68e91dec93a104488570a3`                                                       |
+| Installed              | November 5, 2026, 10:41:04 UTC                                                                   |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG                                 |
-| ASAR SHA-256           | `3f2bb817dc06814686e6a4c0a02271384a3790364dc4f1affb227103ff73eb74`                               |
+| ASAR SHA-256           | `2892072d48f376841f54961242b01d4f28161dc87b82cdaceff3fa23f7a30025`                               |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`                               |
-| Native patch SHA-256   | `69d5f4ddb1ae54cecb21db23e115276c10bd7407f36d6a6c26d4a9dbfd785f20`                               |
+| Native patch SHA-256   | `1a3ebda2dd8ff9c6909cc631f42b008f3a029e97acd543c1c6fff11f1d5851e5`                               |
 | Private evidence       | `alpha122-browser-selection-internal/sheet-visibility-acceptance` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before popup root.app`                                                          |
+| Rollback               | `Sia QA alpha122 before native open.app`                                                         |
 
-Native regression, build, quality, package/runtime and installed deep/strict signature checks passed.
+Sixteen focused runtime/tool tests, lint, build, quality, package/runtime and installed deep/strict signature checks passed. The unchanged native binary passed the popup-coordinate regression gate on `ddd4af7`.
 The full pilot gate on this source is pending. `pnpm test:pilot` passed on preceding `1269df9`:
 2,123 desktop tests (23 skipped), 46 Electron checks
 (five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates.
@@ -29,6 +30,31 @@ failure remain in the evidence; passing checks do not establish their cause or e
 concerns.
 
 ## Live results that determine readiness
+
+### Saturday comparison on 6ce129c: editor recovery works, Open-panel navigation fails
+
+Fresh thread `4b1686a8-9c8e-4eb1-8e96-3c39d17593e9`, turn
+`495f0a69-2d5d-48c6-a800-59f1e90f8c0f`, followed the unchanged ordinary request without rescue.
+Sia inspected Finder and TextEdit, then used Cmd+O in the editor. The Open dialog appeared,
+but Cmd+Shift+G and sidebar navigation had no visible effect. The run failed in 89.893 seconds;
+no source file opened and no `Saturday options.rtf` was created.
+
+All eight protected files remain byte-identical. Both unrelated Chrome draft additions survived
+during and after the task; continuous focus/clipboard isolation remains unproved. Automatic AWS
+verification matches the prompt, failed outcome, 12 actions, ten PNGs and 24 usage events in two
+encrypted batches (89 logical records, one finalization). Receipt: `native-open-acceptance.json`.
+
+After termination, operator CUA's pixel click in Open returned `elementPresumedOOPAndNotFound`.
+Its keyboard route could dismiss/reopen Open and invoke GoToWindow. No path was entered or file
+opened; both dialogs were dismissed. Sia's Cmd+Shift+G had used synthetic fallback after a disabled
+native menu match. This comparison informs the next dispatch investigation, not a rescued pass.
+
+The preceding `ddd4af7` corrected popup-local Y and passed real native event-field readback,
+but still failed Open With in the ordinary task (48.123 seconds, no output). AWS matches four
+actions, three PNGs and 12 usage events in one 45-record batch; all eight protected files were
+unchanged. The first draft addition overlapped that task; overlap for the later addition was not
+established. Receipt: `popup-cocoa-acceptance.json`. Do not claim that coordinate correction fixed
+submenu tracking. The editor recovery improvement likewise does not waive submenu control.
 
 ### Saturday comparison on e943d92: visible menu, submenu interaction failure
 

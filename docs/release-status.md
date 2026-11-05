@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 5, 2026. **Signed QA `e943d92` now captures Finder's file menu after background right-click, repairing the missing-popup defect. The ordinary document task still fails because clicking Open With dismisses the menu; no output was created. Automatic AWS records match this failed run. The preceding `1269df9` passed the full pilot gate and completed museum research after visible restart; the full gate on the current source is pending. Native repeatability, input isolation, responsiveness and exact-installer acceptance remain open. The notarized alpha.122 DMG lacks later fixes; RA handoff, broad distribution and Arena acceptance remain held.**
+Updated November 5, 2026. **Signed QA `6ce129c` now uses the requested editor's own Open workflow instead of asking for help after Finder's submenu fails. The ordinary task still fails because TextEdit's Open dialog does not respond to Sia's background navigation; no output was created. Operator CUA can invoke that dialog's Go to Folder shortcut, giving a concrete dispatch comparison. Automatic AWS records match the failed run and all eight protected files remain unchanged. Native control, input isolation, responsiveness, the current full pilot gate and exact-installer acceptance remain open. The notarized alpha.122 DMG lacks later fixes; distribution and Arena acceptance remain held.**
 
 ## Bounded RA handoff goal
 
@@ -155,8 +155,23 @@ manual file opening after the submenu failed, without trying the requested edito
 dialog. General visual guidance now prefers that ordinary editor route and distinguishes a
 failed interaction from an unavailable task. It allows a distinct authorized background UI
 route after fresh observation, never uncertain write replay, semantic delivery, permission
-bypass or foreground activation. Signed ordinary-task acceptance is pending; this does not
-waive the unresolved submenu-control requirement.
+bypass or foreground activation. Signed `6ce129c` followed this route in the unchanged ordinary
+request: it inspected Finder and TextEdit, then opened the editor's standard Open dialog. The
+run failed after 89.893 seconds because Go to Folder and sidebar navigation had no visible
+effect; no source file opened and no RTF was created. All eight protected sources and both
+unrelated draft additions survived. AWS matches the prompt, failed outcome, 12 actions, ten PNGs
+and 24 usage events in two encrypted batches (89 logical records, one finalization).
+Receipt: `native-open-acceptance.json`. Sixteen focused runtime/tool tests, lint, build, quality
+and signed package/runtime checks pass; the full pilot gate is pending.
+
+The post-terminal operator comparison is actionable but not acceptance: a pixel click in Open
+returned `elementPresumedOOPAndNotFound`; operator Escape, Cmd+O and Cmd+Shift+G then opened
+GoToWindow successfully. No file was opened, and Escape twice restored the original document.
+Sia's log shows enabled native menu dispatch for Cmd+O, but a disabled menu match and synthetic
+key fallback for Cmd+Shift+G. Compare this exact window-addressed fallback with the operator
+route before changing native dispatch. Do not repeat permission setup, coordinate variants or
+unchanged task loops. Submenu control remains unresolved; the recovery improvement does not
+waive it or complete native acceptance.
 
 Cold restart on signed `bed8a3c` failed a fresh rainy-day museum request in 37.839 seconds:
 the saved choice survived but native preparation refused `background_unavailable` before

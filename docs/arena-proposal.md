@@ -30,26 +30,18 @@ and explicit limitations. Working-folder file writes alone do not establish nati
 The first handoff must pass those bounded workflows; broader native-app coverage and unattended
 concurrency remain prerequisites for a later rollout that promises those capabilities.
 
-Signed internal builds completed three useful workflows without task-time rescue: a personal
-errands/lunch checklist through background Finder/TextEdit (207 seconds), a sourced outing plan
-including recovery from a failed website (457 seconds), and museum research after visible app
-restart with automatic restoration of the chosen Chrome connection (496 seconds). Independently
-checked outputs and unchanged originals support these results. Unrelated drafts survived at
-observed points; continuous focus/clipboard isolation and two simultaneous native workflows
-remain unproved. The museum run on `1269df9` has matching AWS records for 45 actions, 36 screenshots
-and 94 usage events. A roughly 91-second interval between tool calls, earlier intermittent input
-and observation failures, and hidden-startup recovery remain open. These are useful workflow
-results, not evidence of general responsiveness or arbitrary-app reliability.
-A subsequent ordinary request on the same candidate to create a printable comparison through
-Finder/TextEdit failed at background keyboard input in Go to Folder (143 seconds, no output).
-Its sources and unrelated draft were preserved and AWS matched the failed run. Native
-repeatability remains a distribution blocker despite earlier successful document workflows.
-The follow-up `e1bebca` repaired that keyboard step in the ordinary task, but the run then failed
-at Finder's file menus (168 seconds, no output). Sources remained unchanged and automatic AWS
-records matched all 19 actions, 15 screenshots and the failed outcome. Current `e943d92` repairs
-the missing menu capture, but selecting Open With still dismisses the menu (71 seconds, no output).
-Sources and the unrelated draft remained unchanged; AWS matched all seven actions, six screenshots
-and the failed outcome. Native submenu interaction remains a blocker to a completed document workflow.
+Signed internal builds completed three useful workflows without task-time rescue: an errands/lunch
+checklist through Finder/TextEdit (207 seconds), a sourced outing plan with website recovery
+(457 seconds), and museum research after visible app restart (496 seconds). Independently checked
+outputs and unchanged originals support those results. They do not establish current native
+repeatability, responsiveness or continuous focus/clipboard isolation.
+
+The current ordinary document task remains incomplete. Finder's file menu is now visible, but
+its Open With submenu does not operate reliably. Sia's recovery guidance now chooses the editor's
+own Open dialog; the latest run reached that dialog but background navigation had no visible
+effect (90 seconds, no output). Protected sources and unrelated typing survived, and automatic
+AWS records matched the failure. Native dispatch and input isolation remain release gates;
+these failed runs are retained in the [acceptance record](./public-release.md).
 
 Automatic AWS archives matched the useful runs' prompts, results, actions and screenshots. A
 subsequent Stop test exposed duplicate capture finalization; the repaired signed candidate then
