@@ -24,33 +24,27 @@ For rehearsal, use disposable inputs, fresh workspaces and fixed learning settin
 
 ## Evidence and rollout gate
 
-The immediate deliverable is a supervised Apple-silicon RA evaluation: one exact installer,
-scoped background browser and native-desktop workflows, checked outputs, recording verification
-and explicit limitations. Working-folder file writes alone do not establish native desktop control.
-The first handoff must pass those bounded workflows; broader native-app coverage and unattended
-concurrency remain prerequisites for a later rollout that promises those capabilities.
+Public Mac 1.0 is the current goal; distribution and invitations remain held. A bounded RA rehearsal
+is an intermediate step, not a waiver of the [five release gates](./release-status.md#public-mac-10-goal).
+The final installer must complete useful browser and native-document tasks, preserve concurrent
+personal input, recover from first-use and lifecycle interruptions, and verify recording controls
+and task scope. Working-folder file writes alone do not establish native desktop control.
 
-Signed internal builds completed three useful workflows without task-time rescue: an errands/lunch
-checklist through Finder/TextEdit (207 seconds), a sourced outing plan with website recovery
-(457 seconds), and museum research after visible app restart (496 seconds). Independently checked
-outputs and unchanged originals support those results. They do not establish current native
-repeatability, responsiveness or continuous focus/clipboard isolation.
+Earlier signed builds completed an errands/lunch checklist through Finder/TextEdit (207 seconds),
+a sourced outing plan (457 seconds), and museum research after restart (496 seconds). Their outputs
+were independently checked and originals preserved. These are feasibility evidence, not current
+repeatability or responsiveness claims.
 
-The current ordinary document task remains incomplete. Finder's file menu is now visible, but
-its Open With submenu does not operate reliably. Sia's recovery guidance now chooses the editor's
-own Open dialog; the retained candidate reached that dialog but background navigation had no visible
-effect (70 seconds, no output). Subsequent unsuccessful input trials were removed. A bounded foreground shortcut works on the same build;
-that comparison does not satisfy background acceptance. Protected sources and unrelated typing survived, and automatic
-AWS records matched the failure. Native dispatch and input isolation remain release gates;
-these failed runs are retained in the [acceptance record](./public-release.md).
+The latest ordinary native task inserted all four requested checklist items in TextEdit, but could
+not change the filename in Save. It stopped after 86 seconds with an unsaved draft. Open-panel
+navigation and duplicate-window capture also remain unreliable. Sia's own rendering has been
+repaired, but startup, isolation and concurrent-use acceptance are incomplete. Unsuccessful driver
+trials were removed; the [acceptance record](./public-release.md) includes failures and exact builds.
 
-Automatic AWS archives matched the useful runs' prompts, results, actions and screenshots. A
-subsequent Stop test exposed duplicate capture finalization; the repaired signed candidate then
-produced one matched cancelled-task archive, including a late in-flight action result. The earlier
-failed runs remain in the evidence. Exact identities, timings and limits are in the
-[acceptance record](./public-release.md); these internal repairs are newer than the held DMG.
+Automatic AWS archives match prompts, usage, actions, screenshots and outcomes for useful and failed
+runs. Recording-control regressions are repaired in source and installed, with live verification
+pending. A navigation-only Slack test captured unintended content; authorized deletion is complete,
+but the scope defect remains a release blocker. These limits must be resolved before participant use.
 
-Repeatable Chrome recovery, input isolation and exact-installer acceptance remain RA handoff
-gates. Two native-app tasks, contention, off-Space behavior and physical lock/sleep/voice acceptance
-remain requirements for broader reliability claims. A fresh Mac/account is unavailable. Lawrence
-Jang owns support and incidents; no invitation, public release or Arena outreach has been sent.
+A fresh Mac/account is currently unavailable and Intel runtime is unverified. Lawrence Jang owns
+support and incidents. No invitation, public release or Arena outreach has been sent.

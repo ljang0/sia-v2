@@ -1,7 +1,7 @@
 # Release status
 
 Updated November 5, 2026. **Public 1.0 is not ready.** The retained signed internal app still
-fails background typing in TextEdit's Open dialog and Slack's directory filter. A navigation-only
+fails background input in native Open/Save dialogs and Slack's directory filter. A navigation-only
 Slack test also captured an unintended message screenshot; its authorized local and AWS cleanup
 is complete. Neither an RA installer nor a public release has been approved or published.
 
@@ -38,156 +38,73 @@ failing path. Automated checks protect changes; they do not replace useful live 
 Do not repeat failed transport variants, remove safety checks, introduce semantic UI fallbacks,
 or count manually rescued runs as passes. Keep unsuccessful trials out of the retained runtime.
 
-## Recording-control repair
-
-A controller-level regression reproduced three cases: pause then resume, decline then re-consent,
-and delete then re-consent while the same task was still running. Raw recording resumed for that
-interrupted task. Pause and decline retained its earlier staged raw events; deletion allowed its
-later events to recreate a recording.
-
-The repair excludes pending turns until their runners finish and discards both staged formats.
-New tasks still record after Resume. All three regressions failed before and passed after the
-repair; the adjacent recording, finalization and account suite passed (37 tests). The full
-`pnpm test:pilot` gate passed: 2,126 desktop unit tests, 46 desktop E2E, 48 renderer and 72 companion
-checks, plus build/static/shared/cloud/native checks (23 desktop unit and five E2E skips). Private
-log: `public-readiness-pilot.log`. This source change is installed in `f83319c`; live pause/resume/delete verification remains open and does
-not resolve the navigation-only screenshot failure. The separate local diagnostic log remains
-controlled by its existing Computer setting; Privacy now makes that distinction explicit.
-
-## Dependency audit
-
-The current audit passes the high/critical threshold but reports two moderate build-tool
-advisories: [glob cancellation](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) through rimraf,
-and [minimatch pattern amplification](https://github.com/advisories/GHSA-g3hv-75wg-m249) through
-linting and packaging tools. No dependency versions were changed in this repair. The minimatch
-fix requires version 11, whose upstream changelog removes APIs; a blanket major-version override
-has not been validated. These findings remain open in the public release audit.
-
-## Latest useful-task and UI observation
-
-Signed `f83319c` corrects coordinate focus so vision keyboard input uses pointer clicks, preserving
-host-only editable-field and exact-window checks. The ordinary TextEdit copy-and-edit request
-opened a duplicate in the background, then failed after 60.828 seconds because capture could not
-match its popover (`popover_window_unmatched`). No save or content edit occurred; all seven
-protected RTFs remain unchanged. AWS matched the prompt, nine actions, three PNGs, 22 usage
-records and terminal failure. No operator rescue or concurrent typing check occurred.
-
-CUA typed the complete request into Sia, but it appeared only after Open Sia brought the window
-forward. Production background throttling differs from the test harness, which disables it.
-The renderer repair is under test; it does not resolve native popup capture or establish input isolation.
-Details and exact installed identity are in the [distribution record](./public-release.md).
-
-## Current native blocker
-
-The ordinary Saturday comparison on signed `d67df60` failed after 70.369 seconds. TextEdit
-opened its standard Open dialog, but background Cmd+Shift+G and directory-popup input had no
-visible effect. No source was opened and no RTF was created. Post-terminal inspection confirmed
-the sheet was absent; this run is not a missed-sheet screenshot. All eight sources and both
-additions to an unrelated Chrome draft survived. Continuous focus and clipboard isolation are
-not established. AWS matches nine actions, seven screenshots and 20 usage events in one
-73-record encrypted batch with one finalization (`dialog-focus-acceptance.json`).
-
-A separate bounded comparison on the same signed build used **On my screen** with the same
-still-open dialog. One foreground Cmd+Shift+G opened Go to Folder, verified by Sia's fresh
-screenshot. It entered no text and opened no file. The comparison took 45.733 seconds; AWS
-matches five actions, three screenshots and 12 usage events in one 39-record batch with one
-finalization (`dialog-foreground-comparison.json`). Operator cleanup closed both dialogs and
-restored **Work in background → Pause and tell me**. This proves a background/foreground
-routing difference, not useful-task completion or background acceptance.
-
-The retained cleanup correction re-reads the app's focused window before restoring the prior
-window. If an action or the person has selected another window, cleanup preserves that newer
-choice. The regression failed before the fix by selecting the old document over a newly opened
-panel, then passed; ordinary restoration and wrong-window refusals remain covered. The finding
-is also described in [upstream PR #5770](https://github.com/trycua/cua/pull/5770). Only the
-focus-lifetime correction is included, not that PR's broader menu activation changes. Its
-causal role in this live Open-panel failure remains unproved.
-
-A subsequent signed trial, `6953337`, prepared the exact native window with target-only focus
-and make-key records before the unchanged PID-addressed shortcut, then restored its inactive
-state. The ordinary task still failed after 76.808 seconds. The preparation and focus checks
-completed, but Go to Folder did not appear. All eight protected files and unrelated typing
-survived; AWS matched ten actions, eight screenshots and 22 usage events in two batches with
-one finalization. The trial was removed, and signed `d67df60` was restored at 11:56:32 UTC.
-Receipt: `native-key-preparation-acceptance.json`. Additional key-window preparation alone is
-not sufficient; do not repeat it or combine it with an already failed transport variant without
-new causal evidence.
-
-The actual event destination and remote Open/Save panel's handling of background events remain
-unresolved. The existing background click prologue already uses activation without defocusing
-the user's front app. Do not guess a service PID, relax exact-window guards, silently use
-foreground control or repeat unchanged task loops.
-
-A logging-only signed diagnostic, `9cd0718`, reproduced the missing Go to Folder dialog in
-56.948 seconds. Five guard entries were observed, with **zero** order restorations, activation
-reversals or keyboard-focus theft releases. Those guard interventions did not cause this run's
-failure; do not disable them as a workaround. The diagnostic changed no files, preserved the
-unrelated draft and matched AWS (seven actions, five screenshots, 16 usage events, one 51-record
-batch and one finalization). Logging was removed and signed `d67df60` restored at 12:11:56 UTC.
-Receipt: `focus-guard-diagnostic-result.json`. This is diagnostic evidence, not useful-task
-acceptance. The owner requested that the sanitized upstream report remain private; nothing was
-sent. It identifies the patched host and does not claim a clean upstream reproduction.
-
-A final logging-only check, `e8d47b5`, resolved the exact WindowServer owner without an AX proxy
-or caller-PID fallback. The owner matched the keyboard destination, but Go to Folder still did
-not appear (55.428 seconds). This rules out that specific owner/destination mismatch in the run;
-it does not prove how AppKit forwards or consumes the event. All eight files were unchanged.
-AWS matched seven actions, five PNGs, 16 usage events and one 51-record batch. No concurrent
-typing check was performed. The trial needed the normal Open Sia menu to reveal its initially
-blank window. Logging was removed and signed `d67df60` restored at 13:24:47 UTC
-(`window-server-owner-result.json`). No new functional fix or demo acceptance is claimed.
-
-The earlier native menu-key transport trial `770360e` did not fix the task and was removed,
-along with temporary ownership logging. The `9e7e436` diagnostic reported the focused input
-under TextEdit's PID without a raw window ID; that cannot rule out a remote AX proxy. Envelope,
-public-event and filename-transport trials also failed. Do not repeat those variants without a
-new causal distinction. Detailed failed and successful runs remain in the
-[distribution acceptance record](./public-release.md), private receipts and Git history.
-
-## Current artifacts
-
-- Installed internal arm64 QA: `f83319c06c16c3e721cedfa67714d627fe6408c2`, Developer ID signed.
-  Native regression, desktop build, quality, package/runtime and installed strict-signature
-  checks passed. The full pilot gate passed on `cf1ea44` before the latest input change; rerun on retained source. Not notarized; not a DMG.
-- Held universal alpha.122 DMG: source `7531ee7f3115265817e8dd56cf081672799bd8f4`, signed,
-  notarized, stapled and verified, but missing later fixes. Do not hand it to the RA.
-- Exact hashes, installed time, rollback and receipts have one authoritative table in the
-  [distribution acceptance record](./public-release.md#current-installed-candidate).
-
 ## Current evidence and open gates
 
-| Requirement                      | Evidence                                                                                                                                 | Remaining work                                                                                                                   |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Useful native work               | Earlier `6b24a04` completed an ordinary Finder/TextEdit checklist in 207 seconds; current Saturday comparison fails in Open              | Fix and repeat the failing document workflow; verify on final DMG                                                                |
-| Useful browser work              | Sourced Phipps plan on `bed8a3c` (457 seconds); museum plan after visible restart on `1269df9` (496 seconds)                             | Repeat on final DMG; hidden-startup recovery and unexplained stalls                                                              |
-| Reuse access                     | `1269df9` restored the chosen public Chrome connection during visible startup without task-time setup                                    | Hidden/background-only startup and broader recovery                                                                              |
-| Input isolation and CUA controls | Latest runs preserve protected files and unrelated typing; Sia composer/settings/Send are CUA-operated; `5bab2f5` Stop settled in 350 ms | Continuous focus/clipboard isolation, unexplained prior filename input and `pwd` → `pwda`, native-write cancellation and latency |
-| Automatic AWS recording          | Exact prompts, usage, actions, screenshot bytes and terminal outcomes match useful and failed runs; cancellation has one finalization    | Reverify complete useful runs on final DMG                                                                                       |
-| Distribution                     | Older DMG passed signing/notarization/package checks                                                                                     | One final installer with accepted functionality and full pilot gate                                                              |
+The exact installed identity, checks and detailed live receipts are in the
+[distribution acceptance record](./public-release.md#current-installed-candidate).
 
-The full pilot gate passed on `8326bcb`: 2,123 desktop tests (23 skipped), 46 Electron
-checks (five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native
-gates (`retained-native-pilot.log`). The desktop, native patch, shared runtime, cloud and
-infrastructure source match installed `d67df60`; intervening input trials are removed. Passing tests do not explain the earlier bare-Electron exit,
-filename incident or input mismatch; those failures remain in the evidence.
+| Area          | Verified                                                                                                                                                                   | Still required                                                                                                                                 |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Native work   | Signed `28c5a50` added all four requested checklist items through background TextEdit input; seven source files stayed byte-identical                                      | Save-panel filename input failed; no saved deliverable after 86.030 seconds. Duplicate capture and Open-panel navigation also fail             |
+| Browser work  | Earlier builds completed sourced outing and museum plans (457 and 496 seconds), with independently checked outputs                                                         | Repeat on the final candidate; recovery, long stalls and same-browser coexistence                                                              |
+| Sia controls  | Open-window rendering continues under cover; read-state requires focus. Signed `1a1b7e5` loaded twice without Open Sia, accepted a complete unsent sentence and cleared it | One intervening startup failed with a disk-full error. Startup latency, continuous focus/clipboard isolation and concurrency remain unverified |
+| AWS recording | Both latest failed native tasks matched complete prompts, actions, screenshot bytes, usage and terminal outcomes without manual upload                                     | Live recording-control acceptance and task-scope protection; a matched archive does not prove task success                                     |
+| Dependencies  | Audit reports zero advisories after scoped build-tool updates; 54,574 matcher comparisons found no differences; signed package/runtime checks passed                       | Independent CI completion; exact-source local full gate passed                                                                                 |
+| Distribution  | Held alpha.122 universal DMG was signed, notarized and stapled                                                                                                             | It lacks later repairs and must not be distributed; final installer waits for functional gates                                                 |
 
-[CI run 407](https://github.com/ljang0/sia-v2/actions/runs/42027820059) also passed on `65acc34`,
-including the pilot gate and unsigned universal package verification. Signing/notarization was
-skipped; this is not a new distribution artifact (`retained-source-ci407.json`).
+Current internal QA source: `1a1b7e50e4996745d60e0d9814e2ffbcdaf7ff57`, arm64, Developer ID
+signed, not notarized and not a DMG. The full pilot gate passed on exact installed source `1a1b7e5`: 2,127 desktop
+unit tests, 46 Electron, 48 renderer and 72 companion checks, plus static/shared/cloud/native
+checks (23 unit and five Electron skips). The later dependency run encountered one timeout;
+its complete 21-test file passed in isolation, and the exact-source full rerun now passed.
+Private full-gate log: `startup-repaint-pilot.log`.
+[CI 410](https://github.com/ljang0/sia-v2/actions/runs/42118175786) checks the dependency update.
 
-Browser tasks still recorded long intervals before report writing (including 72 and 91 seconds),
-and earlier connected-browser runs had recovery refusals. Successful final files are not a
-responsiveness claim. Stop's one-finalization fix closes duplicate archives, not general proof
-that in-flight input can never arrive after Stop. Older bounded native passes with before/after
-clipboard checks do not prove continuous isolation or two concurrent native workflows.
+## Repairs and unresolved causes
+
+**Recording controls.** Pause/Resume, decline/re-consent and delete/re-consent during the same
+running task could resume or recreate its raw recording. The installed fix excludes pending turns
+until their runners finish and discards both staged formats. Three regressions failed before and
+passed after the repair; 37 adjacent checks passed. Live AWS pause/resume/delete acceptance is
+still required. The separately controlled local diagnostic log is now explained in Privacy.
+
+**Rendering.** Open Sia windows no longer throttle their renderer; hiding or minimizing restores
+throttling. Conversation read-state separately requires focus. Secure startup now requests repaint
+after replacing its inert page with the application. Two signed launches reached usable controls
+without Open Sia; an intervening launch failed with “database or disk is full.” SQLite integrity
+passed. A later stale accessibility snapshot disagreed with a fresh screenshot, which showed the
+loaded conversation and working input. No latency or repeatability claim follows from these runs.
+
+**Native dialogs.** Coordinate-targeted vision keys now focus by pointer, retaining host-only
+editable-field and exact-window checks. Main TextEdit body input works in the latest useful-task
+attempt, but Save filename input does not. A bounded foreground comparison could open Go to Folder
+where background input failed. No semantic setter or implicit foreground fallback is included.
+The existing focus-lifetime correction preserves a newly selected window during cleanup; its causal
+role in the dialog failure remains unproved.
+
+**Trials already ruled out.** Additional target-only key-window preparation, alternate menu/envelope
+transports and filename transports did not fix the ordinary task and were removed. Diagnostics
+observed no guard restoration, activation reversal or key-focus release during the failed shortcut;
+the exact WindowServer owner matched the keyboard destination. Do not repeat these variants,
+disable isolation guards or guess a service PID. Details and receipt identifiers are retained in the
+[distribution record](./public-release.md); the owner asked that the upstream report stay private.
+
+**Dependencies.** rimraf 6.1.4 removes the vulnerable glob dependency. Scoped minimatch 11.0.4
+overrides cover five reviewed consumers; unaffected older consumers remain unchanged. Frozen
+install, lint, matcher comparison and signed packaging passed. The dependency-only build's ASAR
+matches `28c5a50` exactly. No runtime change is attributed to that update.
+
+**Privacy scope.** A navigation-only Slack request captured an unintended message thread. Authorized
+local and AWS deletion is complete; no Slack messages were deleted. Do not recreate those recordings.
+The observation-scope defect remains a public-release blocker.
 
 Managed voice passed earlier AWS/ElevenLabs checks and the owner confirmed the microphone works.
-Physical Fn and a full spoken command remain independently unverified. No fresh Mac/account is
-available for clean-install acceptance. None of these limits is waived by packaging.
+Physical Fn and a full spoken command remain independently unverified. No fresh macOS account or
+second Mac is available; Intel runtime is unverified. These limits are not waived by packaging.
 
 ## Full distribution requirements
 
-The bounded RA handoff is a first milestone, not completion of the full goal. Vision-only and
+A bounded RA handoff would be an intermediate milestone, not completion of public 1.0. Vision-only and
 access defaults apply to every build; broader coverage below remains required before claiming
 general desktop reliability.
 

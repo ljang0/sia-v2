@@ -1,30 +1,81 @@
 # Distribution acceptance record
 
-**Public 1.0 and RA handoff are held.** Signed internal `f83319c` includes the recording
-pause/delete repair and uses pointer focus for vision-only keyboard input. Its ordinary TextEdit
-copy-and-edit task still fails when capturing the newly duplicated window. Earlier native and
-browser passes do not establish current repeatability or isolation. No release was published,
-sent to a recipient, or submitted to Arena. Source work is on draft PR #34.
+**Public 1.0 and RA handoff are held.** The current internal app includes the recording-control,
+vision pointer-focus and background-rendering repairs. It can edit a TextEdit document body,
+but the ordinary edit-and-save task still fails at Save-panel filename input. Startup has also
+shown a storage error. No release was published, sent to a recipient or submitted to Arena.
+Source work is on draft PR #34.
 
 ## Current installed candidate
 
 | Identity               | Value                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| Source                 | `f83319c06c16c3e721cedfa67714d627fe6408c2`                                                       |
-| Installed              | November 5, 2026, 20:42:47 UTC                                                                   |
+| Source                 | `1a1b7e50e4996745d60e0d9814e2ffbcdaf7ff57`                                                       |
+| Installed              | November 5, 2026, 22:14:45 UTC                                                                   |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG                                 |
-| ASAR SHA-256           | `1db708ad30b2d95ce58b384ec2c55b851adf85e1a1412eb2c3bdefff82e0f44e`                               |
+| ASAR SHA-256           | `1a2cac2c7260e0b5fec851caf05b1764a4ebc5b99b2fb549eff020a2ca791cb8`                               |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`                               |
 | Native patch SHA-256   | `3e6a68249581bf263708075cf93cf5b9c99f5948a3a2b1458a8a20b808857297`                               |
 | Private evidence       | `alpha122-browser-selection-internal/sheet-visibility-acceptance` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before vision focus.app`                                                        |
+| Rollback               | `Sia QA alpha122 before startup repaint.app` (signed `28c5a50`)                                  |
 
-Native gate, 65 host input tests, desktop build, type and quality checks, signed package/runtime
-verification and installed strict signature checks passed. The full pilot gate passed before
-this input repair on `cf1ea44`; it must run again on final retained source. These checks do not
-replace exact-candidate useful task acceptance.
+The exact-source `pnpm test:pilot` gate passed on `1a1b7e5`: 2,127 desktop unit tests,
+46 Electron, 48 renderer and 72 companion checks, plus build/static/shared/cloud/native checks
+(23 desktop unit and five Electron skips). Build/type checks, three focused Electron checks,
+signed package/runtime verification and installed strict signature checks also passed. Private
+full-gate log: `startup-repaint-pilot.log`. Automated checks do not replace useful-task acceptance.
 
 ## Live results that determine readiness
+
+### Background rendering and secure-startup repaint
+
+`28c5a50` disables throttling for an open Sia window and restores it when hidden or minimized.
+Read-state tracking separately requires actual document focus, so rendering a covered conversation
+does not mark it read. Electron coverage verifies frames continue under a test-owned covering
+window and stop after Hide. The signed app still needed Open Sia after its first blank startup.
+
+`1a1b7e5` requests a repaint after the secure-startup page is replaced by the application renderer.
+Two cold launches reached the composer without Open Sia; CUA typed a complete unsent sentence,
+verified it and cleared it. One intervening launch failed with “database or disk is full.”
+The QA database passed SQLite quick_check; no database reset or migration was performed for
+verification. Only reproducible older build staging directories were removed to recover space.
+Installed apps, rollback copies, the held DMG and evidence were preserved.
+
+On the third launch, an accessibility snapshot still reported Loading Sia while a fresh screenshot
+showed the loaded conversation. Screenshot-based input and clearing worked. The exact startup
+latency was not measured; these observations do not establish repeatability, background isolation
+or a fix for the storage error. Receipt: `startup-repaint-cua-check.json`.
+
+### Existing draft: body edit succeeds, Save-panel filename input fails
+
+Signed `28c5a50`, thread `2388baa5-90f0-48a0-bafd-b2b7455c0502`, turn
+`753b5300-c83b-49b7-8b85-98129cccab7e`, ran an ordinary request to finish the existing untitled
+errands checklist, preserve its contents and save a named copy. Sia inserted keys, wallet, water
+bottle and phone charger under Before leaving using background pointer/keyboard control. It opened
+Save and captured the panel, but typing through both the panel and parent window left the filename
+unchanged. It reported the draft updated but unsaved after 86.030 seconds. This is a failed task.
+
+Post-terminal CUA verified all four additions, cancelled Save and left the edited duplicate unsaved.
+The requested file does not exist; all seven protected RTFs remain byte-identical. There was no
+operator rescue during the task and no continuous focus, clipboard or concurrent typing check.
+Automatic AWS verification matched the complete prompt, nine actions, seven PNGs, 22 usage events
+and terminal failure in one encrypted 75-event batch. Receipts: `draft-edit-acceptance.json` and
+`native-archive-verification-753b5300-c83b-49b7-8b85-98129cccab7e.json`.
+
+### Build-dependency audit
+
+`18f3881` updates rimraf to 6.1.4 (glob 14.0.3) and scopes minimatch 11.0.4 overrides to five
+reviewed lint/packaging consumers. No blanket override changes older unaffected consumers.
+The advisory audit now reports zero findings. Across 2,099 repository/package paths and 13
+real lint/packaging patterns, 54,574 old/new normal and partial matches had zero differences.
+Frozen install, lint and signed package/runtime verification passed; the dependency-only package
+has exactly the same ASAR as signed `28c5a50`.
+
+The local pilot run on `18f3881` stopped at one five-second browser-test timeout; the complete
+21-test file then passed in isolation. That is not a clean full-gate pass.
+[CI 410](https://github.com/ljang0/sia-v2/actions/runs/42118175786) is the independent full run.
+Private receipts: `public-readiness-audit-after.json`, `matcher-compatibility-result.json`,
+`dependency-pilot.log` and `dependency-browser-recheck.log`.
 
 ### Vision pointer focus: duplicate opens, capture blocks completion
 
@@ -135,8 +186,8 @@ Go to Folder on the exact failed dialog without reopening it. AWS matched that d
 six actions, four screenshots and 14 usage events (45 records, one batch). It was not acceptance.
 
 Both experiments were removed. The prior `6ce129c` signed app was restored at
-11:13:37 UTC on November 5, with matching ASAR and strict signature; failed builds and receipts
-remain private evidence. The ordinary document workflow and distribution remain blocked.
+11:13:37 UTC on November 5, with matching ASAR and strict signature. Failure receipts remain private;
+reproducible staging builds were later removed to recover disk space. The ordinary document workflow and distribution remain blocked.
 
 ### Saturday comparison on 6ce129c: editor recovery works, Open-panel navigation fails
 
