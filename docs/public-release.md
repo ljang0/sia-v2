@@ -1,25 +1,30 @@
 # Distribution acceptance record
 
 **RA handoff is held.** Useful browser research after restart passed on `b7c1f36`, and a native
-copy/edit/reopen task with working result delivery passed on current `a2d63b8`. Input reliability and exact-DMG
-acceptance remain open. Nothing has been
+copy/edit/reopen task with working result delivery passed on included `a2d63b8`. Dinner research
+failed freshness checks; the installed repair then paused at connection recovery with another
+Chrome window active. Input reliability and exact-DMG acceptance remain open. Nothing has been
 published, sent to a recipient or submitted to Arena by this work.
 
 ## Current installed candidate
 
 | Identity               | Value                                                                |
 | ---------------------- | -------------------------------------------------------------------- |
-| Source                 | `a2d63b8dfb2d70ac0b8ff3fa00c858581f4d71b6`                           |
-| Installed              | November 5, 2026, 02:41:30 UTC (November 4 Eastern)                  |
+| Source                 | `0c72ce8f91b4c89ecf16a30a5e5ac0d6e110c4f2`                           |
+| Installed              | November 5, 2026, 03:32:40 UTC (November 4 Eastern)                  |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG     |
-| ASAR SHA-256           | `02ed9d54c811ab785bb03210b2756de2b274d3eb9134fd750ebc5eee189f2b75`   |
+| ASAR SHA-256           | `a5190f03a29b0fe01f1eddac86983f36bbd6359609c055847eecabb6b83dfc25`   |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`   |
-| Native patch SHA-256   | `bbcfb1c11772237654983f967756cea4458ea662e3ecc9993cbdf71fc2b964ff`   |
+| Native patch SHA-256   | `0de2a961729b916c1e9d0cba12a57a2754c681cdf2a7e8bb7ca8e1e432a86093`   |
 | Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before local results.app`                           |
+| Rollback               | `Sia QA alpha122 before visual equivalence.app`                      |
 
-Package/runtime verification and installed deep, strict signature checks passed. The current
-native-result repair passed the full pilot: 2,091 desktop tests (23 skipped), 46 Electron (five skipped),
+Package/runtime verification and installed deep, strict signature checks passed. The new repair's
+67 focused tests and native gate pass. Its full pilot command passed build/static/unit checks
+(2,096 desktop tests, 23 skipped), then failed one Electron test: `pwd` became `pwda`. An isolated
+rerun passed unchanged; the cause is unresolved. The four remaining desktop cases, 48 renderer
+and 72 companion-browser checks subsequently passed. Preserve the original failure and trace.
+The included native-result repair previously passed the full pilot: 2,091 desktop tests (23 skipped), 46 Electron (five skipped),
 48 renderer and 72 companion tests, plus cloud/shared/native/build/static checks. The external
 Chrome-policy regression failed with the old 100 ms retry cadence; all 14 native consent checks
 pass after the change. The selection repair passed 138 affected checks. These automated checks
@@ -28,6 +33,29 @@ Electron copies. Obsolete generated QA packages were removed; the complete retry
 native-result regression failed before the repair and passes after it.
 
 ## Live results that determine readiness
+
+### Dinner research and concurrent notes: not passed
+
+On `a2d63b8`, ordinary three-dinner research failed after 124.621 seconds with freshness refusals,
+one wrong-target refusal and a final stale read. Two refused actions returned images identical to
+the preceding screenshots. The notes and earlier files were preserved, but foreground focus and
+clipboard isolation were not established. AWS matched 125 stored / 110 logical records, 32 usage,
+14 actions and six PNGs. Private receipts: `personal-concurrency-acceptance`.
+
+Installed `0c72ce8` allows child-frame refresh only with identical PNG bytes and unchanged native
+root/viewport proof, URL, geometry and age; input receives the new full-frame token. Native
+dispatch and protection checks remain. Its fresh ordinary rerun, thread
+`5b3a0988-5739-4890-a680-6cfc71d9c4f6`, turn `79a06c1c-1661-4ae3-a2e3-3b6741823a0b`,
+paused before this path: `browser_prepare` refused `foreground_app_in_use` while a different
+Chrome window was active. Terminal outcome was cancelled at 20.290 seconds; no plan was saved.
+The operator note was typed after termination, so it proves no concurrency. AWS matched the
+prompt, terminal outcome, six actions and six usage records in one 40-record encrypted batch;
+there were no screenshots. Private receipts: `visual-equivalence-acceptance`.
+
+Already-bound browser input can use a different proven Chrome window. Reconnection may involve
+setup UI, so removing its foreground guard is not a valid repair. Reliable reuse after restart,
+live acceptance of the freshness repair, CUA observation/input reliability and the unrelated
+terminal-test character remain open.
 
 ### Initial Chrome setup: passed on an included earlier repair
 

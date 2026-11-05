@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 4, 2026. **Native document creation and an earlier browser research task completed without rescue, but the latest dinner-research task failed repeated browser freshness checks. Automatic AWS archives match both completed and failed runs. RA handoff remains held for browser and input/observation reliability and exact-installer acceptance. The notarized alpha.122 DMG lacks later fixes; broad distribution and Arena acceptance remain open.**
+Updated November 4, 2026. **Native document creation and an earlier browser research task completed without rescue. Dinner research failed freshness checks; the signed repair's rerun then paused at connection recovery while another Chrome window was active. Automatic AWS archives match these outcomes. RA handoff remains held for browser and input/observation reliability and exact-installer acceptance. The notarized alpha.122 DMG lacks later fixes; broad distribution and Arena acceptance remain open.**
 
 ## Bounded RA handoff goal
 
@@ -91,17 +91,29 @@ The targeted repair separates root/viewport identity from the full frame-tree to
 visual action may continue only when the fresh protected screenshot is byte-identical and the
 native root/viewport proof, URL, geometry and age agree. Input uses the latest full-frame token;
 native reload, protection and dispatch checks remain in force. Focused regressions reproduce the
-previous refusal and cover changed-image/root rejection. Signed real-task acceptance is pending;
-the failed dinner run remains failed.
+previous refusal and cover changed-image/root rejection. This repair is installed as signed
+internal `0c72ce8`; its signed package/runtime and installed strict-signature checks passed.
+
+The fresh ordinary rerun stopped after 20.290 seconds, before reaching that repaired input path.
+The selected Chrome window was on another Space; a different Chrome window was active.
+`browser_prepare` refused `foreground_app_in_use`, and the task paused with a cancelled terminal
+outcome. Existing tab-addressed visual input permits another proven foreground Chrome window,
+but connection setup deliberately does not: it may display or operate Chrome's setup UI.
+Recovery after restart must distinguish reuse from setup without removing that safeguard.
+No operator rescue occurred. The operator's TextEdit note arrived after the task had stopped,
+so this is not a concurrency pass. AWS matches all 40 records, six usage events, six action
+results, the exact prompt and terminal outcome in one encrypted batch; no screenshots were
+produced. CUA again showed delayed composer/Send observations, `noWindowsAvailable` and a Dock
+binding timeout. The browser repair's useful-task acceptance remains unproved.
 
 The repair's focused tests and native gate pass. The full pilot command passed build, static and
 unit checks, then failed one terminal UI case: the fixture filled `pwd`, while the executed value
 was `pwda`. An immediate isolated rerun passed without a code change. Its trace is retained;
 the extra character's source is unresolved and the rerun does not establish a fix. The four
 unrun desktop cases, 48 renderer checks and 72 companion-browser checks subsequently passed.
-The original full command remains recorded as failed. Signed useful-task acceptance is pending.
+The original full command remains recorded as failed.
 
-Installed `a2d63b8` fixes native result registration. The preceding task on `b7c1f36` saved the
+Included `a2d63b8` fixes native result registration. The preceding task on `b7c1f36` saved the
 correct document but failed because its requested location was outside the conversation folder.
 Native results now retain an exact local reference for explicit Open/Reveal, without granting
 content preview or remote export. That earlier failed run remains failed.
@@ -150,10 +162,10 @@ repeated on the exact final DMG. The earlier unexpected filename input remains u
 
 ## Current artifacts
 
-- Installed internal arm64 QA: `a2d63b8dfb2d70ac0b8ff3fa00c858581f4d71b6`, Developer ID signed,
+- Installed internal arm64 QA: `0c72ce8f91b4c89ecf16a30a5e5ac0d6e110c4f2`, Developer ID signed,
   package/runtime and installed strict-signature checks passed. Not notarized and not a DMG.
-  The full pilot gate passed: 2,091 desktop, 46 Electron, 48 renderer and 72 companion tests,
-  plus cloud/shared/native/build/static checks. The window-close/reopen check passed too.
+  Focused/native checks passed. The full pilot command failed one input case, which passed
+  an isolated rerun; subsequent unrun UI gates passed. Preserve that unresolved failure.
 - Held universal alpha.122 DMG: source `7531ee7f3115265817e8dd56cf081672799bd8f4`, signed,
   notarized, stapled and verified, but missing later fixes. Do not hand it to the RA yet.
 - Exact hashes, task identities, timings and private receipt locations are in the concise
@@ -184,7 +196,7 @@ The archive verifier initially skipped large chunked events; reassembly confirme
 action and image. This was a verifier defect, not missing application uploads. Exact evidence and
 remaining limits are in the [acceptance record](./public-release.md).
 
-The earlier native-workflow pass was on `8dc8e14`; the current `a2d63b8` pass adds document editing,
+The earlier native-workflow pass was on `8dc8e14`; the included `a2d63b8` pass adds document editing,
 usable result delivery and before/after clipboard verification. Neither substitutes for the exact
 final installer or closes the remaining input-isolation gates.
 The managed voice transport passed earlier live AWS/ElevenLabs checks and the owner confirmed
