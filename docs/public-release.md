@@ -2,25 +2,29 @@
 
 **RA handoff is held.** Useful browser research after restart passed on `b7c1f36`, and a native
 copy/edit/reopen task with working result delivery passed on included `a2d63b8`. Dinner research
-failed freshness checks; the installed repair then paused at connection recovery with another
-Chrome window active. Input reliability and exact-DMG acceptance remain open. Nothing has been
+passed on `0c72ce8` after explicit Chrome setup. Automatic recovery while another Chrome window
+is active, input reliability and exact-DMG acceptance remain open. Cancellation capture is fixed
+and verified on installed `5bab2f5`. Nothing has been
 published, sent to a recipient or submitted to Arena by this work.
 
 ## Current installed candidate
 
 | Identity               | Value                                                                |
 | ---------------------- | -------------------------------------------------------------------- |
-| Source                 | `0c72ce8f91b4c89ecf16a30a5e5ac0d6e110c4f2`                           |
-| Installed              | November 5, 2026, 03:32:40 UTC (November 4 Eastern)                  |
+| Source                 | `5bab2f54d4dbcd6bcd36ea6b06dc1868b102cb99`                           |
+| Installed              | November 5, 2026, 04:13:05 UTC (November 4 Eastern)                  |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG     |
-| ASAR SHA-256           | `a5190f03a29b0fe01f1eddac86983f36bbd6359609c055847eecabb6b83dfc25`   |
+| ASAR SHA-256           | `456c9284fb50396ba95b054ec47c962a31f2040fefb88ed4de8a4bc7c30a47f6`   |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`   |
 | Native patch SHA-256   | `0de2a961729b916c1e9d0cba12a57a2754c681cdf2a7e8bb7ca8e1e432a86093`   |
 | Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before visual equivalence.app`                      |
+| Rollback               | `Sia QA alpha122 before capture finalization.app`                    |
 
-Package/runtime verification and installed deep, strict signature checks passed. The new repair's
-67 focused tests and native gate pass. Its full pilot command passed build/static/unit checks
+Package/runtime verification and installed deep, strict signature checks passed. The full pilot
+passed: 2,100 desktop unit tests (23 skipped), 46 Electron (five skipped), 48 renderer and
+72 companion checks, plus build/static/shared/cloud/native gates. Four capture lifecycle
+regressions failed before the repair and passed after it. The prior browser repair's
+67 focused tests and native gate pass. Its earlier full pilot command passed build/static/unit checks
 (2,096 desktop tests, 23 skipped), then failed one Electron test: `pwd` became `pwda`. An isolated
 rerun passed unchanged; the cause is unresolved. The four remaining desktop cases, 48 renderer
 and 72 companion-browser checks subsequently passed. Preserve the original failure and trace.
@@ -34,7 +38,7 @@ native-result regression failed before the repair and passes after it.
 
 ## Live results that determine readiness
 
-### Dinner research and concurrent notes: not passed
+### Dinner research: useful-task pass; continuous isolation remains open
 
 On `a2d63b8`, ordinary three-dinner research failed after 124.621 seconds with freshness refusals,
 one wrong-target refusal and a final stale read. Two refused actions returned images identical to
@@ -42,7 +46,7 @@ the preceding screenshots. The notes and earlier files were preserved, but foreg
 clipboard isolation were not established. AWS matched 125 stored / 110 logical records, 32 usage,
 14 actions and six PNGs. Private receipts: `personal-concurrency-acceptance`.
 
-Installed `0c72ce8` allows child-frame refresh only with identical PNG bytes and unchanged native
+Included `0c72ce8` allows child-frame refresh only with identical PNG bytes and unchanged native
 root/viewport proof, URL, geometry and age; input receives the new full-frame token. Native
 dispatch and protection checks remain. Its fresh ordinary rerun, thread
 `5b3a0988-5739-4890-a680-6cfc71d9c4f6`, turn `79a06c1c-1661-4ae3-a2e3-3b6741823a0b`,
@@ -53,9 +57,28 @@ prompt, terminal outcome, six actions and six usage records in one 40-record enc
 there were no screenshots. Private receipts: `visual-equivalence-acceptance`.
 
 Already-bound browser input can use a different proven Chrome window. Reconnection may involve
-setup UI, so removing its foreground guard is not a valid repair. Reliable reuse after restart,
-live acceptance of the freshness repair, CUA observation/input reliability and the unrelated
-terminal-test character remain open.
+setup UI, so removing its foreground guard is not a valid repair. After explicit setup, a fresh
+ordinary dinner request in thread `0d737267-9d55-4b0f-ba0f-2e2ab08da11c`, turn
+`4ae02bd5-94fb-4145-827d-c083c866c26f`, completed without task-time intervention in 351.416 seconds.
+The saved plan's sources, portions, shopping quantities and estimated budget were independently
+checked. Three concurrent TextEdit additions and prior documents were preserved. Four genuinely
+changed screenshots caused stale refusals that recovered autonomously; a 95.705-second gap before
+file writing is unexplained. Continuous focus/clipboard isolation was not established.
+AWS matched 70 usage records, 33 actions and 23 PNGs in 11 encrypted batches (276 stored /
+261 logical records). Receipts: `connected-dinner-acceptance`. Restart recovery, CUA reliability
+and the unrelated terminal-test character remain open.
+
+### Cancellation capture: repaired and verified
+
+Stop on the grocery follow-up originally produced two capture finalizations for one cancelled
+turn. `5bab2f5` moves running-turn finalization to the runner after provider cleanup. In the same
+conversation, ordinary follow-up turn `1f287145-0ed4-4dac-b6d8-2d3947904120` was stopped through CUA
+at 04:15:10.882 UTC. Terminal cancellation followed in 350 ms. An in-flight browser click returned
+accepted/unverified 158 ms after Stop; no action results followed the terminal event. The plan's
+bytes were unchanged. AWS matched exactly one discarded capture, all seven actions (including
+that late result), six usage records and one PNG in 46 stored / 45 logical records. Receipts:
+`capture-finalization-acceptance`. This verifies recording closure, not general native-write
+cancellation or absence of any in-flight input after Stop.
 
 ### Initial Chrome setup: passed on an included earlier repair
 

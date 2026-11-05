@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 4, 2026. **Native document creation, visitor research and a fresh dinner-planning task completed without task-time rescue. The dinner run followed explicit Chrome setup; automatic recovery after restart still fails when another Chrome window is active. Its automatic AWS archive matches, but Stop on a follow-up exposed duplicate capture finalization. RA handoff remains held for recovery, input/observation reliability, cancellation capture and exact-installer acceptance. The notarized alpha.122 DMG lacks later fixes; broad distribution and Arena acceptance remain open.**
+Updated November 4, 2026. **Native document creation, visitor research and a fresh dinner-planning task completed without task-time rescue. The dinner run followed explicit Chrome setup; automatic recovery after restart still fails when another Chrome window is active. The duplicate cancellation-capture bug is repaired and verified in signed QA with matching AWS records. RA handoff remains held for recovery, input/observation reliability and exact-installer acceptance. The notarized alpha.122 DMG lacks later fixes; broad distribution and Arena acceptance remain open.**
 
 ## Bounded RA handoff goal
 
@@ -129,7 +129,13 @@ Stop and runtime event handlers were closing capture before the provider stream 
 The current source repair makes the runner the sole finalizer for running turns, retaining late
 usage/results in one episode; queued turns still finalize immediately. Four regressions reproduced
 premature sealing before the fix and now pass for completion, failure, Stop and a thrown stream
-error. Signed-app rerun and automatic AWS verification of this repair remain pending.
+error. Signed `5bab2f5` repeated the real grocery follow-up and Stop through CUA. Cancellation
+settled 350 ms after the Stop click. One in-flight browser click returned accepted/unverified
+158 ms after Stop; no action results followed terminal cancellation. The dinner plan stayed
+byte-identical. AWS contained exactly one cancelled capture with all seven action results,
+six usage records and one byte-matching PNG (46 stored / 45 logical records). This closes the
+duplicate-finalization defect, not general in-flight input or native-write cancellation acceptance.
+The full pilot suite and signed package/runtime/installed-signature verification passed.
 
 The repair's focused tests and native gate pass. The full pilot command passed build, static and
 unit checks, then failed one terminal UI case: the fixture filled `pwd`, while the executed value
@@ -187,10 +193,10 @@ repeated on the exact final DMG. The earlier unexpected filename input remains u
 
 ## Current artifacts
 
-- Installed internal arm64 QA: `0c72ce8f91b4c89ecf16a30a5e5ac0d6e110c4f2`, Developer ID signed,
+- Installed internal arm64 QA: `5bab2f54d4dbcd6bcd36ea6b06dc1868b102cb99`, Developer ID signed,
   package/runtime and installed strict-signature checks passed. Not notarized and not a DMG.
-  Focused/native checks passed. The full pilot command failed one input case, which passed
-  an isolated rerun; subsequent unrun UI gates passed. Preserve that unresolved failure.
+  Full pilot passed: 2,100 desktop unit, 46 Electron, 48 renderer and 72 companion checks,
+  plus shared/cloud/native/static gates. Preserve the prior candidate's unexplained input failure.
 - Held universal alpha.122 DMG: source `7531ee7f3115265817e8dd56cf081672799bd8f4`, signed,
   notarized, stapled and verified, but missing later fixes. Do not hand it to the RA yet.
 - Exact hashes, task identities, timings and private receipt locations are in the concise
@@ -201,10 +207,10 @@ repeated on the exact final DMG. The earlier unexpected filename input remains u
 | Requirement | Evidence | Remaining work |
 | --- | --- | --- |
 | Useful native work | Fresh copy/edit/save/close/reopen pass on `a2d63b8`; original documents unchanged; result opens from Sia | Repeat on final DMG; broader native workflows |
-| Useful browser work | Fresh conversation on `b7c1f36` completed sourced visitor plan after restart, without rescue; reply in 195 seconds | Repeat on final DMG; repeatability |
+| Useful browser work | Visitor plan on `b7c1f36`; checked dinner plan on `0c72ce8` after explicit setup, without task-time rescue | Repeat on final DMG; restart recovery, repeatability and unexplained stalls |
 | Reuse access | Retained exact public window recovered autonomously on `b7c1f36` | Broader recovery while another Chrome window is in use |
-| Input isolation and CUA controls | Current native run preserved source files, concurrent draft text and before/after clipboard; result opens through CUA | Resolve intermittent CUA observation/input errors and earlier filename incident; continuous focus/latency and Stop |
-| Automatic AWS recording | Current native run: exact prompt/reply/completion, 219 events, 62 usage, 33 actions and 21 byte-matching PNGs; browser run also matched | Reverify complete useful runs on final DMG |
+| Input isolation and CUA controls | Native run preserved sources, draft and clipboard; dinner run preserved concurrent notes; CUA Stop on `5bab2f5` settled in 350 ms | Intermittent CUA errors, earlier filename incident, continuous focus/latency and native-write cancellation |
+| Automatic AWS recording | Native and dinner archives matched; `5bab2f5` cancellation archive matched all seven actions, six usage records and one PNG with one finalization | Reverify complete useful runs on final DMG |
 | Distribution | Older DMG's signing/notarization/package checks passed | One final installer containing accepted functional repairs |
 
 Earlier failed restart thread `9ed5a7ab-7ddb-4f57-875e-8d941aa50192`, turn
