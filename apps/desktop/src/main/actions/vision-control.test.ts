@@ -436,6 +436,7 @@ it.each([
           x: 25,
           y: 30,
           delivery_mode: 'background',
+          pointer_only: true,
           capture_geometry: expect.objectContaining({
             surface: expect.objectContaining({ pid: 42, window_id: 91 }),
           }),

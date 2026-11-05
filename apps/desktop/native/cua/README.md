@@ -84,6 +84,16 @@ any input guard. Sia's separate signed observer already runs a main loop and is 
 This backport removes the known native query defect; it is not proof that it caused Sia's
 observed Chrome recovery or input failures. Signed-app background acceptance remains required.
 
+## Coordinate keyboard focus
+
+Vision-only coordinate typing and keys use pointer events when they must focus a field. The
+previous composite keyboard route attempted an accessibility focus action even when Sia requested
+keyboard-only typing. It could refuse before dispatch and did not preserve the vision input policy.
+The pointer route retains exact-window, geometry, mutation-lease and focus checks; it does not
+escalate background input to foreground. For text, a focused container covering the coordinates
+does not count as an editable field. Existing focused-field selections are preserved. Native and
+host input gates pass; signed-app acceptance remains required.
+
 ## Native panels
 
 The signed reviewer-copy task exposed Finder's Go to Folder panel through operator CUA while

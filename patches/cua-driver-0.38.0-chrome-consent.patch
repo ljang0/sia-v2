@@ -8237,18 +8237,19 @@ index 133dff9..dceb43f 100644
          }
          for prefetched in [Some(Err(anyhow::anyhow!("old error"))), None] {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
-index 2bf28e0..44c1337 100644
+index 2bf28e0..05f4fbd 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
-@@ -68,6 +68,7 @@ fn def() -> &'static ToolDef {
+@@ -68,6 +68,8 @@ fn def() -> &'static ToolDef {
              "type": "object",
              "required": ["keys"],
              "properties": {
++                "pointer_only": { "type":"boolean", "description":"Host-owned visual-input policy: prepare coordinate focus with pointer events only." },
 +                "capture_geometry": { "type":"object", "description":"Host-owned geometry from the exact screenshot; stale geometry refuses input." },
                  "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it. Omit it to use the authenticated transport's implicit lifecycle session." },
                  "pid": { "type": "integer", "description": "Target process ID. Required with x, y; optional with element_token (the token carries the pid)." },
                  "keys": {
-@@ -289,68 +290,6 @@ impl Tool for HotkeyTool {
+@@ -289,68 +291,6 @@ impl Tool for HotkeyTool {
              return error;
          }
  
@@ -8317,7 +8318,7 @@ index 2bf28e0..44c1337 100644
          // ── Paste must not land in browser chrome ──
          // A background Cmd+V goes to the window's first responder. In a
          // browser that can be the omnibox rather than the page field the
-@@ -409,13 +348,11 @@ impl Tool for HotkeyTool {
+@@ -409,13 +349,11 @@ impl Tool for HotkeyTool {
              None
          };
  
@@ -8336,7 +8337,7 @@ index 2bf28e0..44c1337 100644
  
          // Web-content AX nodes can acknowledge AXFocused without moving the
          // renderer's real first responder. That makes a direct focus write an
-@@ -444,10 +381,7 @@ impl Tool for HotkeyTool {
+@@ -444,10 +382,7 @@ impl Tool for HotkeyTool {
                          guard.as_ptr() as crate::ax::bindings::AXUIElementRef,
                      )?;
                      let frame = super::px_frame::resolve_window_px_frame(wid).ok()?;
@@ -8348,15 +8349,17 @@ index 2bf28e0..44c1337 100644
                  })
                  .await
                  .unwrap_or(None)
-@@ -484,6 +418,7 @@ impl Tool for HotkeyTool {
+@@ -484,6 +419,9 @@ impl Tool for HotkeyTool {
                      args.opt_str("_session_id"),
                      from_zoom,
                      _mutation_lease.as_ref(),
 +                    args.get("capture_geometry"),
++                    if args.bool_or("pointer_only", false) { super::pixel_focus::PixelFocusPolicy::Pointer }
++                    else { super::pixel_focus::PixelFocusPolicy::Assisted },
                  )
                  .await
                  {
-@@ -495,6 +430,79 @@ impl Tool for HotkeyTool {
+@@ -495,6 +433,79 @@ impl Tool for HotkeyTool {
              }
          };
  
@@ -9257,14 +9260,21 @@ index 4e6831a..09df247 100644
              || local_x > frame.bounds.width
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/pixel_focus.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/pixel_focus.rs
 new file mode 100644
-index 0000000..f03728d
+index 0000000..a885f56
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/pixel_focus.rs
-@@ -0,0 +1,213 @@
+@@ -0,0 +1,272 @@
 +//! Coordinate-only keyboard focus and readback. Both use the click transform.
 +
 +use super::{click, px_frame, BackgroundMutationLease, ToolState};
 +use std::sync::Arc;
++
++#[derive(Clone, Copy)]
++pub(crate) enum PixelFocusPolicy {
++    Assisted,
++    Pointer,
++    TextPointer,
++}
 +
 +/// px-focus for the keyboard family (type_text / press_key / hotkey): focus the
 +/// element at (x,y) before a keystroke — the *element px action* form of a
@@ -9287,13 +9297,12 @@ index 0000000..f03728d
 +    from_zoom: bool,
 +    mutation_lease: Option<&BackgroundMutationLease>,
 +    capture_geometry: Option<&serde_json::Value>,
++    policy: PixelFocusPolicy,
 +) -> Result<(), cua_driver_core::protocol::ToolResult> {
 +    use cua_driver_core::tool::Tool;
-+    let mut click_args = serde_json::json!({
-+        "pid": pid, "x": x, "y": y,
-+        "delivery_mode": "background",
-+        "action": "focus",
-+    });
++    let pointer_only = !matches!(policy, PixelFocusPolicy::Assisted);
++    let text_input = matches!(policy, PixelFocusPolicy::TextPointer);
++    let mut click_args = focus_click_arguments(pid, x, y, foreground, pointer_only);
 +    if let Some(wid) = window_id {
 +        click_args["window_id"] = serde_json::json!(wid);
 +        if let Some(proof) = capture_geometry {
@@ -9325,7 +9334,7 @@ index 0000000..f03728d
 +    // click fallback would be destructive: Chromium's omnibox hit-tests to an
 +    // enclosing AXGroup that rejects AXFocused, so the fallback click moved
 +    // the caret and dropped the selection (#4125).
-+    if focused_element_holds_point(pid, window_id, native_x, native_y, true).await {
++    if focused_element_holds_point(pid, window_id, native_x, native_y, true, text_input).await {
 +        return Ok(());
 +    }
 +    let click_tool = click::ClickTool::new(state.clone());
@@ -9345,13 +9354,22 @@ index 0000000..f03728d
 +        // whenever the click was a silent no-op — advancing on transport
 +        // success alone, which is exactly what the ladder forbids. Confirm the
 +        // focus actually moved before claiming this rung worked.
-+        if focused_element_holds_point(pid, window_id, native_x, native_y, !foreground).await {
++        if focused_element_holds_point(
++            pid,
++            window_id,
++            native_x,
++            native_y,
++            pointer_only || !foreground,
++            text_input,
++        )
++        .await
++        {
 +            return Ok(());
 +        }
 +    }
-+    if !foreground {
++    if pointer_only || !foreground {
 +        return Err(cua_driver_core::protocol::ToolResult::error(format!(
-+            "Background focus could not be verified at ({x:.0},{y:.0}); no keys were sent."
++            "Focus could not be verified at ({x:.0},{y:.0}); no keys were sent."
 +        ))
 +        .with_structured(serde_json::json!({"code": "background_unavailable"})));
 +    }
@@ -9388,6 +9406,25 @@ index 0000000..f03728d
 +    Ok(())
 +}
 +
++// Vision sessions must never turn coordinate preparation into an AX focus action.
++fn focus_click_arguments(
++    pid: i32,
++    x: f64,
++    y: f64,
++    foreground: bool,
++    pointer_only: bool,
++) -> serde_json::Value {
++    let mut args = serde_json::json!({
++        "pid": pid, "x": x, "y": y,
++        "delivery_mode": if foreground && pointer_only { "foreground" } else { "background" },
++        "action": if pointer_only { "press" } else { "focus" },
++    });
++    if pointer_only {
++        args["pointer_only"] = serde_json::json!(true);
++    }
++    args
++}
++
 +/// Whether the application's focused element covers the window-local pixel
 +/// `(x, y)` of `window_id`. With `require_window`, the focused element must
 +/// also belong to that exact window, so focus held by a same-process sibling
@@ -9399,6 +9436,7 @@ index 0000000..f03728d
 +    x: f64,
 +    y: f64,
 +    require_window: bool,
++    text_input: bool,
 +) -> bool {
 +    let Some(wid) = window_id else {
 +        return false;
@@ -9414,6 +9452,8 @@ index 0000000..f03728d
 +            let Some(focused) = crate::ax::bindings::focused_element_of_pid(pid) else {
 +                return false;
 +            };
++            let accepts_text =
++                !text_input || super::type_text::focused_accepts_visual_text(pid, focused);
 +            let rect = crate::ax::bindings::element_screen_rect(focused);
 +            let focused_window = if require_window {
 +                crate::ax::exact_target::element_window_id(focused)
@@ -9424,7 +9464,9 @@ index 0000000..f03728d
 +            let Some(rect) = rect else {
 +                return false;
 +            };
-+            focused_window == Some(wid) && point_within_rect(rect, screen_x, screen_y)
++            accepts_text
++                && focused_window == Some(wid)
++                && point_within_rect(rect, screen_x, screen_y)
 +        }
 +    })
 +    .await
@@ -9440,7 +9482,27 @@ index 0000000..f03728d
 +
 +#[cfg(test)]
 +mod pixel_focus_readback_tests {
-+    use super::point_within_rect;
++    use super::{focus_click_arguments, point_within_rect};
++
++    #[test]
++    fn visual_focus_uses_pointer_events_in_the_requested_delivery_mode() {
++        for foreground in [false, true] {
++            let args = focus_click_arguments(42, 100.0, 200.0, foreground, true);
++            assert_eq!(args["action"], "press");
++            assert_eq!(args["pointer_only"], true);
++            assert_eq!(
++                args["delivery_mode"],
++                if foreground {
++                    "foreground"
++                } else {
++                    "background"
++                }
++            );
++        }
++        let assisted = focus_click_arguments(42, 100.0, 200.0, false, false);
++        assert_eq!(assisted["action"], "focus");
++        assert!(assisted.get("pointer_only").is_none());
++    }
 +
 +    #[test]
 +    fn confirms_a_point_inside_the_focused_element() {
@@ -9584,22 +9646,25 @@ index b7233f5..d08f12c 100644
      /// real pointer move (Tk reads the hardware pointer), background clicks
      /// keep PID routing, and a known pointer-reading toolkit refuses
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/press_key.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/press_key.rs
-index e4d007f..e9c698a 100644
+index e4d007f..5e62833 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/press_key.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/press_key.rs
-@@ -223,6 +223,7 @@ fn def() -> &'static ToolDef {
+@@ -223,6 +223,8 @@ fn def() -> &'static ToolDef {
              "type": "object",
              "required": ["key"],
              "properties": {
++                "pointer_only": { "type":"boolean", "description":"Host-owned visual-input policy: prepare coordinate focus with pointer events only." },
 +                "capture_geometry": { "type":"object", "description":"Host-owned geometry from the exact screenshot; stale geometry refuses input." },
                  "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it." },
                  "pid": { "type": "integer", "description": "Target process ID." },
                  "key": { "type": "string", "description": "Key name." },
-@@ -391,6 +392,7 @@ impl Tool for PressKeyTool {
+@@ -391,6 +393,9 @@ impl Tool for PressKeyTool {
                      args.opt_str("_session_id"),
                      from_zoom,
                      _mutation_lease.as_ref(),
 +                    args.get("capture_geometry"),
++                    if args.bool_or("pointer_only", false) { super::pixel_focus::PixelFocusPolicy::Pointer }
++                    else { super::pixel_focus::PixelFocusPolicy::Assisted },
                  )
                  .await
                  {
@@ -10027,7 +10092,7 @@ index aa7a814..f4c462c 100644
                          screen_x: sx,
                          screen_y: sy,
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs
-index acbc73b..ffe89bb 100644
+index acbc73b..d3165d0 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text.rs
 @@ -21,6 +21,9 @@
@@ -10065,15 +10130,17 @@ index acbc73b..ffe89bb 100644
          let element_guard = element_guard.zip(element_index);
  
          // ── Exact-target background gate (macOS background input v1) ──
-@@ -259,6 +273,7 @@ impl Tool for TypeTextTool {
+@@ -259,6 +273,9 @@ impl Tool for TypeTextTool {
                  args.opt_str("_session_id"),
                  from_zoom,
                  _mutation_lease.as_ref(),
 +                args.get("capture_geometry"),
++                if keyboard_only { super::pixel_focus::PixelFocusPolicy::TextPointer }
++                else { super::pixel_focus::PixelFocusPolicy::Assisted },
              )
              .await
              {
-@@ -363,10 +378,18 @@ impl Tool for TypeTextTool {
+@@ -363,10 +380,18 @@ impl Tool for TypeTextTool {
          let result = focus_guard::with_focus_suppressed(
              Some(pid),
              prior_front,
@@ -10094,7 +10161,7 @@ index acbc73b..ffe89bb 100644
                      type_text_blocking(
                          pid,
                          &text_clone,
-@@ -374,7 +397,9 @@ impl Tool for TypeTextTool {
+@@ -374,7 +399,9 @@ impl Tool for TypeTextTool {
                          delay_ms,
                          is_terminal_target,
                          KeyboardRoute {
@@ -10104,7 +10171,7 @@ index acbc73b..ffe89bb 100644
                              window_id,
                              keyboard_policy: blocking_policy,
                              explicit_target: element_ptr.is_some() || used_pixel_focus,
-@@ -1302,6 +1327,8 @@ fn await_typed_delivery(
+@@ -1302,6 +1329,8 @@ fn await_typed_delivery(
  /// How `type_text_blocking` may deliver: the requested mode, the addressed
  /// window, and the background keyboard policy decided for it.
  struct KeyboardRoute {
@@ -10113,7 +10180,7 @@ index acbc73b..ffe89bb 100644
      delivery_mode: super::DeliveryMode,
      window_id: Option<u32>,
      keyboard_policy: BackgroundKeyboardPolicy,
-@@ -1374,7 +1401,12 @@ fn type_text_in_key_window(
+@@ -1374,7 +1403,12 @@ fn type_text_in_key_window(
      is_terminal_target: bool,
      route: KeyboardRoute,
  ) -> anyhow::Result<TypeTextDelivery> {
@@ -10126,7 +10193,22 @@ index acbc73b..ffe89bb 100644
          delivery_mode,
          window_id,
          keyboard_policy,
-@@ -1915,6 +1947,8 @@ mod tests {
+@@ -1735,6 +1769,14 @@ fn type_text_in_key_window(
+ ///
+ /// # Safety
+ /// `element` must be a live `AXUIElementRef`.
++pub(super) unsafe fn focused_accepts_visual_text(pid: i32, element: AXUIElementRef) -> bool {
++    // Host-only role/selection checks: never read or set the field's text.
++    if copy_string_attr(element, "AXRole").as_deref() == Some("AXSecureTextField") {
++        return false;
++    }
++    focused_accepts_text(element) || focused_is_editor_surface(pid, element)
++}
++
+ unsafe fn focused_accepts_text(element: AXUIElementRef) -> bool {
+     let role = copy_string_attr(element, "AXRole").unwrap_or_default();
+     is_text_input_role(&role)
+@@ -1915,6 +1957,8 @@ mod tests {
              0,
              /*is_terminal_target=*/ true,
              KeyboardRoute {
@@ -10135,7 +10217,7 @@ index acbc73b..ffe89bb 100644
                  delivery_mode: super::super::DeliveryMode::Background,
                  window_id: Some(7),
                  keyboard_policy: BackgroundKeyboardPolicy::SemanticOnly(refusal.clone()),
-@@ -1939,6 +1973,8 @@ mod tests {
+@@ -1939,6 +1983,8 @@ mod tests {
              0,
              /*is_terminal_target=*/ false,
              KeyboardRoute {
@@ -10144,7 +10226,7 @@ index acbc73b..ffe89bb 100644
                  delivery_mode: super::super::DeliveryMode::Background,
                  window_id: Some(7),
                  keyboard_policy: BackgroundKeyboardPolicy::Allowed,
-@@ -1983,6 +2019,8 @@ mod tests {
+@@ -1983,6 +2029,8 @@ mod tests {
              0,
              /*is_terminal_target=*/ true,
              KeyboardRoute {
@@ -10243,10 +10325,10 @@ index 0000000..0d93d73
 +}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text/visual.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text/visual.rs
 new file mode 100644
-index 0000000..e09486c
+index 0000000..5c11614
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/type_text/visual.rs
-@@ -0,0 +1,150 @@
+@@ -0,0 +1,139 @@
 +//! Keyboard-only native text delivery for vision sessions.
 +//! AX may prove focus/ownership, but this module never reads or sets text values.
 +//! Exactly one event sequence is posted; screenshots establish the effect.
@@ -10255,10 +10337,7 @@ index 0000000..e09486c
 +    AxAttempt, BackgroundKeyboardPolicy, KeyboardRoute, TextDeliveryRoute, TypeTextDelivery,
 +    TypeTextOutcome, PATH_KEY_EVENTS, PATH_KEY_EVENTS_FG,
 +};
-+use crate::ax::{
-+    bindings::{copy_string_attr, AXUIElementRef},
-+    exact_target::focused_element_in_window,
-+};
++use crate::ax::exact_target::focused_element_in_window;
 +use core_foundation::base::CFRelease;
 +
 +fn preflight(
@@ -10290,14 +10369,6 @@ index 0000000..e09486c
 +    })
 +}
 +
-+unsafe fn accepts_text(pid: i32, element: AXUIElementRef) -> bool {
-+    // Role/selection existence is a host safety check, never a text observation.
-+    if copy_string_attr(element, "AXRole").as_deref() == Some("AXSecureTextField") {
-+        return false;
-+    }
-+    super::focused_accepts_text(element) || super::focused_is_editor_surface(pid, element)
-+}
-+
 +pub(super) fn type_text(
 +    pid: i32,
 +    text: &str,
@@ -10314,7 +10385,7 @@ index 0000000..e09486c
 +    let allowed = unsafe {
 +        match focused_element_in_window(pid, window) {
 +            Some(element) => {
-+                let allowed = accepts_text(pid, element);
++                let allowed = super::focused_accepts_visual_text(pid, element);
 +                CFRelease(element as _);
 +                allowed
 +            }

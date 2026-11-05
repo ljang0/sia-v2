@@ -478,7 +478,11 @@ export class ComputerInput {
           ? args.modifiers.filter((value): value is string => typeof value === 'string')
           : [];
         tool = modifiers.length ? 'hotkey' : 'press_key';
-        const target = { ...base, ...(pixel ? { x: args.x, y: args.y } : {}) };
+        const target = {
+          ...base,
+          ...(pixel ? { x: args.x, y: args.y } : {}),
+          ...(pixel && this.ctx.options.visionOnly ? { pointer_only: true } : {}),
+        };
         input = modifiers.length
           ? { ...target, keys: [...modifiers, normalizedKey] }
           : { ...target, key: normalizedKey };
