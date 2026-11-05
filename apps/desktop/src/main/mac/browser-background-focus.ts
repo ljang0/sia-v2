@@ -3,7 +3,7 @@ export interface ForegroundWindow {
   readonly windowId: number;
 }
 
-/** This exception is only for tab-addressed visual input, never native keys or browser setup. */
+/** Allows exact tab input or connection reuse; never native keys or browser setup. */
 export function permitsOtherBrowserWindow(
   tool: string,
   args: Readonly<Record<string, unknown>>,
@@ -24,7 +24,23 @@ export function permitsOtherBrowserWindow(
     !Number.isInteger(targetWindowId) ||
     targetWindowId <= 0 ||
     targetWindowId > 4_294_967_295 ||
-    foreground.windowId === targetWindowId ||
+    foreground.windowId === targetWindowId
+  )
+    return false;
+  if (tool === 'browser_prepare') {
+    const strategy = args.strategy;
+    return (
+      args.reuse_only === true &&
+      args.delivery_mode === 'background' &&
+      args.pid === target.backgroundTargetPid &&
+      args.window_id === targetWindowId &&
+      typeof strategy === 'object' &&
+      strategy !== null &&
+      'kind' in strategy &&
+      strategy.kind === 'existing_profile'
+    );
+  }
+  if (
     typeof args.target_id !== 'string' ||
     !args.target_id ||
     typeof args.tab_id !== 'string' ||

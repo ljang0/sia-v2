@@ -131,7 +131,7 @@ index 3f797c5..0dcdd0e 100644
      fn geometry_without_a_cdp_window_id_is_not_exact() {
          let n = native("Docs - Chrome", B);
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
-index c401f20..a11a0a7 100644
+index c401f20..2de18fb 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/cdp_ws.rs
 @@ -46,6 +46,7 @@ const EXISTING_PROFILE_METHODS: &[&str] = &[
@@ -189,7 +189,67 @@ index c401f20..a11a0a7 100644
                  anyhow::bail!("CDP {method} timed out after {CALL_TIMEOUT:?}")
              }
              Ok(Err(_)) => anyhow::bail!("CDP socket closed during {method}"),
-@@ -1163,6 +1181,16 @@ mod tests {
+@@ -735,6 +753,29 @@ impl CdpPool {
+         Ok(conn)
+     }
+ 
++    /// Add a new authorized holder only to a live, already-approved socket.
++    /// Unlike claim_existing this path cannot dial, even if the socket expires
++    /// or closes between discovery and this atomic claim.
++    pub async fn claim_existing_without_connect(
++        &self,
++        ws_url: &str,
++        generation: u64,
++    ) -> anyhow::Result<Arc<CdpConnection>> {
++        let now = Instant::now();
++        let mut conns = self.inner.conns.lock().await;
++        let entry = self
++            .inner
++            .live_shared(&mut conns, ws_url, now)
++            .ok_or_else(|| anyhow::anyhow!("no live approved browser connection to reuse"))?;
++        let shared = entry
++            .shared
++            .as_mut()
++            .expect("live_shared returns shared entries");
++        shared.holders.insert(generation);
++        shared.last_used_at = now;
++        Ok(entry.conn.clone())
++    }
++
+     /// Reuse the shared socket only while `generation` still holds it.
+     /// Closed sockets are not replaced here; reconnect is an explicit state
+     /// transition owned by the browser engine.
+@@ -1051,6 +1092,29 @@ mod tests {
+         server.abort();
+     }
+ 
++    #[tokio::test]
++    async fn reuse_only_claim_never_dials_missing_closed_or_expired_sockets() {
++        let (url, dials, server) = counting_browser().await;
++        let pool =
++            CdpPool::with_shared_socket_ttls(Duration::from_secs(3600), Duration::from_millis(100));
++        assert!(pool.claim_existing_without_connect(&url, 1).await.is_err());
++        assert_eq!(dials.load(Ordering::SeqCst), 0);
++        let first = pool.claim_existing(&url, 1).await.unwrap();
++        pool.release_existing(&url, 1, SharedSocketRelease::Park)
++            .await;
++        let reused = pool.claim_existing_without_connect(&url, 2).await.unwrap();
++        assert!(Arc::ptr_eq(&first, &reused));
++        assert_eq!(dials.load(Ordering::SeqCst), 1);
++        first.demux.closed.store(true, Ordering::SeqCst);
++        assert!(pool.claim_existing_without_connect(&url, 3).await.is_err());
++        assert_eq!(dials.load(Ordering::SeqCst), 1);
++        pool.claim_existing(&url, 4).await.unwrap();
++        tokio::time::sleep(Duration::from_millis(150)).await;
++        assert!(pool.claim_existing_without_connect(&url, 5).await.is_err());
++        assert_eq!(dials.load(Ordering::SeqCst), 2);
++        server.abort();
++    }
++
+     #[tokio::test]
+     async fn parked_socket_serves_the_next_session_without_a_new_dial() {
+         let (url, dials, server) = counting_browser().await;
+@@ -1163,6 +1227,16 @@ mod tests {
          s2.abort();
      }
  
@@ -206,7 +266,7 @@ index c401f20..a11a0a7 100644
      #[tokio::test]
      async fn existing_profile_policy_rejects_fingerprint_and_interception_methods() {
          let seen = StdArc::new(StdMutex::new(Vec::<String>::new()));
-@@ -1199,7 +1227,10 @@ mod tests {
+@@ -1199,7 +1273,10 @@ mod tests {
          conn.call(None, "Target.getTargets", json!({}))
              .await
              .expect("reviewed method remains available");
@@ -637,6 +697,20 @@ index 070d6c0..f17a5fa 100644
  mod keyed_gates;
  #[cfg(test)]
  pub(crate) mod mock_cdp;
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/platform.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/platform.rs
+index 98296ac..022e48b 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/platform.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/platform.rs
+@@ -156,6 +156,9 @@ pub struct PrepareRequest {
+     /// Allows launching a separate driver-owned isolated browser process.
+     /// It never authorizes terminating or modifying the requested process.
+     pub allow_launch: bool,
++    /// Join an existing approved socket only. Never set up, dial, handle consent,
++    /// activate a window or install a focus-restoration guard.
++    pub reuse_only: bool,
+     /// `delivery_mode:"foreground"`: the caller accepts that existing-profile
+     /// attachment may bring the browser to the front. Without it, a platform
+     /// that cannot attach in the background refuses with
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/pointer.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/pointer.rs
 index bc741d9..2055a76 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/pointer.rs
@@ -699,7 +773,7 @@ index bc741d9..2055a76 100644
              .dispatch_trusted(conn, cdp_session, request, origin, destination)
              .await;
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/prepare.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/prepare.rs
-index 82f7dff..e9044d4 100644
+index 82f7dff..db49600 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/prepare.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/prepare.rs
 @@ -22,10 +22,16 @@ use super::refusal::{BrowserRefusal, BrowserRefusalCode};
@@ -753,7 +827,86 @@ index 82f7dff..e9044d4 100644
      };
      Ok((result, accepted))
  }
-@@ -1546,6 +1550,50 @@ mod tests {
+@@ -938,6 +942,9 @@ impl BrowserEngine {
+         &self,
+         request: PrepareRequest,
+     ) -> Result<PrepareOutcome, BrowserRefusal> {
++        if request.reuse_only {
++            return self.attach_existing_profile_checked(request, false).await;
++        }
+         let browser_pid = request.pid;
+         // Where the platform can guard it (macOS: the browser window is on
+         // another Space), attach in the background under the guard instead of
+@@ -1118,7 +1125,9 @@ impl BrowserEngine {
+             ));
+         }
+         self.native_window_checked(pid, window_id).await?;
+-        self.existing_profile_background_check(pid, request.foreground || guarded)?;
++        if !request.reuse_only {
++            self.existing_profile_background_check(pid, request.foreground || guarded)?;
++        }
+         let fingerprint = self.platform.process_fingerprint(pid).await?;
+         let mut setup = ExistingProfileSetupOutcome::default();
+         let setup_request = ExistingProfileSetupRequest {
+@@ -1133,6 +1142,12 @@ impl BrowserEngine {
+             .discover_existing_profile_endpoint(pid)
+             .await?;
+         if endpoint.is_none() {
++            if request.reuse_only {
++                return Err(refusal(
++                    BrowserRefusalCode::BrowserRequiresSetup,
++                    "no existing browser endpoint is available; connection reuse changed nothing",
++                ));
++            }
+             setup = self
+                 .platform
+                 .setup_existing_profile_endpoint(setup_request.clone())
+@@ -1323,20 +1338,30 @@ impl BrowserEngine {
+                 self.approval_broker.revoke(protected).await;
+             }
+         }
+-        let (claimed, displayed_consent_prompt) = match claim_with_delayed_consent(
+-            self.pool.claim_existing(&endpoint.ws_url, grant.generation),
+-            |action| {
+-                self.platform
+-                    .handle_existing_profile_consent(BrowserConsentRequest {
+-                        action,
+-                        pid,
+-                        window_id,
+-                        attempt: 1,
+-                    })
+-            },
+-        )
+-        .await
+-        {
++        let claim_result = if request.reuse_only {
++            self.pool.claim_existing_without_connect(&endpoint.ws_url, grant.generation)
++                .await
++                .map(|connection| (Ok(connection), false))
++                .map_err(|_| refusal(
++                    BrowserRefusalCode::BrowserConsentRequired,
++                    "no live approved browser connection is available; reuse opened no connection or consent UI",
++                ))
++        } else {
++            claim_with_delayed_consent(
++                self.pool.claim_existing(&endpoint.ws_url, grant.generation),
++                |action| {
++                    self.platform
++                        .handle_existing_profile_consent(BrowserConsentRequest {
++                            action,
++                            pid,
++                            window_id,
++                            attempt: 1,
++                        })
++                },
++            )
++            .await
++        };
++        let (claimed, displayed_consent_prompt) = match claim_result {
+             Ok(result) => result,
+             Err(error) => {
+                 // The helper owns and cancels the connection future before it
+@@ -1546,6 +1571,50 @@ mod tests {
          }
      }
  
@@ -804,7 +957,7 @@ index 82f7dff..e9044d4 100644
      #[tokio::test]
      async fn claim_completion_preserves_started_consent_confirmation() {
          use std::sync::atomic::{AtomicBool, Ordering};
-@@ -1602,7 +1650,9 @@ mod tests {
+@@ -1602,7 +1671,9 @@ mod tests {
                      if outcome >= 2 {
                          // Model Linux's non-cancellable native action worker.
                          tokio::task::spawn_blocking(|| {
@@ -815,7 +968,7 @@ index 82f7dff..e9044d4 100644
                          })
                          .await
                          .unwrap();
-@@ -1649,7 +1699,7 @@ mod tests {
+@@ -1649,7 +1720,7 @@ mod tests {
          });
          let consent = async move {
              marker.perform(|| ());
@@ -824,7 +977,7 @@ index 82f7dff..e9044d4 100644
              confirmed.send(()).unwrap();
              Ok(BrowserConsentOutcome::Accepted)
          };
-@@ -1678,7 +1728,9 @@ mod tests {
+@@ -1678,7 +1749,9 @@ mod tests {
                  action
                      .perform(|| {
                          tokio::task::spawn_blocking(move || {
@@ -1129,7 +1282,7 @@ index 68f2099..96f1e08 100644
      pub oopif_frames: usize,
  }
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
-index df04401..6c462d6 100644
+index df04401..06a22a6 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/tools.rs
 @@ -51,6 +51,106 @@ pub fn register_browser_tools(engine: &Arc<BrowserEngine>, registry: &mut ToolRe
@@ -1301,7 +1454,48 @@ index df04401..6c462d6 100644
                      .await
                  {
                      Ok(screenshot) => with_tab_screenshot(snapshot, screenshot),
-@@ -1158,6 +1277,7 @@ impl BrowserClickTool {
+@@ -806,6 +925,11 @@ impl BrowserPrepareTool {
+                         "type": "boolean",
+                         "description": "Allow a separate driver-owned isolated Chromium process to be launched (default false)."
+                     },
++                    "reuse_only": {
++                        "type": "boolean",
++                        "default": false,
++                        "description": "Existing-profile only: join a live approved connection, or refuse without opening a socket, setup UI or consent dialog. Never changes focus."
++                    },
+                     "profile": {
+                         "type": "object",
+                         "description": "Driver-owned isolated Chromium profile to launch with allow_launch=true. mode=isolated_new creates a fresh throwaway profile; mode=isolated_named reuses the named driver-owned profile. Never an existing user profile.",
+@@ -882,6 +1006,20 @@ impl Tool for BrowserPrepareTool {
+             },
+         };
+         let allow_launch = args.opt_bool("allow_launch").unwrap_or(false);
++        let reuse_only = match args.get("reuse_only") {
++            None => false,
++            Some(Value::Bool(value)) => *value,
++            Some(_) => return ToolResult::error("reuse_only must be a boolean"),
++        };
++        if reuse_only
++            && (strategy != Some(PrepareStrategy::ExistingProfile)
++                || profile.is_some()
++                || allow_launch)
++        {
++            return ToolResult::error(
++                "reuse_only requires existing_profile without profile or allow_launch",
++            );
++        }
+         let foreground = match parse_delivery_mode(&args) {
+             Ok(foreground) => foreground,
+             Err(error) => return ToolResult::error(error),
+@@ -914,6 +1052,7 @@ impl Tool for BrowserPrepareTool {
+             strategy,
+             profile,
+             allow_launch,
++            reuse_only,
+             foreground,
+         };
+         match self.engine.prepare_browser(request).await {
+@@ -1158,6 +1297,7 @@ impl BrowserClickTool {
                  "properties": {
                      "target_id": schema_target_id(),
                      "tab_id": schema_tab_id(),
@@ -1309,7 +1503,7 @@ index df04401..6c462d6 100644
                      "session": schema_session(),
                      "ref": schema_ref(),
                      "x": { "type": "number", "description": "Viewport x (CSS px) — alternative to ref." },
-@@ -1338,6 +1458,19 @@ impl Tool for BrowserClickTool {
+@@ -1338,6 +1478,19 @@ impl Tool for BrowserClickTool {
          let conn = &validated.conn;
          let cdp = cdp_session.as_str();
  
@@ -1329,7 +1523,7 @@ index df04401..6c462d6 100644
          // dom_event route: explicit opt-in only.
          if route == "dom_event" {
              let backend = backend_node_id.expect("checked above");
-@@ -1486,6 +1619,16 @@ impl Tool for BrowserClickTool {
+@@ -1486,6 +1639,16 @@ impl Tool for BrowserClickTool {
              (None, None) => unreachable!("validated above"),
          };
  
@@ -1346,7 +1540,7 @@ index df04401..6c462d6 100644
          self.engine
              .visualize_browser_action(
                  &session,
-@@ -1515,6 +1658,11 @@ impl Tool for BrowserClickTool {
+@@ -1515,6 +1678,11 @@ impl Tool for BrowserClickTool {
          }
          tokio::time::sleep(std::time::Duration::from_millis(25)).await;
  
@@ -1358,7 +1552,7 @@ index df04401..6c462d6 100644
          let mut delivery_error = None;
          for (event_type, click_count) in [("mousePressed", 1), ("mouseReleased", 1)] {
              if let Err(error) = conn
-@@ -1813,21 +1961,23 @@ impl BrowserTypeTool {
+@@ -1813,21 +1981,23 @@ impl BrowserTypeTool {
                  at the caret, so typing into a field that already holds text appends \
                  to it; pass replace=true to set the field instead, or to clear it by \
                  typing an empty string. Pass a ref to an editable element from the \
@@ -1386,7 +1580,7 @@ index df04401..6c462d6 100644
                      },
                      "replace": {
                          "type": "boolean",
-@@ -1839,7 +1989,7 @@ impl BrowserTypeTool {
+@@ -1839,7 +2009,7 @@ impl BrowserTypeTool {
                              framework state stays consistent."
                      },
                  },
@@ -1395,7 +1589,7 @@ index df04401..6c462d6 100644
                  "additionalProperties": true
              }),
              read_only: false,
-@@ -1895,9 +2045,9 @@ impl Tool for BrowserTypeTool {
+@@ -1895,9 +2065,9 @@ impl Tool for BrowserTypeTool {
              Err(e) => return e,
          };
          let mode = args.opt_str("mode").unwrap_or_else(|| "insert_text".into());
@@ -1407,7 +1601,7 @@ index df04401..6c462d6 100644
              ));
          }
          let replace = args.opt_bool("replace").unwrap_or(false);
-@@ -1919,6 +2069,22 @@ impl Tool for BrowserTypeTool {
+@@ -1919,6 +2089,22 @@ impl Tool for BrowserTypeTool {
              Err(refusal) => return refusal.to_tool_result(),
          };
  
@@ -1431,7 +1625,7 @@ index df04401..6c462d6 100644
              Ok(value) => value,
              Err(error) => return error,
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
-index d5f50d2..70fbc6d 100644
+index d5f50d2..1a70b58 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 +++ b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/v2_tests.rs
 @@ -57,14 +57,31 @@ pub(super) struct FixtureState {
@@ -1627,7 +1821,122 @@ index d5f50d2..70fbc6d 100644
              "Runtime.callFunctionOn"
                  if call.params["functionDeclaration"]
                      .as_str()
-@@ -1880,6 +1958,65 @@ fn recorded_calls(f: &Fixture, method: &str) -> Vec<(Option<String>, Value)> {
+@@ -1158,12 +1236,13 @@ async fn existing_profile_setup_fixture() -> (Fixture, Arc<AtomicBool>) {
+ async fn foreground_attach_fixture(
+     frontmost: i64,
+ ) -> (Fixture, Arc<FixtureFocus>, Arc<FixtureProtectedProvider>) {
+-    attach_fixture_with_space(frontmost, false).await
++    attach_fixture_with_space(frontmost, false, false).await
+ }
+ 
+ async fn attach_fixture_with_space(
+     frontmost: i64,
+     browser_off_space: bool,
++    existing_endpoint_visible: bool,
+ ) -> (Fixture, Arc<FixtureFocus>, Arc<FixtureProtectedProvider>) {
+     let state = Arc::new(StdMutex::new(FixtureState::default()));
+     let server = MockCdpServer::start(fixture_handler(state.clone())).await;
+@@ -1186,7 +1265,7 @@ async fn attach_fixture_with_space(
+             managed_endpoint_visible: false,
+             process_role: BrowserProcessRole::StandaloneConsumer,
+             managed_discovery_invoked: Arc::new(AtomicBool::new(false)),
+-            existing_endpoint_visible: Arc::new(AtomicBool::new(false)),
++            existing_endpoint_visible: Arc::new(AtomicBool::new(existing_endpoint_visible)),
+             setup_invoked: setup_invoked.clone(),
+             setup_aborted: Arc::new(AtomicBool::new(false)),
+             stall_consent: false,
+@@ -1566,6 +1645,63 @@ async fn approved_existing_profile_setup_reports_exact_side_effects() {
+     assert_eq!(structured(&state)["status"], "ok", "{}", structured(&state));
+ }
+ 
++#[tokio::test]
++async fn reuse_only_prepare_joins_an_approved_socket_without_focus_or_setup() {
++    let (f, focus, _) = attach_fixture_with_space(99, false, true).await;
++    let tool = BrowserPrepareTool::new(f.engine.clone());
++    let first = tool
++        .invoke(json!({
++            "pid": 1, "window_id": 7, "session": "reuse-initial",
++            "strategy": { "kind": "existing_profile" }, "delivery_mode": "foreground"
++        }))
++        .await;
++    assert_eq!(structured(&first)["status"], "ok");
++    let connections = f._server.accepted_connections();
++    f.setup_invoked.store(false, Ordering::SeqCst);
++    focus.restores.lock().unwrap().clear();
++    let reused = tool
++        .invoke(json!({
++            "pid": 1, "window_id": 7, "session": "reuse-next",
++            "strategy": { "kind": "existing_profile" }, "reuse_only": true
++        }))
++        .await;
++    assert_eq!(structured(&reused)["status"], "ok", "{reused:?}");
++    assert_eq!(f._server.accepted_connections(), connections);
++    assert!(!f.setup_invoked.load(Ordering::SeqCst));
++    assert!(focus.restores.lock().unwrap().is_empty());
++    assert!(focus.guards.lock().unwrap().is_empty());
++    assert_eq!(*focus.frontmost.lock().unwrap(), Some(99));
++    assert_eq!(
++        structured(&reused)["side_effects"]["displayed_consent_prompt"],
++        false
++    );
++}
++
++#[tokio::test]
++async fn reuse_only_prepare_never_opens_a_missing_connection_or_setup_page() {
++    let (f, _) = protected_existing_profile_fixture().await;
++    let result = BrowserPrepareTool::new(f.engine.clone())
++        .invoke(json!({
++            "pid": 1, "window_id": 7, "session": "reuse-missing-socket",
++            "strategy": { "kind": "existing_profile" }, "reuse_only": true
++        }))
++        .await;
++    assert_eq!(structured(&result)["status"], "refused");
++    assert_eq!(f._server.accepted_connections(), 0);
++    assert!(!f.setup_invoked.load(Ordering::SeqCst));
++
++    let (f, setup) = existing_profile_setup_fixture().await;
++    let result = BrowserPrepareTool::new(f.engine.clone())
++        .invoke(json!({
++            "pid": 1, "window_id": 7, "session": "reuse-missing-endpoint",
++            "strategy": { "kind": "existing_profile" }, "reuse_only": true
++        }))
++        .await;
++    assert_eq!(structured(&result)["status"], "refused");
++    assert_eq!(f._server.accepted_connections(), 0);
++    assert!(!setup.load(Ordering::SeqCst));
++}
++
+ #[tokio::test]
+ async fn background_existing_profile_attach_refuses_before_any_visible_effect() {
+     // pid 99 (the user's app) is in front; attaching would bring pid 1 forward.
+@@ -1608,7 +1744,7 @@ async fn background_existing_profile_attach_refuses_before_any_visible_effect()
+ async fn background_existing_profile_attach_runs_guarded_when_the_browser_is_off_space() {
+     // pid 99 (the user's app) is in front on its Space; the browser window is
+     // on another Space, so the platform guards a background attach.
+-    let (f, focus, _) = attach_fixture_with_space(99, true).await;
++    let (f, focus, _) = attach_fixture_with_space(99, true, false).await;
+     let result = BrowserPrepareTool::new(f.engine.clone())
+         .invoke(json!({
+             "pid": 1,
+@@ -1629,7 +1765,7 @@ async fn background_existing_profile_attach_runs_guarded_when_the_browser_is_off
+ 
+ #[tokio::test]
+ async fn background_existing_profile_attach_on_the_users_space_still_refuses() {
+-    let (f, focus, _) = attach_fixture_with_space(99, false).await;
++    let (f, focus, _) = attach_fixture_with_space(99, false, false).await;
+     let result = BrowserPrepareTool::new(f.engine.clone())
+         .invoke(json!({
+             "pid": 1,
+@@ -1650,7 +1786,7 @@ async fn background_existing_profile_attach_on_the_users_space_still_refuses() {
+ 
+ #[tokio::test]
+ async fn foreground_existing_profile_attach_does_not_use_the_background_guard() {
+-    let (f, focus, _) = attach_fixture_with_space(99, true).await;
++    let (f, focus, _) = attach_fixture_with_space(99, true, false).await;
+     let result = BrowserPrepareTool::new(f.engine.clone())
+         .invoke(json!({
+             "pid": 1,
+@@ -1880,6 +2016,65 @@ fn recorded_calls(f: &Fixture, method: &str) -> Vec<(Option<String>, Value)> {
          .collect()
  }
  
@@ -1693,7 +2002,7 @@ index d5f50d2..70fbc6d 100644
  // ── Snapshot composition ─────────────────────────────────────────────────────
  
  #[tokio::test]
-@@ -2326,6 +2463,57 @@ async fn semantic_query_and_content_scope_are_read_only_and_precise() {
+@@ -2326,6 +2521,57 @@ async fn semantic_query_and_content_scope_are_read_only_and_precise() {
      assert!(recorded_calls(&f, "Target.activateTarget").is_empty());
  }
  
@@ -1751,7 +2060,7 @@ index d5f50d2..70fbc6d 100644
  #[tokio::test]
  async fn navigation_targets_an_inactive_tab_without_activating_it() {
      let f = fixture().await;
-@@ -2709,6 +2897,31 @@ async fn owned_endpoint_transitions_refuse_before_dispatch() {
+@@ -2709,6 +2955,31 @@ async fn owned_endpoint_transitions_refuse_before_dispatch() {
      }
  }
  
@@ -1783,7 +2092,7 @@ index d5f50d2..70fbc6d 100644
  // ── Mutation routing + frame identity revalidation ──────────────────────────
  
  #[tokio::test]
-@@ -2755,6 +2968,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
+@@ -2755,6 +3026,52 @@ async fn protected_browser_scope_reproves_live_origin_and_omits_sensitive_url_te
      );
  }
  
@@ -1836,7 +2145,7 @@ index d5f50d2..70fbc6d 100644
  #[tokio::test]
  async fn click_routes_oopif_refs_through_the_contained_child_session() {
      let f = fixture().await;
-@@ -3603,3 +3862,354 @@ async fn method_unsupported_keeps_the_electron_none_path() {
+@@ -3603,3 +3920,354 @@ async fn method_unsupported_keeps_the_electron_none_path() {
      assert_eq!(tabs.len(), 1, "{s}");
      assert_eq!(tabs[0]["url"], "https://fixture.test/");
  }

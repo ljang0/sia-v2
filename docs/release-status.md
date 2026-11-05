@@ -76,6 +76,15 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
+Source follow-up separates existing Chrome connection reuse from setup when another exact Chrome
+window is active. The host requests reuse only; the native pool joins an already-approved live
+socket or refuses without dialing, setup, consent UI or focus restoration. Process/window and
+authorization checks remain. Regressions reproduced the unnecessary foreground refusal and
+the previous prepare route's ability to open a new connection. Missing/closed/expired socket
+checks now pass. This is not installed or live-verified yet and does not solve a cold connection
+after the Sia process exits. The full native gate and 188 focused desktop tests passed; the
+installed candidate below remains the live-evidence baseline.
+
 Current signed QA `6b24a04` passes the previously failing Finder Go to Folder path in 58.737
 seconds. It selects the field, types the requested path through keyboard events and opens the
 correct folder without operator rescue. Independent CUA inspection confirms the folder and file;

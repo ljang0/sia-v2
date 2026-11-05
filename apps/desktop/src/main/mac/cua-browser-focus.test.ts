@@ -22,6 +22,13 @@ const args = {
   visual_document: 'a'.repeat(64),
 };
 const otherWindow = { pid: 42, windowId: 92 };
+const prepareArgs = {
+  pid: 42,
+  window_id: 91,
+  session: 'browser-reuse',
+  strategy: { kind: 'existing_profile' },
+  delivery_mode: 'background',
+};
 
 function harness() {
   const driver = {
@@ -62,6 +69,45 @@ it.each(['browser_click', 'browser_type', 'browser_pointer', 'browser_navigate']
       ).resolves.toEqual({ status: 'ok' });
       expect(driver.callTool).toHaveBeenCalledTimes(1);
       expect(readForegroundWindow).toHaveBeenCalledTimes(2);
+    } finally {
+      await service.shutdown();
+    }
+  },
+);
+
+it('restricts preparation to an existing connection while another Chrome window is active', async () => {
+  const { service, driver } = harness();
+  try {
+    await expect(service.call('browser_prepare', prepareArgs, context)).resolves.toEqual({
+      status: 'ok',
+    });
+    expect(driver.callTool).toHaveBeenCalledTimes(1);
+    expect(driver.callTool).toHaveBeenCalledWith(
+      'browser_prepare',
+      JSON.stringify({ ...prepareArgs, reuse_only: true }),
+      expect.anything(),
+    );
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it.each(['same-window', 'unknown-window', 'wrong-target', 'unbound'])(
+  'refuses connection reuse before driver dispatch with %s',
+  async (scenario) => {
+    const { service, driver, readForegroundWindow } = harness();
+    if (scenario === 'same-window')
+      readForegroundWindow.mockResolvedValue({ pid: 42, windowId: 91 });
+    if (scenario === 'unknown-window') readForegroundWindow.mockResolvedValue(undefined);
+    try {
+      await expect(
+        service.call(
+          'browser_prepare',
+          { ...prepareArgs, ...(scenario === 'wrong-target' ? { window_id: 93 } : {}) },
+          scenario === 'unbound' ? unboundContext : context,
+        ),
+      ).rejects.toThrow('foreground_app_in_use');
+      expect(driver.callTool).not.toHaveBeenCalled();
     } finally {
       await service.shutdown();
     }

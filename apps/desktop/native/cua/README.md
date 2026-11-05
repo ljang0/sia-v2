@@ -57,6 +57,17 @@ confirmed its disappearance at 1,148 ms without operator consent input; Sia show
 The subsequent fresh task retained the selected window after restart, but connection recovery
 paused before input when Chrome was foreground. Useful restart/concurrent acceptance remains open.
 
+## Reusing an approved connection
+
+The host can now request `browser_prepare` with `reuse_only:true` when another exact Chrome
+window is active. That path retains process/window/endpoint ownership and authorization checks,
+but only joins a live approved socket under the existing pool lock. It cannot dial, run setup,
+handle native consent, install an activation guard or restore focus. Missing, closed and expired
+sockets refuse. Ordinary explicit setup keeps its original behavior. Native regressions cover
+both reuse and zero-connection refusals; host checks require a different, proved foreground
+window and the host-bound target. This repairs unnecessary blocking of a retained connection;
+it cannot retain a socket across a complete Sia process exit. Signed live acceptance remains open.
+
 ## Live foreground identity
 
 The patch backports upstream [#6182](https://github.com/trycua/cua/pull/6182), commit

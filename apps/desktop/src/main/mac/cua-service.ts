@@ -311,7 +311,7 @@ export class CuaService {
             driver!.prepareBrowserSession?.(args.session);
           // The driver's compact default omits structured controls and route metadata.
           // Both are required for protected-field checks and exact background grants.
-          const input =
+          let input =
             tool === 'get_window_state'
               ? { ...args, tree_format: 'elements', verbose: true }
               : args;
@@ -330,6 +330,10 @@ export class CuaService {
             )
               throw new Error('CUA refused: background_focus_unavailable');
             if (foreground === targetPid) {
+              // Reusing a live, already-consented socket cannot raise Chrome's
+              // setup UI. The native reuse-only route must refuse before dialing
+              // or setup if that socket is unavailable; it cannot fall back.
+              if (tool === 'browser_prepare') input = { ...input, reuse_only: true };
               const current =
                 context.kind === 'turn' && BROWSER_INPUT_TOOLS.has(tool)
                   ? await waitForAbort(
@@ -341,7 +345,7 @@ export class CuaService {
               operation.signal.throwIfAborted();
               if (
                 context.kind !== 'turn' ||
-                !permitsOtherBrowserWindow(tool, args, context, current)
+                !permitsOtherBrowserWindow(tool, input, context, current)
               )
                 throw new Error('CUA refused: foreground_app_in_use');
               browserForegroundWindow = current;
