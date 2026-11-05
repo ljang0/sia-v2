@@ -78,7 +78,9 @@ neither `AXWindows` nor application children contains the requested surface. It 
 never selects or authorizes a different window. The read is bounded, retains only a matched
 element and leaves hidden/minimized, key-window and dispatch checks intact. This supplies the
 same acquisition path to observation and input validation; no AX content is exposed to the model.
-The signed document rerun determines whether this closes the observed failure.
+Signed `52a81f3` resolves the panel exactly, confirming the discovery repair, but its input still
+refuses `minimized_or_hidden_window`. The ordinary document rerun completed through another
+existing Finder window; it does not prove input into this panel. Visibility proof remains open.
 
 ## Background links
 

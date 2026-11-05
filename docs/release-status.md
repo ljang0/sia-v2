@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 4, 2026. **Native document creation, visitor research and a fresh dinner-planning task completed without task-time rescue. The dinner run followed explicit Chrome setup; automatic recovery after restart still fails when another Chrome window is active. The duplicate cancellation-capture bug is repaired and verified in signed QA with matching AWS records. RA handoff remains held for recovery, input/observation reliability and exact-installer acceptance. The notarized alpha.122 DMG lacks later fixes; broad distribution and Arena acceptance remain open.**
+Updated November 5, 2026. **Native document creation, visitor research and a fresh dinner-planning task completed without task-time rescue. The dinner run followed explicit Chrome setup; automatic recovery after restart still fails when another Chrome window is active. The duplicate cancellation-capture bug is repaired and verified in signed QA with matching AWS records. RA handoff remains held for recovery, input/observation reliability and exact-installer acceptance. The notarized alpha.122 DMG lacks later fixes; broad distribution and Arena acceptance remain open.**
 
 ## Bounded RA handoff goal
 
@@ -76,37 +76,42 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-The source now backports upstream Cua [#6182](https://github.com/trycua/cua/pull/6182),
-which replaces the potentially cached AppKit foreground PID with a live WindowServer query.
-Upstream reproduced stale foreground identity in a no-overlay host; Sia's pinned native code
-still had that implementation. The backport compiles and the native gate passes. Its causal
-relation to Sia's intermittent input and Chrome recovery failures is unproved. The separate
-signed host observer and all foreground/setup guards are unchanged. Installed signed QA
-`e2c1dd7` passed native and package/runtime verification, but its fresh combined acceptance failed:
+Installed signed QA `52a81f3` completed a fresh ordinary reviewer-copy request in 225.015 seconds
+without task-time rescue. It copied, renamed, edited, saved, closed and reopened the RTF through
+background Finder/TextEdit control. Independent disk checks match all 12 original checklist items
+and the exact added note; all four prior documents retain their hashes. CUA entered an unrelated
+Sia draft during the run, verified both additions, and opened the completed result from Sia in
+TextEdit. No event gap exceeded 10.314 seconds. Continuous focus/clipboard preservation and two
+successful simultaneous workflows remain unproved.
 
-- The reviewer-copy task stopped after 51.234 seconds. Finder's Go to Folder sheet was visible
-  through operator CUA, but Sia reported its exact surface as `ax_unresolved`; no copy was created.
-  The driver already inspects `AXFocusedWindow` for Chrome consent and attached-sheet delivery,
-  but exact-window discovery checks only `AXWindows`, application children and an off-Space probe.
-  Investigate that discovery gap next; do not remove the exact-window guard or rescue the task.
-- The concurrent visitor-planning task restored its approved Chrome connection automatically
-  while Chrome was inactive. Later navigation lost acknowledgement and a subsequent read timed
-  out after its bounded retry. The task ended failed after 338.847 seconds with an honestly
-  provisional report; lunch prices remained unverified. This does not resolve recovery while
-  another Chrome window is active or establish a usable complete research result.
-- The four original documents retained their hashes. Two additions to an unsent Sia draft
-  remained exact. No task-time rescue occurred; continuous focus/clipboard isolation and
-  successful interleaved GUI work were not established. A final operator CUA read also timed out.
-- Automatic AWS archives independently match both prompts, failed outcomes, all 44 action
-  results and 28 PNGs. The native turn has 67 records and 18 usage events; the browser turn has
-  318 stored / 286 logical records and 79 usage events. Each has one discarded finalization.
-  Private receipts: `live-foreground-acceptance`.
+The targeted native change adds bounded `AXFocusedWindow` discovery only when the focused native
+surface's process and backing window ID exactly match the requested target. It closes the observed
+`ax_unresolved` discovery failure. **Input into Finder's Go to Folder panel still fails**: the new
+snapshot resolves the panel exactly but reports `minimized_or_hidden_window`. The agent completed
+this request through another existing Finder window. That autonomous recovery is a useful-task
+pass, not a panel-input pass. Next isolate the sheet's missing visibility proof; preserve explicit
+hidden/minimized refusal and exact-window checks rather than treating unknown state as available.
 
-The new full pilot attempt passed build/static/shared/cloud/native checks but failed the real
-Electron bare-launch fixture with exit 1 and no output. That test passed unchanged in an isolated
-2.7-second rerun; the original failure remains unexplained. The later desktop/Electron/renderer/
-companion phases did not run on this candidate. The previous `5bab2f5` full pilot pass does not
-replace this missing gate. No new DMG or distribution approval follows from these results.
+AWS independently matches the exact prompt, completed outcome, all 33 action results and 25 PNGs
+in five encrypted batches (222 records, including 68 provider-usage events), with one finalization.
+Private receipts: `focused-panel-acceptance`. Native, signed package/runtime and installed strict
+signature checks pass. The complete pilot suite passed: 2,100 desktop tests (23 skipped),
+46 Electron (five skipped), 48 renderer and 72 companion checks plus build/static/shared/cloud.
+
+Included `e2c1dd7` backports upstream Cua [#6182](https://github.com/trycua/cua/pull/6182), replacing
+a potentially cached AppKit foreground PID with a live WindowServer query. Upstream reproduced
+that defect in a no-overlay host; its causal relationship to Sia's observed failures is unproved.
+Sia's separate signed observer and all foreground/setup guards remain unchanged.
+
+The prior `e2c1dd7` combined acceptance remains failed: native work stopped at panel discovery
+in 51.234 seconds, and browser work ended failed after 338.847 seconds. The approved Chrome
+connection restored automatically with Chrome inactive, but later navigation lost acknowledgement
+and a bounded read timed out. Only a clearly provisional itinerary was saved. Four original files
+and an unrelated draft stayed intact; no task-time rescue or concurrency pass occurred. AWS matches
+both failed outcomes, 44 actions and 28 PNGs, with one finalization per turn. Private receipts:
+`live-foreground-acceptance`. Its full pilot also failed the real Electron bare-launch fixture
+(exit 1, no output); an isolated rerun and the new full run pass, but the original cause remains
+unexplained. Neither these results nor the new native-task pass authorizes a distribution DMG.
 
 An ordinary three-dinner research request on installed `a2d63b8`, alongside operator notes in
 TextEdit, failed after 124.621 seconds. It produced no dinner plan. Repeated

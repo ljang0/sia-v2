@@ -4,8 +4,8 @@
 copy/edit/reopen task with working result delivery passed on included `a2d63b8`. Dinner research
 passed on `0c72ce8` after explicit Chrome setup. Automatic recovery while another Chrome window
 is active, input reliability and exact-DMG acceptance remain open. Cancellation capture is fixed
-and verified on included `5bab2f5`. The current `e2c1dd7` rerun failed at Finder panel input and
-later browser responsiveness; see the current [release status](./release-status.md#current-targeted-repair).
+and verified on included `5bab2f5`. The current `52a81f3` native document rerun passed, but Finder panel input and
+browser responsiveness remain open; see the current [release status](./release-status.md#current-targeted-repair).
 Nothing has been
 published, sent to a recipient or submitted to Arena by this work.
 
@@ -13,33 +13,27 @@ published, sent to a recipient or submitted to Arena by this work.
 
 | Identity               | Value                                                                |
 | ---------------------- | -------------------------------------------------------------------- |
-| Source                 | `e2c1dd74e86ba55cfe877fcdc115d3f254d2d9a8`                           |
-| Installed              | November 5, 2026, 04:31:22 UTC (November 4 Eastern)                  |
+| Source                 | `52a81f386598bcc94008517762a6b8bd051f0987`                           |
+| Installed              | November 5, 2026, 04:59:12 UTC (November 4 Eastern)                  |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG     |
-| ASAR SHA-256           | `6ad4878f16094f23baa657ffa910a2f1412907b858ce582425153f68bc80d37c`   |
+| ASAR SHA-256           | `5e0182be2436424954469a538f1c37db4970b589a1f3567435cf4e467e44f8c2`   |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`   |
-| Native patch SHA-256   | `90def1bc4ee021ebcef6cc869e64368dcca03f36d9cd4a1c053d96a9a04ecbfc`   |
+| Native patch SHA-256   | `0cb47b3eeca88967f41dd858056e00f1296d0b6a1a120aa1716b2056e8362eda`   |
 | Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before live foreground.app`                         |
+| Rollback               | `Sia QA alpha122 before focused panel.app`                           |
 
 Package/runtime verification, installed deep/strict signature checks and the native gate passed.
-The current full pilot stopped at an unexplained Electron bare-launch fixture failure; its
-isolated rerun passed unchanged. Later desktop, Electron, renderer and companion phases remain
-unrun on this candidate. The prior `5bab2f5` full pilot
-passed: 2,100 desktop unit tests (23 skipped), 46 Electron (five skipped), 48 renderer and
-72 companion checks, plus build/static/shared/cloud/native gates. Four capture lifecycle
-regressions failed before the repair and passed after it. The prior browser repair's
-67 focused tests and native gate pass. Its earlier full pilot command passed build/static/unit checks
-(2,096 desktop tests, 23 skipped), then failed one Electron test: `pwd` became `pwda`. An isolated
-rerun passed unchanged; the cause is unresolved. The four remaining desktop cases, 48 renderer
-and 72 companion-browser checks subsequently passed. Preserve the original failure and trace.
-The included native-result repair previously passed the full pilot: 2,091 desktop tests (23 skipped), 46 Electron (five skipped),
-48 renderer and 72 companion tests, plus cloud/shared/native/build/static checks. The external
-Chrome-policy regression failed with the old 100 ms retry cadence; all 14 native consent checks
-pass after the change. The selection repair passed 138 affected checks. These automated checks
-do not establish useful-task acceptance. The first pilot attempt exhausted disk space in temporary
-Electron copies. Obsolete generated QA packages were removed; the complete retry passed. The
-native-result regression failed before the repair and passes after it.
+The current full pilot passed: 2,100 desktop unit tests (23 skipped), 46 Electron (five skipped),
+48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates. The real Electron
+bare-launch fixture passed in this full run; its earlier exit-1 failure with no output remains
+unexplained. The earlier terminal-test `pwd` → `pwda` failure also remains unresolved despite
+subsequent passing runs. Original logs and traces are retained.
+
+Included capture, native-result and browser repairs have regression evidence recorded in release
+status and Git history. In particular, all four capture-finalization cases failed before the
+runner-owned repair and passed afterward. Automated checks do not establish useful-task acceptance.
+The current native workflow and its remaining panel-input limitation are recorded in
+[release status](./release-status.md#current-targeted-repair).
 
 ## Live results that determine readiness
 
