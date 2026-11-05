@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 5, 2026. **Signed QA `1269df9` passed the full pilot gate and completed museum research after visible restart, but a fresh native document request failed at Finder's Go to Folder keyboard step. Earlier native successes do not establish repeatability. Hidden-startup recovery, input/observation reliability, responsiveness and exact-installer acceptance remain open. Automatic AWS records match both latest outcomes. The notarized alpha.122 DMG lacks later fixes; RA handoff, broad distribution and Arena acceptance remain held.**
+Updated November 5, 2026. **Signed QA `e1bebca` repaired Finder's Go to Folder keyboard step in the ordinary document task, but the run then failed to open the source files through Finder's menus. No output was created. Automatic AWS records match this failed run. The preceding `1269df9` passed the full pilot gate and completed museum research after visible restart; the full gate on the current source is pending. Native repeatability, input isolation, responsiveness and exact-installer acceptance remain open. The notarized alpha.122 DMG lacks later fixes; RA handoff, broad distribution and Arena acceptance remain held.**
 
 ## Bounded RA handoff goal
 
@@ -102,7 +102,18 @@ The targeted fix accepts that main-sheet case only when focused/main/requested r
 are identical and both ownership reads prove the same separate document. Missing ownership,
 siblings, parent-only requests and replaced/dismissed sheets still refuse; modal Save fallback
 remains disabled. The regression fails on the preceding predicate with `main_not_document`.
-Signed ordinary-task acceptance is pending.
+Signed `e1bebca` passed that step in the same ordinary task: Cmd+A, path typing and navigation
+worked. The overall run still failed after 167.530 seconds because Finder's file context menu
+did not reliably appear and the plans were never opened in TextEdit. A toolbar menu appeared
+once for the folder; after file selection it did not appear. These screenshots narrow the next
+investigation to menu delivery/observation but do not prove its underlying cause. Do not change
+input transports speculatively or repeat permission setup. No operator rescued the run.
+All eight protected files remained byte-identical and both unrelated draft additions survived
+at observed points; continuous focus/clipboard preservation remains unproved. AWS independently
+matches the prompt, failed outcome, 19 actions, 15 PNGs and 42 usage events in three encrypted
+batches (135 logical records, one finalization). Receipt: `main-sheet-acceptance.json`.
+Native regression, build, quality and signed package/runtime checks passed; the full pilot gate
+on this source is pending. This is a verified step repair, not a useful native-task pass.
 
 Cold restart on signed `bed8a3c` failed a fresh rainy-day museum request in 37.839 seconds:
 the saved choice survived but native preparation refused `background_unavailable` before

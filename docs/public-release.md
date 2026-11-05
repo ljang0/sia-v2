@@ -1,33 +1,49 @@
 # Distribution acceptance record
 
-**RA handoff is held.** Current signed internal `1269df9` completed ordinary background museum
-research after visible app restart with automatic restoration of the chosen Chrome connection.
-Earlier candidates passed an outing plan with website recovery and native checklist creation.
-A fresh native comparison request on the current candidate failed at Finder's Go to Folder
-keyboard step. Native repeatability, input isolation, hidden-startup recovery, responsiveness and exact-DMG acceptance
+**RA handoff is held.** Current signed internal `e1bebca` repaired Finder's Go to Folder input,
+but the ordinary native comparison still failed at opening the source files through Finder's menus.
+The preceding `1269df9` completed background museum research after visible restart; earlier
+candidates passed an outing plan and native checklist creation.
+Native repeatability, input isolation, hidden-startup recovery, responsiveness and exact-DMG acceptance
 remain open. Nothing has been published, sent to a recipient or submitted to Arena by this work.
 
 ## Current installed candidate
 
 | Identity               | Value                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| Source                 | `1269df929c68c55cc37ed169a1ab6ba462d67cda`                                                       |
-| Installed              | November 5, 2026, 08:44:09 UTC                                                                   |
+| Source                 | `e1bebca6837359ffe393c2ca0b0776b8aa2b00bb`                                                       |
+| Installed              | November 5, 2026, 09:48:58 UTC                                                                   |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG                                 |
-| ASAR SHA-256           | `031987b22af15aa9b5f061e068e553a3b1d219b442d41e32be346d22fe579275`                               |
+| ASAR SHA-256           | `1dec0656abe7575ade1601563ecdc2b16e86294c9fa5ca54cefc6f2c4a0032f0`                               |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`                               |
-| Native patch SHA-256   | `5dfb260e8929e9fceec45932f6250fb2c5a9235160becf598309c1f406690ec7`                               |
+| Native patch SHA-256   | `ed7646cc33fd8fb49a45e38ab3fd2131e886792933d910ff6b69682dc89332d9`                               |
 | Private evidence       | `alpha122-browser-selection-internal/sheet-visibility-acceptance` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before startup restore.app`                                                     |
+| Rollback               | `Sia QA alpha122 before main sheet.app`                                                          |
 
-Package/runtime and installed deep/strict signature checks and 34 focused tests passed.
-`pnpm test:pilot` passed on this source: 2,123 desktop tests (23 skipped), 46 Electron checks
+Native regression, build, quality, package/runtime and installed deep/strict signature checks passed.
+The full pilot gate on this source is pending. `pnpm test:pilot` passed on preceding `1269df9`:
+2,123 desktop tests (23 skipped), 46 Electron checks
 (five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates.
 Log: `startup-browser-pilot.log`. The earlier unexplained bare-Electron exit and `pwd` → `pwda`
 failure remain in the evidence; passing checks do not establish their cause or erase input-isolation
 concerns.
 
 ## Live results that determine readiness
+
+### Saturday comparison on e1bebca: repaired folder input, overall failure
+
+Fresh thread `c0e3cc62-b7a1-4d82-8dfd-202e53eb321a`, turn
+`839f534b-a2b4-41bd-bc33-ee311110725b`, reran the ordinary request without operator rescue.
+Go to Folder accepted Cmd+A, the path and navigation. Finder's file context menu then failed
+to appear reliably; the plans did not open in TextEdit and no `Saturday options.rtf` was created.
+The run failed after 167.530 seconds. A captured toolbar menu proves menus were visible in
+at least one observation, but the precise delivery/observation defect remains unresolved.
+
+All eight protected sources remain byte-identical. Both unrelated Chrome draft additions
+survived at observed points; continuous focus and clipboard isolation remain unproved.
+Automatic AWS verification matches the exact prompt, failed outcome, 19 action results,
+15 PNGs and 42 usage events in three encrypted batches (135 logical records, one finalization).
+Receipt: `main-sheet-acceptance.json`. The step repair does not establish native-task readiness.
 
 ### Saturday comparison on 1269df9: native useful-task failure
 

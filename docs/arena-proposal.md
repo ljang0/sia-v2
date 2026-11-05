@@ -36,7 +36,7 @@ including recovery from a failed website (457 seconds), and museum research afte
 restart with automatic restoration of the chosen Chrome connection (496 seconds). Independently
 checked outputs and unchanged originals support these results. Unrelated drafts survived at
 observed points; continuous focus/clipboard isolation and two simultaneous native workflows
-remain unproved. The latest run, `1269df9`, has matching AWS records for 45 actions, 36 screenshots
+remain unproved. The museum run on `1269df9` has matching AWS records for 45 actions, 36 screenshots
 and 94 usage events. A roughly 91-second interval between tool calls, earlier intermittent input
 and observation failures, and hidden-startup recovery remain open. These are useful workflow
 results, not evidence of general responsiveness or arbitrary-app reliability.
@@ -44,6 +44,10 @@ A subsequent ordinary request on the same candidate to create a printable compar
 Finder/TextEdit failed at background keyboard input in Go to Folder (143 seconds, no output).
 Its sources and unrelated draft were preserved and AWS matched the failed run. Native
 repeatability remains a distribution blocker despite earlier successful document workflows.
+The follow-up `e1bebca` repaired that keyboard step in the ordinary task, but the run then failed
+at Finder's file menus (168 seconds, no output). Sources remained unchanged and automatic AWS
+records matched all 19 actions, 15 screenshots and the failed outcome. Native menu reliability
+is the next evidenced blocker; this is not a completed document workflow.
 
 Automatic AWS archives matched the useful runs' prompts, results, actions and screenshots. A
 subsequent Stop test exposed duplicate capture finalization; the repaired signed candidate then
