@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 5, 2026. **Signed QA `e1bebca` repaired Finder's Go to Folder keyboard step in the ordinary document task, but the run then failed to open the source files through Finder's menus. No output was created. Automatic AWS records match this failed run. The preceding `1269df9` passed the full pilot gate and completed museum research after visible restart; the full gate on the current source is pending. Native repeatability, input isolation, responsiveness and exact-installer acceptance remain open. The notarized alpha.122 DMG lacks later fixes; RA handoff, broad distribution and Arena acceptance remain held.**
+Updated November 5, 2026. **Signed QA `e943d92` now captures Finder's file menu after background right-click, repairing the missing-popup defect. The ordinary document task still fails because clicking Open With dismisses the menu; no output was created. Automatic AWS records match this failed run. The preceding `1269df9` passed the full pilot gate and completed museum research after visible restart; the full gate on the current source is pending. Native repeatability, input isolation, responsiveness and exact-installer acceptance remain open. The notarized alpha.122 DMG lacks later fixes; RA handoff, broad distribution and Arena acceptance remain held.**
 
 ## Bounded RA handoff goal
 
@@ -123,7 +123,17 @@ in one 33-record batch (`popup-diagnostic.json`). It is not useful-task acceptan
 The source repair resolves the exact document through its raw AXWindows identity when focused
 ownership is unavailable, preserving the focused-sheet route and all menu ancestry, process,
 geometry and before/after surface checks. It removes the temporary capture diagnostics and
-changes no input transport. Signed ordinary-task acceptance of that repair is pending.
+changes no input transport. Signed `e943d92` verifies the capture repair in the ordinary task:
+the file context menu is visible after right-click. The run still failed after 71.251 seconds:
+two clicks on Open With (row center, then submenu arrow after reopening) dismissed the menu
+instead of exposing app choices. No file was opened in TextEdit and no RTF was created.
+All eight protected files and both unrelated draft additions remained unchanged. AWS matches
+the exact prompt, failed outcome, seven actions, six PNGs and 18 usage events in two encrypted
+batches (63 logical records, one finalization). Receipt: `popup-root-acceptance.json`.
+Native regressions, desktop build, quality and signed package/runtime checks passed; the full
+pilot gate remains pending. The next investigation must distinguish popup event delivery or
+geometry from menu-tracking cancellation before changing routing. No speculative transport
+or timeout variants; this step repair does not establish a complete native workflow.
 
 Cold restart on signed `bed8a3c` failed a fresh rainy-day museum request in 37.839 seconds:
 the saved choice survived but native preparation refused `background_unavailable` before

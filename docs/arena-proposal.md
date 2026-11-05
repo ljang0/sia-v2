@@ -46,8 +46,10 @@ Its sources and unrelated draft were preserved and AWS matched the failed run. N
 repeatability remains a distribution blocker despite earlier successful document workflows.
 The follow-up `e1bebca` repaired that keyboard step in the ordinary task, but the run then failed
 at Finder's file menus (168 seconds, no output). Sources remained unchanged and automatic AWS
-records matched all 19 actions, 15 screenshots and the failed outcome. Native menu reliability
-is the next evidenced blocker; this is not a completed document workflow.
+records matched all 19 actions, 15 screenshots and the failed outcome. Current `e943d92` repairs
+the missing menu capture, but selecting Open With still dismisses the menu (71 seconds, no output).
+Sources and the unrelated draft remained unchanged; AWS matched all seven actions, six screenshots
+and the failed outcome. Native submenu interaction remains a blocker to a completed document workflow.
 
 Automatic AWS archives matched the useful runs' prompts, results, actions and screenshots. A
 subsequent Stop test exposed duplicate capture finalization; the repaired signed candidate then

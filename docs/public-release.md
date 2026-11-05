@@ -1,7 +1,7 @@
 # Distribution acceptance record
 
-**RA handoff is held.** Current signed internal `e1bebca` repaired Finder's Go to Folder input,
-but the ordinary native comparison still failed at opening the source files through Finder's menus.
+**RA handoff is held.** Current signed internal `e943d92` now captures Finder's file context menu,
+but the ordinary native comparison still failed because Open With dismissed instead of expanding.
 The preceding `1269df9` completed background museum research after visible restart; earlier
 candidates passed an outing plan and native checklist creation.
 Native repeatability, input isolation, hidden-startup recovery, responsiveness and exact-DMG acceptance
@@ -11,14 +11,14 @@ remain open. Nothing has been published, sent to a recipient or submitted to Are
 
 | Identity               | Value                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| Source                 | `e1bebca6837359ffe393c2ca0b0776b8aa2b00bb`                                                       |
-| Installed              | November 5, 2026, 09:48:58 UTC                                                                   |
+| Source                 | `e943d92aa930f27c6e73b256a9e0fc7080358fa4`                                                       |
+| Installed              | November 5, 2026, 10:14:18 UTC                                                                   |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG                                 |
-| ASAR SHA-256           | `1dec0656abe7575ade1601563ecdc2b16e86294c9fa5ca54cefc6f2c4a0032f0`                               |
+| ASAR SHA-256           | `3f2bb817dc06814686e6a4c0a02271384a3790364dc4f1affb227103ff73eb74`                               |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`                               |
-| Native patch SHA-256   | `ed7646cc33fd8fb49a45e38ab3fd2131e886792933d910ff6b69682dc89332d9`                               |
+| Native patch SHA-256   | `69d5f4ddb1ae54cecb21db23e115276c10bd7407f36d6a6c26d4a9dbfd785f20`                               |
 | Private evidence       | `alpha122-browser-selection-internal/sheet-visibility-acceptance` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before main sheet.app`                                                          |
+| Rollback               | `Sia QA alpha122 before popup root.app`                                                          |
 
 Native regression, build, quality, package/runtime and installed deep/strict signature checks passed.
 The full pilot gate on this source is pending. `pnpm test:pilot` passed on preceding `1269df9`:
@@ -29,6 +29,22 @@ failure remain in the evidence; passing checks do not establish their cause or e
 concerns.
 
 ## Live results that determine readiness
+
+### Saturday comparison on e943d92: visible menu, submenu interaction failure
+
+Fresh thread `dbe14507-c29b-4bc8-a53d-63e03ada5a67`, turn
+`c397ab2d-20ff-4642-b2ef-bb6758063dbf`, ran the original ordinary request without rescue.
+The file context menu now appears in Sia's screenshot after right-click, confirming the exact
+document capture repair. Clicking Open With dismissed it; a second attempt at the submenu arrow
+did the same. The run failed in 71.251 seconds without opening the plans or creating the RTF.
+Menu event delivery/geometry versus tracking cancellation remains unresolved.
+
+All eight protected files remain byte-identical and both unrelated Chrome draft additions
+survived at observed points. Continuous focus/clipboard isolation remains unproved. Automatic
+AWS verification matches the prompt, failed outcome, seven actions, six PNGs and 18 usage events
+in two encrypted batches (63 logical records, one finalization). Receipt: `popup-root-acceptance.json`.
+The preceding menu-only diagnostic on `20f5616` isolated the lost focused-root capture lookup;
+its temporary logging was removed in this repair. This is still a failed useful native task.
 
 ### Saturday comparison on e1bebca: repaired folder input, overall failure
 
