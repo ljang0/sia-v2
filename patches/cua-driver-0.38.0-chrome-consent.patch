@@ -2874,7 +2874,7 @@ index ca39f14..a7103ad 100644
          crate::windows::window_space_view_by_id(window_id)
      }) {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
-index 7ccdae7..2cd25af 100644
+index 7ccdae7..0b1f1f3 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
 @@ -17,7 +17,7 @@ use super::bindings::{
@@ -3051,15 +3051,7 @@ index 7ccdae7..2cd25af 100644
          app_hidden,
          competing_keyboard_destinations,
          element: element.unwrap_or(ElementAncestry::NotAddressed),
-@@ -359,6 +432,7 @@ pub fn gather_background_facts(
-     }
- }
- 
-+
- #[cfg(test)]
- mod tests {
-     use super::{
-@@ -439,6 +513,7 @@ mod tests {
+@@ -439,6 +512,7 @@ mod tests {
          AxWindowRecord {
              window_id,
              minimized,
@@ -3067,7 +3059,7 @@ index 7ccdae7..2cd25af 100644
          }
      }
  
-@@ -452,6 +527,125 @@ mod tests {
+@@ -452,6 +526,125 @@ mod tests {
              .collect()
      }
  
@@ -7895,10 +7887,10 @@ index 841d8d0..e3f1d4a 100644
          let result = unbound_menu_window(42, 7, Some(8), None);
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu/context.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu/context.rs
 new file mode 100644
-index 0000000..db8531b
+index 0000000..866790f
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu/context.rs
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,150 @@
 +//! AppKit menu commands belong to the current document or its attached sheet.
 +//! Keep raw modal identity as well as ownership: replacing/dismissing a sheet
 +//! during lookup must invalidate the command even when its parent is unchanged.
@@ -7929,13 +7921,14 @@ index 0000000..db8531b
 +
 +    fn bind(requested: u32, focused: Option<Window>, main: Option<Window>) -> Option<Self> {
 +        let (focused, main) = (focused?, main?);
-+        // Main must still be this exact document. Shared process identity alone
-+        // is insufficient. Only a freshly owned AXSheet may differ in raw ID.
-+        (main.raw == requested
-+            && main.owner == requested
++        // Bind either the document or its exact focused sheet. The same proven
++        // main document must own both; an unrelated sheet or sibling is refused.
++        // Retain raw sheet identity for the pre-dispatch replacement check.
++        ((requested == main.raw || (focused.sheet && requested == focused.raw))
++            && main.owner == main.raw
 +            && !main.sheet
-+            && focused.owner == requested
-+            && (focused.raw == requested || focused.sheet))
++            && focused.owner == main.raw
++            && (focused.raw == main.raw || focused.sheet))
 +            .then_some(Self { focused, main })
 +    }
 +}
@@ -7993,6 +7986,32 @@ index 0000000..db8531b
 +        assert!(MenuContext::bind(7, Some(sheet(9, 7)), Some(doc))
 +            .unwrap()
 +            .is_modal());
++    }
++
++    #[test]
++    fn accepts_the_exact_focused_sheet_as_menu_target() {
++        let doc = Some(document(7));
++        let focused = Some(sheet(9, 7));
++        let context = MenuContext::bind(9, focused, doc).unwrap();
++        assert!(context.is_modal());
++        assert_eq!(Some(context), MenuContext::bind(7, focused, doc));
++    }
++
++    #[test]
++    fn sheet_target_cannot_follow_a_replacement_or_different_document() {
++        let doc = Some(document(7));
++        for (focused, main) in [
++            (Some(sheet(10, 7)), doc),
++            (Some(sheet(9, 8)), doc),
++            (Some(sheet(9, 9)), doc),
++            (Some(document(9)), doc),
++            (Some(sheet(9, 7)), Some(document(8))),
++            (doc, doc),
++            (None, doc),
++            (Some(sheet(9, 7)), None),
++        ] {
++            assert!(MenuContext::bind(9, focused, main).is_none());
++        }
 +    }
 +
 +    #[test]

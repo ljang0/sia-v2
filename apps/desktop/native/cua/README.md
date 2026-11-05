@@ -97,6 +97,14 @@ match the target. It logs no IDs, titles, paths, input or AX content. This disti
 visibility from sheet-to-parent identity mapping without changing input decisions. Signed
 panel-input acceptance remains required.
 
+Signed `b15d68c` cleared the visibility refusal and delivered a background panel click, but
+Command-A then reached the native menu route and failed its document-only context check.
+Menu binding now accepts the exact focused sheet as well as its owning document, requiring
+the same proven main document in either case. The raw sheet identity remains part of both
+pre-dispatch reads, so replacement, dismissal, another owner or an unknown context refuses.
+The regression failed before this change; this does not relax menu enablement or permit the
+document Save fallback while a modal sheet is open. Live navigation acceptance remains required.
+
 ## Background links
 
 The same patch checks an exactly bound link before background click dispatch. A signed alpha.50
