@@ -1,3 +1,21 @@
+diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/background_input.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/background_input.rs
+index eae7b3b..e4c8ef5 100644
+--- a/libs/cua-driver/rust/crates/cua-driver-core/src/background_input.rs
++++ b/libs/cua-driver/rust/crates/cua-driver-core/src/background_input.rs
+@@ -60,9 +60,10 @@ pub struct BackgroundTargetFacts {
+     /// `AXWindows` (mapped through `_AXUIElementGetWindow`). Absent means
+     /// off-Space or AX-unresolved: observation-only.
+     pub ax_window_present: bool,
+-    /// `AXMinimized` on the exact target window. `None` means the attribute
+-    /// could not be read — an unproven fact, which fails closed for pointer
+-    /// and keyboard routes (it never unlocks them).
++    /// Proven minimized state of the exact target. macOS normally uses
++    /// AXMinimized; an exact focused standalone sheet may instead prove
++    /// non-minimized state through a fresh onscreen/current-Space WindowServer
++    /// record. None remains unproven and fails closed for pointer/keyboard.
+     pub target_minimized: Option<bool>,
+     /// `AXHidden` on the owning application. `None` fails closed like
+     /// `target_minimized`.
 diff --git a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/binding.rs b/libs/cua-driver/rust/crates/cua-driver-core/src/browser/binding.rs
 index 3f797c5..0dcdd0e 100644
 --- a/libs/cua-driver/rust/crates/cua-driver-core/src/browser/binding.rs
@@ -2856,9 +2874,18 @@ index ca39f14..a7103ad 100644
          crate::windows::window_space_view_by_id(window_id)
      }) {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
-index 7ccdae7..fe5ff44 100644
+index 7ccdae7..b7ce6ea 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/exact_target.rs
+@@ -17,7 +17,7 @@ use super::bindings::{
+     copy_string_attr, focused_element_of_pid, AXUIElementCreateApplication, AXUIElementRef,
+ };
+ use super::snapshot::RetainedElement;
+-use crate::windows::{all_windows, resolve_window_owner, WindowOwner};
++use crate::windows::{all_windows, resolve_window_owner, WindowInfo, WindowOwner};
+ 
+ /// Bounded `AXParent` ascent used when an element does not expose `AXWindow`.
+ const MAX_ANCESTRY_DEPTH: usize = 40;
 @@ -141,7 +141,7 @@ unsafe fn element_in_app_menu_bar(app: AXUIElementRef, element: AXUIElementRef)
  /// # Safety
  ///
@@ -2868,7 +2895,62 @@ index 7ccdae7..fe5ff44 100644
      resolve_owning_window(
          RetainedElement::retain(window as usize),
          MAX_SHEET_NESTING,
-@@ -324,7 +324,7 @@ pub fn gather_background_facts(
+@@ -213,6 +213,7 @@ pub unsafe fn focused_element_in_window(pid: i32, window_id: u32) -> Option<AXUI
+ struct AxWindowRecord {
+     window_id: u32,
+     minimized: Option<bool>,
++    is_sheet: bool,
+ }
+ 
+ /// Map the application's fresh `AXWindows` — plus the requested window when it
+@@ -226,6 +227,7 @@ unsafe fn ax_window_records(app: AXUIElementRef, pid: i32, window_id: u32) -> Ve
+             let record = ax_get_window_id(window).map(|window_id| AxWindowRecord {
+                 window_id,
+                 minimized: copy_bool_attr(window, "AXMinimized"),
++                is_sheet: copy_string_attr(window, "AXRole").as_deref() == Some("AXSheet"),
+             });
+             CFRelease(window as CFTypeRef);
+             record
+@@ -233,6 +235,38 @@ unsafe fn ax_window_records(app: AXUIElementRef, pid: i32, window_id: u32) -> Ve
+         .collect()
+ }
+ 
++/// A standalone focused sheet may omit AXMinimized. WindowServer's live
++/// onscreen record can prove it is not minimized, but only for that exact
++/// sheet on the current Space. Never override an explicit AX value, infer
++/// visibility from focus alone, or apply this fallback to ordinary windows.
++fn resolved_minimized(
++    record: &AxWindowRecord,
++    pid: i32,
++    focused_window_id: Option<u32>,
++    windows: &[WindowInfo],
++) -> Option<bool> {
++    record.minimized.or_else(|| {
++        if !record.is_sheet || focused_window_id != Some(record.window_id) {
++            return None;
++        }
++        windows
++            .iter()
++            .any(|window| {
++                let bounds = &window.bounds;
++                window.pid == pid
++                    && window.window_id == record.window_id
++                    && window.is_on_screen
++                    && window.on_current_space == Some(true)
++                    && [bounds.x, bounds.y, bounds.width, bounds.height]
++                        .iter()
++                        .all(|n| n.is_finite())
++                    && bounds.width >= 2.0
++                    && bounds.height >= 2.0
++            })
++            .then_some(false)
++    })
++}
++
+ /// One same-session WindowServer row as the keyboard-ambiguity count sees it.
+ struct WindowServerRow {
+     pid: i32,
+@@ -324,7 +358,7 @@ pub fn gather_background_facts(
                  element_ancestry(window, in_menu_bar, window_id)
              });
              let focused_window_id = copy_element_attr(app, "AXFocusedWindow").and_then(|window| {
@@ -2877,6 +2959,131 @@ index 7ccdae7..fe5ff44 100644
                  CFRelease(window as CFTypeRef);
                  window_id
              });
+@@ -334,10 +368,11 @@ pub fn gather_background_facts(
+     };
+ 
+     let target = records.iter().find(|record| record.window_id == window_id);
++    let windows = all_windows();
+     let competing_keyboard_destinations = count_competing_keyboard_destinations(
+         pid,
+         window_id,
+-        all_windows().iter().map(|window| WindowServerRow {
++        windows.iter().map(|window| WindowServerRow {
+             pid: window.pid,
+             window_id: window.window_id,
+             visible: window.is_on_screen
+@@ -351,7 +386,8 @@ pub fn gather_background_facts(
+     BackgroundTargetFacts {
+         window_server,
+         ax_window_present: target.is_some(),
+-        target_minimized: target.and_then(|record| record.minimized),
++        target_minimized: target
++            .and_then(|record| resolved_minimized(record, pid, focused_window_id, &windows)),
+         app_hidden,
+         competing_keyboard_destinations,
+         element: element.unwrap_or(ElementAncestry::NotAddressed),
+@@ -439,6 +475,7 @@ mod tests {
+         AxWindowRecord {
+             window_id,
+             minimized,
++            is_sheet: false,
+         }
+     }
+ 
+@@ -452,6 +489,93 @@ mod tests {
+             .collect()
+     }
+ 
++    fn standalone_sheet() -> (AxWindowRecord, crate::windows::WindowInfo) {
++        use crate::windows::{WindowBounds, WindowInfo};
++        (
++            AxWindowRecord {
++                window_id: 22,
++                minimized: None,
++                is_sheet: true,
++            },
++            WindowInfo {
++                window_id: 22,
++                pid: 42,
++                app_name: String::new(),
++                title: String::new(),
++                bounds: WindowBounds {
++                    x: 100.0,
++                    y: 100.0,
++                    width: 460.0,
++                    height: 180.0,
++                },
++                layer: 0,
++                z_index: 1,
++                is_on_screen: true,
++                current_space_id: Some(1),
++                on_current_space: Some(true),
++                space_ids: Some(vec![1]),
++            },
++        )
++    }
++
++    #[test]
++    fn standalone_sheet_visibility_proves_non_minimized_without_ax_attribute() {
++        let (sheet, window) = standalone_sheet();
++        assert_eq!(
++            super::resolved_minimized(&sheet, 42, Some(22), &[window]),
++            Some(false)
++        );
++    }
++
++    #[test]
++    fn standalone_sheet_visibility_rejects_incomplete_or_different_surface() {
++        let (mut sheet, window) = standalone_sheet();
++        assert_eq!(super::resolved_minimized(&sheet, 42, Some(22), &[]), None);
++        for focus in [None, Some(23)] {
++            assert_eq!(
++                super::resolved_minimized(&sheet, 42, focus, &[window.clone()]),
++                None
++            );
++        }
++        sheet.is_sheet = false;
++        assert_eq!(
++            super::resolved_minimized(&sheet, 42, Some(22), &[window.clone()]),
++            None
++        );
++        sheet.is_sheet = true;
++        for change in 0..9 {
++            let mut other = window.clone();
++            match change {
++                0 => other.pid = 43,
++                1 => other.window_id = 23,
++                2 => other.is_on_screen = false,
++                3 => other.on_current_space = None,
++                4 => other.on_current_space = Some(false),
++                5 => other.bounds.width = 0.0,
++                6 => other.bounds.height = f64::NAN,
++                7 => other.bounds.x = f64::INFINITY,
++                _ => other.bounds.y = f64::NAN,
++            }
++            assert_eq!(
++                super::resolved_minimized(&sheet, 42, Some(22), &[other]),
++                None,
++                "case {change}"
++            );
++        }
++    }
++
++    #[test]
++    fn standalone_sheet_visibility_never_overrides_explicit_minimized_state() {
++        let (mut sheet, window) = standalone_sheet();
++        for minimized in [true, false] {
++            sheet.minimized = Some(minimized);
++            assert_eq!(
++                super::resolved_minimized(&sheet, 42, Some(22), &[window.clone()]),
++                Some(minimized)
++            );
++        }
++    }
++
+     #[test]
+     fn compositor_surfaces_do_not_create_keyboard_ambiguity() {
+         let rows = rows([(42, 10), (42, 11), (42, 12), (42, 13), (42, 14), (42, 15)]);
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/main_thread.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/main_thread.rs
 new file mode 100644
 index 0000000..7ac2f3c
