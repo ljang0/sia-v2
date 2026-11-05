@@ -76,42 +76,33 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-Signed `0428730` separates connection reuse from setup when another exact Chrome window is
-active. Its ordinary Phipps-planning trial failed in 28.953 seconds before reading a page or
-saving a plan: Chrome was inactive, and the ordinary native prepare path still applied the
-new-connection guard before trying to reuse its retained socket. Six protected RTFs are unchanged;
-no operator rescue occurred. AWS matches the prompt, failed outcome, 10 usage events and three
-actions in one encrypted batch (37 records, no PNGs). Receipt: `sheet-visibility-acceptance/reuse-acceptance.json`.
+Signed `5a8b1e5` changes the browser timeout guidance: keep a failed source local, allow a
+bounded attempt at a different permitted source in the same tab, and save verified findings
+with explicit gaps. It does not repeat uncertain input or widen permissions. A preceding
+same-tab diagnostic proved navigation away from an error page works; the connection reuse
+repair in `1cf54d8` is retained. Cold process restart recovery remains open.
 
-The source follow-up tries reuse before the setup guard for ordinary preparation too. Only
-absence proved before host authorization can fall through to the original setup path; denied
-authorization and a socket lost after approval are not retried. Another active Chrome window
-still requires the explicit reuse-only ceiling. Missing/closed/expired connections cannot open a
-new socket through that ceiling. Regressions reproduce the inactive-Chrome failure and now pass, as does the full native gate.
-Signed `1cf54d8` now demonstrates that reuse in a fresh ordinary Phipps request: background
-navigation, screenshots, clicks and scrolling proceeded without repeating setup. The useful
-task still failed after 410.333 seconds when the lunch site timed out; no plan was saved.
-Post-terminal CUA showed `ERR_CONNECTION_TIMED_OUT` in the exact one-tab research window.
-The recovery response tells the agent to pause the whole task, leaving independent work and
-saving useful partial results unfinished. An unrelated Chrome draft preserved two additions,
-and six protected RTF hashes are unchanged; no task-time rescue occurred. AWS verification
-matches 78 usage events, 35 actions and 27 PNGs in 18 encrypted batches (325 stored / 298 logical
-records), including the exact prompt and failed outcome. Receipt:
-`sheet-visibility-acceptance/reuse-default-acceptance.json`. Site-failure recovery and a fresh
-useful-task pass remain required. This does not retain a socket across a complete Sia process
-exit or establish continuous global focus/clipboard isolation.
+The fresh ordinary Phipps request ran for 327.834 seconds without task-time rescue and saved a
+4,010-byte partial plan. The original restaurant timed out; the alternate failed DNS resolution.
+Sia mislabeled the browser error document as outside its grant, then saved its verified findings.
+Lunch details, paying-adult reservation rules and date-specific notices remain unfinished, so
+both terminal outcome and acceptance are failed. The next evidenced defect is failure
+classification and recovery from a browser-generated network error, not missing user permission.
+Two changed-page retries are retained. Independent verification matches the saved file and its
+arithmetic; six protected RTFs and both additions to an unrelated Chrome draft remained intact.
+Continuous global focus/clipboard isolation is unproved.
 
-A bounded follow-up on the same installed candidate successfully left the failed restaurant
-page and loaded Phipps in the same single-tab background window without new setup. This is a
-diagnostic, not a rescue or pass of the failed plan. It establishes that the next repair can stay
-in the timeout recovery guidance: treat a source failure locally, allow a different permitted
-public source in the same tab, bound further attempts, and save verified findings with clear
-gaps. Do not replay uncertain actions or claim unfinished work is complete. Source guidance is
-updated; 177 focused tests passed. Full pilot checks and a fresh signed ordinary-request rerun
-are pending. Receipt: `sheet-visibility-acceptance/failed-page-recovery-diagnostic.json`.
+AWS matches the exact prompt, failed outcome, 56 usage events, 26 actions and 15 PNGs in nine
+encrypted batches (289 stored / 277 logical records). Private receipt:
+`sheet-visibility-acceptance/recovery-acceptance.json`. Earlier failed runs and the successful
+recovery diagnostic remain in the [acceptance record](./public-release.md) and private receipts.
+The full pilot gate passed on this source, followed by signed package/runtime and installed
+strict-signature verification. No distribution claim follows from those checks.
+
 During diagnostic preparation, operator CUA typing introduced punctuation/spacing errors in an
 unsent draft; CUA paste corrected it before submission. This remains input-reliability evidence,
-not a resolved issue.
+not a resolved issue. The current setup also required rebinding CUA after two
+`failedToCreateImageDestination` observation errors; no live task was underway then.
 
 Earlier signed QA `6b24a04` passes the previously failing Finder Go to Folder path in 58.737
 seconds. It selects the field, types the requested path through keyboard events and opens the
@@ -287,12 +278,10 @@ repeated on the exact final DMG. The earlier unexpected filename input remains u
 
 ## Current artifacts
 
-- Installed internal arm64 QA: `1cf54d8fa651cba0568ddf93d4345677a89e7afd`, Developer ID signed,
-  package/runtime and installed strict-signature checks passed. Not notarized and not a DMG.
-  Full native gate passed; unchanged desktop source passed 188 focused regressions. Full pilot
-  on this browser repair is pending. Connection reuse worked in live research, but the useful
-  task failed on a site timeout. Earlier `6b24a04` passed personal-document work and the full
-  pilot. Handoff remains held.
+- Installed internal arm64 QA: `5a8b1e589f833b0e133022c713674f7032df001b`, Developer ID signed,
+  full pilot, package/runtime and installed strict-signature checks passed. Not notarized and
+  not a DMG. Live browser research preserved a partial plan but did not complete the request.
+  Earlier `6b24a04` passed native personal-document work. Handoff remains held.
 - Held universal alpha.122 DMG: source `7531ee7f3115265817e8dd56cf081672799bd8f4`, signed,
   notarized, stapled and verified, but missing later fixes. Do not hand it to the RA yet.
 - Exact hashes, task identities, timings and private receipt locations are in the concise

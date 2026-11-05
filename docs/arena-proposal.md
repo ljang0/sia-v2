@@ -30,14 +30,19 @@ and explicit limitations. Working-folder file writes alone do not establish nati
 The first handoff must pass those bounded workflows; broader native-app coverage and unattended
 concurrency remain prerequisites for a later rollout that promises those capabilities.
 
-The current signed internal candidate completed a personal errands/lunch checklist through
+The earlier signed internal candidate `6b24a04` completed a personal errands/lunch checklist through
 background Finder/TextEdit in 207 seconds: it preserved the source, saved a separate RTF with
 three sections and 14 unchecked items, then reopened it. Independent checks verified the full
 contents, filename and unchanged originals. Earlier candidates completed a sourced visitor
 itinerary after restart (214 seconds) and a three-dinner plan with a combined shopping list after
 explicit Chrome setup (352 seconds). Unrelated drafts or notes survived at observed points;
 continuous focus/clipboard isolation and two successful simultaneous native workflows remain
-unproved. The dinner run included an unexplained 96-second gap before file writing.
+unproved. The dinner run included an unexplained 96-second gap before file writing. Newer internal
+`1cf54d8` reused an approved Chrome connection and performed background research while an
+unrelated Chrome draft remained intact, but a restaurant-site timeout stopped the task without
+saving its plan. Follow-up `5a8b1e5` preserved a clearly labeled partial plan in 328 seconds,
+but missing lunch and visit details still failed acceptance. Recovery and a fresh useful-task
+pass remain required.
 
 Automatic AWS archives matched the useful runs' prompts, results, actions and screenshots. A
 subsequent Stop test exposed duplicate capture finalization; the repaired signed candidate then

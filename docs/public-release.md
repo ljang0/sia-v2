@@ -1,67 +1,65 @@
 # Distribution acceptance record
 
-**RA handoff is held.** Current signed internal `1cf54d8` reused the approved Chrome connection
-and researched Phipps in the background, but failed when the lunch site timed out; no plan was
-saved. Earlier `6b24a04` passes
-Finder panel navigation and a personal checklist task with checked outputs and matching AWS archives.
-Browser recovery, broader input isolation and exact-DMG acceptance remain open.
-Nothing has been published, sent to a recipient or submitted to Arena by this work.
+**RA handoff is held.** Current signed internal `5a8b1e5` researches in background Chrome and
+preserves a partial plan when sources fail. The latest ordinary request still failed: lunch,
+paying-adult booking rules and date-specific notices were unfinished. Earlier `6b24a04` passed
+native checklist creation. Broader input isolation, restart recovery and exact-DMG acceptance
+remain open. Nothing has been published, sent to a recipient or submitted to Arena by this work.
 
 ## Current installed candidate
 
-| Identity               | Value                                                                       |
-| ---------------------- | --------------------------------------------------------------------------- |
-| Source                 | `1cf54d8fa651cba0568ddf93d4345677a89e7afd`                                  |
-| Installed              | November 5, 2026, 06:50:24 UTC                                              |
-| Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG            |
-| ASAR SHA-256           | `9b7f38b1d0188b2d6ad4fa79f6e8e3c320730f7601bdbb82a2e73b120ec252a6`          |
-| Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`          |
-| Native patch SHA-256   | `5dfb260e8929e9fceec45932f6250fb2c5a9235160becf598309c1f406690ec7`          |
-| Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification        |
-| Rollback               | `Archived QA packages/Sia QA alpha122 before default browser reuse.app.zip` |
+| Identity               | Value                                                                                            |
+| ---------------------- | ------------------------------------------------------------------------------------------------ |
+| Source                 | `5a8b1e589f833b0e133022c713674f7032df001b`                                                       |
+| Installed              | November 5, 2026, 07:27:47 UTC                                                                   |
+| Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG                                 |
+| ASAR SHA-256           | `63e49838b625e304a6439a069e9ca01d2a408b0cc1f9f60636170f1716b04e0e`                               |
+| Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`                               |
+| Native patch SHA-256   | `5dfb260e8929e9fceec45932f6250fb2c5a9235160becf598309c1f406690ec7`                               |
+| Private evidence       | `alpha122-browser-selection-internal/sheet-visibility-acceptance` under Sia Release Verification |
+| Rollback               | `Sia QA alpha122 before source recovery.app`                                                     |
 
-Package/runtime verification, installed deep/strict signature checks and the full native gate
-passed for `1cf54d8`. Its unchanged desktop source passed 188 focused tests on `0428730`.
-It has not passed a full pilot or live
-browser acceptance. Earlier `6b24a04` passed targeted ownership/menu and 37 desktop regressions. After fixing this document’s formatting,
-the full pilot passed on `283d1f4`, with the same functional source as installed `6b24a04`: 2,101
-desktop tests (23 skipped), 46 Electron checks (five skipped), 48 renderer and 72 companion checks,
-plus build/static/shared/cloud/native gates. Both full-run logs are retained. Its preceding unexplained bare-Electron exit and earlier `pwd` → `pwda` failure remain
-in the evidence; a passing targeted workflow does not erase input-isolation concerns.
+Package/runtime and installed deep/strict signature checks passed. `pnpm test:pilot` passed on
+this exact functional source: 2,106 desktop tests (23 skipped), 46 Electron checks (five skipped),
+48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates. Log:
+`recovery-pilot.log`. The earlier unexplained bare-Electron exit and `pwd` → `pwda` failure
+remain in the evidence; passing checks do not erase input-isolation concerns.
 
 ## Live results that determine readiness
 
-### Phipps planning: connection reuse works; site failure stops the task
+### Phipps planning: partial output; useful-task acceptance failed
 
-On `1cf54d8`, fresh thread `462ba181-f5db-4aaa-b7ba-3dafee33f28b`, turn
-`b4206d97-7d57-4b8a-ac9c-049c54a4e061`, ran for 410.333 seconds without task-time rescue.
-The ordinary request recovered the existing approved connection without another setup prompt,
-then navigated, clicked and scrolled the separate research tab. An unrelated Chrome address-bar
-draft retained two independently typed additions throughout the run; it was cleared afterward
-without navigating. Six protected RTF hashes are unchanged. This does not prove continuous
-global focus or clipboard preservation.
+On `5a8b1e5`, fresh thread `9836fd3a-5d0e-41e7-80a0-509c8375f2d7`, turn
+`41e82c70-ad23-4007-9980-f9422aa11265`, ran for 327.834 seconds without task-time rescue.
+It reused the approved connection, researched through screenshots and background input, then
+saved a 4,010-byte **partial** `Saturday Phipps plan.md`. Independent disk verification matches
+SHA-256 `25335c81b11fdb890ff39c271d0b676930c05b292e262433ab8da08c6c1ebcc7` and the action's
+full text. Arithmetic checks, but missing lunch details, paying-adult reservation rules and
+November 7 notices prevent acceptance. The terminal outcome correctly remains failed.
 
-The restaurant navigation lost its acknowledgement; the bounded observation retry then timed
-out. Post-terminal CUA inspection of the one-tab research window showed Chrome's
-`ERR_CONNECTION_TIMED_OUT`. Sia reported the gap but saved no plan. The timeout response
-currently instructs the agent to pause the whole task; recovering the independent research and
-useful saved output remains open. Four changed-document retries and three link refusals are
-retained in the evidence. Automatic AWS capture matches the prompt, failed outcome, 78 usage
-events, all 35 actions and 27 PNGs in 18 encrypted batches (325 stored / 298 logical records).
-The first immediate archive query found no batches; the later read-only verification passed.
-Private receipts: `sheet-visibility-acceptance/reuse-default-acceptance.json` and its matching
-archive verification. This is a failed useful-task acceptance, not a browser release pass.
+The first restaurant site timed out; the alternative returned a native navigation error. Sia
+reported the subsequent browser error document as outside its grant. Post-terminal CUA inspection
+showed `DNS_PROBE_FINISHED_NXDOMAIN`, establishing a misleading failure classification rather
+than a new permission requirement. Recovery saved the verified portion, but did not finish the
+original request. Two changed-document retries remain recorded. An unrelated Chrome draft
+preserved both independently typed additions and was cleared afterward without navigation;
+six protected RTF hashes are unchanged. Continuous global focus/clipboard preservation is unproved.
 
-The preceding failed trial is retained:
+Automatic AWS capture matches the exact prompt, failed outcome, 56 usage events, all 26 actions
+and 15 PNGs in nine encrypted batches (289 stored / 277 logical records). An immediate query
+caught incomplete chunks during upload; the later read-only verification passed. Private receipts:
+`recovery-acceptance.json`, `recovery-partial-plan.md`, and the matching archive verification.
 
-On `0428730`, thread `53298f91-0fd6-40eb-aa14-e6ddb475db8f`, turn
-`98b5890d-0337-4725-97be-f367d0fa948d`, stopped after 28.953 seconds. The intended public window
-was found, but preparing access returned `background_unavailable` while Chrome was inactive.
-No source research or plan was completed. Six protected RTF hashes are unchanged; no task-time
-rescue occurred. Automatic AWS recording matches all 37 records, 10 usage events and three
-actions, with one failed finalization and no screenshots. The installed follow-up above attempts
-live-connection reuse before applying setup restrictions.
-Private receipts: `sheet-visibility-acceptance/reuse-acceptance.json` and its archive verification.
+Predecessor failures and the bounded diagnostic remain preserved, not relabeled as passes:
+
+| Candidate / private receipt                        | Result                                                                                                                                                                 |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0428730` / `reuse-acceptance.json`                | Inactive-Chrome preparation blocked all research; 28.953 seconds; AWS matched 37 records, three actions and no PNGs.                                                   |
+| `1cf54d8` / `reuse-default-acceptance.json`        | Connection reuse and background research worked, but a site timeout stopped the task without saving; 410.333 seconds; AWS matched 325 records, 35 actions and 27 PNGs. |
+| `1cf54d8` / `failed-page-recovery-diagnostic.json` | Same-tab navigation away from the error page worked without new setup; diagnostic only. AWS matched 43 records, five actions and one PNG.                              |
+
+The diagnostic exposed operator CUA typing corruption in an unsent composer draft, corrected
+through CUA paste before submission. That input-reliability issue remains open.
 
 ### Personal checklist on 6b24a04: useful-task pass
 
