@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 5, 2026. **Signed QA `6ce129c` now uses the requested editor's own Open workflow instead of asking for help after Finder's submenu fails. The ordinary task still fails because TextEdit's Open dialog does not respond to Sia's background navigation; no output was created. Operator CUA can invoke that dialog's Go to Folder shortcut, giving a concrete dispatch comparison. Automatic AWS records match the failed run and all eight protected files remain unchanged. Native control, input isolation, responsiveness, the current full pilot gate and exact-installer acceptance remain open. The notarized alpha.122 DMG lacks later fixes; distribution and Arena acceptance remain held.**
+Updated November 5, 2026. **The failed native menu-key trial was removed and signed QA `6ce129c` restored. It uses the requested editor's own Open workflow instead of asking for help after Finder's submenu fails. The ordinary task still fails because TextEdit's Open dialog does not respond to Sia's background navigation; no output was created. Operator CUA can invoke that dialog's Go to Folder shortcut, giving a concrete dispatch comparison. Automatic AWS records match the failed run and all eight protected files remain unchanged. Native control, input isolation, responsiveness, the current full pilot gate and exact-installer acceptance remain open. The notarized alpha.122 DMG lacks later fixes; distribution and Arena acceptance remain held.**
 
 ## Bounded RA handoff goal
 
@@ -84,14 +84,22 @@ Escape twice restored the document, and all eight protected files remain unchang
 six actions, four screenshots and 14 usage events in one 45-record batch with one finalization.
 Receipt: `open-owner-diagnostic.json`; this is diagnosis, not useful-task acceptance.
 
-The temporary ownership label is removed. The next functional trial connects the existing native
-menu-key delivery path only after an exact-window native menu command returns background
-unavailable. Ordinary keys and Chromium keep their existing delivery. The relevant distinction
-from prior failed filename transport trials is a recognized menu shortcut handled by an Open
-panel; the standard authenticated path bypasses native menu-equivalent dispatch according to the
-driver implementation. No global HID input, foreground activation, guessed service PID, retry or
-permission relaxation is introduced. Existing menu-safety refusals still stop before key delivery.
-The unchanged ordinary document request must validate this trial; a posted event is not success.
+The native menu-key trial `770360e` failed the unchanged ordinary Saturday request in
+86.582 seconds. Cmd+Shift+G and the directory popup had no visible effect. Post-terminal
+operator inspection confirmed no Go to Folder sheet, ruling out a missed-sheet screenshot for
+this run. No RTF was created; all eight sources and both unrelated draft additions survived.
+AWS matches nine actions, seven PNGs and 20 usage events in one 73-record batch, with one
+finalization. Receipt: `native-menu-key-acceptance.json`.
+
+The failed trial and temporary ownership label are removed from source. The signed `6ce129c`
+app was restored on November 5 at 11:13:37 UTC and its ASAR/strict signature checked; failed
+artifacts remain private evidence. No new DMG was made. Do not repeat envelope or transport
+variants. A concrete upstream lead is [Cua PR #5770](https://github.com/trycua/cua/pull/5770),
+head `5a1b7f8136738b5f92979df9c606fe900baef543`, still open/unmerged when inspected: its
+key-scope cleanup preserves focus when an action opens a different window. Current cleanup
+unconditionally restores the prior window after priming, even if Open just took key. Review
+that narrow lifetime correction against the observed Open transition before another repair;
+the upstream PR's broader menu activation changes and semantic field setters are not adopted.
 
 The next evidenced defect is native sheet keyboard routing. On signed `1269df9`, an ordinary
 request to make a printable comparison of the two researched Saturday plans failed after

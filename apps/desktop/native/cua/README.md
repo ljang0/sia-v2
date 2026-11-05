@@ -461,9 +461,7 @@ change dispatch. A `returned` label alone is not success; inspect the existing a
 fresh screenshot. This diagnostic follows the signed Finder comparison: menu-assisted folder
 creation worked, while a later Info-field Cmd+A used synthetic events without visible selection.
 
-After a native menu key equivalent returns `background_unavailable`, `hotkey` uses one
-unenveloped PID-addressed key sequence so the native event loop can dispatch the panel's
-shortcut. Chromium and ordinary keys retain their authenticated route. The exact-window
-mutation lease and key scope remain held, target-safety refusals never fall through, and there
-is no global HID event or automatic retry. The signed Open-panel comparison motivates this
-narrow route; it does not establish useful-task success until the ordinary workflow completes.
+Signed `770360e` also tried the existing unenveloped native menu-key path specifically after
+an unavailable menu command. The ordinary Open-panel workflow still failed; post-terminal
+inspection confirmed no Go to Folder sheet. That route and the preceding temporary ownership
+label were removed. Do not repeat transport variants without a distinct cause.

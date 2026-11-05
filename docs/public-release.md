@@ -31,6 +31,25 @@ concerns.
 
 ## Live results that determine readiness
 
+### Native menu-key trial removed after ordinary-task failure
+
+Signed `770360e`, thread `e2b13f6a-551c-41e1-a3d2-98d85e36aad0`, turn
+`fdb58daa-4e5f-4f04-86ad-0e020e7c7b3f`, failed the unchanged Saturday comparison in
+86.582 seconds. The alternate native key-equivalent route did not open Go to Folder, and
+post-terminal operator inspection confirmed that the sheet was absent. No RTF was created;
+all eight source hashes and both unrelated draft additions survived. AWS matched nine actions,
+seven screenshots, 20 usage events and one finalization (73 records, one batch).
+Receipt: `native-menu-key-acceptance.json`.
+
+The preceding 44.912-second `9e7e436` diagnostic reported the focused input under TextEdit's
+PID but without a raw window ID; this cannot exclude an AX proxy. Operator CUA then opened
+Go to Folder on the exact failed dialog without reopening it. AWS matched that diagnostic's
+six actions, four screenshots and 14 usage events (45 records, one batch). It was not acceptance.
+
+Both experiments were removed. The `6ce129c` signed app in the identity table was restored at
+11:13:37 UTC on November 5, with matching ASAR and strict signature; failed builds and receipts
+remain private evidence. The ordinary document workflow and distribution remain blocked.
+
 ### Saturday comparison on 6ce129c: editor recovery works, Open-panel navigation fails
 
 Fresh thread `4b1686a8-9c8e-4eb1-8e96-3c39d17593e9`, turn
