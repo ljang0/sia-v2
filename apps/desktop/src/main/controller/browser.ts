@@ -16,6 +16,9 @@ import {
 } from '../mac/chrome-discovery.js';
 import type { ControllerContext } from './context.js';
 import { resultRefusal } from '../actions/action-results.js';
+import type { PersistedState } from './persisted-state.js';
+
+type BrowserSelection = NonNullable<PersistedState['browserSelection']>;
 
 /** The parts of the controller context BrowserSession uses. */
 type BrowserSessionContext = Pick<
@@ -43,6 +46,32 @@ export class BrowserSession {
   private reconnectRequired = false;
 
   constructor(private readonly ctx: BrowserSessionContext) {}
+
+  /** Restore the person's exact choice while the visible app is still starting. */
+  async restoreOnOpen(isForeground: () => Promise<boolean>): Promise<void> {
+    if (
+      this.ctx.computerAccess.accessMode() !== 'mac' ||
+      this.ctx.computerAccess.trust() !== 'auto' ||
+      this.ctx.state.browser.status === 'attached' ||
+      this.ctx.state.browser.status === 'attaching' ||
+      this.ctx.turns.running.size ||
+      this.ctx.turns.queued.length
+    )
+      return;
+    const selection = this.ctx.state.browserSelection;
+    if (!selection || !(await this.preferredWindowForActions()) || !(await isForeground()))
+      return;
+    try {
+      this.ctx.requireSignedInReleaseAccount();
+      await this.attachBrowser(
+        { windowId: selection.windowId },
+        { restore: { selection, isForeground } },
+      );
+    } catch {
+      // Keep the app usable if the browser closed or startup focus changed.
+      // attachBrowser retains its visible error and never starts a task here.
+    }
+  }
 
   /** A live, previously chosen target, not permission to read or act on it. */
   async preferredWindowForActions(): Promise<{ pid: number; windowId: number } | undefined> {
@@ -181,11 +210,15 @@ export class BrowserSession {
 
   async attachBrowser(
     input: BridgeRequestMap['browser.attach'],
-    options: { auto?: boolean } = {},
+    options: {
+      auto?: boolean;
+      restore?: { selection: BrowserSelection; isForeground(): Promise<boolean> };
+    } = {},
   ): Promise<DesktopSnapshot> {
     if (this.ctx.state.browser.status === 'attaching')
       throw new Error('Chrome connection is already in progress.');
-    if (input.windowId !== undefined) delete this.ctx.state.browserSelection;
+    if (input.windowId !== undefined && !options.restore)
+      delete this.ctx.state.browserSelection;
     this.target = undefined;
     this.sessionId = undefined;
     this.ctx.browserCapabilitySink?.resetBrowserCapabilities();
@@ -234,7 +267,11 @@ export class BrowserSession {
           ? windowPairs.length === 1
             ? windowPairs[0]
             : undefined
-          : windowPairs.find(({ window }) => window.id === input.windowId);
+          : windowPairs.find(
+              ({ pid, window }) =>
+                window.id === input.windowId &&
+                (!options.restore || pid === options.restore.selection.pid),
+            );
       // In trusted auto mode any candidate will do; a window the driver cannot
       // disambiguate is skipped in favour of the next one.
       const pairsToTry = explicitPair
@@ -258,11 +295,25 @@ export class BrowserSession {
       let lastFailure: unknown;
       let attachedWindow: BrowserWindowView | undefined;
       for (const { pid: chromePid, window: candidate } of pairsToTry) {
+        let restoringSession: string | undefined;
         try {
+          if (options.restore) {
+            const { selection, isForeground } = options.restore;
+            if (
+              this.ctx.state.browserSelection !== selection ||
+              (await chromeProcessStartedAt(this.ctx.deps.runCommand, chromePid)) !==
+                selection.processStartedAt ||
+              !(await isForeground())
+            )
+              throw new Error(
+                'Chrome restoration paused because the window or active app changed.',
+              );
+          }
           // CUA sessions are terminal after end_session. Minting a new opaque id for
           // every attachment lets a user detach and reattach without restarting Sia,
           // while resetBrowserCapabilities still revokes every prior model-visible ref.
           const browserSessionId = `sia-browser-${randomUUID()}`;
+          if (options.restore) restoringSession = browserSessionId;
           let prepared: unknown;
           try {
             prepared = await this.ctx.deps.computer.call(
@@ -273,7 +324,9 @@ export class BrowserSession {
                 session: browserSessionId,
                 strategy: { kind: 'existing_profile' },
                 // The connection UI explains that Chrome may appear during setup.
-                // Automatic attachment never grants foreground setup permission.
+                // Startup restoration is limited to the saved exact choice while Sia
+                // is foreground and its composer is still behind startup readiness.
+                // On-demand automatic task attachment never gains that permission.
                 delivery_mode: options.auto ? 'background' : 'foreground',
               },
               directContext,
@@ -281,7 +334,10 @@ export class BrowserSession {
           } finally {
             // Only direct setup may activate Chrome. Automatic/model attachment must never
             // change focus; explicit setup returns to Sia before any continuation can run.
-            if (!options.auto) await this.ctx.deps.returnToAppAfterBrowserSetup?.();
+            if (!options.auto)
+              await this.ctx.deps.returnToAppAfterBrowserSetup?.(
+                options.restore ? chromePid : undefined,
+              );
           }
           const prepareFailure = resultRefusal(prepared);
           if (prepareFailure) throw new Error(prepareFailure.reason ?? prepareFailure.summary);
@@ -296,6 +352,11 @@ export class BrowserSession {
           );
           const stateFailure = resultRefusal(state);
           if (stateFailure) throw new Error(stateFailure.reason ?? stateFailure.summary);
+          if (options.restore) {
+            this.ctx.requireSignedInReleaseAccount();
+            if (this.ctx.state.browserSelection !== options.restore.selection)
+              throw new Error('The saved Chrome selection changed during restoration.');
+          }
           // browser_prepare can include transitional target ids while Chrome enables
           // and reconnects its existing-profile route. Only the follow-up live state
           // is safe to mint into model-visible browser capabilities.
@@ -332,13 +393,24 @@ export class BrowserSession {
             type: 'browser_attached',
             threadId: this.ctx.state.activeThreadId ?? 'app',
             window: candidate.label,
-            automatic: Boolean(options.auto),
+            automatic: Boolean(options.auto || options.restore),
             grantedOrigins,
           });
           attachedWindow = candidate;
           this.reconnectRequired = false;
           break;
         } catch (candidateError) {
+          if (restoringSession)
+            await this.ctx.deps.computer
+              .call(
+                'end_session',
+                { session: restoringSession },
+                {
+                  kind: 'direct_user',
+                  operation: 'browser_detach',
+                },
+              )
+              .catch(() => undefined);
           lastFailure = candidateError;
         }
       }

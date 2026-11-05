@@ -609,10 +609,12 @@ async function performApplicationCreation(): Promise<void> {
         shell.showItemInFolder(path);
       },
       openExternal: openSafeExternal,
-      returnToAppAfterBrowserSetup: async () => {
+      returnToAppAfterBrowserSetup: async (onlyFromPid) => {
         // Explicit connection setup can activate Chrome. Return to the existing Sia window
         // before the saved background task resumes; never reopen a window the person closed.
         if (quietFixture) return;
+        if (onlyFromPid !== undefined && (await browserWindows.foregroundPid()) !== onlyFromPid)
+          return;
         const window = mainWindow;
         if (!window || shutdownStarted || window.isDestroyed())
           throw new Error('Open Sia again before continuing Chrome setup.');
@@ -893,7 +895,17 @@ async function performApplicationCreation(): Promise<void> {
         : {}),
     });
     activeController.attachRuntime(activeRuntime);
-    await activeController.initialize();
+    await activeController.initialize(
+      !quietFixture && !keepWindowHidden && process.platform === 'darwin'
+        ? async () =>
+            !shutdownStarted &&
+            !keepWindowHidden &&
+            mainWindow === window &&
+            !window.isDestroyed() &&
+            window.isVisible() &&
+            (await browserWindows.foregroundPid()) === process.pid
+        : undefined,
+    );
     unsubscribeDockBadge?.();
     let dockBadge: string | undefined;
     const updateDockBadge = ({

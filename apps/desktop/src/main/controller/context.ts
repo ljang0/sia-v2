@@ -172,7 +172,7 @@ export class ControllerContext {
     );
   }
 
-  async initialize(): Promise<void> {
+  async initialize(startupForeground?: () => Promise<boolean>): Promise<void> {
     const stored = this.deps.repository.get<PersistedState>('desktop', 'state');
     this.state = stored ? recoverPersistedState(stored) : structuredClone(INITIAL_STATE);
     this.researchOutbox.pruneExpiredBatches();
@@ -209,6 +209,9 @@ export class ControllerContext {
         : undefined,
     ]);
     this.computerAccess.state = computer;
+    // Establish the saved connection before scheduled work or idle reviews can
+    // race startup setup. Hidden launches provide no foreground authorization.
+    if (startupForeground) await this.browser.restoreOnOpen(startupForeground);
     this.researchOutbox.refreshPendingCount();
     this.persist();
     this.researchOutbox.scheduleSync();

@@ -76,6 +76,21 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
+Cold restart on signed `bed8a3c` failed a fresh rainy-day museum request in 37.839 seconds:
+the saved choice survived but native preparation refused `background_unavailable` before
+research. No output was saved or task rescued. The independent draft and six RTFs remained
+intact. AWS matches the failed outcome, exact prompt, 10 usage events and three actions in
+one 40-record batch, with no screenshots. Receipt: `network-recovery-restart-acceptance.json`.
+
+The source follow-up restores only the saved, still-live Chrome process/window during visible
+Sia startup, before startup readiness exposes the composer. It checks Sia foreground ownership
+again after discovery, retains explicit confirmation/disconnect choices, and does not select
+a replacement window. It returns from Chrome only while Chrome still owns foreground; hidden
+launch and ordinary background task preparation keep their existing protections. All 34 focused
+checks, typecheck, scoped lint and quality guard pass. Signed live acceptance remains pending.
+This is restoration during visible startup, not a claim that cold setup is invisible while the
+person uses another app; background-only startup remains a separate limit.
+
 Signed `bed8a3c` preserves only allowlisted native network-error codes, recognizes the
 exact browser error-document URL without exposing its pixels or controls, and directs research
 recovery through a known public search page instead of guessed replacement domains. It preserves

@@ -97,3 +97,100 @@ it('forgets the selection on explicit disconnect and never records an unverified
     await h.controller.shutdown();
   }
 });
+
+it.each([
+  'restore',
+  'other-app',
+  'focus-changed',
+  'new-process',
+  'missing-window',
+  'confirm',
+  'connected',
+  'disconnected',
+] as const)(
+  'startup restores only the chosen live window while Sia is active: %s',
+  async (scenario) => {
+    let restarted = false;
+    let foregroundChecks = 0;
+    const runCommand = vi.fn(async (file: string) =>
+      file === '/bin/ps'
+        ? restarted && scenario === 'new-process'
+          ? 'Wed Nov  4 11:00:00 2026'
+          : originalStart
+        : '',
+    );
+    const call = vi.fn(async (tool: string, _args: Record<string, unknown>) => {
+      if (tool === 'list_apps') return { apps: [{ pid: 42, name: 'Google Chrome' }] };
+      if (tool === 'list_windows')
+        return {
+          windows:
+            restarted && scenario === 'missing-window'
+              ? [{ window_id: 8 }]
+              : [{ window_id: 7 }, { window_id: 8 }],
+        };
+      if (tool === 'get_browser_state')
+        return { target_id: 'fresh-target', tab_id: 'fresh-tab', url: 'https://example.test/' };
+      return {};
+    });
+    const first = await createHarness({ computer: { ...computer, call }, runCommand });
+    let saved: PersistedState;
+    try {
+      await first.controller.invoke('computer.setAccessMode', { mode: 'mac' });
+      await first.controller.invoke('computer.setTrust', { trust: 'auto' });
+      await first.controller.invoke('browser.attach', { windowId: 7 });
+      if (scenario === 'confirm')
+        await first.controller.invoke('computer.setTrust', { trust: 'ask' });
+      if (scenario === 'connected')
+        await first.controller.invoke('computer.setAccessMode', { mode: 'connected' });
+      if (scenario === 'disconnected')
+        await first.controller.invoke('browser.detach', undefined);
+      saved = first.repository.get<PersistedState>('desktop', 'state')!;
+    } finally {
+      await first.controller.shutdown();
+    }
+    restarted = true;
+    call.mockClear();
+    const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
+    repository.put('desktop', 'state', saved);
+    const returnToAppAfterBrowserSetup = vi.fn(async (_pid?: number) => undefined);
+    const next = await createHarness({
+      repository,
+      computer: { ...computer, call },
+      runCommand,
+      returnToAppAfterBrowserSetup,
+      startupForeground: async () => {
+        foregroundChecks++;
+        return (
+          scenario !== 'other-app' && !(scenario === 'focus-changed' && foregroundChecks > 1)
+        );
+      },
+    });
+    try {
+      const preparations = call.mock.calls.filter(([tool]) => tool === 'browser_prepare');
+      if (scenario === 'restore') {
+        expect(preparations).toHaveLength(1);
+        expect(preparations[0]![1]).toMatchObject({
+          pid: 42,
+          window_id: 7,
+          delivery_mode: 'foreground',
+          strategy: { kind: 'existing_profile' },
+        });
+        expect(next.controller.snapshot().browser.status).toBe('attached');
+        expect(returnToAppAfterBrowserSetup).toHaveBeenCalledExactlyOnceWith(42);
+        expect(call.mock.calls.filter(([tool]) => tool === 'get_browser_state')).toHaveLength(
+          1,
+        );
+        expect(next.controller.snapshot().browser.grantedOrigins).toEqual([
+          'https://example.test',
+        ]);
+      } else {
+        expect(preparations).toEqual([]);
+        expect(call.mock.calls.some(([tool]) => tool === 'get_browser_state')).toBe(false);
+        expect(returnToAppAfterBrowserSetup).not.toHaveBeenCalled();
+        expect(next.controller.snapshot().browser.grantedOrigins).toEqual([]);
+      }
+    } finally {
+      await next.controller.shutdown();
+    }
+  },
+);

@@ -270,8 +270,8 @@ export class DesktopController {
     this.#ctx.browser.browserSessionEnded(sessionId);
   }
 
-  initialize(): Promise<void> {
-    return this.#ctx.initialize();
+  initialize(startupForeground?: () => Promise<boolean>): Promise<void> {
+    return this.#ctx.initialize(startupForeground);
   }
 
   /** The complete state, including every thread's history, for in-process callers and tests. */

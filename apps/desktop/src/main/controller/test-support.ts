@@ -43,6 +43,7 @@ export interface ResearchBatchView {
 export async function createHarness(
   options: {
     fakeServices?: boolean;
+    startupForeground?: () => Promise<boolean>;
     visionOnly?: boolean;
     captureMacContext?: ConstructorParameters<typeof DesktopController>[0]['captureMacContext'];
     voice?: ConstructorParameters<typeof DesktopController>[0]['voice'];
@@ -53,7 +54,9 @@ export async function createHarness(
     runCommand?: (file: string, args: readonly string[]) => Promise<string>;
     providerProbe?: ConstructorParameters<typeof DesktopController>[0]['providerProbe'];
     openExternal?: (url: string) => Promise<void>;
-    returnToAppAfterBrowserSetup?: () => Promise<void>;
+    returnToAppAfterBrowserSetup?: ConstructorParameters<
+      typeof DesktopController
+    >[0]['returnToAppAfterBrowserSetup'];
     openMessages?: () => Promise<void>;
     openMessagesPermissions?: () => Promise<void>;
     requestMicrophonePermission?: () => Promise<void>;
@@ -155,7 +158,7 @@ export async function createHarness(
       ? { pastedAttachmentRoot: options.pastedAttachmentRoot }
       : {}),
   });
-  await controller.initialize();
+  await controller.initialize(options.startupForeground);
   if (
     controller.snapshot().cloud.auth === 'signed_in' ||
     controller.snapshot().cloud.auth === 'unconfigured'
