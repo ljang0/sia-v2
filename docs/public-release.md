@@ -1,8 +1,7 @@
 # Distribution acceptance record
 
-**RA handoff is held.** Current signed internal `5a8b1e5` researches in background Chrome and
-preserves a partial plan when sources fail. The latest ordinary request still failed: lunch,
-paying-adult booking rules and date-specific notices were unfinished. Earlier `6b24a04` passed
+**RA handoff is held.** Current signed internal `bed8a3c` completed an ordinary background
+outing plan, including recovery from a failed restaurant site without new setup. Earlier `6b24a04` passed
 native checklist creation. Broader input isolation, restart recovery and exact-DMG acceptance
 remain open. Nothing has been published, sent to a recipient or submitted to Arena by this work.
 
@@ -10,22 +9,48 @@ remain open. Nothing has been published, sent to a recipient or submitted to Are
 
 | Identity               | Value                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| Source                 | `5a8b1e589f833b0e133022c713674f7032df001b`                                                       |
-| Installed              | November 5, 2026, 07:27:47 UTC                                                                   |
+| Source                 | `bed8a3c99da304db38b8b8a053f520e884325da9`                                                       |
+| Installed              | November 5, 2026, 07:55:49 UTC                                                                   |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG                                 |
-| ASAR SHA-256           | `63e49838b625e304a6439a069e9ca01d2a408b0cc1f9f60636170f1716b04e0e`                               |
+| ASAR SHA-256           | `560113c2c670194db519195bda93033437489ebac2a220f036423f0081d84174`                               |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`                               |
 | Native patch SHA-256   | `5dfb260e8929e9fceec45932f6250fb2c5a9235160becf598309c1f406690ec7`                               |
 | Private evidence       | `alpha122-browser-selection-internal/sheet-visibility-acceptance` under Sia Release Verification |
-| Rollback               | `Archived QA packages/Sia QA alpha122 before source recovery.app.zip`                            |
+| Rollback               | `Sia QA alpha122 before network recovery.app`                                                    |
 
-Package/runtime and installed deep/strict signature checks passed. `pnpm test:pilot` passed on
-this exact functional source: 2,106 desktop tests (23 skipped), 46 Electron checks (five skipped),
+Package/runtime and installed deep/strict signature checks and 274 focused tests passed.
+`pnpm test:pilot` passed on this source: 2,115 desktop tests (23 skipped), 46 Electron checks (five skipped),
 48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates. Log:
-`recovery-pilot.log`. The earlier unexplained bare-Electron exit and `pwd` → `pwda` failure
+`network-recovery-pilot.log`. The earlier unexplained bare-Electron exit and `pwd` → `pwda` failure
 remain in the evidence; passing checks do not erase input-isolation concerns.
 
 ## Live results that determine readiness
+
+### Phipps planning on bed8a3c: useful-task pass
+
+Fresh thread `806c0661-f355-40fb-9113-234a9309c2a6`, turn
+`5025e25f-a6d8-4d93-b4a5-3e304e54719a`, completed in 456.682 seconds without task-time rescue.
+The ordinary request produced a complete 4,735-byte `Saturday Phipps plan.md`, SHA-256
+`6a83b91efa9387bd0530b0204b8a8bef42b1cbf79b444d035de17ab7d2f0ca3e`. Independent disk and
+captured-source review confirm hours, admission/student terms, reservation rules, date-specific
+road restrictions, vegetarian brunch details and the budget. Walking times and tax/tip are
+explicit estimates. The model used screenshots and background input; the separately labeled
+workspace-file tool saved the report.
+
+The repaired network failure classification was exercised: Sia moved from the failed domain to
+public search, found the current official restaurant site and finished without another setup
+request. Six protected RTFs and two independently typed additions to another Chrome window's
+unsent address draft remained exact; Escape restored its original address without navigation.
+Initial connection setup occurred before the task, so this does not establish cold restart recovery.
+Three changed-page retries and a 72.142-second event gap before writing remain recorded.
+An operator CUA observation timed out after the save; a later read showed the completed result.
+Continuous focus/clipboard isolation and general responsiveness remain open.
+
+Automatic AWS verification matches the exact prompt and completed outcome, 96 usage events,
+47 actions and 38 PNGs in 34 encrypted batches (426 stored / 370 logical records), with one
+finalization. An immediate query encountered an action still uploading; the later read-only
+retry passed. Receipts: `network-recovery-acceptance.json`, `network-recovery-plan.md` and the
+matching archive verification. This is useful-task evidence, not exact-installer acceptance.
 
 ### Phipps planning: partial output; useful-task acceptance failed
 

@@ -76,12 +76,25 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-The source follow-up preserves only allowlisted native network-error codes, recognizes the
+Signed `bed8a3c` preserves only allowlisted native network-error codes, recognizes the
 exact browser error-document URL without exposing its pixels or controls, and directs research
 recovery through a known public search page instead of guessed replacement domains. It preserves
 post-action focus checks, rejects stale input, and does not reinterpret certificate or policy
-errors as network failures. All 274 focused checks pass; signed live acceptance and the full
-pilot gate for this follow-up remain pending.
+errors as network failures. All 274 focused checks and signed package/runtime checks pass.
+The fresh ordinary Phipps task completed autonomously in 456.682 seconds, recovered from the
+failed restaurant domain through public search, and saved a complete 4,735-byte plan. Independent
+checks confirm the saved bytes, source screenshots, budget arithmetic, six unchanged RTFs and
+both additions to an unrelated Chrome draft. AWS matches the exact prompt, completed outcome,
+96 usage events, 47 actions and 38 PNGs in 34 encrypted batches (426 stored / 370 logical records).
+Private receipt: `sheet-visibility-acceptance/network-recovery-acceptance.json`.
+
+This passes the useful browser workflow, not overall distribution acceptance. Three changed-page
+retries and a 72.142-second event gap before report writing remain recorded. One operator CUA
+observation timed out after the write; a later read showed completion. Continuous focus/clipboard
+isolation, cold restart recovery and exact-DMG acceptance remain open. The full pilot gate passed
+on this source: 2,115 desktop tests (23 skipped), 46 Electron checks (five skipped), 48 renderer
+and 72 companion checks, plus build/static/shared/cloud/native gates. Log:
+`network-recovery-pilot.log`. The previous failed run below remains failed.
 
 Signed `5a8b1e5` changes the browser timeout guidance: keep a failed source local, allow a
 bounded attempt at a different permitted source in the same tab, and save verified findings

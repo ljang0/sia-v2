@@ -41,8 +41,12 @@ unproved. The dinner run included an unexplained 96-second gap before file writi
 `1cf54d8` reused an approved Chrome connection and performed background research while an
 unrelated Chrome draft remained intact, but a restaurant-site timeout stopped the task without
 saving its plan. Follow-up `5a8b1e5` preserved a clearly labeled partial plan in 328 seconds,
-but missing lunch and visit details still failed acceptance. Recovery and a fresh useful-task
-pass remain required.
+but missing lunch and visit details still failed acceptance. Current `bed8a3c` then completed
+the ordinary outing request in 457 seconds: it recovered from the failed domain through search,
+verified the full visit and lunch details, and saved a checked plan while an unrelated Chrome
+draft stayed intact. AWS matched all 47 actions, 38 screenshots and 96 usage events. A 72-second
+gap before writing and an intermittent operator observation timeout remain recorded; this does
+not establish general responsiveness, continuous isolation or cold restart recovery.
 
 Automatic AWS archives matched the useful runs' prompts, results, actions and screenshots. A
 subsequent Stop test exposed duplicate capture finalization; the repaired signed candidate then
