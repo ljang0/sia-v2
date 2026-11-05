@@ -81,8 +81,32 @@ which replaces the potentially cached AppKit foreground PID with a live WindowSe
 Upstream reproduced stale foreground identity in a no-overlay host; Sia's pinned native code
 still had that implementation. The backport compiles and the native gate passes. Its causal
 relation to Sia's intermittent input and Chrome recovery failures is unproved. The separate
-signed host observer and all foreground/setup guards are unchanged. Signed useful-task
-acceptance of this backport is pending; installed `5bab2f5` remains the last verified candidate.
+signed host observer and all foreground/setup guards are unchanged. Installed signed QA
+`e2c1dd7` passed native and package/runtime verification, but its fresh combined acceptance failed:
+
+- The reviewer-copy task stopped after 51.234 seconds. Finder's Go to Folder sheet was visible
+  through operator CUA, but Sia reported its exact surface as `ax_unresolved`; no copy was created.
+  The driver already inspects `AXFocusedWindow` for Chrome consent and attached-sheet delivery,
+  but exact-window discovery checks only `AXWindows`, application children and an off-Space probe.
+  Investigate that discovery gap next; do not remove the exact-window guard or rescue the task.
+- The concurrent visitor-planning task restored its approved Chrome connection automatically
+  while Chrome was inactive. Later navigation lost acknowledgement and a subsequent read timed
+  out after its bounded retry. The task ended failed after 338.847 seconds with an honestly
+  provisional report; lunch prices remained unverified. This does not resolve recovery while
+  another Chrome window is active or establish a usable complete research result.
+- The four original documents retained their hashes. Two additions to an unsent Sia draft
+  remained exact. No task-time rescue occurred; continuous focus/clipboard isolation and
+  successful interleaved GUI work were not established. A final operator CUA read also timed out.
+- Automatic AWS archives independently match both prompts, failed outcomes, all 44 action
+  results and 28 PNGs. The native turn has 67 records and 18 usage events; the browser turn has
+  318 stored / 286 logical records and 79 usage events. Each has one discarded finalization.
+  Private receipts: `live-foreground-acceptance`.
+
+The new full pilot attempt passed build/static/shared/cloud/native checks but failed the real
+Electron bare-launch fixture with exit 1 and no output. That test passed unchanged in an isolated
+2.7-second rerun; the original failure remains unexplained. The later desktop/Electron/renderer/
+companion phases did not run on this candidate. The previous `5bab2f5` full pilot pass does not
+replace this missing gate. No new DMG or distribution approval follows from these results.
 
 An ordinary three-dinner research request on installed `a2d63b8`, alongside operator notes in
 TextEdit, failed after 124.621 seconds. It produced no dinner plan. Repeated

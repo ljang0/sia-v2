@@ -4,23 +4,28 @@
 copy/edit/reopen task with working result delivery passed on included `a2d63b8`. Dinner research
 passed on `0c72ce8` after explicit Chrome setup. Automatic recovery while another Chrome window
 is active, input reliability and exact-DMG acceptance remain open. Cancellation capture is fixed
-and verified on installed `5bab2f5`. Nothing has been
+and verified on included `5bab2f5`. The current `e2c1dd7` rerun failed at Finder panel input and
+later browser responsiveness; see the current [release status](./release-status.md#current-targeted-repair).
+Nothing has been
 published, sent to a recipient or submitted to Arena by this work.
 
 ## Current installed candidate
 
 | Identity               | Value                                                                |
 | ---------------------- | -------------------------------------------------------------------- |
-| Source                 | `5bab2f54d4dbcd6bcd36ea6b06dc1868b102cb99`                           |
-| Installed              | November 5, 2026, 04:13:05 UTC (November 4 Eastern)                  |
+| Source                 | `e2c1dd74e86ba55cfe877fcdc115d3f254d2d9a8`                           |
+| Installed              | November 5, 2026, 04:31:22 UTC (November 4 Eastern)                  |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG     |
-| ASAR SHA-256           | `456c9284fb50396ba95b054ec47c962a31f2040fefb88ed4de8a4bc7c30a47f6`   |
+| ASAR SHA-256           | `6ad4878f16094f23baa657ffa910a2f1412907b858ce582425153f68bc80d37c`   |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`   |
-| Native patch SHA-256   | `0de2a961729b916c1e9d0cba12a57a2754c681cdf2a7e8bb7ca8e1e432a86093`   |
+| Native patch SHA-256   | `90def1bc4ee021ebcef6cc869e64368dcca03f36d9cd4a1c053d96a9a04ecbfc`   |
 | Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before capture finalization.app`                    |
+| Rollback               | `Sia QA alpha122 before live foreground.app`                         |
 
-Package/runtime verification and installed deep, strict signature checks passed. The full pilot
+Package/runtime verification, installed deep/strict signature checks and the native gate passed.
+The current full pilot stopped at an unexplained Electron bare-launch fixture failure; its
+isolated rerun passed unchanged. Later desktop, Electron, renderer and companion phases remain
+unrun on this candidate. The prior `5bab2f5` full pilot
 passed: 2,100 desktop unit tests (23 skipped), 46 Electron (five skipped), 48 renderer and
 72 companion checks, plus build/static/shared/cloud/native gates. Four capture lifecycle
 regressions failed before the repair and passed after it. The prior browser repair's
