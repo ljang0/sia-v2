@@ -1,6 +1,7 @@
 import { workspaceFileMover } from './mac/workspace-file-move.js';
 import { BrowserWindowService } from './mac/browser-window.js';
 import { returnAfterBrowserSetup } from './window/browser-setup-return.js';
+import { configureBackgroundRendering } from './window/background-rendering.js';
 import { backgroundControlUnavailable } from './controller/computer-access.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
 import {
@@ -323,6 +324,7 @@ async function performApplicationCreation(): Promise<void> {
     },
   });
   mainWindow = window;
+  configureBackgroundRendering(window);
   const matchSystemAppearance = () => {
     if (!window.isDestroyed())
       window.setBackgroundColor(windowBackgroundColor(nativeTheme.shouldUseDarkColors));

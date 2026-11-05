@@ -1,43 +1,46 @@
 # Distribution acceptance record
 
-**RA handoff is held.** Signed internal `d67df60` corrects stale window-focus cleanup, but the
-ordinary document task still fails in TextEdit's Open dialog. The same build opens Go to Folder
-in a bounded foreground comparison; background delivery remains unresolved. Earlier browser
-and native useful-task passes do not establish current native repeatability, input isolation or
-responsiveness. No installer has been published or sent to a recipient, and nothing has been
-submitted to Arena. Source work is on draft PR #34.
+**Public 1.0 and RA handoff are held.** Signed internal `f83319c` includes the recording
+pause/delete repair and uses pointer focus for vision-only keyboard input. Its ordinary TextEdit
+copy-and-edit task still fails when capturing the newly duplicated window. Earlier native and
+browser passes do not establish current repeatability or isolation. No release was published,
+sent to a recipient, or submitted to Arena. Source work is on draft PR #34.
 
 ## Current installed candidate
 
 | Identity               | Value                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| Source                 | `d67df60156fec3b1d63c7073504ac38cb0d6a78d`                                                       |
-| Installed              | November 5, 2026, 11:25:54 UTC                                                                   |
+| Source                 | `f83319c06c16c3e721cedfa67714d627fe6408c2`                                                       |
+| Installed              | November 5, 2026, 20:42:47 UTC                                                                   |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG                                 |
-| ASAR SHA-256           | `5b0cc02a8039585acd9177b05ca224640287b55c9e87bd75f921152bdb8385c9`                               |
+| ASAR SHA-256           | `1db708ad30b2d95ce58b384ec2c55b851adf85e1a1412eb2c3bdefff82e0f44e`                               |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`                               |
-| Native patch SHA-256   | `36635f8d732d697e4a690ccbdb3f28e219ae8af9d4bec0884dcd106d599954a1`                               |
+| Native patch SHA-256   | `3e6a68249581bf263708075cf93cf5b9c99f5948a3a2b1458a8a20b808857297`                               |
 | Private evidence       | `alpha122-browser-selection-internal/sheet-visibility-acceptance` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before dialog focus.app`                                                        |
+| Rollback               | `Sia QA alpha122 before vision focus.app`                                                        |
 
-The focus-cleanup regression failed before the fix and passed in the native gate. Desktop build,
-quality, package/runtime and installed deep/strict signature checks passed.
-This same signed app was last restored at 13:24:47 UTC after the `e8d47b5` logging-only
-diagnostic; its ASAR and strict signature matched (`window-server-owner-rollback.json`).
-`pnpm test:pilot` passed on retained source `8326bcb`:
-2,123 desktop tests (23 skipped), 46 Electron checks
-(five skipped), 48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates.
-Log: `retained-native-pilot.log`. Desktop, native patch, shared runtime, cloud and infrastructure
-source match installed `d67df60`; intervening input trials are removed. This source gate does
-not replace exact-DMG live acceptance. The earlier unexplained bare-Electron exit and `pwd` → `pwda`
-failure remain in the evidence; passing checks do not establish their cause or erase input-isolation
-concerns.
-
-[CI run 407](https://github.com/ljang0/sia-v2/actions/runs/42027820059) passed on `65acc34`,
-including the full pilot gate and unsigned universal package verification. The signed-release
-job was skipped. Receipt: `retained-source-ci407.json`. No new DMG was produced.
+Native gate, 65 host input tests, desktop build, type and quality checks, signed package/runtime
+verification and installed strict signature checks passed. The full pilot gate passed before
+this input repair on `cf1ea44`; it must run again on final retained source. These checks do not
+replace exact-candidate useful task acceptance.
 
 ## Live results that determine readiness
+
+### Vision pointer focus: duplicate opens, capture blocks completion
+
+Signed `f83319c`, thread `eb571fb1-c5dc-4f30-9363-7eebb06a3998`, turn
+`1daff45b-8502-4612-a55c-bc81fcb873a0`, ran an ordinary request to preserve an open errands
+checklist, make a copy, add leaving-home items and save it beside the original. Background
+Cmd+Shift+S opened a duplicate. Its capture refused twice with `popover_window_unmatched`;
+Sia stopped without typing or saving. The run failed after 60.828 seconds with no operator rescue.
+All seven protected RTFs remained byte-identical. No concurrent typing check was performed.
+Post-terminal CUA could capture the untitled duplicate; this does not explain the earlier failure.
+
+Automatic AWS verification matched the prompt, nine actions, three PNGs, 22 usage events and
+failure outcome in one encrypted 75-event batch. Receipts: `vision-focus-acceptance.json`,
+`vision-focus-installation.json` and `native-archive-verification-1daff45b-8502-4612-a55c-bc81fcb873a0.json`.
+During setup, the full CUA-typed prompt appeared only after Open Sia brought the window forward.
+Background rendering is being repaired separately; the run is not an acceptance pass.
 
 ### WindowServer ownership diagnostic: input destination matches the panel owner
 

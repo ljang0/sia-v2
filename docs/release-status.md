@@ -38,7 +38,7 @@ failing path. Automated checks protect changes; they do not replace useful live 
 Do not repeat failed transport variants, remove safety checks, introduce semantic UI fallbacks,
 or count manually rescued runs as passes. Keep unsuccessful trials out of the retained runtime.
 
-## Recording-control repair in source
+## Recording-control repair
 
 A controller-level regression reproduced three cases: pause then resume, decline then re-consent,
 and delete then re-consent while the same task was still running. Raw recording resumed for that
@@ -50,7 +50,7 @@ New tasks still record after Resume. All three regressions failed before and pas
 repair; the adjacent recording, finalization and account suite passed (37 tests). The full
 `pnpm test:pilot` gate passed: 2,126 desktop unit tests, 46 desktop E2E, 48 renderer and 72 companion
 checks, plus build/static/shared/cloud/native checks (23 desktop unit and five E2E skips). Private
-log: `public-readiness-pilot.log`. This source change is not installed or live-AWS verified and does
+log: `public-readiness-pilot.log`. This source change is installed in `f83319c`; live pause/resume/delete verification remains open and does
 not resolve the navigation-only screenshot failure. The separate local diagnostic log remains
 controlled by its existing Computer setting; Privacy now makes that distinction explicit.
 
@@ -63,12 +63,19 @@ linting and packaging tools. No dependency versions were changed in this repair.
 fix requires version 11, whose upstream changelog removes APIs; a blanket major-version override
 has not been validated. These findings remain open in the public release audit.
 
-## Latest startup observation
+## Latest useful-task and UI observation
 
-An ordinary launch of the unchanged signed internal app reached the composer without using
-Open Sia. CUA clicked the composer, entered an unsent test sentence, verified it visually, cleared
-it and quit. No model task ran. This is one successful observation, not a repair or a claim that
-previous intermittent blank-window failures are resolved.
+Signed `f83319c` corrects coordinate focus so vision keyboard input uses pointer clicks, preserving
+host-only editable-field and exact-window checks. The ordinary TextEdit copy-and-edit request
+opened a duplicate in the background, then failed after 60.828 seconds because capture could not
+match its popover (`popover_window_unmatched`). No save or content edit occurred; all seven
+protected RTFs remain unchanged. AWS matched the prompt, nine actions, three PNGs, 22 usage
+records and terminal failure. No operator rescue or concurrent typing check occurred.
+
+CUA typed the complete request into Sia, but it appeared only after Open Sia brought the window
+forward. Production background throttling differs from the test harness, which disables it.
+The renderer repair is under test; it does not resolve native popup capture or establish input isolation.
+Details and exact installed identity are in the [distribution record](./public-release.md).
 
 ## Current native blocker
 
@@ -139,10 +146,9 @@ new causal distinction. Detailed failed and successful runs remain in the
 
 ## Current artifacts
 
-- Installed internal arm64 QA: `d67df60156fec3b1d63c7073504ac38cb0d6a78d`, Developer ID signed.
+- Installed internal arm64 QA: `f83319c06c16c3e721cedfa67714d627fe6408c2`, Developer ID signed.
   Native regression, desktop build, quality, package/runtime and installed strict-signature
-  checks passed. The full pilot gate passed on `8326bcb`, whose runtime source matches this
-  installed candidate. Not notarized; not a DMG.
+  checks passed. The full pilot gate passed on `cf1ea44` before the latest input change; rerun on retained source. Not notarized; not a DMG.
 - Held universal alpha.122 DMG: source `7531ee7f3115265817e8dd56cf081672799bd8f4`, signed,
   notarized, stapled and verified, but missing later fixes. Do not hand it to the RA.
 - Exact hashes, installed time, rollback and receipts have one authoritative table in the

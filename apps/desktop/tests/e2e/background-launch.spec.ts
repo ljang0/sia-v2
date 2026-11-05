@@ -53,6 +53,78 @@ test('a background launch serves the typed bridge without showing its window', a
     await expect
       .poll(() => harness.page.evaluate(() => document.visibilityState))
       .toBe('visible');
+    expect(
+      await harness.application.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0]!.webContents.getBackgroundThrottling(),
+      ),
+    ).toBe(false);
+    await harness.page.evaluate(() => {
+      const state = window as typeof window & { testFrames: number };
+      state.testFrames = 0;
+      const count = () => {
+        state.testFrames++;
+        requestAnimationFrame(count);
+      };
+      requestAnimationFrame(count);
+    });
+    await expect
+      .poll(() =>
+        harness.page.evaluate(
+          () => (window as typeof window & { testFrames: number }).testFrames,
+        ),
+      )
+      .toBeGreaterThan(1);
+    const coverId = await harness.application.evaluate(({ BrowserWindow }) => {
+      const main = BrowserWindow.getAllWindows()[0]!;
+      const cover = new BrowserWindow({ ...main.getBounds(), show: true });
+      return cover.id;
+    });
+    const beforeCover = await harness.page.evaluate(
+      () => (window as typeof window & { testFrames: number }).testFrames,
+    );
+    await expect
+      .poll(() =>
+        harness.page.evaluate(
+          () => (window as typeof window & { testFrames: number }).testFrames,
+        ),
+      )
+      .toBeGreaterThan(beforeCover + 2);
+    await harness.application.evaluate(({ BrowserWindow }, id) => {
+      BrowserWindow.fromId(id)!.destroy();
+    }, coverId);
+    // Closing to the background must stop painting again, without stopping the bridge.
+    await harness.application.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]!.hide();
+    });
+    await expect
+      .poll(() =>
+        harness.application.evaluate(({ BrowserWindow }) =>
+          BrowserWindow.getAllWindows()[0]!.webContents.getBackgroundThrottling(),
+        ),
+      )
+      .toBe(true);
+    expect(
+      await harness.application.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0]!.isVisible(),
+      ),
+    ).toBe(false);
+    await harness.page.evaluate(() => window.sia.bootstrap());
+    // Electron's visibilityState can lag when throttling changes. Check frames,
+    // the behavior needed here, rather than treating that flag as a paint receipt.
+    await harness.application.evaluate(
+      () => new Promise((resolve) => setTimeout(resolve, 200)),
+    );
+    const frames = await harness.page.evaluate(
+      () => (window as typeof window & { testFrames: number }).testFrames,
+    );
+    await harness.application.evaluate(
+      () => new Promise((resolve) => setTimeout(resolve, 200)),
+    );
+    expect(
+      await harness.page.evaluate(
+        () => (window as typeof window & { testFrames: number }).testFrames,
+      ),
+    ).toBe(frames);
     expect(harness.rendererErrors).toEqual([]);
   } finally {
     await harness.close();
