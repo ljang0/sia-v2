@@ -104,8 +104,10 @@ a different window, replaced sheet, missing visibility or unproved ancestry stil
 The model receives screenshots, not AX content, and visual text entry uses keyboard events.
 An explicit `no_focused_text_input` preflight refusal is now recorded as refused rather than
 uncertain delivery. Each correction has a failing-before/passing-after regression. Signed
-package/runtime and installed strict-signature checks passed. The current full pilot stopped at
-a documentation-formatting error; correct that and rerun before review or handoff.
+package/runtime and installed strict-signature checks passed. After correcting the documentation
+formatting failure, the full pilot passed on `283d1f4` (the same functional source as installed
+`6b24a04`): 2,101 desktop tests (23 skipped), 46 Electron checks (five skipped), 48 renderer
+and 72 companion checks, plus build/static/shared/cloud/native gates. The failed first log is retained.
 
 Failed diagnostics remain failed: `04fdb7d` refused visibility (35.122 seconds), `b15d68c` fixed
 visibility but refused the sheet's Select All menu context (55.279 seconds), and `d4b4f73` fixed

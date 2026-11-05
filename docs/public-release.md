@@ -20,9 +20,10 @@ Nothing has been published, sent to a recipient or submitted to Arena by this wo
 | Rollback               | `Sia QA alpha122 before sheet field.app`                             |
 
 Package/runtime verification and installed deep/strict signature checks passed. Targeted native
-ownership/menu checks and 37 desktop regressions passed. The current full pilot stopped at a
-formatting error in this document; a corrected full rerun is required. Prior `52a81f3` passed the
-full suite. Its preceding unexplained bare-Electron exit and earlier `pwd` → `pwda` failure remain
+ownership/menu checks and 37 desktop regressions passed. After fixing this document’s formatting,
+the full pilot passed on `283d1f4`, with the same functional source as installed `6b24a04`: 2,101
+desktop tests (23 skipped), 46 Electron checks (five skipped), 48 renderer and 72 companion checks,
+plus build/static/shared/cloud/native gates. Both full-run logs are retained. Its preceding unexplained bare-Electron exit and earlier `pwd` → `pwda` failure remain
 in the evidence; a passing targeted workflow does not erase input-isolation concerns.
 
 ## Live results that determine readiness
