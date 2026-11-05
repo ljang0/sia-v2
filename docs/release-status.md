@@ -76,15 +76,22 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-The next bounded diagnostic distinguishes the Open panel's input owner from its host window.
-Operator CUA reported an out-of-process click failure, while its app keyboard route opened
-Go to Folder. The temporary native label records only whether the focused input belongs to the
-target process and requested raw window, immediately before background key delivery. No names,
-IDs, values or keys are logged, and dispatch is unchanged. If the input belongs to another
-process, investigate exact service ownership; if it belongs to TextEdit, reject that hypothesis
-and compare the window-key preparation. This is a diagnostic decision, not useful-task acceptance;
-remove the temporary label after it resolves the distinction. Do not repeat the old envelope-free
-or public-event transport experiments without new evidence.
+Signed diagnostic `9e7e436` reproduced the Open-panel failure in 44.912 seconds. The focused
+input reported the target process but no raw window ID. That does not exclude a remote AX proxy,
+so it does not justify redirecting events to a service process. Operator CUA then opened Go to
+Folder with Cmd+Shift+G on that exact still-open failed dialog, without reopening it first.
+Escape twice restored the document, and all eight protected files remain unchanged. AWS matches
+six actions, four screenshots and 14 usage events in one 45-record batch with one finalization.
+Receipt: `open-owner-diagnostic.json`; this is diagnosis, not useful-task acceptance.
+
+The temporary ownership label is removed. The next functional trial connects the existing native
+menu-key delivery path only after an exact-window native menu command returns background
+unavailable. Ordinary keys and Chromium keep their existing delivery. The relevant distinction
+from prior failed filename transport trials is a recognized menu shortcut handled by an Open
+panel; the standard authenticated path bypasses native menu-equivalent dispatch according to the
+driver implementation. No global HID input, foreground activation, guessed service PID, retry or
+permission relaxation is introduced. Existing menu-safety refusals still stop before key delivery.
+The unchanged ordinary document request must validate this trial; a posted event is not success.
 
 The next evidenced defect is native sheet keyboard routing. On signed `1269df9`, an ordinary
 request to make a printable comparison of the two researched Saturday plans failed after

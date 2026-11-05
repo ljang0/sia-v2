@@ -8152,10 +8152,23 @@ index 133dff9..dceb43f 100644
          }
          for prefetched in [Some(Err(anyhow::anyhow!("old error"))), None] {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
-index 2bf28e0..480fa9c 100644
+index 2bf28e0..fa3ab69 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
-@@ -68,6 +68,7 @@ fn def() -> &'static ToolDef {
+@@ -44,8 +44,10 @@ fn def() -> &'static ToolDef {
+                menu item's key equivalent (cmd+s, cmd+w, ...) and the app is not in \
+                front, that menu item runs through accessibility instead (a disabled \
+                Save is saved through the app's scripting interface and verified on \
+-               disk); a menu item macOS keeps disabled in the background is refused \
+-               with `background_unavailable`, and no keys are sent.\n\
++               disk). If native menu dispatch is unavailable, send one native \
++               key-equivalent sequence under the same exact-window checks and \
++               verify its effect from a screenshot. Target-safety refusals never \
++               fall through to key delivery.\n\
+              • `foreground`: briefly front the window (NSMenu path, < 1 ms via \
+                SLPSSetFrontProcessWithOptions) so native menu key-equivalents \
+                (Cmd+Z, Cmd+W) dispatch, then restore the prior frontmost — the \
+@@ -68,6 +70,7 @@ fn def() -> &'static ToolDef {
              "type": "object",
              "required": ["keys"],
              "properties": {
@@ -8163,7 +8176,7 @@ index 2bf28e0..480fa9c 100644
                  "session": { "type": "string", "description": "For multi-call work, prefer a short public session label and repeat it on every call that accepts it. Omit it to use the authenticated transport's implicit lifecycle session." },
                  "pid": { "type": "integer", "description": "Target process ID. Required with x, y; optional with element_token (the token carries the pid)." },
                  "keys": {
-@@ -289,68 +290,6 @@ impl Tool for HotkeyTool {
+@@ -289,68 +292,6 @@ impl Tool for HotkeyTool {
              return error;
          }
  
@@ -8232,7 +8245,7 @@ index 2bf28e0..480fa9c 100644
          // ── Paste must not land in browser chrome ──
          // A background Cmd+V goes to the window's first responder. In a
          // browser that can be the omnibox rather than the page field the
-@@ -409,13 +348,11 @@ impl Tool for HotkeyTool {
+@@ -409,13 +350,11 @@ impl Tool for HotkeyTool {
              None
          };
  
@@ -8251,7 +8264,7 @@ index 2bf28e0..480fa9c 100644
  
          // Web-content AX nodes can acknowledge AXFocused without moving the
          // renderer's real first responder. That makes a direct focus write an
-@@ -444,10 +381,7 @@ impl Tool for HotkeyTool {
+@@ -444,10 +383,7 @@ impl Tool for HotkeyTool {
                          guard.as_ptr() as crate::ax::bindings::AXUIElementRef,
                      )?;
                      let frame = super::px_frame::resolve_window_px_frame(wid).ok()?;
@@ -8263,7 +8276,7 @@ index 2bf28e0..480fa9c 100644
                  })
                  .await
                  .unwrap_or(None)
-@@ -484,6 +418,7 @@ impl Tool for HotkeyTool {
+@@ -484,6 +420,7 @@ impl Tool for HotkeyTool {
                      args.opt_str("_session_id"),
                      from_zoom,
                      _mutation_lease.as_ref(),
@@ -8271,18 +8284,20 @@ index 2bf28e0..480fa9c 100644
                  )
                  .await
                  {
-@@ -495,6 +430,79 @@ impl Tool for HotkeyTool {
+@@ -495,6 +432,82 @@ impl Tool for HotkeyTool {
              }
          };
  
++        let mut native_menu_fallback = false;
++
 +        // Resolve a native menu equivalent only AFTER the requested coordinate
 +        // or element has focus, under the same exact-window mutation lease.
 +        // Background key events reach a window's views but never its app's
 +        // menu key equivalents, so a background cmd+s to TextEdit saved
 +        // nothing while reporting "Pressed". When the combo is a menu item's
 +        // key equivalent in a native app that is not in front, run that menu
-+        // item in the background instead (verified for Save), or refuse when
-+        // macOS keeps it disabled. No key events are sent on this route.
++        // item in the background instead (verified for Save). An unavailable
++        // menu may use the native key-equivalent path; safety refusals stop here.
 +        if !fg {
 +            if let (Some(wid), Some(combo)) = (
 +                window_id,
@@ -8343,6 +8358,7 @@ index 2bf28e0..480fa9c 100644
 +                        eprintln!("[sia:cua-input] menu_dispatch=returned");
 +                        return menu_result;
 +                    }
++                    native_menu_fallback = true;
 +                    eprintln!("[sia:cua-input] menu_dispatch=unavailable_key_fallback");
 +                }
 +            }
@@ -8351,63 +8367,37 @@ index 2bf28e0..480fa9c 100644
          let _hold_key_scope = &key_scope;
  
          // A focus click already moved the cursor. Otherwise place a named
-@@ -538,6 +546,9 @@ impl Tool for HotkeyTool {
+@@ -538,6 +551,18 @@ impl Tool for HotkeyTool {
                  tokio::task::spawn_blocking(move || {
                      let element_ptr = element_guard.as_ref().map(|guard| guard.as_ptr());
                      let m: Vec<&str> = modifiers.iter().map(String::as_str).collect();
-+                    if !fg {
-+                        log_background_focus_owner(pid, window_id);
-+                    }
++                    // A native panel can implement a key equivalent even while the
++                    // host app's menu item is disabled. Use the native event-loop
++                    // path for that fallback; the authenticated Chromium route
++                    // bypasses menu-equivalent dispatch. This is one attempt,
++                    // under the same exact-window lease, never a global HID event.
++                    let background_key = || {
++                        if native_menu_fallback {
++                            crate::input::keyboard::hotkey_no_auth(pid, &key, &m)
++                        } else {
++                            crate::input::keyboard::hotkey(pid, &key, &m)
++                        }
++                    };
                      match (fg, coordinate_focus, window_id, element_ptr) {
                          // Chrome's native omnibox and Chromium/Electron inputs
                          // require a genuine foreground HID chord. Keep the exact
-@@ -616,6 +627,46 @@ impl Tool for HotkeyTool {
-     }
- }
- 
-+// Temporary diagnosis for the native Open-panel failure. Read only identity
-+// relationships, never field contents, names, IDs or the requested key. This
-+// distinguishes a remote focused input from same-process key delivery without
-+// changing the target, focus guard or transport.
-+fn log_background_focus_owner(pid: i32, requested_window: Option<u32>) {
-+    use crate::ax::bindings::{
-+        ax_get_window_id, copy_element_attr, focused_element_of_pid, kAXErrorSuccess,
-+        AXUIElementGetPid,
-+    };
-+    use core_foundation::base::{CFRelease, CFTypeRef};
-+
-+    unsafe {
-+        let Some(focused) = focused_element_of_pid(pid) else {
-+            eprintln!("[sia:cua-input] key_focus_owner=unavailable key_focus_window=unavailable");
-+            return;
-+        };
-+        let mut owner = 0;
-+        let owner_label = if AXUIElementGetPid(focused, &mut owner) != kAXErrorSuccess {
-+            "unavailable"
-+        } else if owner == pid {
-+            "target_process"
-+        } else {
-+            "other_process"
-+        };
-+        let focused_window = copy_element_attr(focused, "AXWindow");
-+        let raw_window = focused_window.and_then(|window| {
-+            let id = ax_get_window_id(window);
-+            CFRelease(window as CFTypeRef);
-+            id
-+        });
-+        CFRelease(focused as CFTypeRef);
-+        let window_label = match (raw_window, requested_window) {
-+            (Some(actual), Some(requested)) if actual == requested => "requested_surface",
-+            (Some(_), Some(_)) => "other_surface",
-+            _ => "unavailable",
-+        };
-+        eprintln!("[sia:cua-input] key_focus_owner={owner_label} key_focus_window={window_label}");
-+    }
-+}
-+
- fn menu_allows_key_fallback(result: &ToolResult) -> bool {
-     result.is_error == Some(true)
-         && result
+@@ -584,9 +609,9 @@ impl Tool for HotkeyTool {
+                         // raise — even when window_id was supplied for targeting.
+                         (false, false, _, Some(ptr)) => {
+                             focus_hotkey_element(pid, ptr)?;
+-                            crate::input::keyboard::hotkey(pid, &key, &m)
++                            background_key()
+                         }
+-                        _ => crate::input::keyboard::hotkey(pid, &key, &m),
++                        _ => background_key(),
+                     }
+                 })
+                 .await
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs
 index 841d8d0..e3f1d4a 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs
