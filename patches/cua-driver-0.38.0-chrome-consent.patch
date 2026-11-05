@@ -7162,7 +7162,7 @@ index 1b34151..882bacd 100644
          assert_eq!((local_x, local_y), capture_local);
  
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
-index 136e0c9..7cd1795 100644
+index 136e0c9..d659108 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
 @@ -65,9 +65,11 @@ pub enum KeyPrime {
@@ -7295,7 +7295,38 @@ index 136e0c9..7cd1795 100644
  pub(super) fn set_window_location(event_ptr: *mut c_void, x: f64, y: f64) -> bool {
      match set_window_loc_fn() {
          Some(f) => {
-@@ -1629,10 +1681,69 @@ mod key_prime_tests {
+@@ -1143,6 +1195,30 @@ pub fn get_process_psn_for_window(window_id: u32, pid: libc::pid_t, out_psn: &mu
+     false
+ }
+ 
++/// Temporary read-only diagnostic: resolve the exact WindowServer owner without
++/// the caller-PID fallback used by focus preparation. No AX proxy is consulted.
++pub(crate) fn window_server_owner_matches_pid(window_id: u32, pid: pid_t) -> Option<bool> {
++    let get_owner = get_window_owner_fn()?;
++    let get_psn = get_connection_psn_fn()?;
++    let connection = connection_id_fn()?;
++    let to_pid = get_process_pid_fn()?;
++    let mut owner_connection = 0u32;
++    let mut psn = [0u8; 8];
++    let mut owner_pid = 0;
++    unsafe {
++        if get_owner(connection(), window_id, &mut owner_connection) != 0
++            || owner_connection == 0
++            || get_psn(owner_connection, psn.as_mut_ptr().cast()) != 0
++            || psn == [0u8; 8]
++            || to_pid(psn.as_ptr().cast(), &mut owner_pid) != 0
++            || owner_pid <= 0
++        {
++            return None;
++        }
++    }
++    Some(owner_pid == pid)
++}
++
+ /// Return whether WindowServer currently considers the exact window's process
+ /// frontmost. Unlike `NSWorkspace.frontmostApplication`, this query does not
+ /// depend on the caller's AppKit run loop processing an activation update.
+@@ -1629,10 +1705,69 @@ mod key_prime_tests {
      fn at(window: Option<u32>, element_window: Option<u32>) -> KeyFocus {
          KeyFocus {
              window,
@@ -7365,7 +7396,7 @@ index 136e0c9..7cd1795 100644
      #[test]
      fn already_key_sends_nothing() {
          let r = prime_exact_window_key(
-@@ -1732,22 +1843,44 @@ mod key_prime_tests {
+@@ -1732,22 +1867,44 @@ mod key_prime_tests {
          assert_eq!(r, Ok(KeyPrime::KeyRecords));
      }
  
@@ -8237,7 +8268,7 @@ index 133dff9..dceb43f 100644
          }
          for prefetched in [Some(Err(anyhow::anyhow!("old error"))), None] {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
-index 2bf28e0..44c1337 100644
+index 2bf28e0..c4946d2 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
 @@ -68,6 +68,7 @@ fn def() -> &'static ToolDef {
@@ -8436,6 +8467,21 @@ index 2bf28e0..44c1337 100644
          let _hold_key_scope = &key_scope;
  
          // A focus click already moved the cursor. Otherwise place a named
+@@ -538,6 +546,14 @@ impl Tool for HotkeyTool {
+                 tokio::task::spawn_blocking(move || {
+                     let element_ptr = element_guard.as_ref().map(|guard| guard.as_ptr());
+                     let m: Vec<&str> = modifiers.iter().map(String::as_str).collect();
++                    if !fg {
++                        if let Some(wid) = window_id {
++                            eprintln!(
++                                "[sia:cua-input] window_server_owner_matches_target={:?}",
++                                crate::input::skylight::window_server_owner_matches_pid(wid, pid)
++                            );
++                        }
++                    }
+                     match (fg, coordinate_focus, window_id, element_ptr) {
+                         // Chrome's native omnibox and Chromium/Electron inputs
+                         // require a genuine foreground HID chord. Keep the exact
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs
 index 841d8d0..e3f1d4a 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs
