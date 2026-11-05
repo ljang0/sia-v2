@@ -1,28 +1,30 @@
 # Distribution acceptance record
 
-**RA handoff is held.** One useful native workflow passed on an earlier internal candidate.
-The current Chrome setup repair works, but the fresh browser task after restart still pauses
-before input. No complete concurrent-use or exact-DMG acceptance is claimed. Nothing has been
+**RA handoff is held.** A useful browser task after restart passed on the current internal
+candidate, and one native workflow passed on an earlier candidate. Input isolation and exact-DMG
+acceptance remain open. Nothing has been
 published, sent to a recipient or submitted to Arena by this work.
 
 ## Current installed candidate
 
 | Identity               | Value                                                                |
 | ---------------------- | -------------------------------------------------------------------- |
-| Source                 | `4e5724b69b9d96a41aface3d688e8de49742fa47`                           |
-| Installed              | November 5, 2026, 01:27:32 UTC (November 4 Eastern)                  |
+| Source                 | `b7c1f36222057936f3cced1f39ccf9ef0997bc24`                           |
+| Installed              | November 5, 2026, 01:49:02 UTC (November 4 Eastern)                  |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG     |
-| ASAR SHA-256           | `d3815ca4badd5f7c3c4f7ffb13fc4f5026232eaab3564493b683cd052ca57029`   |
+| ASAR SHA-256           | `38992a1089b818e2d145a7e330b79dbe0c3344400e3394df57e836554f9fa8ee`   |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`   |
 | Native patch SHA-256   | `bbcfb1c11772237654983f967756cea4458ea662e3ecc9993cbdf71fc2b964ff`   |
 | Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before consent cadence.app`                         |
+| Rollback               | `Sia QA alpha122 before window activation.app`                       |
 
-Package/runtime verification and installed deep, strict signature checks passed. The external
+Package/runtime verification and installed deep, strict signature checks passed. The current
+activation change passed build, type/lint/format and the existing window-close/reopen Electron
+check. Its full pilot passed: 2,089 desktop tests (23 skipped), 46 Electron (five skipped),
+48 renderer and 72 companion tests, plus cloud/shared/native/build/static checks. The external
 Chrome-policy regression failed with the old 100 ms retry cadence; all 14 native consent checks
-pass after the change. The selection repair passed 138 affected checks. The full pilot gate passed for this application source: 2,089 desktop tests (23 skipped),
-46 Electron tests (five skipped), 48 renderer tests and 72 companion tests, plus the required
-cloud/shared/native/build/static checks. These checks do not establish useful-task acceptance.
+pass after the change. The selection repair passed 138 affected checks. These automated checks
+do not establish useful-task acceptance.
 
 ## Live results that determine readiness
 
@@ -41,7 +43,38 @@ of earlier failed dialogs and selection of the public window through Chrome's Wi
 diagnostic setup, not autonomous task evidence. Receipts: `consent-diagnostic.json`,
 `consent-installation.json`, `consent-setup-pass.json` and their logs.
 
-### Fresh browser task after restart: incomplete
+### Fresh browser task after restart: passed on the current candidate
+
+`b7c1f36` makes explicit app opening activate Sia as well as its Electron window, and adds
+**Sia → Open Sia** to the same path. After installed-app replacement/restart, CUA used that menu,
+started a fresh conversation with **Personal visitor planner**, and submitted the same ordinary
+CMU visitor request described below. No reconnect, Continue, task coaching or browser input was
+provided by the operator during execution. The model recovered the retained exact Chrome window
+and reused its existing public tab through screenshot-based navigation, scrolling and clicking.
+
+Thread `3801059e-c294-4ea9-ae36-5dddeb821d67`, turn `88c0b315-021a-490c-b768-b577a218f2cc`,
+started at 01:52:20.398 UTC on November 5. The reply arrived after **195.354 seconds**;
+completion settled after **214.348 seconds**. The first snapshot required autonomous connection
+recovery. A checkpoint also failed, and a 57.6-second gap preceded report writing; no continuous
+latency claim is made. The final result completed without rescue.
+
+The 6,770-byte `cmu-visitor-plan.md` was read back from disk and opened through Sia's CUA-operated
+preview. SHA-256: `4d01cc29de9396fd40f7ad9e0f41a8337c83ab43f4ada11c66c35588fdb2a392`.
+Recorded screenshots corroborate museum admission/hours, café hours and transit fares; budget
+arithmetic is correct. Menu prices, date-specific availability, live routing and weather are
+explicitly unverified. The plan gives a walking itinerary and rainy alternative without booking.
+An unsent draft was typed and extended during browser actions and remained intact at completion.
+Observed composer focus persisted; continuous focus and clipboard preservation were not measured.
+Immediate CUA typing observations showed prefixes before later observations showed full text.
+
+Automatic AWS verification matched the exact prompt, all **23 actions**, **13 PNGs**, **44 usage
+records** and completion across **11 batches** (175 stored records, 157 reassembled logical events).
+All object hashes, lengths and KMS checks passed. The first audit script ignored `raw.event_chunk`
+and falsely reported missing actions; validating and reassembling six chunked events resolved it.
+Private `window-activation-acceptance/acceptance.json` and archive receipts preserve both the
+method correction and result. No manual upload was performed.
+
+### Earlier browser restart attempt: failed, retained
 
 Fresh agent **Personal visitor planner**, with ordinary instructions and the default
 GPT-6.1-Sol/ChatGPT plan, received a practical CMU visitor request: Saturday afternoon, no car,
@@ -57,9 +90,9 @@ established. Connection setup cannot inherit the exception for already-bound pag
 Chrome consent dialog can affect another window the person is using. No plan or browser screenshot
 was produced. No operator clicked Continue or rescued the run.
 
-The attempted unsent draft did not appear in Sia, so this run proves no typing latency or input
-isolation. Before submission, rebinding CUA to the restarted app allowed the full prompt to be
-entered and verified. Continuous focus and clipboard preservation remain unmeasured.
+The attempted unsent draft did not appear in the immediate observation; it was visible after the
+next app restart. This run proves no typing latency or input isolation. Before submission,
+rebinding CUA to the restarted app allowed the full prompt to be entered and verified.
 
 AWS automatically archived the exact prompt, terminal event, 40 events, six provider-usage records
 and six matching action results in one batch. Zero screenshots is correct for this failed run.
@@ -122,7 +155,7 @@ ready** and **Speaking…**. After disabling a competing development Fn helper, 
 
 ## Remaining decision
 
-Keep the PR draft. Required work includes useful browser completion after restart, continuous
+Keep the PR draft. Required work includes repeatable browser recovery, continuous
 focus/text/clipboard isolation, the earlier unexplained filename input, repeated native work,
 two simultaneous native workflows, contention/Stop/recovery and measured responsiveness. Test
 the exact final DMG. Fresh-account/second-Mac access is unavailable; broader sleep/lock, Intel

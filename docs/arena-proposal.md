@@ -36,12 +36,14 @@ it. It took about 150 seconds; independent screenshots and the unchanged file ha
 completion. Earlier browser research produced useful checked outputs but required setup or
 continuation interventions. Overlapping runs do not yet establish two successful native workflows.
 
-The current internal candidate completes Chrome's initial connection in about 1.15 seconds and
-retains the chosen public window after Sia restarts. Its fresh visitor-planning task still paused
-before recovery because Chrome was active. No completed browser result or input-isolation pass
-is claimed for that run. Automatic AWS archives have been independently matched to both the
-successful native task and this failed browser attempt. Exact identities, timings and limits are
-in the [acceptance record](./public-release.md); these internal repairs are newer than the held DMG.
+The current internal candidate completed a fresh visitor-planning task after restart without
+rescue: it recovered the retained public Chrome window, researched official sources and saved a
+checked itinerary and budget. The reply took about 195 seconds, with terminal settlement at 214
+seconds. An unsent Sia draft remained intact during browser work; continuous focus/clipboard
+isolation is not yet established. AWS independently matched the prompt, 23 actions, 13 screenshots,
+44 usage records and completion. The earlier failed restart attempt remains in the evidence.
+Exact identities, timings and limits are in the [acceptance record](./public-release.md);
+these internal repairs are newer than the held DMG.
 
 Repeatable Chrome recovery, input isolation and exact-installer acceptance remain RA handoff
 gates. Two native-app tasks, contention, off-Space behavior and physical lock/sleep/voice acceptance

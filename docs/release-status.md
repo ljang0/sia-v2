@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 4, 2026. **A signed, notarized alpha.122 DMG exists, but RA handoff is blocked by native background input and input-isolation failures. It does not contain the latest internal browser and native-workflow fixes. Broad distribution and Arena acceptance remain open.**
+Updated November 4, 2026. **Useful browser research after restart and an earlier native document workflow have completed without rescue on signed internal builds. RA handoff remains held for input isolation and exact-installer acceptance. The notarized alpha.122 DMG lacks these later fixes; broad distribution and Arena acceptance remain open.**
 
 ## Bounded RA handoff goal
 
@@ -76,17 +76,26 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-Signed internal `4e5724b` fixes an evidenced Chrome consent timing failure. The preceding
+Signed internal `b7c1f36` activates Sia as well as its window when the person explicitly opens it,
+and exposes that canonical action as **Sia → Open Sia**. Merely showing/focusing the Electron
+window could leave another app active. Task-time background actions do not invoke this path.
+After opening the installed app through CUA, an ordinary visitor-planning request recovered the
+retained Chrome connection and finished without operator rescue. Its report, sources, arithmetic
+and automatic AWS archive were independently checked. An unsent draft remained intact and
+focused at observed points while browser actions ran. This is not a continuous focus/clipboard
+measurement or evidence for another foreground Chrome window.
+
+The included `4e5724b` fix addresses an evidenced Chrome consent timing failure. The preceding
 candidate found the exact sheet in 9 ms but retried its button every 100 ms; Chrome's rapid-input
 protection kept rejecting those events. Action retries now respect the system double-click
 interval plus 50 ms. The deadline, native-sheet identity and disappearance checks remain.
 The regression failed before the change; 14 consent checks pass after it.
 
-The installed repair completed initial setup through Sia Settings: consent settled in 1,148 ms
+That installed repair completed initial setup through Sia Settings: consent settled in 1,148 ms
 and the approved public window showed **Attached**, without operator Allow input. After restart,
 a fresh agent identified that same window and attempted recovery itself. The useful visitor-plan
-request then paused before input because the host reported Chrome foreground. No research result
-was produced. This proves initial setup and retained selection, not completed browser recovery.
+request then paused before input because the host reported Chrome foreground. That failed run
+remains in the evidence; the successful `b7c1f36` run used a fresh conversation after restart.
 Do not relax the setup guard merely because already-bound page actions can use a different Chrome
 window: a new consent dialog may affect the person's active browser window.
 
@@ -97,10 +106,10 @@ repeated on the exact final DMG. The earlier unexpected filename input remains u
 
 ## Current artifacts
 
-- Installed internal arm64 QA: `4e5724b69b9d96a41aface3d688e8de49742fa47`, Developer ID signed,
+- Installed internal arm64 QA: `b7c1f36222057936f3cced1f39ccf9ef0997bc24`, Developer ID signed,
   package/runtime and installed strict-signature checks passed. Not notarized and not a DMG.
   The full pilot gate passed: 2,089 desktop, 46 Electron, 48 renderer and 72 companion tests,
-  plus cloud/shared/native/build/static checks.
+  plus cloud/shared/native/build/static checks. The window-close/reopen check passed too.
 - Held universal alpha.122 DMG: source `7531ee7f3115265817e8dd56cf081672799bd8f4`, signed,
   notarized, stapled and verified, but missing later fixes. Do not hand it to the RA yet.
 - Exact hashes, task identities, timings and private receipt locations are in the concise
@@ -111,22 +120,28 @@ repeated on the exact final DMG. The earlier unexpected filename input remains u
 | Requirement | Evidence | Remaining work |
 | --- | --- | --- |
 | Useful native work | One fresh-agent rename/review/close/reopen pass on `8dc8e14`; target file unchanged | Repeat on final DMG; broader native workflows |
-| Useful browser work | Earlier research outputs required interventions; current initial connection succeeds | Finish an ordinary task after restart without rescue |
-| Reuse access | Exact public-window selection survives Sia restart; agent attempts recovery | Recover without disrupting the person's active work |
-| Input isolation and CUA controls | Prompt submission works after rebinding to restarted QA; earlier draft stayed intact | Current draft attempt did not appear; no continuous focus/clipboard/latency pass; resolve filename incident |
-| Automatic AWS recording | Earlier native pass: exact prompt, 175 events, 48 usage, 27 actions, 17 matching PNGs. Latest failed restart: 40 events, 6 usage, 6 actions, terminal capture | Reverify complete useful runs on final DMG |
+| Useful browser work | Fresh conversation on `b7c1f36` completed sourced visitor plan after restart, without rescue; reply in 195 seconds | Repeat on final DMG; repeatability |
+| Reuse access | Retained exact public window recovered autonomously on `b7c1f36` | Broader recovery while another Chrome window is in use |
+| Input isolation and CUA controls | CUA submitted prompt, edited an unsent draft during browser work and opened the result preview | No continuous focus/clipboard/latency pass; resolve earlier filename incident |
+| Automatic AWS recording | Current browser run: exact prompt, 175 stored records / 157 logical events, 44 usage, 23 actions, 13 byte-matching PNGs and completion; earlier native pass also matched | Reverify complete useful runs on final DMG |
 | Distribution | Older DMG's signing/notarization/package checks passed | One final installer containing accepted functional repairs |
 
-Latest restart thread `9ed5a7ab-7ddb-4f57-875e-8d941aa50192`, turn
+Earlier failed restart thread `9ed5a7ab-7ddb-4f57-875e-8d941aa50192`, turn
 `ba9232f2-92a5-4fbc-852a-3efd8b6a2e92`, ended after 20.274 seconds. Inventory initially reported
 Slack active; the later setup guard reported Chrome active. The cause of the switch is not
 established. No operator clicked Continue, reconnected Chrome or supplied browser input during
 that task. The failed attempt remains failed. AWS hashes, lengths and KMS encryption matched via
 read-only verification; zero screenshots is appropriate because no browser image was obtained.
 
-The current full pilot passed on application source `4e5724b`; only evidence/docs changed afterward.
-The earlier native-workflow pass was on `8dc8e14`. Neither automated gate substitutes for complete
-installed-task acceptance.
+Current successful browser thread `3801059e-c294-4ea9-ae36-5dddeb821d67`, turn
+`88c0b315-021a-490c-b768-b577a218f2cc`, replied in 195.354 seconds and settled in 214.348 seconds.
+The 57.6-second gap before report writing is recorded, not treated as measured responsiveness.
+The archive verifier initially skipped large chunked events; reassembly confirmed every local
+action and image. This was a verifier defect, not missing application uploads. Exact evidence and
+remaining limits are in the [acceptance record](./public-release.md).
+
+The earlier native-workflow pass was on `8dc8e14`; full pilot results alone do not substitute for
+complete installed-task acceptance.
 The managed voice transport passed earlier live AWS/ElevenLabs checks and the owner confirmed
 that the microphone works. Physical Fn and a full spoken command remain independently unverified.
 
