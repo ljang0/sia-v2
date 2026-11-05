@@ -93,10 +93,16 @@ failed run with foreground rescue, weaken the exact-window guard or build specul
 
 Further inspection locates the refusal after native menu lookup, not key-window priming: both
 commands reached `menu_dispatch=returned` before the failure. Operator CUA selected the same
-path field without changing its contents. A single diagnostic candidate adds fixed labels to the
-existing menu-context predicate, preserving its decisions. Its bounded question is whether the
-sheet loses main-window proof or conflicts with another document's ownership; no input-route
-change or passing acceptance is claimed from that diagnostic.
+path field without changing its contents. The signed `13a8759` selection-only diagnostic reproduced
+`menu_context=main_not_document` in 49.965 seconds: Finder reports the focused modal sheet as
+its main surface. AWS matches seven actions, four PNGs and 16 usage events in one 51-record batch.
+This is diagnosis, not a useful-task pass (`menu-context-diagnostic.json`).
+
+The targeted fix accepts that main-sheet case only when focused/main/requested raw sheet IDs
+are identical and both ownership reads prove the same separate document. Missing ownership,
+siblings, parent-only requests and replaced/dismissed sheets still refuse; modal Save fallback
+remains disabled. The regression fails on the preceding predicate with `main_not_document`.
+Signed ordinary-task acceptance is pending.
 
 Cold restart on signed `bed8a3c` failed a fresh rainy-day museum request in 37.839 seconds:
 the saved choice survived but native preparation refused `background_unavailable` before

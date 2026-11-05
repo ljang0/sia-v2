@@ -8361,10 +8361,10 @@ index 841d8d0..e3f1d4a 100644
          let result = unbound_menu_window(42, 7, Some(8), None);
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu/context.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu/context.rs
 new file mode 100644
-index 0000000..796978c
+index 0000000..b263bbc
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu/context.rs
-@@ -0,0 +1,182 @@
+@@ -0,0 +1,231 @@
 +//! AppKit menu commands belong to the current document or its attached sheet.
 +//! Keep raw modal identity as well as ownership: replacing/dismissing a sheet
 +//! during lookup must invalidate the command even when its parent is unchanged.
@@ -8405,6 +8405,18 @@ index 0000000..796978c
 +        // Retain raw sheet identity for the pre-dispatch replacement check.
 +        if requested != main.raw && !(focused.sheet && requested == focused.raw) {
 +            return Err("requested_outside_context");
++        }
++        // Finder can expose Go to Folder as both focused and main. Accept
++        // only that exact modal surface with a separately proven document
++        // owner; an unresolved sheet keeps its own ID and cannot pass here.
++        if main.sheet
++            && focused.sheet
++            && main.raw == requested
++            && focused.raw == requested
++            && main.owner == focused.owner
++            && main.owner != main.raw
++        {
++            return Ok(Self { focused, main });
 +        }
 +        if main.owner != main.raw || main.sheet {
 +            return Err("main_not_document");
@@ -8486,6 +8498,43 @@ index 0000000..796978c
 +        let context = MenuContext::bind(9, focused, doc).unwrap();
 +        assert!(context.is_modal());
 +        assert_eq!(Ok(context), MenuContext::bind(7, focused, doc));
++    }
++
++    #[test]
++    fn exact_owned_sheet_can_be_both_focused_and_main() {
++        let modal = Some(sheet(9, 7));
++        let context = MenuContext::bind(9, modal, modal)
++            .expect("Finder may report its exact Go to Folder sheet as AXMainWindow");
++        assert!(context.is_modal());
++        assert_eq!(context.focused.raw, 9);
++        assert_eq!(context.main.owner, 7);
++    }
++
++    #[test]
++    fn main_sheet_requires_the_exact_surface_and_proven_same_document() {
++        let modal = Some(sheet(9, 7));
++        for (requested, focused, main) in [
++            (7, modal, modal),
++            (9, Some(sheet(10, 7)), modal),
++            (9, modal, Some(sheet(10, 7))),
++            (9, modal, Some(sheet(9, 8))),
++            (9, Some(sheet(9, 8)), modal),
++            (9, Some(sheet(9, 9)), Some(sheet(9, 9))),
++            (9, Some(document(9)), modal),
++            (9, modal, None),
++            (9, None, modal),
++        ] {
++            assert!(MenuContext::bind(requested, focused, main).is_err());
++        }
++        let before = MenuContext::bind(9, modal, modal).unwrap();
++        let next = Some(sheet(10, 7));
++        assert_ne!(before, MenuContext::bind(10, next, next).unwrap());
++        // Moving AXMainWindow from the sheet to its document during lookup
++        // must also invalidate the previously bound dispatch context.
++        assert_ne!(
++            before,
++            MenuContext::bind(9, modal, Some(document(7))).unwrap()
++        );
 +    }
 +
 +    #[test]

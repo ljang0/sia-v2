@@ -424,6 +424,13 @@ Menu-context refusal uses the same public error code but a different producer re
 window information, a non-document main window, or conflicting target/owner identity. It retains
 the same binding predicate and logs no native IDs or content. This diagnostic distinguishes the
 fresh Saturday-comparison failure from key-window priming before any routing change is justified.
+Signed `13a8759` reproduced `main_not_document`: Finder reported Go to Folder as its main
+surface. The fix additionally accepts an exact focused/main sheet pair only when both raw IDs
+equal the requested sheet and both ownership reads prove the same separate document. It retains
+the full raw context for the pre-dispatch equality check; a replacement, transition back to the
+document, missing owner or sibling still refuses. This preserves modal command enablement and
+does not permit the document Save fallback. The regression fails before the fix; useful signed
+acceptance remains required.
 
 Native hotkeys also log fixed `menu_lookup` labels: `enabled_match`, `disabled_match`,
 `no_match`, `target_active` or `non_native`. A matched command logs `menu_dispatch=returned`
