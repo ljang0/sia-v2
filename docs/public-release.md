@@ -1,7 +1,8 @@
 # Distribution acceptance record
 
-**RA handoff is held.** Current signed internal `0428730` failed the fresh Phipps-planning request
-before reading a page: the inactive-Chrome path still blocked reuse. Earlier `6b24a04` passes
+**RA handoff is held.** Current signed internal `1cf54d8` reused the approved Chrome connection
+and researched Phipps in the background, but failed when the lunch site timed out; no plan was
+saved. Earlier `6b24a04` passes
 Finder panel navigation and a personal checklist task with checked outputs and matching AWS archives.
 Browser recovery, broader input isolation and exact-DMG acceptance remain open.
 Nothing has been published, sent to a recipient or submitted to Arena by this work.
@@ -10,17 +11,18 @@ Nothing has been published, sent to a recipient or submitted to Arena by this wo
 
 | Identity               | Value                                                                |
 | ---------------------- | -------------------------------------------------------------------- |
-| Source                 | `0428730cc58e3bb143872bd4da962aab3dc348e4`                           |
-| Installed              | November 5, 2026, 06:31:32 UTC                                       |
+| Source                 | `1cf54d8fa651cba0568ddf93d4345677a89e7afd`                           |
+| Installed              | November 5, 2026, 06:50:24 UTC                                       |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG     |
-| ASAR SHA-256           | `9ee714ee0d96918d24190f12af699e1ab2cf10336b84f931a279097c558b7cb0`   |
+| ASAR SHA-256           | `9b7f38b1d0188b2d6ad4fa79f6e8e3c320730f7601bdbb82a2e73b120ec252a6`   |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`   |
-| Native patch SHA-256   | `accf1effcb7102e40f3e3fb45b5c50254abfc8d295f154efe13e786a9f673b2c`   |
+| Native patch SHA-256   | `5dfb260e8929e9fceec45932f6250fb2c5a9235160becf598309c1f406690ec7`   |
 | Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before browser reuse.app`                           |
+| Rollback               | `Sia QA alpha122 before default browser reuse.app`                   |
 
-Package/runtime verification and installed deep/strict signature checks passed for `0428730`, as
-did the full native gate and 188 focused desktop tests. It has not passed a full pilot or live
+Package/runtime verification, installed deep/strict signature checks and the full native gate
+passed for `1cf54d8`. Its unchanged desktop source passed 188 focused tests on `0428730`.
+It has not passed a full pilot or live
 browser acceptance. Earlier `6b24a04` passed targeted ownership/menu and 37 desktop regressions. After fixing this document’s formatting,
 the full pilot passed on `283d1f4`, with the same functional source as installed `6b24a04`: 2,101
 desktop tests (23 skipped), 46 Electron checks (five skipped), 48 renderer and 72 companion checks,
@@ -29,15 +31,36 @@ in the evidence; a passing targeted workflow does not erase input-isolation conc
 
 ## Live results that determine readiness
 
-### Phipps planning: failed before browser work
+### Phipps planning: connection reuse works; site failure stops the task
+
+On `1cf54d8`, fresh thread `462ba181-f5db-4aaa-b7ba-3dafee33f28b`, turn
+`b4206d97-7d57-4b8a-ac9c-049c54a4e061`, ran for 410.333 seconds without task-time rescue.
+The ordinary request recovered the existing approved connection without another setup prompt,
+then navigated, clicked and scrolled the separate research tab. An unrelated Chrome address-bar
+draft retained two independently typed additions throughout the run; it was cleared afterward
+without navigating. Six protected RTF hashes are unchanged. This does not prove continuous
+global focus or clipboard preservation.
+
+The restaurant navigation lost its acknowledgement; the bounded observation retry then timed
+out. Post-terminal CUA inspection of the one-tab research window showed Chrome's
+`ERR_CONNECTION_TIMED_OUT`. Sia reported the gap but saved no plan. The timeout response
+currently instructs the agent to pause the whole task; recovering the independent research and
+useful saved output remains open. Four changed-document retries and three link refusals are
+retained in the evidence. Automatic AWS capture matches the prompt, failed outcome, 78 usage
+events, all 35 actions and 27 PNGs in 18 encrypted batches (325 stored / 298 logical records).
+The first immediate archive query found no batches; the later read-only verification passed.
+Private receipts: `sheet-visibility-acceptance/reuse-default-acceptance.json` and its matching
+archive verification. This is a failed useful-task acceptance, not a browser release pass.
+
+The preceding failed trial is retained:
 
 On `0428730`, thread `53298f91-0fd6-40eb-aa14-e6ddb475db8f`, turn
 `98b5890d-0337-4725-97be-f367d0fa948d`, stopped after 28.953 seconds. The intended public window
 was found, but preparing access returned `background_unavailable` while Chrome was inactive.
 No source research or plan was completed. Six protected RTF hashes are unchanged; no task-time
 rescue occurred. Automatic AWS recording matches all 37 records, 10 usage events and three
-actions, with one failed finalization and no screenshots. The follow-up source repair attempts
-live-connection reuse before applying setup restrictions; it is not yet installed or accepted.
+actions, with one failed finalization and no screenshots. The installed follow-up above attempts
+live-connection reuse before applying setup restrictions.
 Private receipts: `sheet-visibility-acceptance/reuse-acceptance.json` and its archive verification.
 
 ### Personal checklist on 6b24a04: useful-task pass

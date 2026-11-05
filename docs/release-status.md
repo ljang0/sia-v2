@@ -88,10 +88,20 @@ absence proved before host authorization can fall through to the original setup 
 authorization and a socket lost after approval are not retried. Another active Chrome window
 still requires the explicit reuse-only ceiling. Missing/closed/expired connections cannot open a
 new socket through that ceiling. Regressions reproduce the inactive-Chrome failure and now pass, as does the full native gate.
-Signed live acceptance of this follow-up remains pending. This does not
-retain a socket across a complete Sia process exit.
+Signed `1cf54d8` now demonstrates that reuse in a fresh ordinary Phipps request: background
+navigation, screenshots, clicks and scrolling proceeded without repeating setup. The useful
+task still failed after 410.333 seconds when the lunch site timed out; no plan was saved.
+Post-terminal CUA showed `ERR_CONNECTION_TIMED_OUT` in the exact one-tab research window.
+The recovery response tells the agent to pause the whole task, leaving independent work and
+saving useful partial results unfinished. An unrelated Chrome draft preserved two additions,
+and six protected RTF hashes are unchanged; no task-time rescue occurred. AWS verification
+matches 78 usage events, 35 actions and 27 PNGs in 18 encrypted batches (325 stored / 298 logical
+records), including the exact prompt and failed outcome. Receipt:
+`sheet-visibility-acceptance/reuse-default-acceptance.json`. Site-failure recovery and a fresh
+useful-task pass remain required. This does not retain a socket across a complete Sia process
+exit or establish continuous global focus/clipboard isolation.
 
-Current signed QA `6b24a04` passes the previously failing Finder Go to Folder path in 58.737
+Earlier signed QA `6b24a04` passes the previously failing Finder Go to Folder path in 58.737
 seconds. It selects the field, types the requested path through keyboard events and opens the
 correct folder without operator rescue. Independent CUA inspection confirms the folder and file;
 five protected RTFs retain their hashes. An unrelated Sia draft remains exact. This is a targeted
@@ -265,10 +275,12 @@ repeated on the exact final DMG. The earlier unexpected filename input remains u
 
 ## Current artifacts
 
-- Installed internal arm64 QA: `6b24a04dc36f35cac12c711f53bd9c7139925853`, Developer ID signed,
+- Installed internal arm64 QA: `1cf54d8fa651cba0568ddf93d4345677a89e7afd`, Developer ID signed,
   package/runtime and installed strict-signature checks passed. Not notarized and not a DMG.
-  Targeted native and desktop regressions passed; full pilot awaits a documentation-format fix
-  and rerun. Panel navigation and ordinary personal-document work passed; handoff remains held.
+  Full native gate passed; unchanged desktop source passed 188 focused regressions. Full pilot
+  on this browser repair is pending. Connection reuse worked in live research, but the useful
+  task failed on a site timeout. Earlier `6b24a04` passed personal-document work and the full
+  pilot. Handoff remains held.
 - Held universal alpha.122 DMG: source `7531ee7f3115265817e8dd56cf081672799bd8f4`, signed,
   notarized, stapled and verified, but missing later fixes. Do not hand it to the RA yet.
 - Exact hashes, task identities, timings and private receipt locations are in the concise
