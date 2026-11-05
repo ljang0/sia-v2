@@ -473,3 +473,12 @@ without adopting its menu activation changes. A regression reproduces stale rest
 previous document over a newly opened panel; existing normal and hidden-dialog restoration cases
 remain covered. This does not authorize input into a new window: the next action still needs a
 fresh exact-window observation and the normal background gate.
+
+The next internal trial scopes native key-window preparation around a shortcut only after its
+exactly bound native menu command is unavailable. Remembered AX focus can match the panel while
+the app is inactive; the existing hotkey scope then skips all key records. The trial posts the
+existing target-only focus/make-key records, rechecks both the target window and unchanged
+foreground process, sends the original PID-addressed key events once, and restores the target's
+inactive state. It never sends global input, fronts a window or defocuses the user's app. This
+tests inactive-responder preparation separately from the removed event-transport trial. Live
+useful-task acceptance is required; remove the trial if it does not improve that failing path.

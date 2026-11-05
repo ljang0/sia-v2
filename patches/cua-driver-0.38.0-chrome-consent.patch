@@ -7162,7 +7162,7 @@ index 1b34151..882bacd 100644
          assert_eq!((local_x, local_y), capture_local);
  
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
-index 136e0c9..7cd1795 100644
+index 136e0c9..271dd66 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
 @@ -65,9 +65,11 @@ pub enum KeyPrime {
@@ -7278,7 +7278,70 @@ index 136e0c9..7cd1795 100644
      }
  }
  
-@@ -653,10 +703,12 @@ pub(super) fn post_to_pid(pid: pid_t, event_ptr: *mut c_void, attach_auth_messag
+@@ -323,6 +373,62 @@ pub fn enter_exact_window_key(pid: pid_t, target_wid: u32) -> Result<WindowKeySc
+     })
+ }
+ 
++/// Prepare an inactive native responder for one exact-window keyboard action.
++/// Remembered AX focus can already match while AppKit still drops the keys.
++/// These records go only to the target; no global input, fronting, raising or
++/// defocus record to the user's application is involved.
++pub fn with_background_key_window<T>(
++    pid: pid_t,
++    wid: u32,
++    body: impl FnOnce() -> anyhow::Result<T>,
++) -> anyhow::Result<T> {
++    let prior = front_process_pid()
++        .ok_or_else(|| anyhow::anyhow!("background keyboard front process is unavailable"))?;
++    anyhow::ensure!(prior != pid, "background keyboard target became foreground");
++    anyhow::ensure!(
++        key_focus_of_pid(pid).routes_to(wid),
++        "background keyboard window changed before preparation"
++    );
++
++    struct RestoreInactive {
++        pid: pid_t,
++        wid: u32,
++    }
++    impl Drop for RestoreInactive {
++        fn drop(&mut self) {
++            // A person can switch apps during dispatch. Never deactivate the
++            // target if it has actually become their foreground application.
++            if !front_process_pid().is_some_and(|front| front != self.pid) {
++                return;
++            }
++            let Some(post) = post_event_record_to_fn() else {
++                return;
++            };
++            let mut psn = [0u8; 8];
++            if get_process_psn_for_window(self.wid, self.pid, &mut psn) {
++                let mut record = focus_record(self.wid);
++                record[0x8A] = 0x02;
++                note_post_status(unsafe { post(psn.as_ptr() as *const c_void, record.as_ptr()) });
++            }
++        }
++    }
++    // Clean up even a partially posted sequence or a failed action.
++    let _restore = RestoreInactive { pid, wid };
++    anyhow::ensure!(
++        post_window_key_records(pid, None, wid),
++        "background keyboard preparation failed; no keys sent"
++    );
++    await_key_focus(pid, wid, std::time::Duration::from_millis(200));
++    anyhow::ensure!(
++        front_process_pid() == Some(prior) && key_focus_of_pid(pid).routes_to(wid),
++        "background keyboard focus changed during preparation; no keys sent"
++    );
++    let result = body();
++    // Let the queued down/up finish before the target's inactive state returns.
++    std::thread::sleep(std::time::Duration::from_millis(50));
++    result
++}
++
+ // ── NSMenu shortcut activation SPIs ──────────────────────────────────────────
+ 
+ /// `OSStatus SLPSSetFrontProcessWithOptions(const void *psn, uint32_t windowID, uint32_t options)`
+@@ -653,10 +759,12 @@ pub(super) fn post_to_pid(pid: pid_t, event_ptr: *mut c_void, attach_auth_messag
      true
  }
  
@@ -7295,7 +7358,7 @@ index 136e0c9..7cd1795 100644
  pub(super) fn set_window_location(event_ptr: *mut c_void, x: f64, y: f64) -> bool {
      match set_window_loc_fn() {
          Some(f) => {
-@@ -1629,10 +1681,69 @@ mod key_prime_tests {
+@@ -1629,10 +1737,69 @@ mod key_prime_tests {
      fn at(window: Option<u32>, element_window: Option<u32>) -> KeyFocus {
          KeyFocus {
              window,
@@ -7365,7 +7428,7 @@ index 136e0c9..7cd1795 100644
      #[test]
      fn already_key_sends_nothing() {
          let r = prime_exact_window_key(
-@@ -1732,22 +1843,44 @@ mod key_prime_tests {
+@@ -1732,22 +1899,44 @@ mod key_prime_tests {
          assert_eq!(r, Ok(KeyPrime::KeyRecords));
      }
  
@@ -8237,7 +8300,7 @@ index 133dff9..dceb43f 100644
          }
          for prefetched in [Some(Err(anyhow::anyhow!("old error"))), None] {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
-index 2bf28e0..44c1337 100644
+index 2bf28e0..1a06a94 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/hotkey.rs
 @@ -68,6 +68,7 @@ fn def() -> &'static ToolDef {
@@ -8356,7 +8419,7 @@ index 2bf28e0..44c1337 100644
                  )
                  .await
                  {
-@@ -495,6 +430,79 @@ impl Tool for HotkeyTool {
+@@ -495,6 +430,81 @@ impl Tool for HotkeyTool {
              }
          };
  
@@ -8368,6 +8431,7 @@ index 2bf28e0..44c1337 100644
 +        // key equivalent in a native app that is not in front, run that menu
 +        // item in the background instead (verified for Save), or refuse when
 +        // macOS keeps it disabled. No key events are sent on this route.
++        let mut native_menu_fallback = false;
 +        if !fg {
 +            if let (Some(wid), Some(combo)) = (
 +                window_id,
@@ -8429,6 +8493,7 @@ index 2bf28e0..44c1337 100644
 +                        return menu_result;
 +                    }
 +                    eprintln!("[sia:cua-input] menu_dispatch=unavailable_key_fallback");
++                    native_menu_fallback = true;
 +                }
 +            }
 +        }
@@ -8436,6 +8501,24 @@ index 2bf28e0..44c1337 100644
          let _hold_key_scope = &key_scope;
  
          // A focus click already moved the cursor. Otherwise place a named
+@@ -538,6 +548,17 @@ impl Tool for HotkeyTool {
+                 tokio::task::spawn_blocking(move || {
+                     let element_ptr = element_guard.as_ref().map(|guard| guard.as_ptr());
+                     let m: Vec<&str> = modifiers.iter().map(String::as_str).collect();
++                    if native_menu_fallback {
++                        // A native panel may remember its focused control while
++                        // AppKit is inactive. AX focus alone does not prepare its
++                        // responder for PID-routed keys. Keep the existing event
++                        // transport; scope only the exact window's key records.
++                        return crate::input::skylight::with_background_key_window(
++                            pid,
++                            window_id.expect("native menu fallback holds exact-window lease"),
++                            || crate::input::keyboard::hotkey(pid, &key, &m),
++                        );
++                    }
+                     match (fg, coordinate_focus, window_id, element_ptr) {
+                         // Chrome's native omnibox and Chromium/Electron inputs
+                         // require a genuine foreground HID chord. Keep the exact
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs
 index 841d8d0..e3f1d4a 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/invoke_menu.rs
