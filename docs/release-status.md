@@ -76,7 +76,19 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
-Installed signed QA `52a81f3` completed a fresh ordinary reviewer-copy request in 225.015 seconds
+Current signed QA `04fdb7d` still fails the targeted Go to Folder panel path. Its repair derives
+non-minimized state only for an exact focused sheet with fresh onscreen/current-Space proof,
+preserving explicit AX minimized values. The native regression and signed package gates pass,
+but the live panel still reports `minimized_or_hidden_window`. The 35.122-second diagnostic
+opened the panel through background input, then stopped without operator rescue or document
+changes. All five original file hashes are unchanged. AWS matches the failed outcome, seven
+actions, four PNGs and 14 usage events in one encrypted 50-record batch with one finalization.
+Private receipts: `sheet-visibility-acceptance`. This is a failed diagnostic, not useful-task
+acceptance. Full pilot has not run on this candidate. Before another repair/build, determine
+which live visibility fact is missing; the pure regression does not establish the panel meets
+its premises. Do not remove visibility or exact-target checks to make the route available.
+
+Included signed QA `52a81f3` completed a fresh ordinary reviewer-copy request in 225.015 seconds
 without task-time rescue. It copied, renamed, edited, saved, closed and reopened the RTF through
 background Finder/TextEdit control. Independent disk checks match all 12 original checklist items
 and the exact added note; all four prior documents retain their hashes. CUA entered an unrelated
@@ -230,10 +242,10 @@ repeated on the exact final DMG. The earlier unexpected filename input remains u
 
 ## Current artifacts
 
-- Installed internal arm64 QA: `5bab2f54d4dbcd6bcd36ea6b06dc1868b102cb99`, Developer ID signed,
+- Installed internal arm64 QA: `04fdb7da1fe6e8e17045d9c4bd784606933d1c96`, Developer ID signed,
   package/runtime and installed strict-signature checks passed. Not notarized and not a DMG.
-  Full pilot passed: 2,100 desktop unit, 46 Electron, 48 renderer and 72 companion checks,
-  plus shared/cloud/native/static gates. Preserve the prior candidate's unexplained input failure.
+  Native gate passed; full pilot has not run on this candidate. The preceding `52a81f3` full
+  pilot passed. The live panel diagnostic remains failed; this is not a handoff candidate.
 - Held universal alpha.122 DMG: source `7531ee7f3115265817e8dd56cf081672799bd8f4`, signed,
   notarized, stapled and verified, but missing later fixes. Do not hand it to the RA yet.
 - Exact hashes, task identities, timings and private receipt locations are in the concise

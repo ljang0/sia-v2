@@ -4,7 +4,8 @@
 copy/edit/reopen task with working result delivery passed on included `a2d63b8`. Dinner research
 passed on `0c72ce8` after explicit Chrome setup. Automatic recovery while another Chrome window
 is active, input reliability and exact-DMG acceptance remain open. Cancellation capture is fixed
-and verified on included `5bab2f5`. The current `52a81f3` native document rerun passed, but Finder panel input and
+and verified on included `5bab2f5`. The included `52a81f3` native document rerun passed, but current
+`04fdb7d` still fails the targeted Finder panel diagnostic. Finder panel input and
 browser responsiveness remain open; see the current [release status](./release-status.md#current-targeted-repair).
 Nothing has been
 published, sent to a recipient or submitted to Arena by this work.
@@ -13,17 +14,18 @@ published, sent to a recipient or submitted to Arena by this work.
 
 | Identity               | Value                                                                |
 | ---------------------- | -------------------------------------------------------------------- |
-| Source                 | `52a81f386598bcc94008517762a6b8bd051f0987`                           |
-| Installed              | November 5, 2026, 04:59:12 UTC (November 4 Eastern)                  |
+| Source                 | `04fdb7da1fe6e8e17045d9c4bd784606933d1c96`                           |
+| Installed              | November 5, 2026, 05:16:57 UTC                                      |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG     |
-| ASAR SHA-256           | `5e0182be2436424954469a538f1c37db4970b589a1f3567435cf4e467e44f8c2`   |
+| ASAR SHA-256           | `b0b6216a309502ec74330c7fc26511bdbf27a15c699404b4e9b2da2d1e42aab7`   |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`   |
-| Native patch SHA-256   | `0cb47b3eeca88967f41dd858056e00f1296d0b6a1a120aa1716b2056e8362eda`   |
+| Native patch SHA-256   | `09ee3b0ef1a15aebc97c21cdf7c0c2196618c806775ef5f26f92c9083a5400b3`   |
 | Private evidence       | `alpha122-browser-selection-internal` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before focused panel.app`                           |
+| Rollback               | `Sia QA alpha122 before sheet visibility.app`                        |
 
 Package/runtime verification, installed deep/strict signature checks and the native gate passed.
-The current full pilot passed: 2,100 desktop unit tests (23 skipped), 46 Electron (five skipped),
+Full pilot has not run on `04fdb7d`; its live panel diagnostic failed. The preceding `52a81f3`
+full pilot passed: 2,100 desktop unit tests (23 skipped), 46 Electron (five skipped),
 48 renderer and 72 companion checks, plus build/static/shared/cloud/native gates. The real Electron
 bare-launch fixture passed in this full run; its earlier exit-1 failure with no output remains
 unexplained. The earlier terminal-test `pwd` → `pwda` failure also remains unresolved despite
