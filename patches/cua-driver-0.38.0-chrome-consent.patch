@@ -6941,15 +6941,17 @@ index ad64bdf..5a9faa7 100644
              .iter()
              .map(|event| create_bare_keyboard_event(event.key_code, event.key_down))
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
-index 1b34151..fa43eb2 100644
+index 1b34151..882bacd 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
-@@ -403,6 +403,20 @@ pub fn click_at_xy_with_window_local(
+@@ -403,6 +403,27 @@ pub fn click_at_xy_with_window_local(
      }
  }
  
 +/// One click to a proven same-process popup. An off-screen Chromium primer
 +/// would dismiss an AppKit popover before the requested click reaches it.
++/// `local` is in AppKit window points (bottom-left origin), while `screen`
++/// remains in Quartz screen points (top-left origin).
 +pub fn click_owned_popup(
 +    pid: i32,
 +    screen: (f64, f64),
@@ -6957,7 +6959,12 @@ index 1b34151..fa43eb2 100644
 +    window_id: u32,
 +) -> anyhow::Result<()> {
 +    click_at_xy_inner(
-+        pid, screen, Some(local), Some(window_id), 1, &[],
++        pid,
++        screen,
++        Some(local),
++        Some(window_id),
++        1,
++        &[],
 +        MousePostMode::SkyLightPreferred,
 +    )
 +}
@@ -6965,10 +6972,114 @@ index 1b34151..fa43eb2 100644
  /// `screen` is the click point in screen coordinates.
  fn click_at_xy_inner(
      pid: i32,
-@@ -1973,6 +1987,28 @@ mod tests {
+@@ -1879,6 +1900,8 @@ mod post_sink {
+         /// Modifier flags carried by each posted event, parallel to `posted`.
+         modifiers: Vec<u64>,
+         window_routing: Vec<[i64; 4]>,
++        locations: Vec<(f64, f64)>,
++        window_locations: Vec<(f64, f64)>,
+     }
+ 
+     thread_local! {
+@@ -1897,6 +1920,8 @@ mod post_sink {
+                     posted: Vec::new(),
+                     modifiers: Vec::new(),
+                     window_routing: Vec::new(),
++                    locations: Vec::new(),
++                    window_locations: Vec::new(),
+                 });
+             });
+             Self
+@@ -1925,6 +1950,14 @@ mod post_sink {
+             })
+         }
+ 
++        pub(super) fn window_locations(&self) -> Vec<(f64, f64)> {
++            STATE.with(|state| state.borrow().as_ref().unwrap().window_locations.clone())
++        }
++
++        pub(super) fn locations(&self) -> Vec<(f64, f64)> {
++            STATE.with(|state| state.borrow().as_ref().unwrap().locations.clone())
++        }
++
+         pub(super) fn window_routing(&self) -> Vec<[i64; 4]> {
+             STATE.with(|state| state.borrow().as_ref().unwrap().window_routing.clone())
+         }
+@@ -1952,6 +1985,26 @@ mod post_sink {
+             let Some(state) = state.as_mut() else {
+                 return false;
+             };
++            // WebKit CoreGraphicsTestSPI.h declares CGPoint CGEventGetWindowLocation(CGEventRef).
++            // Read the actual stamped field; nothing is posted while this sink is active.
++            let window_point = unsafe {
++                use foreign_types::ForeignType;
++                let symbol = libc::dlsym(libc::RTLD_DEFAULT, c"CGEventGetWindowLocation".as_ptr());
++                assert!(
++                    !symbol.is_null(),
++                    "native window-location readback unavailable"
++                );
++                let read: unsafe extern "C" fn(
++                    *mut std::ffi::c_void,
++                )
++                    -> core_graphics::geometry::CGPoint = std::mem::transmute(symbol);
++                read(event.as_ptr().cast())
++            };
++            state
++                .window_locations
++                .push((window_point.x, window_point.y));
++            let point = event.location();
++            state.locations.push((point.x, point.y));
+             state.posted.push(Posted {
+                 event: format!("{:?}", event.get_type()),
+                 route,
+@@ -1973,6 +2026,75 @@ mod tests {
      use super::post_sink::{Capture, Posted};
      use super::*;
  
++    #[test]
++    fn popup_click_preserves_global_and_cocoa_local_points() {
++        use crate::capture::frame::{Popup, Rect, Surface};
++        use crate::tools::test_owned_popup_point as owned_popup_point;
++        let surface = Surface {
++            window_id: 7,
++            pid: 1,
++            parent: Rect {
++                x: 100.0,
++                y: 100.0,
++                width: 900.0,
++                height: 700.0,
++            },
++            sheet: None,
++            popups: vec![Popup {
++                window_id: 9,
++                pid: 1,
++                bounds: Rect {
++                    x: 480.0,
++                    y: 430.0,
++                    width: 300.0,
++                    height: 200.0,
++                },
++            }],
++        };
++        for available in [true, false] {
++            let point = owned_popup_point(&surface, 700.0, 480.0, true)
++                .unwrap()
++                .unwrap();
++            let capture = Capture::start(available);
++            click_owned_popup(
++                1,
++                (700.0, 480.0),
++                (point.local_x, point.local_y),
++                point.window_id,
++            )
++            .unwrap();
++            assert_eq!(capture.locations(), vec![(700.0, 480.0); 3]);
++            // AppKit uses a bottom-left window origin: 50 below a 200-high
++            // popup's top is y=150, not screenshot-local y=50.
++            assert_eq!(capture.window_locations(), vec![(220.0, 150.0); 3]);
++        }
++    }
++
 +    #[test]
 +    fn popup_click_posts_only_the_requested_pair_to_the_child_window() {
 +        for available in [true, false] {
@@ -6979,11 +7090,14 @@ index 1b34151..fa43eb2 100644
 +            } else {
 +                PostRoute::PublicPid
 +            };
-+            assert_eq!(capture.posted(), [
-+                Posted::new("MouseMoved", route, 0),
-+                Posted::new("LeftMouseDown", route, 0),
-+                Posted::new("LeftMouseUp", route, 0),
-+            ]);
++            assert_eq!(
++                capture.posted(),
++                [
++                    Posted::new("MouseMoved", route, 0),
++                    Posted::new("LeftMouseDown", route, 0),
++                    Posted::new("LeftMouseUp", route, 0),
++                ]
++            );
 +            for fields in capture.window_routing() {
 +                assert_eq!(&fields[..3], &[9, 9, 9]);
 +                assert_ne!(fields[3], 0);
@@ -6994,7 +7108,7 @@ index 1b34151..fa43eb2 100644
      #[test]
      fn background_middle_click_preserves_exact_window_routing() {
          let capture = Capture::start(true);
-@@ -2026,19 +2062,42 @@ mod tests {
+@@ -2026,19 +2148,42 @@ mod tests {
  
      #[test]
      fn capture_bound_background_route_preserves_nonzero_origin_hit() {
@@ -7048,7 +7162,7 @@ index 1b34151..fa43eb2 100644
          assert_eq!((local_x, local_y), capture_local);
  
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
-index 136e0c9..c0c1e77 100644
+index 136e0c9..fbe96c6 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
 @@ -65,9 +65,11 @@ pub enum KeyPrime {
@@ -7128,7 +7242,24 @@ index 136e0c9..c0c1e77 100644
      }
  }
  
-@@ -1629,10 +1667,65 @@ mod key_prime_tests {
+@@ -653,10 +691,12 @@ pub(super) fn post_to_pid(pid: pid_t, event_ptr: *mut c_void, attach_auth_messag
+     true
+ }
+ 
+-/// Stamp the event's screen-space `(x, y)` point via
+-/// `CGEventSetWindowLocation`. Both the SkyLight and public PID routes receive
+-/// this screen-space value; WindowServer derives the receiving window's local
+-/// point during routing. Returns `true` when the SPI resolved.
++/// Stamp the event's separate native window-location field via
++/// `CGEventSetWindowLocation`; this does not change its global location.
++/// AppKit popup callers provide bottom-left window coordinates. The legacy
++/// Chromium recipe supplies its own route-specific stamp. Returns `true`
++/// when the SPI resolved. See WebKit's EventSerializerMac.mm for the distinct
++/// global (Quartz) and local (AppKit) coordinate conventions.
+ pub(super) fn set_window_location(event_ptr: *mut c_void, x: f64, y: f64) -> bool {
+     match set_window_loc_fn() {
+         Some(f) => {
+@@ -1629,10 +1669,69 @@ mod key_prime_tests {
      fn at(window: Option<u32>, element_window: Option<u32>) -> KeyFocus {
          KeyFocus {
              window,
@@ -7153,7 +7284,11 @@ index 136e0c9..c0c1e77 100644
 +            ),
 +            Ok(KeyPrime::AlreadyKey),
 +        );
-+        assert_eq!(sheet.window, Some(99), "retain the raw window for restoration");
++        assert_eq!(
++            sheet.window,
++            Some(99),
++            "retain the raw window for restoration"
++        );
 +    }
 +
 +    #[test]
@@ -8753,20 +8888,23 @@ index 0000000..b263bbc
 +    }
 +}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs
-index 7b0efb0..e5bbb3d 100644
+index 7b0efb0..786ec5d 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/mod.rs
-@@ -36,7 +36,9 @@ pub(crate) mod get_screen_size;
+@@ -36,7 +36,12 @@ pub(crate) mod get_screen_size;
  mod health_report;
  mod move_cursor;
  mod page;
 +mod pixel_focus;
  mod pixel_route;
++// Test the screenshot-to-popup mapping through the native event readback seam.
++#[cfg(test)]
++pub(crate) use pixel_route::owned_popup_point as test_owned_popup_point;
 +pub(crate) use pixel_focus::focus_by_pixel;
  pub(crate) mod px_frame;
  mod set_config;
  mod type_text_chars;
-@@ -518,185 +520,6 @@ pub(crate) async fn finish_window_observation(
+@@ -518,185 +523,6 @@ pub(crate) async fn finish_window_observation(
      snapshot.detect_async().await
  }
  
@@ -8952,7 +9090,7 @@ index 7b0efb0..e5bbb3d 100644
  /// Default long-edge cap for screenshots; see [`DriverConfig::max_image_dimension`].
  pub const DEFAULT_MAX_IMAGE_DIMENSION: u32 = 1366;
  
-@@ -1305,43 +1128,6 @@ mod cursor_overlay_facility_tests {
+@@ -1305,43 +1131,6 @@ mod cursor_overlay_facility_tests {
  // macOS cursor sampler (CoreGraphics), so the start-guard test runs here in
  // platform-macos where build.rs links the frameworks — the core crate's test
  // binary has no CoreGraphics linkage.
@@ -9252,10 +9390,10 @@ index 0000000..f03728d
 +    }
 +}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/pixel_route.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/pixel_route.rs
-index b7233f5..9171933 100644
+index b7233f5..d08f12c 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/pixel_route.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/pixel_route.rs
-@@ -16,6 +16,40 @@ use cua_driver_core::protocol::ToolResult;
+@@ -16,6 +16,44 @@ use cua_driver_core::protocol::ToolResult;
  
  use crate::input::pointer_toolkit::PointerReadingToolkit;
  
@@ -9264,6 +9402,7 @@ index b7233f5..9171933 100644
 +#[derive(Clone, Copy, Debug, PartialEq)]
 +pub(crate) struct OwnedPopupPoint {
 +    pub window_id: u32,
++    // Native AppKit window coordinates: bottom-left origin, in points.
 +    pub local_x: f64,
 +    pub local_y: f64,
 +}
@@ -9289,14 +9428,17 @@ index b7233f5..9171933 100644
 +    Ok(Some(OwnedPopupPoint {
 +        window_id: popup.window_id,
 +        local_x: x - popup.bounds.x,
-+        local_y: y - popup.bounds.y,
++        // Screenshot/WindowServer Y grows downward; CGEvent's native window
++        // location uses AppKit's bottom-left origin. Keeping a top-origin Y
++        // makes menu tracking hit another row or dismiss the menu.
++        local_y: popup.bounds.height - (y - popup.bounds.y),
 +    }))
 +}
 +
  /// Transport for a pixel click once any background AX hit-test backend has
  /// declined (or was not eligible).
  #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-@@ -147,6 +181,59 @@ pub(crate) fn foreground_unavailable(action: &str, window_id: u32, cause: &str)
+@@ -147,6 +185,59 @@ pub(crate) fn foreground_unavailable(action: &str, window_id: u32, cause: &str)
  mod tests {
      use super::*;
  
@@ -9331,7 +9473,7 @@ index b7233f5..9171933 100644
 +            Some(OwnedPopupPoint {
 +                window_id: 9,
 +                local_x: 20.0,
-+                local_y: 30.0,
++                local_y: 70.0,
 +            })
 +        );
 +        assert_eq!(owned_popup_point(&surface, 85.0, 30.0, true).unwrap(), None);

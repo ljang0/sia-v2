@@ -443,6 +443,16 @@ root is re-read before returning it and the surface is revalidated before captur
 Missing, ambiguous, replaced and wrong-process roots remain refused. This changes observation
 and pixel-surface ownership only, not keyboard authorization or model-visible semantics.
 
+Owned-popup pointer coordinates must convert the captured top-left origin to AppKit's
+bottom-left window origin before stamping the native event. Global Quartz coordinates remain
+unchanged. The event-readback regression reproduces the old wrong-row mapping: a point 50 below
+the top of a 200-point popup was stamped as local Y=50 instead of 150. It reads both native
+location fields without posting input and covers the existing SkyLight/public fallback choices.
+The correction changes only popup-local Y; it retains the single event sequence, window identity,
+ownership validation and focus protection. Coordinate conventions follow WebKit's
+[event serializer](https://github.com/WebKit/WebKit/blob/7596ac02075f631c107be8d4e0b056d236288433/Tools/TestRunnerShared/EventSerialization/mac/EventSerializerMac.mm).
+Useful signed acceptance remains required; this regression alone does not prove menu tracking.
+
 Native hotkeys also log fixed `menu_lookup` labels: `enabled_match`, `disabled_match`,
 `no_match`, `target_active` or `non_native`. A matched command logs `menu_dispatch=returned`
 or `unavailable_key_fallback`. These distinguish the paths that otherwise all end in synthetic

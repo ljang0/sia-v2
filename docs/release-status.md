@@ -135,6 +135,15 @@ pilot gate remains pending. The next investigation must distinguish popup event 
 geometry from menu-tracking cancellation before changing routing. No speculative transport
 or timeout variants; this step repair does not establish a complete native workflow.
 
+The next source inspection found a popup-local coordinate defect. Sia passed top-origin Y
+into the separate AppKit window-location field, which uses a bottom-left origin. A native
+event-readback regression (no input posted) fails before repair: for a point 50 below a
+200-point popup's top it records Y=50 rather than Y=150, while the global position is intact.
+The targeted correction flips only popup-local Y; routing, focus guards, exact ownership and
+the single event sequence stay unchanged. The original global-point-only check passed and did
+not establish this defect; the window-location readback is the relevant regression.
+Signed ordinary-task acceptance is pending.
+
 Cold restart on signed `bed8a3c` failed a fresh rainy-day museum request in 37.839 seconds:
 the saved choice survived but native preparation refused `background_unavailable` before
 research. No output was saved or task rescued. The independent draft and six RTFs remained
