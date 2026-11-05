@@ -37,7 +37,9 @@ Clean source `8dc8e14eb3a0b32a565643b25ddfdd761b2e62e6` was installed November 4
 `facfbf45dda4cf712449aaee2b7b103e5379613e9096a88da6be8c1f80a05d28`. Cloud resource SHA-256:
 `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`. The preceding app is preserved
 as `Sia QA alpha122 before rename recovery.app`. This is arm64 internal QA, not notarized or a DMG.
-The repair passed 117 affected tests and build/static checks; its full pilot remains pending.
+The repair passed 117 affected tests. The full pilot passed on documentation-only successor
+`465e555`: 2,083 desktop, 46 Electron, 48 renderer and 72 companion tests, plus the required
+cloud/shared/native/build/static gates. Application code matches installed `8dc8e14`.
 
 Fresh agent `RA handoff check` used the default GPT-6.1-Sol/ChatGPT plan and ordinary instructions.
 Thread `f371af2b-9f3d-4522-abbf-832613d3cee6`, turn `c2f769cb-e3dd-4947-8173-69da565abb66`, completed
@@ -59,6 +61,28 @@ AWS verification matched the prompt, 175 events, 48 provider-usage records, 27 a
 `alpha122-rename-recovery-internal` contains installation/source checks, `fresh-native-acceptance.json`
 and the read-only archive-verification receipt. Earlier `706b3e7` failure evidence remains in
 `alpha122-native-focus-internal`. Exact-DMG and input-isolation acceptance remain open.
+
+### Fresh browser restart failure and targeted follow-up
+
+After a normal restart of the same installed QA, fresh agent `Visitor planning acceptance`
+received the ordinary CMU visitor-planning request. Thread `479dbd6f-79aa-41d9-821b-ac650626859e`,
+turn `0b5da024-39c4-4a1d-92da-76a516fe6fb9`, ran from 00:01:54 to 00:02:12 UTC November 5.
+It stopped after inventory: all eight browser window identities were unavailable and it could
+not identify the previously selected public Chrome window. No research, plan or browser input
+completed. No task-time operator choice, continuation or recovery coaching occurred.
+
+Operator CUA used the normal Ask Sia launcher and Close before submission to make QA visibly
+active. The unsent review-note draft appeared correctly. Existing clipboard text compared equal
+before and after, was never copied/replaced, and was cleared from the composer without sending;
+raw clipboard content is omitted from receipts. With no browser writes, this is not an isolation
+pass. Earlier setup while QA was inactive required the exposed CUA setter to clear a draft;
+normal Command+A/Backspace worked after normal launcher activation.
+
+AWS automatically archived 24 events, the exact prompt, six usage records, the matching inventory
+and terminal event, with hashes, lengths and KMS verified. Receipts are in
+`alpha122-rename-recovery-internal/browser-restart`. The follow-up stores a private same-process
+selection hint and exposes only its fresh opaque window reference to discovery, without restoring
+old grants. Its 138 affected tests pass; installed restart acceptance remains pending.
 
 ### Earlier internal menu-routing trial
 

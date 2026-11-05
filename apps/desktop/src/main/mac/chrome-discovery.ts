@@ -114,6 +114,22 @@ export async function chromeDebugPortOwnerPid(
   }
 }
 
+/** A selection hint may survive Sia restart, but never Chrome process replacement. */
+export async function chromeProcessStartedAt(
+  runCommand: (file: string, args: readonly string[]) => Promise<string>,
+  pid: number,
+): Promise<string | undefined> {
+  if (!Number.isSafeInteger(pid) || pid <= 0 || pid > 2_147_483_647) return undefined;
+  try {
+    const value = (await runCommand('/bin/ps', ['-p', String(pid), '-o', 'lstart='])).trim();
+    return value.length >= 20 && value.length <= 80 && !/[\r\n\0]/.test(value)
+      ? value
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function browserAttachmentError(error: unknown): string {
   const message = error instanceof Error ? error.message : 'Chrome attachment failed.';
   if (message.includes('background_unavailable')) {

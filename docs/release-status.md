@@ -101,7 +101,9 @@ AWS automatically archived the exact prompt, 175 events, 48 provider-usage recor
 action results and 17 byte-matching PNGs, including the terminal event. Object hashes, lengths and
 KMS encryption passed read-only verification. Private `alpha122-rename-recovery-internal`
 contains `fresh-native-acceptance.json`, installation/signature records and the archive receipt.
-The installed repair passed 117 affected tests and build/static checks; its full pilot is pending.
+The installed repair passed 117 affected tests and the full pilot gate (2,083 desktop, 46 Electron,
+48 renderer and 72 companion checks, plus cloud/shared/native/build/static checks). The gate ran
+on documentation-only successor `465e555`; application code is identical to installed `8dc8e14`.
 It is Developer ID signed and package/runtime verified, but is not notarized or a distribution DMG.
 
 ### Earlier supported native sequence
@@ -120,6 +122,23 @@ preserve exact identities and intervention limits. These diagnostic successes in
 they do not replace the fresh-agent evidence above or exact-DMG acceptance.
 
 ### Browser recovery
+
+A fresh-agent visitor-planning request after restarting `8dc8e14` failed on November 5 at
+00:02:12 UTC (November 4 Eastern), about 18 seconds after submission. All eight browser window
+identities were unavailable; the agent could not identify the previously chosen public window
+and stopped after inventory, without inspecting it or attempting the existing recovery route.
+No operator supplied a browser choice or continuation. This is a failed restart acceptance run.
+The foreground draft was correct and clipboard text compared equal privately, but no browser
+writes occurred, so this does not establish input isolation. AWS automatically archived the
+prompt, 24 events, six usage records, the matching inventory and terminal event; hashes and KMS
+passed. Private `alpha122-rename-recovery-internal/browser-restart` retains the receipt.
+
+The targeted source repair retains only a private selection hint (process id, start time and
+window id), never a session or access grant. Discovery labels it only when the same live Chrome
+process and exact window still exist; disconnect removes it and process replacement invalidates
+it. The existing snapshot/setup checks still establish fresh authority. The discovery regression
+failed before this change; 138 affected checks pass. This repair has not yet passed installed-app
+acceptance. Existing profiles need one explicit window selection to establish the new hint.
 
 Signed internal QA `7fe2089` completed the practical commute-card follow-up using the same
 approved public Chrome window after app restart. Two evidenced browser defects were repaired:
@@ -181,7 +200,7 @@ person-owned, ordinary task authorization was automatic, and Sia itself need not
 | Artifact | Exact source and verification | Scope |
 | --- | --- | --- |
 | RA evaluation DMG, alpha.122 universal | `7531ee7f3115265817e8dd56cf081672799bd8f4`; signing, notarization, stapling, Gatekeeper and package/runtime checks passed. Local pilot and remote CI run 362 passed. | Apple silicon runtime; Intel static verification. Known limitations below apply. |
-| Installed internal arm64 QA | `8dc8e14eb3a0b32a565643b25ddfdd761b2e62e6`; ASAR `facfbf45dda4cf712449aaee2b7b103e5379613e9096a88da6be8c1f80a05d28`; Developer ID and package/runtime checks passed. | Fresh native workflow passed without rescue. Full pilot, continuous input isolation and exact-DMG acceptance remain open. Not notarized or a replacement DMG. |
+| Installed internal arm64 QA | `8dc8e14eb3a0b32a565643b25ddfdd761b2e62e6`; ASAR `facfbf45dda4cf712449aaee2b7b103e5379613e9096a88da6be8c1f80a05d28`; Developer ID and package/runtime checks passed. | Fresh native workflow passed without rescue. Continuous input isolation and exact-DMG acceptance remain open. Not notarized or a replacement DMG. |
 
 Exact paths, hashes, operator interventions and private receipts are in the
 [distribution record](./public-release.md). Older candidate history remains there and in Git;
@@ -191,7 +210,7 @@ this page describes current evidence and outstanding requirements.
 
 | Area | Observed evidence | Still required |
 | --- | --- | --- |
-| Automated checks | Previous source `706b3e7` passed the full pilot gate: 2,082 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. Installed `8dc8e14` passed 117 affected tests and the fresh native workflow; its full pilot is pending. Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Earlier `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
+| Automated checks | Previous source `706b3e7` passed the full pilot gate: 2,082 desktop, 46 Electron, 48 renderer, 72 phone-browser and 223 cloud tests, plus shared/native/build/static checks. Installed `8dc8e14` subsequently passed the fresh native workflow and the full pilot on its documentation-only successor `465e555` (2,083 desktop tests). Earlier source `e7dd676` passed CI run 377, including unsigned universal package verification. Earlier `7fe2089` CI run 384 passed the pilot step; unsigned universal packaging was cancelled. | Release signing was skipped in CI. Automated checks do not establish live usefulness. Two earlier executable-sandbox timeouts remain unexplained despite passing isolation and rerun. |
 | Useful personal tasks | On signed QA, recipe research and an outing checklist completed with 67.582 seconds of overlapping successful turns and interleaved actions. Independent recipe/quantity/budget/timing review and both Sia Previews passed. All 11 original source hashes stayed unchanged. | Repeatability and unattended completion. Browser setup required operator reconnection; the checklist included an intentional Stop and continuation. This was browser plus file work, not two native-app tasks. |
 | Stop and performance | Stopping the checklist left browser research running. Resumed checklist: 67.582 seconds. Recipe task after reconnect: 241.765 seconds. | Two native workflows, same-window contention, continuous foreground/clipboard preservation, wider cancellation/recovery, and acceptable repeated end-to-end latency. Before/after focus samples are insufficient. |
 | Native workflow | Finder background typing and file rename passed. Folder creation/move passed after operator File-menu preparation, with all original bytes intact. TextEdit background field typing failed in the matched comparison. | Fresh `8dc8e14` completed rename, inspection and close/reopen without operator preparation or step-by-step instructions. Exact-DMG repetition, the earlier unexpected input’s origin and continuous input isolation remain unresolved. |

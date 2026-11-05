@@ -7,6 +7,7 @@ import type {
 import {
   browserAttachmentError,
   chromeDebugPortOwnerPid,
+  chromeProcessStartedAt,
   collectHttpOrigins,
   directBrowserUrl,
   findBrowserTarget,
@@ -42,6 +43,20 @@ export class BrowserSession {
   private reconnectRequired = false;
 
   constructor(private readonly ctx: BrowserSessionContext) {}
+
+  /** A live, previously chosen target, not permission to read or act on it. */
+  async preferredWindowForActions(): Promise<{ pid: number; windowId: number } | undefined> {
+    const selection = this.ctx.state.browserSelection;
+    if (!selection || this.ctx.state.browser.status === 'attaching') return undefined;
+    const startedAt = await chromeProcessStartedAt(this.ctx.deps.runCommand, selection.pid);
+    if (this.ctx.state.browserSelection !== selection || !startedAt) return undefined;
+    if (startedAt !== selection.processStartedAt) {
+      delete this.ctx.state.browserSelection;
+      this.ctx.commit();
+      return undefined;
+    }
+    return { pid: selection.pid, windowId: selection.windowId };
+  }
 
   /** Any HTTP(S) origin is allowed while trusted; otherwise only origins granted at attach. */
   isBrowserOriginAllowed(origin: string): boolean {
@@ -170,6 +185,7 @@ export class BrowserSession {
   ): Promise<DesktopSnapshot> {
     if (this.ctx.state.browser.status === 'attaching')
       throw new Error('Chrome connection is already in progress.');
+    if (input.windowId !== undefined) delete this.ctx.state.browserSelection;
     this.target = undefined;
     this.sessionId = undefined;
     this.ctx.browserCapabilitySink?.resetBrowserCapabilities();
@@ -289,6 +305,19 @@ export class BrowserSession {
           });
           this.target = findBrowserTarget([state, prepared]);
           this.sessionId = browserSessionId;
+          if (!options.auto) {
+            const processStartedAt = await chromeProcessStartedAt(
+              this.ctx.deps.runCommand,
+              chromePid,
+            );
+            if (processStartedAt)
+              this.ctx.state.browserSelection = {
+                pid: chromePid,
+                windowId: candidate.id,
+                processStartedAt,
+              };
+            else delete this.ctx.state.browserSelection;
+          }
           const grantedOrigins = collectHttpOrigins([prepared, state]);
           this.ctx.state.browser = {
             status: 'attached',
@@ -376,6 +405,7 @@ export class BrowserSession {
   }
 
   async detachBrowser(): Promise<DesktopSnapshot> {
+    delete this.ctx.state.browserSelection;
     try {
       if (this.sessionId) {
         await this.ctx.deps.computer.call(

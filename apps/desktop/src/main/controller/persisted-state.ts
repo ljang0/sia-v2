@@ -33,6 +33,8 @@ export interface PersistedState {
   connections: ConnectionView[];
   capture: CaptureView;
   browser: BrowserView;
+  /** Discovery hint only; native sessions and access grants are never restored from this. */
+  browserSelection?: { pid: number; windowId: number; processStartedAt: string };
   /** Consent and pending batches are valid only for this normalized cloud identity. */
   researchIdentity?: string;
   /** Opaque connector grants remain locked to the identity that created them. */
@@ -178,6 +180,21 @@ export function recoverPersistedState(state: PersistedState): PersistedState {
   // A CUA browser attachment is process-local. Never revive its UI grant without
   // preparing a fresh native session and rebuilding host-only tab capabilities.
   recovered.browser = { status: 'detached', grantedOrigins: [] };
+  const selection = recovered.browserSelection;
+  if (
+    selection &&
+    (!Number.isSafeInteger(selection.pid) ||
+      selection.pid <= 0 ||
+      selection.pid > 2_147_483_647 ||
+      !Number.isSafeInteger(selection.windowId) ||
+      selection.windowId <= 0 ||
+      selection.windowId > 4_294_967_295 ||
+      typeof selection.processStartedAt !== 'string' ||
+      selection.processStartedAt.length < 20 ||
+      selection.processStartedAt.length > 80 ||
+      /[\r\n\0]/.test(selection.processStartedAt))
+  )
+    delete recovered.browserSelection;
   recovered.approvals = pruneSettledApprovals(
     recovered.approvals.map((approval) =>
       approval.status === 'pending' ? { ...approval, status: 'expired' } : approval,

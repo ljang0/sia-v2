@@ -262,6 +262,10 @@ export class DesktopController {
     return this.#ctx.browser.ensureBrowserAttachedForActions();
   }
 
+  preferredBrowserWindow(): Promise<{ pid: number; windowId: number } | undefined> {
+    return this.#ctx.browser.preferredWindowForActions();
+  }
+
   browserSessionEnded(sessionId: string): void {
     this.#ctx.browser.browserSessionEnded(sessionId);
   }

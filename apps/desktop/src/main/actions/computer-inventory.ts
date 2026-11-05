@@ -208,6 +208,19 @@ export class ComputerInventory {
     const unidentified = browserWindows.filter(
       (window) => !['ready', 'navigation'].includes(String(asRecord(window)?.browser_state)),
     ).length;
+    const preferred = mac ? await this.ctx.options.preferredBrowserWindow?.() : undefined;
+    request.context.signal?.throwIfAborted();
+    const selected =
+      preferred &&
+      browserWindows.find((window) => {
+        const binding = this.ctx.computer.windows.get(String(window.window_id));
+        return (
+          binding?.pid === preferred.pid &&
+          binding.windowId === preferred.windowId &&
+          this.ctx.computer.apps.get(binding.appId)?.identity === 'bundle:com.google.chrome'
+        );
+      });
+    if (selected) Object.assign(selected, { selected_for_browser_tasks: true });
 
     return {
       outcome: 'verified',
@@ -222,17 +235,26 @@ export class ComputerInventory {
               browser_metadata_partial: unidentified > 0,
               browser_windows_uninspected: remaining,
               browser_windows_unidentified: unidentified,
-              ...(remaining > 0
+              ...(selected
                 ? {
+                    preferred_browser_window: {
+                      app_id: selected.app_id,
+                      window_id: selected.window_id,
+                    },
                     next_step:
-                      'Some browser windows have not been identified yet. Repeat computer_list to inspect the next batch, or use computer_snapshot on a specific task window. Missing metadata is not evidence of sign-out.',
+                      'This is the person’s previously selected Chrome window in the same live browser process, not an access grant or proof of its current page. If the request refers to the connected browser, inspect this exact window with computer_snapshot. Follow its existing background-connection recovery instructions if access must be refreshed; do not select a different window or approve permission prompts.',
                   }
-                : unidentified > 0
+                : remaining > 0
                   ? {
                       next_step:
-                        'Some browser windows could not be identified in this response. Inspect an available candidate with computer_snapshot, respecting protected-window refusals. Missing or unavailable observations do not establish sign-out or the absence of a signed-in account.',
+                        'Some browser windows have not been identified yet. Repeat computer_list to inspect the next batch, or use computer_snapshot on a specific task window. Missing metadata is not evidence of sign-out.',
                     }
-                  : {}),
+                  : unidentified > 0
+                    ? {
+                        next_step:
+                          'Some browser windows could not be identified in this response. Inspect an available candidate with computer_snapshot, respecting protected-window refusals. Missing or unavailable observations do not establish sign-out or the absence of a signed-in account.',
+                      }
+                    : {}),
             }
           : {}),
         installed_apps: ((await this.ctx.options.installedApplications?.()) ?? [])

@@ -70,6 +70,10 @@ export interface DesktopActionBackendOptions {
     windowId: number,
     tabsOnly?: boolean,
   ) => Promise<BrowserWindowState>;
+  /** Previously chosen window in the same live browser process; discovery hint, not a grant. */
+  readonly preferredBrowserWindow?: () => Promise<
+    { pid: number; windowId: number } | undefined
+  >;
   readonly readImageText?: (dataBase64: string) => Promise<string | undefined>;
   readonly readWindowContext?: (pid: number, windowId: number) => Promise<WindowContextState>;
   readonly cua: CuaToolCaller;

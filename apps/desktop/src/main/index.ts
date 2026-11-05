@@ -764,6 +764,7 @@ async function performApplicationCreation(): Promise<void> {
       macBackgroundControl: () => activeController.macBackgroundControl(),
       inspectBrowserWindow: (pid, windowId, tabsOnly) =>
         browserWindows.inspect(pid, windowId, tabsOnly),
+      preferredBrowserWindow: () => activeController.preferredBrowserWindow(),
       readImageText: (dataBase64) => browserWindows.imageText(dataBase64),
       readWindowContext: (pid, windowId) => browserWindows.context(pid, windowId),
       ...(localConnectors ? { localConnectors } : {}),

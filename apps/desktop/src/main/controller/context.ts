@@ -406,8 +406,8 @@ export class ControllerContext {
 
   persist(): void {
     const browser = { ...this.state.browser };
-    // Chrome window titles and native ids are process-local chooser data. Keep them out of
-    // durable storage even though the rest of the application state is encrypted at rest.
+    // The chooser's titles and full window list are transient. Only the separately validated
+    // browserSelection hint is durable; native sessions and tab capabilities are not.
     delete browser.availableWindows;
     this.deps.repository.put('desktop', 'state', { ...this.state, browser });
     this.localSaveFailed = false;

@@ -54,6 +54,11 @@ the native service owns driver execution. Permission setup is an explicit user o
 trusted browser lease and maps only proved SDK expiry/revocation to connection recovery. It does
 not retry input or silently renew access. This lifecycle is separate from macOS permission setup
 and from the action layer’s exact window/tab grants.
+The controller's `BrowserSession` separately remembers an explicitly selected Chrome window as a
+private discovery hint. It stores only PID, process start time and window id in encrypted state;
+restart still discards sessions and grants. `computer_list` exposes a fresh opaque reference only
+when that same Chrome process and window remain live. Process replacement or explicit disconnect
+invalidates the hint. It never substitutes for snapshot, setup or action authorization.
 
 The native patch and its build/verification steps are documented in
 [`native/cua/README.md`](../apps/desktop/native/cua/README.md). The service regression suite covers
