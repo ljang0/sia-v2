@@ -3,7 +3,8 @@
 **RA handoff is held.** Current signed internal `1269df9` completed ordinary background museum
 research after visible app restart with automatic restoration of the chosen Chrome connection.
 Earlier candidates passed an outing plan with website recovery and native checklist creation.
-Broader input isolation, hidden-startup recovery, responsiveness and exact-DMG acceptance
+A fresh native comparison request on the current candidate failed at Finder's Go to Folder
+keyboard step. Native repeatability, input isolation, hidden-startup recovery, responsiveness and exact-DMG acceptance
 remain open. Nothing has been published, sent to a recipient or submitted to Arena by this work.
 
 ## Current installed candidate
@@ -27,6 +28,24 @@ failure remain in the evidence; passing checks do not establish their cause or e
 concerns.
 
 ## Live results that determine readiness
+
+### Saturday comparison on 1269df9: native useful-task failure
+
+Fresh thread `1e23b468-1109-4fe1-bc06-31a8943bc18a`, turn
+`06ba59e7-0ec9-4a7c-a484-2867fb6b0069`, failed in 143.132 seconds. The ordinary request was to
+use Finder/TextEdit to turn the two researched Saturday plans into a concise printable RTF,
+preserve the sources, and save/close/reopen the result. Finder opened Go to Folder and accepted
+a field click, but Cmd+A refused `window_not_key` before input. A later attempt to open the folder
+through `computer_open_app` correctly refused foreground delivery in the background-only task.
+No `Saturday options.rtf` was produced and no operator rescued the run.
+
+Independent checks confirm all eight protected files and both additions to an unrelated Chrome
+draft remained intact. Post-terminal CUA shows the Go to Folder sheet with its path field focused;
+the native failure hint is `unavailable`, so the exact focus-proof discrepancy remains unresolved.
+AWS matches the prompt, failed outcome, nine actions, five PNGs and 22 usage events in two
+encrypted batches (76 stored / 75 logical records), with one finalization. Receipt:
+`weekend-native-acceptance.json`. This current failure prevents using earlier native successes
+as proof of repeatability or readiness.
 
 ### Museum research on 1269df9: visible-restart and useful-task pass
 

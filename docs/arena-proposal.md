@@ -40,6 +40,10 @@ remain unproved. The latest run, `1269df9`, has matching AWS records for 45 acti
 and 94 usage events. A roughly 91-second interval between tool calls, earlier intermittent input
 and observation failures, and hidden-startup recovery remain open. These are useful workflow
 results, not evidence of general responsiveness or arbitrary-app reliability.
+A subsequent ordinary request on the same candidate to create a printable comparison through
+Finder/TextEdit failed at background keyboard input in Go to Folder (143 seconds, no output).
+Its sources and unrelated draft were preserved and AWS matched the failed run. Native
+repeatability remains a distribution blocker despite earlier successful document workflows.
 
 Automatic AWS archives matched the useful runs' prompts, results, actions and screenshots. A
 subsequent Stop test exposed duplicate capture finalization; the repaired signed candidate then

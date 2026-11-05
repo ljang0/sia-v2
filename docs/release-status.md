@@ -1,6 +1,6 @@
 # Release status
 
-Updated November 5, 2026. **Native document creation, visitor research and a fresh dinner-planning task completed without task-time rescue. Signed QA `1269df9` also completed fresh museum research after visible app restart with automatic restoration of the previously chosen Chrome connection. Hidden-startup recovery, input/observation reliability, responsiveness and exact-installer acceptance remain open. Automatic AWS records match the completed museum run. The notarized alpha.122 DMG lacks later fixes; RA handoff, broad distribution and Arena acceptance remain held.**
+Updated November 5, 2026. **Signed QA `1269df9` passed the full pilot gate and completed museum research after visible restart, but a fresh native document request failed at Finder's Go to Folder keyboard step. Earlier native successes do not establish repeatability. Hidden-startup recovery, input/observation reliability, responsiveness and exact-installer acceptance remain open. Automatic AWS records match both latest outcomes. The notarized alpha.122 DMG lacks later fixes; RA handoff, broad distribution and Arena acceptance remain held.**
 
 ## Bounded RA handoff goal
 
@@ -75,6 +75,21 @@ checksums, pass/fail results and known limits. Publishing, invitations and Arena
 separate actions requiring authorization.
 
 ## Current targeted repair
+
+The next evidenced defect is native sheet keyboard routing. On signed `1269df9`, an ordinary
+request to make a printable comparison of the two researched Saturday plans failed after
+143.132 seconds. Finder opened Go to Folder and accepted a pixel click in its field; Cmd+A then
+refused `window_not_key` before sending keys. Observing the document and trying background
+`computer_open_app` did not recover the task. No RTF was created and no operator rescued it.
+All eight protected sources and both additions to an unrelated Chrome draft remained unchanged.
+AWS matches the exact prompt and failed outcome, nine actions, five PNGs and 22 usage events
+in two encrypted batches (76 stored / 75 logical records). Receipt: `weekend-native-acceptance.json`.
+
+Post-terminal CUA observation still shows Finder's `GoToWindow` sheet with its path field focused.
+The existing runtime key-window hint reports `unavailable`, so missing versus conflicting native
+focus proof is not yet distinguished. Compare this exact clicked-sheet route with the earlier
+successful typing into the initially selected field before changing routing. Do not replace the
+failed run with foreground rescue, weaken the exact-window guard or build speculative transports.
 
 Cold restart on signed `bed8a3c` failed a fresh rainy-day museum request in 37.839 seconds:
 the saved choice survived but native preparation refused `background_unavailable` before
