@@ -1,6 +1,7 @@
 # Working in Sia
 
-This repository is preparing a controlled CMU pilot of the macOS desktop app. Keep changes small,
+This repository is preparing a public Mac 1.0 release (owner request, November 5). The current
+alpha is held from distribution; use the gates in `docs/release-status.md`. Keep changes small,
 safe, and easy for a new contributor to verify.
 
 ## First 15 minutes

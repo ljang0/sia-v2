@@ -165,7 +165,9 @@ export function PrivacySettings({
             <div>
               <strong>Your controls</strong>
               <p>
-                Pause collection, export local records, or delete your research data.{' '}
+                Pause collection, export local records, or delete your research data. Pausing
+                discards unfinished cloud recordings; resuming does not restore them. The
+                separate local log is controlled in Computer → Details for troubleshooting.{' '}
                 {snapshot.cloudAuth.state === 'signed-in'
                   ? 'Deletion also requests removal of active cloud research copies. '
                   : 'While signed out, captures stay encrypted on this Mac. '}

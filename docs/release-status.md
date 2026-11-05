@@ -1,78 +1,74 @@
 # Release status
 
-Updated November 5, 2026. **Signed internal `d67df60` fixes stale window-focus cleanup, but the ordinary native document task still fails in TextEdit's Open dialog. A bounded foreground comparison works; subsequent input trials were removed and background mode restored. AWS matches the runs and protected files are unchanged. The full pilot suite passed on the retained runtime source. Native background delivery, input isolation, responsiveness and exact-DMG acceptance remain open. RA distribution and Arena acceptance are held.**
+Updated November 5, 2026. **Public 1.0 is not ready.** The retained signed internal app still
+fails background typing in TextEdit's Open dialog and Slack's directory filter. A navigation-only
+Slack test also captured an unintended message screenshot; its authorized local and AWS cleanup
+is complete. Neither an RA installer nor a public release has been approved or published.
 
-## Bounded RA handoff goal
+## Public Mac 1.0 goal
 
-**Definition of done:** deliver a usable Mac app, not a collection of test results. The next
-release decision has five gates:
+The owner's November 5 request expands the previous bounded RA milestone to a public Mac release.
+Mac remains first; iPhone follows. Vision-only computer use, background operation, automatic task
+authorization after initial setup, and disclosed default AWS recording remain requirements.
+A new version number or signed installer does not establish readiness.
 
-1. From ordinary prompts, complete useful browser research and native document work through
-   the installed app; independently check the saved results. No task-time operator rescue.
-2. Let the person keep using another window: preserve their text, focus and clipboard; make
-   Sia's composer, task controls and Stop work through CUA. Record elapsed time, stalled periods
-   and retries. Unexplained misdirected input or recurring stalls fail acceptance.
-3. Reuse initial access grants after restart, with automatic ordinary-task authorization.
-   Person-owned macOS grants are setup, not permissions that the app can silently enable.
-4. Automatically archive the exact prompts, provider usage, actions/results, screenshots and
-   terminal outcome in AWS; independently match them to the local run, retaining disclosure
-   and explicit opt-outs.
-5. Ship those verified behaviors in one signed, notarized DMG with a short setup guide and
-   honest limits. Keep the changed code focused, remove superseded experiments, and maintain
-   a short architecture walkthrough and Arena proposal.
+The release decision has five gates:
 
-A first RA evaluation does not complete the broader goal of reliable concurrent desktop work.
-Two simultaneous native workflows and wider recovery coverage remain explicit follow-on gates.
-Work only on an open gate: identify a user-visible failure, repair its evidenced cause, and rerun
-that useful path. Do not build again for documentation changes or rerun passing suites without a
-new change or unresolved concern. A failed attempt stays in the evidence; do not relabel it a pass
-because a diagnostic continuation succeeded.
+1. **Useful work:** ordinary requests complete browser research and native document tasks on the
+   exact candidate, with independently checked outputs and preserved sources. Repeat from fresh
+   conversations without task-time rescue. Resolve the native Open-panel and text-entry failures.
+2. **Background isolation and responsiveness:** the person can continue typing in another app
+   without changed focus, text or clipboard. Sia's own controls work through CUA. Verify independent
+   simultaneous tasks, same-window contention, Stop and recovery. Measure startup, local UI feedback,
+   pauses, retries and task durations using the targets in [manual acceptance](./manual-acceptance.md).
+3. **First use and recovery:** verify a clean macOS account or second Mac, upgrade, cold launch,
+   account sign-in, grant reuse, browser recovery, sleep/lock and the offered voice flow. macOS grants
+   remain person-approved. Fresh-account access is currently unavailable; Intel runtime is unverified.
+4. **Recording and task scope:** match automatic AWS prompts, usage, actions, screenshots and
+   terminal outcomes to the actual task. Verify pause, resume, opt-out and deletion during running
+   tasks. Prevent observations outside an explicitly restricted task surface. The Slack capture
+   mismatch remains unresolved; deleting its records does not repair it.
+5. **Distributable artifact:** build one signed, notarized, stapled DMG only after the functional
+   gates pass; verify its exact bytes, clean install, update/rollback and release configuration.
+   Provide a short setup guide, accurate limits, a reviewable codebase and the Arena technical-review
+   proposal. Lawrence owns support and incidents. Publication and outreach are separate from prep.
 
-**November 4 acceptance clarification:** the RA handoff is a first milestone, not a replacement
-for the full distribution goal. Real personal workflows, CUA-operated Sia controls, background
-operation alongside the person's work, preserved inputs, independently checked outputs and
-matching automatic AWS archives determine readiness. Manual rescue is recorded as failure of
-autonomous acceptance. Unit tests, synthetic fixtures, diagnostics and signing are supporting
-checks; none substitutes for working functionality. Each cycle must deliver a targeted repair
-and a live rerun or establish a concrete blocker. The menu-routing diagnostic identified a missing native edit-session step; its successful
-explicit-click comparison now informs the functional guidance repair. Do not repeat diagnostic
-builds or unchanged workflow loops instead of completing fresh-conversation and input-isolation acceptance.
-Acceptance starts with an ordinary user request on the candidate, without operator-supplied click,
-key or recovery instructions. Diagnostic continuations count only as evidence for a repair; the
-default app must perform the sequence itself before that workflow passes.
+Work only on an open gate: identify an evidenced defect, make a targeted repair, and rerun the
+failing path. Automated checks protect changes; they do not replace useful live acceptance.
+Do not repeat failed transport variants, remove safety checks, introduce semantic UI fallbacks,
+or count manually rescued runs as passes. Keep unsuccessful trials out of the retained runtime.
 
-Owner reset, November 3: finish a supervised **Apple-silicon RA evaluation**, not general desktop
-reliability. Freeze functional scope at the tested QA candidate plus the targeted Chrome
-corrections justified below. Prepare one final signed,
-notarized DMG from that candidate and a short setup/limitations guide. Reuse the existing Arena
-proposal; keep it a technical-review draft, not a rollout or reliability promise.
+## Recording-control repair in source
 
-Owner clarification: useful background personal-desktop control, automatic task approval after
-initial setup, and correct automatic AWS prompt/usage/trajectory uploads remain required. A
-workspace-file tool alone does not prove desktop control. On the exact installed DMG, complete a
-public-browser research task and a bounded everyday native-app task with checked results and
-preserved sources. Include browser reuse after restart and input isolation while another app is
-in use. Initial macOS/Chrome grants remain person-approved; reuse existing grants without redundant
-Sia approval cards. Default recording must retain its disclosure and existing opt-outs.
+A controller-level regression reproduced three cases: pause then resume, decline then re-consent,
+and delete then re-consent while the same task was still running. Raw recording resumed for that
+interrupted task. Pause and decline retained its earlier staged raw events; deletion allowed its
+later events to recreate a recording.
 
-Verify AWS objects against that candidate's local task records, including prompts, provider usage,
-action results, screenshot hashes and completion/failure events. Existing internal-QA evidence
-informs these checks but does not replace them. Record operator intervention; a rescued or failed
-run is not a background acceptance pass.
+The repair excludes pending turns until their runners finish and discards both staged formats.
+New tasks still record after Resume. All three regressions failed before and passed after the
+repair; the adjacent recording, finalization and account suite passed (37 tests). The full
+`pnpm test:pilot` gate passed: 2,126 desktop unit tests, 46 desktop E2E, 48 renderer and 72 companion
+checks, plus build/static/shared/cloud/native checks (23 desktop unit and five E2E skips). Private
+log: `public-readiness-pilot.log`. This source change is not installed or live-AWS verified and does
+not resolve the navigation-only screenshot failure. The separate local diagnostic log remains
+controlled by its existing Computer setting; Privacy now makes that distinction explicit.
 
-Do not expand this pass beyond the bounded native task to two native-app tasks, unattended concurrency,
-physical Fn/lock/sleep, Intel runtime, iPhone or a fresh-account setup that is unavailable. Keep those
-as future milestones. Do not promise them to the RA or Arena. No speculative native-driver changes,
-cosmetic fixes, new demos or repeated packaging for documentation changes.
+## Dependency audit
 
-If a scoped workflow fails, isolate one evidenced cause, make one targeted repair and rerun that
-path. If it still fails, record the exact blocker. Another repair requires new evidence that changes
-the diagnosis; do not repeat timeout or transport variants speculatively. The artifact can be labeled a limited technical-evaluation build, but the owner's
-background personal-desktop requirement is not complete and must not be waived or labeled
-passed. Wrong-window input,
-credential disclosure or source-data loss blocks sharing until resolved. Finish with the exact DMG,
-checksums, pass/fail results and known limits. Publishing, invitations and Arena outreach remain
-separate actions requiring authorization.
+The current audit passes the high/critical threshold but reports two moderate build-tool
+advisories: [glob cancellation](https://github.com/advisories/GHSA-3g3m-2fjr-6pw4) through rimraf,
+and [minimatch pattern amplification](https://github.com/advisories/GHSA-g3hv-75wg-m249) through
+linting and packaging tools. No dependency versions were changed in this repair. The minimatch
+fix requires version 11, whose upstream changelog removes APIs; a blanket major-version override
+has not been validated. These findings remain open in the public release audit.
+
+## Latest startup observation
+
+An ordinary launch of the unchanged signed internal app reached the composer without using
+Open Sia. CUA clicked the composer, entered an unsent test sentence, verified it visually, cleared
+it and quit. No model task ran. This is one successful observation, not a repair or a claim that
+previous intermittent blank-window failures are resolved.
 
 ## Current native blocker
 

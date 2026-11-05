@@ -86,18 +86,10 @@ export class ResearchOutbox {
         pendingCount: this.ctx.state.capture.pendingCount,
         promptReviewedVersion: input.consentVersion,
       };
-      for (const staged of this.ctx.researchCapture.staging.values()) {
-        staged.tainted = true;
-        staged.events = [];
-        staged.eventByMessageId.clear();
-      }
+      this.ctx.researchCapture.excludePendingTurns();
     } else {
       this.ctx.state.capture.status = 'paused';
-      for (const staged of this.ctx.researchCapture.staging.values()) {
-        staged.tainted = true;
-        staged.events = [];
-        staged.eventByMessageId.clear();
-      }
+      this.ctx.researchCapture.excludePendingTurns();
     }
     this.ctx.deps.trajectory?.record({
       type: input.enabled
@@ -135,11 +127,7 @@ export class ResearchOutbox {
     this.ctx.commit();
     try {
       const inFlightResearchSync = this.inFlightSync;
-      for (const staged of this.ctx.researchCapture.staging.values()) {
-        staged.tainted = true;
-        staged.events = [];
-        staged.eventByMessageId.clear();
-      }
+      this.ctx.researchCapture.excludePendingTurns();
       this.generation += 1;
       if (this.retryTimer) {
         clearTimeout(this.retryTimer);
