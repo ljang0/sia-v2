@@ -251,6 +251,9 @@ async function revealApplicationWindow(revealConversation = false): Promise<void
     } satisfies import('../shared/bridge.js').DesktopPushEvent);
   if (!quietFixture) {
     mainWindow.show();
+    // Explicitly opening Sia must activate the app as well as its window.
+    // A window focus request alone can leave another macOS app receiving keys.
+    if (process.platform === 'darwin') app.focus({ steal: true });
     mainWindow.focus();
   }
 }
@@ -1186,6 +1189,7 @@ function installApplicationMenu(developerTools = false): void {
         label: 'Sia',
         submenu: [
           { role: 'about' },
+          { label: 'Open Sia', click: showOrCreateApplicationWindow },
           {
             label: 'Show Scotty',
             click: () => {
