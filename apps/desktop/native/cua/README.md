@@ -86,8 +86,12 @@ Space with finite, nonzero geometry. Apple's [onscreen key](https://developer.ap
 describes current visibility. An explicit minimized value is never overridden; ordinary windows,
 other windows/processes, off-Space/unknown visibility and hidden apps retain their refusals.
 The regression fails with the AX-only rule and passes with this proof, including negative cases.
-This is host validation only; the model still sees screenshots. Signed panel-input acceptance
-remains required.
+This is host validation only; the model still sees screenshots. Signed `04fdb7d` still refused
+the panel, so this proof has not repaired the live path. Opt-in `SIA_CUA_INPUT_DIAGNOSTICS=1`
+reports only visibility booleans and whether the focused raw surface and its owning window
+match the target. It logs no IDs, titles, paths, input or AX content. This distinguishes missing
+visibility from sheet-to-parent identity mapping without changing input decisions. Signed
+panel-input acceptance remains required.
 
 ## Background links
 
