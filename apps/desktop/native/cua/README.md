@@ -69,7 +69,7 @@ any input guard. Sia's separate signed observer already runs a main loop and is 
 This backport removes the known native query defect; it is not proof that it caused Sia's
 observed Chrome recovery or input failures. Signed-app background acceptance remains required.
 
-## Standalone native panels
+## Native panels
 
 The signed reviewer-copy task exposed Finder's Go to Folder panel through operator CUA while
 Sia reported `ax_unresolved`. Exact-window discovery now also checks `AXFocusedWindow` when
@@ -80,14 +80,18 @@ element and leaves hidden/minimized, key-window and dispatch checks intact. This
 same acquisition path to observation and input validation; no AX content is exposed to the model.
 Signed `52a81f3` resolves the panel exactly, confirming the discovery repair, but input still
 refuses its visibility state. The ordinary document rerun completed through another Finder window.
-The follow-up supplies independent visibility proof when a standalone sheet omits `AXMinimized`:
+The follow-up supplies independent visibility proof when a focused sheet omits `AXMinimized`:
 its exact PID/window must be focused, and WindowServer must report it onscreen on the current
 Space with finite, nonzero geometry. Apple's [onscreen key](https://developer.apple.com/documentation/coregraphics/kcgwindowisonscreen)
 describes current visibility. An explicit minimized value is never overridden; ordinary windows,
 other windows/processes, off-Space/unknown visibility and hidden apps retain their refusals.
 The regression fails with the AX-only rule and passes with this proof, including negative cases.
 This is host validation only; the model still sees screenshots. Signed `04fdb7d` still refused
-the panel, so this proof has not repaired the live path. Opt-in `SIA_CUA_INPUT_DIAGNOSTICS=1`
+the panel: signed diagnostic `0385bc4` confirmed every visibility premise except the comparison
+with the focused owning window. The raw focused sheet matches the target, but its parent does
+not. Visibility now compares the exact raw surface, preserving owner-based keyboard ancestry.
+A regression reproduces the parent/surface mismatch and rejects a different focused surface
+even when its owner equals the target. Opt-in `SIA_CUA_INPUT_DIAGNOSTICS=1`
 reports only visibility booleans and whether the focused raw surface and its owning window
 match the target. It logs no IDs, titles, paths, input or AX content. This distinguishes missing
 visibility from sheet-to-parent identity mapping without changing input decisions. Signed
