@@ -432,6 +432,15 @@ document, missing owner or sibling still refuses. This preserves modal command e
 does not permit the document Save fallback. The regression fails before the fix; useful signed
 acceptance remains required.
 
+The next bounded diagnostic logs fixed `popup_lookup` outcomes from capture: unresolved focused
+root, no visible menu window, no owned menu in the root, matched owned menu, or failed ownership
+scan. It changes no capture or input predicates and logs no menu text or native IDs. On `e1bebca`,
+the ordinary task passed folder navigation but missed Finder's file menus; a post-terminal
+operator pixel right-click exposed a persistent AX menu while the operator screenshot omitted it.
+These labels settle whether Sia omits that surface before window matching or fails ownership.
+Remove this temporary capture diagnostic once that distinction is established; it is not task
+acceptance and does not justify another unchanged workflow loop.
+
 Native hotkeys also log fixed `menu_lookup` labels: `enabled_match`, `disabled_match`,
 `no_match`, `target_active` or `non_native`. A matched command logs `menu_dispatch=returned`
 or `unavailable_key_fallback`. These distinguish the paths that otherwise all end in synthetic

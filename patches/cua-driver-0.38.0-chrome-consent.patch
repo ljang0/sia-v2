@@ -4265,10 +4265,10 @@ index 0000000..c22108d
 +}
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup.rs b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup.rs
 new file mode 100644
-index 0000000..880eafd
+index 0000000..954e322
 --- /dev/null
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/ax/window_point/popup.rs
-@@ -0,0 +1,278 @@
+@@ -0,0 +1,292 @@
 +//! An owned popover and its menu, or one menu under an exact window or sheet.
 +//! AX proves ancestry/process/geometry; WindowServer supplies the capturable ID.
 +mod popover;
@@ -4349,6 +4349,7 @@ index 0000000..880eafd
 +
 +unsafe fn owned_popups(pid: i32, window_id: u32) -> anyhow::Result<Vec<(RetainedElement, Popup)>> {
 +    let Some(sheet) = focused_root(pid, window_id) else {
++        eprintln!("[sia:cua-capture] popup_lookup=focused_root_unresolved");
 +        return Ok(Vec::new());
 +    };
 +    let windows = crate::windows::on_screen_windows_any_layer();
@@ -4372,6 +4373,7 @@ index 0000000..880eafd
 +    // a potentially enormous file listing when there is no popup to capture.
 +    // Full surface validation repeats this observation after capture/at dispatch.
 +    if !windows.iter().any(|w| w.layer == 101 && w.is_on_screen) {
++        eprintln!("[sia:cua-capture] popup_lookup=no_visible_menu_window");
 +        return Ok(found);
 +    }
 +    let mut stack = vec![(root, 0)];
@@ -4410,6 +4412,7 @@ index 0000000..880eafd
 +                "popup process is unavailable"
 +            );
 +            let proof = match_window(pid, menu_pid, bounds, &windows, is_document_service)?;
++            eprintln!("[sia:cua-capture] popup_lookup=owned_menu_matched");
 +            found.push((element.clone(), proof));
 +            // match_window proves there is only one popup for this client,
 +            // across all bounds, before this ancestry proof is accepted. It is
@@ -4417,6 +4420,13 @@ index 0000000..880eafd
 +            break;
 +        }
 +        stack.extend(children.into_iter().map(|child| (child, depth + 1)));
++    }
++    if !found.iter().any(|(_, proof)| {
++        windows
++            .iter()
++            .any(|w| w.layer == 101 && w.window_id == proof.window_id)
++    }) {
++        eprintln!("[sia:cua-capture] popup_lookup=no_owned_menu_in_root");
 +    }
 +    let current =
 +        focused_root(pid, window_id).ok_or_else(|| anyhow::anyhow!("sheet disappeared"))?;
@@ -4429,7 +4439,11 @@ index 0000000..880eafd
 +
 +pub(crate) fn read(pid: i32, window_id: u32) -> anyhow::Result<Vec<Popup>> {
 +    unsafe {
-+        Ok(owned_popups(pid, window_id)?
++        Ok(owned_popups(pid, window_id)
++            .map_err(|error| {
++                eprintln!("[sia:cua-capture] popup_lookup=ownership_scan_failed");
++                error
++            })?
 +            .into_iter()
 +            .map(|(_, proof)| proof)
 +            .collect())
