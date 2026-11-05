@@ -1091,6 +1091,14 @@ and media files must be ordinary files (maximum 25 MB) inside the conversation w
 `~/SiaOutbox`, excluding sensitive paths, hidden subpaths, symlinks, hard links, and executables.
 The encrypted grant is scoped to its thread and checked again against the saved file identity
 when previewed, opened, revealed, or downloaded. Deleting the conversation removes its grants.
+
+A structured native-app result outside those folders may instead receive an exact-file,
+local-only reference under the person's home directory, with the same type, size, sensitive-path
+and link checks. It exposes explicit Open and Reveal controls, not content access: previews return
+location guidance, remote downloads are rejected, and phone/iMessage result delivery excludes it.
+The model's Markdown links do not create these references. Attaching the file remains the normal
+way to authorize its contents for a conversation. Both reference kinds persist and revalidate
+file identity; neither opens a file automatically.
 Markdown result previews use the same safe document renderer as replies: wrapped prose, headings and tables, with no raw HTML or remote images. Markdown remains HTTPS-only. The phone downloads only generated results currently visible in
 its authorized conversation, up to 20 MB, as inert attachments; changing/revoking the phone
 session invalidates access. File controls do not establish that an artifact's contents are correct.

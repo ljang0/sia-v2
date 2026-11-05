@@ -81,6 +81,8 @@ export interface AttachmentView {
   kind: AttachmentKind;
   bytes: number;
   generated?: boolean;
+  /** A native-app result that can be opened locally, but is not a file-content grant. */
+  localOnly?: boolean;
 }
 
 export type AttachmentPreviewView =

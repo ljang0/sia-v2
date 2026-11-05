@@ -509,6 +509,7 @@ export class TurnRunner {
               const attachment = await this.ctx.attachments.grantResult(
                 thread.id,
                 taskResult.output_file,
+                { allowLocalReference: true },
               );
               const message = this.ctx.state.timeline.findLast(
                 (item) =>

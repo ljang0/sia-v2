@@ -1144,7 +1144,7 @@ export class MessagesRelay {
           item.kind === 'assistant',
       )
       .flatMap((item) => item.attachments ?? [])
-      .filter((file) => file.generated)
+      .filter((file) => file.generated && !file.localOnly)
       .slice(0, 3);
     for (const file of files) {
       this.#outgoing = this.#outgoing

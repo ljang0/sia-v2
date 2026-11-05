@@ -10,6 +10,12 @@ export interface ResultFileIdentity {
   ino: number;
 }
 
+export class ResultFileScopeError extends Error {
+  constructor() {
+    super('Save the result in this conversation’s folder or SiaOutbox to open it here.');
+  }
+}
+
 // Results may be documents, data, or media. A model cannot turn an executable or credential
 // path into an Open button. Arbitrary links in Markdown remain HTTPS-only.
 const DOCUMENT_EXTENSIONS = new Set([
@@ -78,9 +84,7 @@ export async function inspectResultFile(
         return { root, path: canonical, dev: info.dev, ino: info.ino, bytes: info.size };
     }
   }
-  throw new Error(
-    'Save the result in this conversation’s folder or SiaOutbox to open it here.',
-  );
+  throw new ResultFileScopeError();
 }
 
 export async function verifyResultFile(identity: ResultFileIdentity): Promise<void> {

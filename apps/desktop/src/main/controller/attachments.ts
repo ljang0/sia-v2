@@ -5,6 +5,7 @@ import { basename, extname, isAbsolute, join, normalize } from 'node:path';
 import { homedir } from 'node:os';
 import {
   inspectResultFile,
+  ResultFileScopeError,
   verifyResultFile,
   type ResultFileIdentity,
 } from './result-files.js';
@@ -33,12 +34,24 @@ export class Attachments {
 
   constructor(private readonly ctx: AttachmentsContext) {}
 
-  async grantResult(threadId: string, path: string): Promise<AttachmentView> {
+  async grantResult(
+    threadId: string,
+    path: string,
+    options: { allowLocalReference?: boolean } = {},
+  ): Promise<AttachmentView> {
     const thread = this.ctx.requireThread(threadId);
+    let localOnly = false;
     const file = await inspectResultFile(path, [
       thread.workspace,
       join(homedir(), 'SiaOutbox'),
-    ]);
+    ]).catch(async (error: unknown) => {
+      if (!(error instanceof ResultFileScopeError) || !options.allowLocalReference) throw error;
+      // Native apps save in the person's chosen folders. Retain an exact-file reference for
+      // an explicit local Open/Reveal click, without granting content reads or remote export.
+      const reference = await inspectResultFile(path, [homedir()]);
+      localOnly = true;
+      return reference;
+    });
     const id = randomUUID();
     const kind = attachmentKind(file.path);
     const view: AttachmentView = {
@@ -47,6 +60,7 @@ export class Attachments {
       kind,
       bytes: file.bytes,
       generated: true,
+      ...(localOnly ? { localOnly: true } : {}),
     };
     const grant: ResultGrant = {
       threadId,
@@ -74,6 +88,8 @@ export class Attachments {
     const grant = await this.requireAttachmentGrant(threadId, attachmentId);
     const result = this.ctx.deps.repository.get<ResultGrant>('result-files', attachmentId);
     if (!result) throw new Error('Only saved results can be downloaded.');
+    if (result.view.localOnly)
+      throw new Error('This result stays on your Mac. Attach it to share its contents.');
     const file = await open(grant.attachment.path, constants.O_RDONLY | constants.O_NOFOLLOW);
     try {
       const info = await file.stat();
@@ -152,6 +168,11 @@ export class Attachments {
   ): Promise<BridgeResultMap['attachments.preview']> {
     const grant = await this.requireAttachmentGrant(input.threadId, input.attachmentId);
     const path = grant.attachment.path;
+    if (grant.view.localOnly)
+      return {
+        kind: 'unavailable',
+        detail: `Saved on your Mac: ${path}. Open it in its app or show it in Finder. To preview or share its contents in Sia, attach the file.`,
+      };
     const extension = extname(path).toLocaleLowerCase();
     if (extension === '.pdf') return { kind: 'pdf' };
     const mimeType = previewImageMimeType(path);

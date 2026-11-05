@@ -76,6 +76,14 @@ separate actions requiring authorization.
 
 ## Current targeted repair
 
+The latest native copy/edit/save/close/reopen task on `b7c1f36` produced the correct reviewer
+document and preserved both source documents, the concurrent unsent draft and the clipboard.
+The whole turn still failed: result registration rejected the requested save location outside
+the conversation folder. The targeted repair retains an exact local file reference for explicit
+Open/Reveal, without granting content preview or remote export. Regression checks pass; installed
+acceptance of this repair is pending. This failed run remains failed. Its automatic AWS archive
+matched the exact prompt, 225 events, 66 usage records, 34 actions and 23 screenshot PNGs.
+
 Signed internal `b7c1f36` activates Sia as well as its window when the person explicitly opens it,
 and exposes that canonical action as **Sia → Open Sia**. Merely showing/focusing the Electron
 window could leave another app active. Task-time background actions do not invoke this path.

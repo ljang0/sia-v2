@@ -917,14 +917,26 @@ describe('MessagesRelay', () => {
       sequence: 99,
       kind: 'assistant',
       text: 'Here it is.',
-      attachments: [{ id: 'result-1', name: 'plan.pdf', kind: 'file', generated: true }],
+      attachments: [
+        { id: 'result-1', name: 'plan.pdf', kind: 'file', generated: true },
+        {
+          id: 'local-only',
+          name: 'native.rtf',
+          kind: 'file',
+          generated: true,
+          localOnly: true,
+        },
+      ],
       timestamp: '',
     } as never);
     h.snapshot.threads[0]!.status = 'idle';
     h.emit();
     await h.relay.flush();
     expect(h.sent.at(-1)!.text).toBe(`${REPLY_PREFIX}Here it is.`);
-    expect(h.controller.readGeneratedResult).toHaveBeenCalledWith('thread-1', 'result-1');
+    expect(h.controller.readGeneratedResult).toHaveBeenCalledExactlyOnceWith(
+      'thread-1',
+      'result-1',
+    );
     expect(h.files).toEqual([{ to: ME, name: 'result-1.pdf' }]);
   });
 
