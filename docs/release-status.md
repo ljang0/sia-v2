@@ -52,14 +52,14 @@ The exact installed identity, checks and detailed live receipts are in the
 | Dependencies  | Audit reports zero advisories after scoped build-tool updates; 54,574 matcher comparisons found no differences; signed package/runtime checks passed                       | Exact-candidate live acceptance; CI 412 and the local full gate passed                                                                         |
 | Distribution  | Held alpha.122 universal DMG was signed, notarized and stapled                                                                                                             | It lacks later repairs and must not be distributed; final installer waits for functional gates                                                 |
 
-Current internal QA source: `1a1b7e50e4996745d60e0d9814e2ffbcdaf7ff57`, arm64, Developer ID
-signed, not notarized and not a DMG. The full pilot gate passed on exact installed source `1a1b7e5`: 2,127 desktop
-unit tests, 46 Electron, 48 renderer and 72 companion checks, plus static/shared/cloud/native
-checks (23 unit and five Electron skips). The earlier dependency run encountered one timeout;
-its complete 21-test file passed in isolation, and the exact-source full rerun now passed.
-Private full-gate log: `startup-repaint-pilot.log`.
-[CI 412](https://github.com/ljang0/sia-v2/actions/runs/42122709805) passed the full pilot gate and
-unsigned universal packaging on `63d3a36`; signing/notarization were skipped.
+Current internal QA source: `fc0cfcfb61b30263a99507a66bb518a5bbfeba0b`, arm64, Developer ID
+signed, not notarized and not a DMG. The exact-source full pilot gate passed: 2,128 desktop unit
+tests, 46 Electron, 48 renderer and 72 companion checks, plus static/shared/cloud/native checks
+(23 unit and five Electron skips). Signed package/runtime and installed signature verification
+passed. Private full-gate log: `storage-index-pilot.log`.
+[CI 412](https://github.com/ljang0/sia-v2/actions/runs/42122709805) passed the earlier full pilot gate
+and unsigned universal packaging on `63d3a36`; signing/notarization were skipped. Independent CI
+for the storage repair is pending.
 
 ## Repairs and unresolved causes
 
@@ -79,8 +79,9 @@ loaded conversation and working input. No latency or repeatability claim follows
 **Recording-store startup.** Ordered reads unnecessarily sorted large encrypted payloads through
 temporary SQLite storage. An index plus row-at-a-time decoding preserves old records and their
 order. A disposable-copy read of 133.6 MB dropped from 1,041 to 85 ms under the same Electron
-version. Full checks and signed startup acceptance are pending; this does not prove the reported
-“database or disk is full” error is resolved.
+version. The signed app opened the existing QA profile and accepted CUA composer input; all 1,130
+records and all 67 recording payloads were preserved. The full gate passed. One successful
+launch does not prove the reported “database or disk is full” error is resolved.
 
 **Native dialogs.** Coordinate-targeted vision keys now focus by pointer, retaining host-only
 editable-field and exact-window checks. Main TextEdit body input works in the latest useful-task

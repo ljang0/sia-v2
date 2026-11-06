@@ -35,8 +35,9 @@ a sourced outing plan (457 seconds), and museum research after restart (496 seco
 were independently checked and originals preserved. These are feasibility evidence, not current
 repeatability or responsiveness claims.
 
-The latest ordinary native task inserted all four requested checklist items in TextEdit, but could
-not change the filename in Save. It stopped after 86 seconds with an unsaved draft. Open-panel
+An ordinary native task inserted all four requested checklist items in TextEdit, but could
+not change the filename in Save. It stopped after 86 seconds with an unsaved draft. A subsequent
+save-only request also failed after 76 seconds; its driver trial was reverted. Open-panel
 navigation and duplicate-window capture also remain unreliable. Sia's own rendering has been
 repaired, but startup, isolation and concurrent-use acceptance are incomplete. Unsuccessful driver
 trials were removed; the [acceptance record](./public-release.md) includes failures and exact builds.

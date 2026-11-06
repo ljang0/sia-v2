@@ -1,7 +1,7 @@
 # Distribution acceptance record
 
 **Public 1.0 and RA handoff are held.** The current internal app includes the recording-control,
-vision pointer-focus and background-rendering repairs. It can edit a TextEdit document body,
+vision pointer-focus, background-rendering and recording-store startup repairs. It can edit a TextEdit document body,
 but the ordinary edit-and-save task still fails at Save-panel filename input. Startup has also
 shown a storage error. No release was published, sent to a recipient or submitted to Arena.
 Source work is on draft PR #34.
@@ -10,20 +10,22 @@ Source work is on draft PR #34.
 
 | Identity               | Value                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| Source                 | `1a1b7e50e4996745d60e0d9814e2ffbcdaf7ff57`                                                       |
-| Installed              | November 5, 2026, 22:14:45 UTC                                                                   |
+| Source                 | `fc0cfcfb61b30263a99507a66bb518a5bbfeba0b`                                                       |
+| Installed              | November 5, 2026, 22:39:10 EST                                                                   |
 | Package                | arm64 internal QA; Developer ID signed; not notarized; not a DMG                                 |
-| ASAR SHA-256           | `1a2cac2c7260e0b5fec851caf05b1764a4ebc5b99b2fb549eff020a2ca791cb8`                               |
+| ASAR SHA-256           | `8475e0f9f405cb479f74d83e652bc34748c7741fc5ba282b5f54ebb0205c064b`                               |
 | Cloud resource SHA-256 | `d09232e493f0bd07cfebdea81b7353d4cad499de585907ed2b99b05ba5d11f45`                               |
 | Native patch SHA-256   | `3e6a68249581bf263708075cf93cf5b9c99f5948a3a2b1458a8a20b808857297`                               |
 | Private evidence       | `alpha122-browser-selection-internal/sheet-visibility-acceptance` under Sia Release Verification |
-| Rollback               | `Sia QA alpha122 before startup repaint.app` (signed `28c5a50`)                                  |
+| Rollback               | `Sia QA alpha122 before pointer coordinate.app` (signed `1a1b7e5`)                               |
 
-The exact-source `pnpm test:pilot` gate passed on `1a1b7e5`: 2,127 desktop unit tests,
+The exact-source `pnpm test:pilot` gate passed on `fc0cfcf`: 2,128 desktop unit tests,
 46 Electron, 48 renderer and 72 companion checks, plus build/static/shared/cloud/native checks
-(23 desktop unit and five Electron skips). Build/type checks, three focused Electron checks,
-signed package/runtime verification and installed strict signature checks also passed. Private
-full-gate log: `startup-repaint-pilot.log`. Automated checks do not replace useful-task acceptance.
+(23 desktop unit and five Electron skips). Signed package/runtime verification and installed strict
+signature checks also passed. Private full-gate log: `storage-index-pilot.log`. The first attempt
+correctly refused a native cache that still contained the rejected pointer trial; it was restored
+to the retained canonical patch before the complete successful run. Automated checks do not replace
+useful-task acceptance.
 
 ## Live results that determine readiness
 
@@ -62,7 +64,17 @@ A legacy-database regression fails before and passes after the repair. On a disp
 Electron 43.8.1, the 133,588,937-byte recording read dropped from 1,040.8 ms to 84.8 ms; index creation
 took 22.2 ms. Hashes confirmed identical payloads and order. This is one database-read measurement,
 not total startup latency or proof that every storage failure is fixed. Receipt:
-`storage-index-benchmark.json`. Signed startup acceptance and the full pilot gate are pending.
+`storage-index-benchmark.json`.
+
+Signed `fc0cfcf` opened the existing QA profile without a storage error or Open Sia rescue. CUA
+verified the loaded conversation, typed an unsent sentence and cleared it. Read-only verification
+found the new index, unchanged total row count (1,130), byte-identical existing recording payloads
+(67), and a passing integrity check. Startup was observed within 53 seconds of the launch request;
+that upper bound includes tool scheduling and is not a precise paint-time measurement. One launch
+does not establish repeatability or prove the earlier disk-full error resolved. Receipts:
+`storage-index-startup.json`, `storage-index-live-migration.json` and
+`storage-index-installation.json`. Signed package/runtime and installed strict signature checks
+passed. The exact-source full pilot gate passed; see the current-candidate checks above.
 
 ### Background rendering and secure-startup repaint
 
