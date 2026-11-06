@@ -14,6 +14,8 @@ minimumReleaseAgeExclude:
 # Security patches within the affected release lines. Keep transitive build/test
 # dependencies patched even when their upstream lockfiles or ranges lag behind.
 overrides:
+  '@trycua/cua-driver@0.38.0>@trycua/cua-driver-darwin-arm64': workspace:*
+  '@trycua/cua-driver@0.38.0>@trycua/cua-driver-darwin-x64': workspace:*
   'zod@>=4.0.0 <4.6.6': 4.6.6
   'vite@>=7.0.0 <7.3.7': 7.3.7
   '@xmldom/xmldom@>=0.8.0 <0.8.15': 0.8.15
@@ -26,6 +28,13 @@ overrides:
   'brace-expansion@>=5.0.0 <5.0.12': 5.0.12
   'http-cache-semantics@>=4.0.0 <4.3.0': 4.3.0
   'source-map-js@>=1.0.0 <1.2.2': 1.2.2
+  # These consumers use match/Minimatch, not the APIs removed in minimatch 11.
+  # Remove each override when its upstream range includes the security fix.
+  'eslint@10.11.0>minimatch': 11.0.4
+  '@eslint/config-array@0.23.5>minimatch': 11.0.4
+  '@typescript-eslint/typescript-estree@8.71.0>minimatch': 11.0.4
+  'app-builder-lib@26.15.3>minimatch': 11.0.4
+  '@electron/universal@2.0.3>minimatch': 11.0.4
 
 supportedArchitectures:
   os:

@@ -9,14 +9,21 @@ interface OpenConversation {
 
 const busy = (status: ThreadStatus) =>
   status === 'running' || status === 'queued' || status === 'waiting';
+const attended = () => document.visibilityState === 'visible' && document.hasFocus();
 
-/** True while this window is on screen (not hidden, closed to the Dock, or minimized). */
-export function useWindowVisible(): boolean {
-  const [visible, setVisible] = useState(() => document.visibilityState === 'visible');
+/** Background rendering is not evidence that the person has read a conversation. */
+export function useWindowAttended(): boolean {
+  const [visible, setVisible] = useState(attended);
   useEffect(() => {
-    const update = () => setVisible(document.visibilityState === 'visible');
+    const update = () => setVisible(attended());
     document.addEventListener('visibilitychange', update);
-    return () => document.removeEventListener('visibilitychange', update);
+    window.addEventListener('focus', update);
+    window.addEventListener('blur', update);
+    return () => {
+      document.removeEventListener('visibilitychange', update);
+      window.removeEventListener('focus', update);
+      window.removeEventListener('blur', update);
+    };
   }, []);
   return visible;
 }

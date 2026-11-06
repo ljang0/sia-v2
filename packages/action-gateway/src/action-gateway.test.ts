@@ -138,7 +138,7 @@ describe('curated tool surface', () => {
 
   it('contains only stable snake_case tools and no raw escape hatches', () => {
     const names = ACTION_TOOL_DESCRIPTORS.map((tool) => tool.name);
-    expect(names).toHaveLength(78);
+    expect(names).toHaveLength(79);
     expect(names.every((name) => /^[a-z][a-z0-9_]*$/.test(name))).toBe(true);
     expect(names.join(' ')).not.toMatch(/visual|canvas|javascript|cdp|cookie|profile|shell/i);
     expect(names).toContain('computer_action');
@@ -160,6 +160,7 @@ describe('curated tool surface', () => {
       'computer_open_app',
       'computer_open_url',
       'computer_action',
+      'computer_move_file',
       'mail_create_draft',
       'mail_send',
       'drive_upload',
@@ -648,17 +649,26 @@ describe('curated tool surface', () => {
     expect(descriptor?.inputSchema.properties).not.toHaveProperty('app_name');
   });
 
-  it('requires an exact approval before connector mutations', async () => {
+  it.each([
+    { name: 'slack_post', args: { account_id: 'slack', channel_id: 'C123', text: 'Ship it' } },
+    {
+      name: 'computer_move_file',
+      args: {
+        source: 'Inbox/brief.md',
+        destination: 'Review/brief.md',
+        expected_sha256: 'a'.repeat(64),
+      },
+    },
+  ])('requires exact approval before $name', async ({ name, args }) => {
     const backend = verifiedBackend();
     const approvals = { requestApproval: vi.fn(async () => ({ approved: true })) };
     const gateway = new ActionGateway({ backend, approvals });
-    const args = { account_id: 'slack', channel_id: 'C123', text: 'Ship it' };
-    const result = await gateway.invoke({ name: 'slack_post', arguments: args, context });
+    const result = await gateway.invoke({ name, arguments: args, context });
     expect(result.outcome).toBe('verified');
     expect(approvals.requestApproval).toHaveBeenCalledWith(
       expect.objectContaining({
-        tool: expect.objectContaining({ name: 'slack_post' }),
-        targetDigest: actionTargetDigest('slack_post', args),
+        tool: expect.objectContaining({ name }),
+        targetDigest: actionTargetDigest(name, args),
       }),
       undefined,
     );
@@ -783,6 +793,21 @@ describe('curated tool surface', () => {
 });
 
 describe('local lease coordinator', () => {
+  it('refuses late file actions after the owning turn has ended', async () => {
+    const coordinator = new LocalLeaseCoordinator();
+    const lease = await coordinator.startTurn({ turnId: 'ended', threadId: 'ended' });
+    const backend = verifiedBackend();
+    const gateway = new ActionGateway({ backend });
+    lease.release();
+    const result = await gateway.invoke({
+      name: 'computer_list_files',
+      arguments: {},
+      context: { ...context, turnId: 'ended', threadId: 'ended', lease, backgroundOnly: true },
+    });
+    expect(result.outcome).toBe('refused');
+    expect(backend.invoke).not.toHaveBeenCalled();
+  });
+
   it('lets background file work proceed but queues GUI discovery until the prior GUI task ends', async () => {
     const coordinator = new LocalLeaseCoordinator();
     const owner = await coordinator.startTurn({ turnId: 'owner', threadId: 'owner-thread' });
@@ -836,7 +861,7 @@ describe('local lease coordinator', () => {
       expect(owner.holds({ kind: 'global_focus', id: 'foreground' })).toBe(true);
       owner.release();
       expect((await queued).outcome).toBe('verified');
-      expect(next.holds({ kind: 'global_focus', id: 'foreground' })).toBe(true);
+      expect(next.holds({ kind: 'background_gui', id: 'next' })).toBe(true);
       expect(backend.invoke).toHaveBeenCalledTimes(2);
     } finally {
       owner.release();
@@ -1080,4 +1105,27 @@ it.each([
   expect(allowed.outcome).toBe('verified');
   expect(requestApproval).toHaveBeenCalledOnce();
   expect(backend.invoke).toHaveBeenCalledOnce();
+});
+
+it('admits native key coordinates only as a complete exclusive screenshot target', () => {
+  const base = {
+    app_id: 'app:notes',
+    window_id: 'window:notes',
+    snapshot_id: 'snapshot:notes',
+    action: 'key',
+    value: 'a',
+    modifiers: ['cmd'],
+  };
+  expect(parseActionArguments('computer_action', { ...base, x: 25, y: 30 })).toMatchObject({
+    x: 25,
+    y: 30,
+  });
+  for (const target of [
+    { x: 25 },
+    { y: 30 },
+    { x: 25, y: 30, element_ref: 'w:snapshot:0' },
+    { x: 25, y: 30, to_x: 50, to_y: 60 },
+  ]) {
+    expect(() => parseActionArguments('computer_action', { ...base, ...target })).toThrow();
+  }
 });

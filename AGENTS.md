@@ -1,11 +1,13 @@
 # Working in Sia
 
-This repository is preparing a controlled CMU pilot of the macOS desktop app. Keep changes small,
+This repository is preparing a public Mac 1.0 release (owner request, November 5). The current
+alpha is held from distribution; use the gates in `docs/release-status.md`. Keep changes small,
 safe, and easy for a new contributor to verify.
 
 ## First 15 minutes
 
-Requirements: macOS 14+, Node 24+, pnpm 11+, and Xcode command-line tools.
+Requirements: macOS 14+, Node 24+, pnpm 11+, Xcode command-line tools, and rustup.
+The first build compiles the pinned native driver; see `apps/desktop/native/cua/README.md`.
 
 ```sh
 pnpm install --frozen-lockfile
@@ -19,6 +21,13 @@ lint, quality, type, unit, deterministic desktop E2E, renderer, and Chromium/Web
 [`docs/ra-onboarding.md`](./docs/ra-onboarding.md) for the first-day walkthrough.
 
 ## Product contract
+
+- Owner decision, October 31: computer use must be vision-only by default throughout Sia,
+  including everyday use and Arena evaluation. The model observes screenshots and chooses
+  pointer/keyboard actions; do not expose DOM/AX trees, element references, extracted page text,
+  OCR helpers or semantic setters as an implicit fallback. Host-side access checks and exact-window
+  safety validation remain required. Existing assisted-mode acceptance does not validate this
+  new default. Record implementation and acceptance progress in `docs/release-status.md`.
 
 - Design for everyday consumers without technical backgrounds. Use plain language, sensible
   defaults, and short setup flows. Keep advanced configuration and developer concepts out of the
@@ -36,7 +45,9 @@ lint, quality, type, unit, deterministic desktop E2E, renderer, and Chromium/Web
   up Sia** click walks them in order; macOS still approves each one, and Start using Sia stays off
   until all are on. Fn voice stays optional because it also needs a voice service. Google
   Workspace, Slack, GitHub, and Notion stay optional. Chrome connection is included in default Mac
-  setup, with an explicit Continue without Chrome option; its own consent remains user-owned.
+  setup, with an explicit Continue without Chrome option. Choosing a window authorizes its
+  connection setup, including the exact Chrome connection prompt; task tools cannot approve
+  permission dialogs. macOS permission decisions remain with the person.
   The Connected apps only route needs no Mac permissions. Calendar, Tasks, and Outlook connectors remain disabled.
 - Bypass (no per-action approvals) is the default for every route, including profiles that never
   chose; confirmations are an explicit opt-in (onboarding's Customize setup → Ask before each
@@ -50,11 +61,11 @@ lint, quality, type, unit, deterministic desktop E2E, renderer, and Chromium/Web
   pending step. Turns from a trusted person's Sia and from the plain-HTTP Wi-Fi link always
   require confirmation on the Mac, one request at a time. When text approvals are
   enabled, YES/NO binds only to the exact pending request shown to that trusted sender. Hard safety blocks apply in every mode: Sia-hosted tools block secure fields,
-  authentication surfaces, Keychain, and password managers. Native shell execution follows the
-  provider's approval boundary; the same restrictions in its prompt are not shell enforcement.
+  authentication surfaces, Keychain, and password managers. Vision-only sessions disable provider-native
+  shell and UI tools; host actions retain their capability and approval checks.
 - Local turns and schedules require the Sia process to remain open and the Mac to stay awake. Sia
   keeps the display awake during Use my Mac tasks and pauses them if the Mac locks or sleeps.
-- Research capture is off unless the user separately consents. A pilot is not a research release.
+- Owner decision, November 1: cloud recording is selected by default in first-run setup for ordinary Sia users. Show the prompts/usage/trajectory/screenshot disclosure before Continue records their choice; preserve explicit opt-outs, paused capture, and deletion. Internal operator/model-tester-only accounts remain excluded. Use the existing encrypted outbox and AWS archive, including identity binding, acknowledgement/retry, retention and Google Workspace exclusions. A pilot is not a research release.
 
 ## Repository map
 
@@ -74,6 +85,10 @@ admission checks in [`docs/harness-policy.md`](./docs/harness-policy.md).
 
 ## Change rules
 
+- Owner requirement, October 31: distribution and the Arena handoff require a lean, reviewable
+  codebase. Keep state ownership and module boundaries explicit; separate mixed responsibilities
+  through narrow interfaces, remove obsolete paths at cutover, and keep the architecture walkthrough
+  accurate. Do not add generic frameworks or split declarative tables only to lower line counts.
 - Prefer deleting obsolete paths over adding compatibility shims. Keep one canonical route per UI
   action and update its tests in the same change.
 - Keep secrets and provider credentials out of the renderer, IPC payloads, logs, fixtures, commits,
@@ -82,8 +97,8 @@ admission checks in [`docs/harness-policy.md`](./docs/harness-policy.md).
 - Extend the provider catalog, execution resolver, and signed harness registry when adding a model
   or harness. Do not scatter provider-name conditionals through the UI.
 - Sia-hosted browser, computer, connector, Messages, and schedule actions must pass through
-  `packages/action-gateway` and capability validation in the desktop main process. Use my Mac's
-  native shell and file tools instead run through Codex's approval boundary, as documented in
+  `packages/action-gateway` and capability validation in the desktop main process. Vision-only
+  sessions use the hosted-tool boundary in both foreground and background, as documented in
   [`docs/architecture.md`](./docs/architecture.md).
 - The renderer must use the typed preload bridge. Do not add generic IPC, raw CDP/JavaScript,
   cookie access, arbitrary shell tools, or a model-visible terminal.
@@ -93,6 +108,25 @@ admission checks in [`docs/harness-policy.md`](./docs/harness-policy.md).
   Git history or a release tag.
 
 ## Verification ladder
+
+Owner clarification, November 4: release work must deliver actual functionality, not accumulate
+diagnostic builds or passing test counts. Useful personal tasks completed through CUA, correct
+saved outputs, background operation alongside the person's work, and verified automatic AWS
+uploads are the acceptance evidence. Sia's own composer and controls must be operable through
+CUA. A manually rescued run is a failed autonomous acceptance run; initial person-owned OS grants
+and explicit lock-screen handoffs are separate setup requirements, not task-completion evidence.
+For each repair cycle, identify an evidenced defect, make a targeted functional change and rerun
+the real failing path. Automated checks protect the change but do not prove usefulness. A new
+diagnostic-only build requires a specific unresolved decision that its result will settle; do not
+repeat one after it yields no actionable distinction. Do not replace missing functionality with
+documentation, toy tasks, semantic UI fallbacks or a newly packaged installer.
+The acceptance rerun must start from an ordinary user request on the release candidate. Diagnostic
+prompts that prescribe clicks, keys or recovery steps can isolate defects but cannot establish
+out-of-the-box usefulness. Keep the next milestone bounded by `docs/release-status.md`; additional
+features and test volume are not progress toward that milestone unless they resolve an open gate.
+Record end-to-end duration, stalls and retries for useful tasks. Do not claim responsiveness from
+a final screenshot or input acknowledgement. Do not rebuild for prose-only changes. Keep the
+next release decision tied to the five definition-of-done gates in `docs/release-status.md`.
 
 1. During development, run the nearest workspace test (`pnpm --filter <workspace> test`).
 2. Before review, run `pnpm check`. It includes `pnpm lint` (type-aware ESLint).

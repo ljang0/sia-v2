@@ -41,6 +41,12 @@ required('Git', git.ok, git.output || 'not found');
 
 const xcode = command('xcode-select', ['-p']);
 required('Xcode tools', xcode.ok, xcode.output || 'run: xcode-select --install');
+const rustup = command('rustup');
+required(
+  'Rust toolchain manager',
+  rustup.ok,
+  rustup.output || 'install rustup from https://rustup.rs',
+);
 
 try {
   const signing = spawnSync('/usr/bin/security', ['find-identity', '-p', 'codesigning'], {

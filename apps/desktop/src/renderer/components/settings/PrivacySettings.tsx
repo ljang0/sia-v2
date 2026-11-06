@@ -66,7 +66,7 @@ export function PrivacySettings({
   return (
     <SettingsSectionHeader
       title="Privacy"
-      description="Sia never records your work for research unless you choose to join. This is separate from AI and app permissions."
+      description="Cloud recording is selected by default in first-run setup. Your choice controls whether Sia uploads task records to AWS for evaluation and debugging."
     >
       <InlineSettingsError message={error} />
       {uploadsPaused ? (
@@ -106,8 +106,8 @@ export function PrivacySettings({
             </p>
           ) : (
             <p>
-              Optional and off. If you join, researchers can review what you ask Sia and what it
-              does, including screenshots. You can pause, export, or delete it anytime.
+              Recording is off. If you enable it, researchers can review what you ask Sia and
+              what it does, including screenshots. You can pause, export, or delete it anytime.
             </p>
           )}
         </div>
@@ -165,7 +165,9 @@ export function PrivacySettings({
             <div>
               <strong>Your controls</strong>
               <p>
-                Pause collection, export local records, or delete your research data.{' '}
+                Pause collection, export local records, or delete your research data. Pausing
+                discards unfinished cloud recordings; resuming does not restore them. The
+                separate local log is controlled in Computer → Details for troubleshooting.{' '}
                 {snapshot.cloudAuth.state === 'signed-in'
                   ? 'Deletion also requests removal of active cloud research copies. '
                   : 'While signed out, captures stay encrypted on this Mac. '}

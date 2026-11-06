@@ -1,4 +1,4 @@
-import { isCuaCallResult } from '../mac/cua-service.js';
+import { isCuaCallResult } from '../mac/cua-results.js';
 import { redactObservationLinks } from './observation-text.js';
 
 // Cua Driver payloads are untrusted, loosely shaped JSON. These readers walk them with fixed
@@ -282,6 +282,7 @@ export function windowHasProtectedControls(
   value: unknown,
   options: {
     browserBundleId?: string | undefined;
+    nativeAppBundleId?: string | undefined;
     allowPassiveAuthenticationNotice?: boolean;
   } = {},
 ): boolean {
@@ -289,13 +290,41 @@ export function windowHasProtectedControls(
     .flatMap((key) => findRecordArray(value, key))
     .filter((record) => !isHiddenWindowStructure(record))
     .some((record) => {
-      const label = [record.role, record.subrole, record.title, record.label]
+      // Finder exposes filenames as editable text fields, including applications
+      // named Passwords. AXOpen identifies a file item, not a credential input.
+      // Only its duplicated filename label is exempt; structural credential
+      // markers, titles and other controls in the window still apply.
+      const finderFileLabel =
+        options.nativeAppBundleId?.toLowerCase() === 'com.apple.finder' &&
+        record.role === 'AXTextField' &&
+        typeof record.value === 'string' &&
+        record.label === record.value &&
+        Array.isArray(record.actions) &&
+        record.actions.includes('AXOpen');
+      const controlLabel = finderFileLabel ? undefined : record.label;
+      const label = [record.role, record.subrole, record.title, controlLabel]
         .filter((item) => typeof item === 'string')
         .join(' ');
+      // Cua falls back to AXValue when TextEdit's document area has no label.
+      // A paragraph explaining sign-in is document content, not a login control.
+      // Only omit that duplicated body from authentication-word matching;
+      // secure roles, credential labels, titles and separate controls still apply.
+      const documentBodyLabel =
+        options.nativeAppBundleId?.toLowerCase() === 'com.apple.textedit' &&
+        record.role === 'AXTextArea' &&
+        typeof record.value === 'string' &&
+        record.value.length >= 120 &&
+        record.value.includes('\n') &&
+        record.label === record.value;
+      const authenticationLabel = documentBodyLabel
+        ? [record.role, record.subrole, record.title]
+            .filter((item) => typeof item === 'string')
+            .join(' ')
+        : label;
       // Public API links such as ZipFile.setpassword() are not password fields.
       // Editable controls retain the conservative substring check; literal
       // password labels/prose and secure roles remain protected everywhere.
-      const password = [record.title, record.label].some(
+      const password = [record.title, controlLabel].some(
         (text) =>
           typeof text === 'string' && passwordLabelIsProtected(String(record.role), text),
       );
@@ -316,7 +345,7 @@ export function windowHasProtectedControls(
           !(
             options.allowPassiveAuthenticationNotice && isPassiveAuthenticationNotice(record)
           ) &&
-          /(?:\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat)/i.test(label))
+          /(?:\b(?:sign(?:ing)?|log(?:ging)?).?in\b|authenticat)/i.test(authenticationLabel))
       );
     });
 }

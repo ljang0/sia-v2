@@ -70,18 +70,20 @@
             <h2>Your choice</h2>
             <div class="research-choice">
               <div>
-                <h3>Use your invitation</h3>
+                <h3>Review cloud recording</h3>
                 <p>
-                  Sign in with the email named in your invitation, review the current raw-data
-                  consent, and accept it before a signed-in task starts. Eligible task events
-                  upload to the encrypted research archive.
+                  After email sign-in, cloud recording is selected by default. Review the
+                  raw-data notice and continue with it on to upload eligible prompts, reported
+                  usage, actions and screenshots to the encrypted AWS archive for evaluation and
+                  debugging.
                 </p>
               </div>
               <div>
-                <h3>Continue locally</h3>
+                <h3>Use without recording</h3>
                 <p>
-                  Use Sia without a cloud account. Local-only records never become eligible for
-                  later research upload.
+                  Turn recording off in first-run setup or pause it later in Settings → Privacy.
+                  The distributed app still requires sign-in. Existing opt-outs are preserved,
+                  and local-only records never become eligible for later upload.
                 </p>
               </div>
             </div>
@@ -128,7 +130,8 @@
               </li>
               <li>
                 Local records roll off after 90 days or earlier when the encrypted store reaches
-                128 MB or 500 batches.
+                128 MB or 500 acknowledged batches. Unsynced records remain encrypted until
+                upload succeeds.
               </li>
             </ul>
           </section>

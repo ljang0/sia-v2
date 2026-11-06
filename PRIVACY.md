@@ -1,6 +1,6 @@
 # Sia private-alpha privacy notice
 
-_Effective for 0.1.0-alpha.9. This notice describes the implemented product behavior; it is not a
+_Updated November 2, 2026 for 0.1.0-alpha.122. This notice describes the implemented product behavior; it is not a
 substitute for organization-specific legal review._
 
 ## Local data
@@ -11,9 +11,10 @@ macOS Keychain-backed `safeStorage`. Workspace files remain in their existing lo
 attachment records contain names, kinds, and sizes; temporary file capabilities expire and are not
 reusable arbitrary-file access.
 
-Sia can be used without a Sia account or configured cloud. Research collected in this mode is
-marked local-only. Adding cloud later does not make an existing local batch eligible for upload;
-only new eligible captures created after cloud sign-in may sync.
+A local development build without configured cloud can be used without a Sia account. The
+distributed cloud-configured app requires email sign-in before private app access. Research
+collected in local-only mode is marked local-only. Adding cloud later does not make an existing
+local batch eligible for upload; only new eligible captures created after cloud sign-in may sync.
 
 Provider prompts and responses are sent to the provider selected for the thread under that
 provider's account, terms, and billing. Sia does not copy provider credential files or silently log a
@@ -39,19 +40,20 @@ separate encrypted research outbox, whose acknowledged-upload retention is descr
 
 ## Browser and computer access
 
-By default Sia runs in **trusted local mode**: computer and browser actions execute without a
-per-action approval, and Chrome is attached to the frontmost signed-in window automatically the
-first time the browser is needed. Sia enables Chrome's own persistent remote-debugging toggle (visible and revocable at
-`chrome://inspect/#remote-debugging`) when Chrome is closed at launch, then attaches to the
-Chrome process that owns that local-only endpoint. Chrome must have restarted at least once since
-the toggle was enabled for the endpoint to serve; turning trusted mode off stops Sia from using
-it. Every action is still bound to a live window, tab, and fresh
-snapshot, still refuses incognito, authentication, password, and secure surfaces, and is written to
-the local trajectory log. Turning off `Settings → Computer → Bypass action approvals` restores per-action
-previews and explicit window selection. Sia does not copy cookies. Computer access requires macOS
-Accessibility and Screen Recording, which Sia requests once at first launch. Browsers, terminals,
-password managers, Sia itself, Keychain, and security settings are excluded from generic computer
-targets.
+By default Sia uses **Use my Mac**, works in the background and runs ordinary task actions without
+per-action approval. **Ask before each action** and **On my screen** are explicit alternatives in
+Settings → Computer. Mac setup requires Accessibility, Screen Recording, Automation for installed
+supported apps, and Full Disk Access for Messages history. macOS decisions remain with the person;
+Sia cannot grant these permissions to itself.
+
+Chrome connection is included in setup, with an explicit option to continue without Chrome.
+Choosing a task window authorizes its connection setup, including the exact Chrome connection
+prompt. Existing profiles can reconnect through **Connect Chrome & continue**. This is separate
+from action approval: selecting automatic actions does not bypass missing OS or browser access.
+Sia reuses granted access and validates the live process, window, tab and screenshot before input.
+It refuses private windows and protected authentication, password, Keychain and credential surfaces.
+It does not copy Chrome cookies. Models receive screenshots and choose pointer/keyboard actions;
+host-only access and target checks do not expose a DOM or accessibility tree to the model.
 
 Apple Messages support is local: with Full Disk Access granted to Sia, the `messages_search` and
 `messages_read_thread` tools read recent rows directly from this Mac's own Messages database
@@ -83,15 +85,17 @@ available in each account's own app settings.
 Exact writes are bound to their complete input and either run automatically in autonomous mode or
 require confirmation when that setting is enabled. The desktop receives no AWS credentials.
 
-Research capture is off by default in local-only mode. Sia asks local users after they create their
-first agent. A Sia cloud sign-in is a research-release enrollment: the person must explicitly accept
-the current versioned consent to remain signed in, or decline and sign out. After acceptance, Sia
-offers independent **Connect Google** and **Connect Slack** actions, and Outlook, Notion, and GitHub
-can be connected separately. The Google service controls
-share the current Google grant, while the person may still choose which services the agent may use.
-Connection lifecycle records include the app, status, opaque connection identifier, and provider
-account label when available; OAuth URLs, authorization codes, and tokens are not retained in the
-local trajectory or research bundles.
+For ordinary signed-in Sia users, first-run setup selects cloud recording by default and explains
+prompts, usage, actions and screenshots before Continue saves the choice. People can turn recording
+off and still use the signed-in app; existing opt-outs and pauses remain off. Signing in alone does
+not start recording. Local-only research capture remains optional, and its historical records are
+never uploaded retroactively. Internal operator/model-tester-only accounts are excluded from cloud
+recording; ordinary Users, Participants and Admins are eligible with the current saved consent.
+
+Connected apps have their own authorization flows and remain optional. Connection lifecycle
+records include the app, status, opaque connection identifier and provider account label when
+available; OAuth URLs, authorization codes and tokens are not retained in local trajectories or
+research bundles.
 
 The `alpha-research-v3-raw` consent retains the raw JSON events Sia observes during every completed,
 failed, or cancelled turn. This includes prompts, responses, surfaced reasoning, provider events,
@@ -127,7 +131,8 @@ than anonymous because the service retains that deletion reference.
 
 ## Export, deletion, and retention
 
-Research sharing can be paused in Privacy; it is off for the product pilot unless you separately consent.
+Cloud recording can be turned off during setup or paused in Settings → Privacy. Pausing prevents
+new capture; it does not erase shared records or cancel eligible uploads already queued.
 Research can be exported or deleted from Settings. Account deletion revokes connected apps,
 removes the cloud identity, cloud research data, task ratings and optional feedback notes, and clears Sia's local agents, threads, and auth
 only after the cloud deletion job succeeds. Workspace files, provider CLI accounts, and macOS

@@ -166,9 +166,12 @@ describe('Fn push-to-talk sessions', () => {
 
   it('transcribes practice without dispatching a task or reading app context, then restores normal Fn', async () => {
     const h = harness();
-    h.service.setContextEnabled(true, true);
+    h.service.setContextEnabled(true);
     h.service.setPractice(true);
-    expect(h.native.send).toHaveBeenCalledWith({ type: 'context', enabled: false, mac: true });
+    expect(h.native.send).toHaveBeenCalledWith({
+      type: 'context',
+      enabled: false,
+    });
     const id = randomUUID();
     h.event({ type: 'hold', id, context: { app: 'Safari', bundleID: 'com.apple.Safari' } });
     await flush();
@@ -185,7 +188,10 @@ describe('Fn push-to-talk sessions', () => {
     expect(h.send).not.toHaveBeenCalled();
     h.service.setPractice(false);
     expect(h.service.view().practiceTranscript).toBeUndefined();
-    expect(h.native.send).toHaveBeenCalledWith({ type: 'context', enabled: true, mac: true });
+    expect(h.native.send).toHaveBeenCalledWith({
+      type: 'context',
+      enabled: true,
+    });
     release(h, await listen(h));
     await flush();
     expect(h.send).toHaveBeenCalledExactlyOnceWith(
@@ -412,7 +418,7 @@ it('includes pinned Fn context only after opting in and clears it when disabled 
   expect(h.send).toHaveBeenLastCalledWith(
     h.target(),
     'Please summarize this document.',
-    JSON.stringify(context),
+    JSON.stringify({ app: context.app, bundleID: context.bundleID }),
   );
   const third = randomUUID();
   h.event({ type: 'hold', id: third, context });
@@ -619,4 +625,46 @@ it.each(['muted', 'cancelled'] as const)('never speaks a %s Fn task', async (rea
   h.service.syncTasks();
   await flush();
   expect(h.voice.speak).not.toHaveBeenCalled();
+});
+
+it('requests identity-only activation and strips legacy helper UI content across settings changes', async () => {
+  const h = harness();
+  h.service.setContextEnabled(true);
+  expect(h.native.send).toHaveBeenCalledWith({
+    type: 'context',
+    enabled: true,
+  });
+  h.service.setContextEnabled(false);
+  h.service.setContextEnabled(true);
+  const id = randomUUID();
+  h.event({
+    type: 'hold',
+    id,
+    context: {
+      app: 'Notes',
+      bundleID: 'com.apple.Notes',
+      window: 'private window',
+      selectedText: 'private selection',
+      outline: 'AX tree',
+    },
+  });
+  await flush();
+  h.event({ type: 'recording', id });
+  release(h, id);
+  await flush();
+  expect(h.send).toHaveBeenLastCalledWith(
+    h.target(),
+    'Please summarize this document.',
+    JSON.stringify({ app: 'Notes', bundleID: 'com.apple.Notes' }),
+  );
+  h.service.setPractice(true);
+  expect(h.native.send).toHaveBeenCalledWith({
+    type: 'context',
+    enabled: false,
+  });
+  h.service.setPractice(false);
+  expect(h.native.send).toHaveBeenCalledWith({
+    type: 'context',
+    enabled: true,
+  });
 });

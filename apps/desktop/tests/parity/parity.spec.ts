@@ -229,7 +229,7 @@ test('an interrupted turn is recovered without duplicating its user message', as
     });
     await expect(
       recovered.page.getByTestId(parityContract.interruptedTurnRecovery.testIds[1]),
-    ).toContainText(/interrupted.*safe to retry/i);
+    ).toContainText(/interrupted.*check the last action.*may have completed/i);
     const recoveredPrompt = recovered.page
       .getByLabel('Conversation')
       .getByText(prompt, { exact: true });

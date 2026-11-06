@@ -1115,7 +1115,7 @@ describe('Codex app-server adapter', () => {
       ephemeral: true,
       approvalPolicy: 'never',
       sandbox: 'workspace-write',
-      developerInstructions: 'Be useful',
+      developerInstructions: expect.stringContaining('Be useful\n\nSIA TOOL OUTPUT'),
       config: {
         features: isolatedCodexFeatures,
         web_search: 'live',
@@ -1822,7 +1822,7 @@ describe('Codex library review isolation', () => {
         const start = adapter.createSession({
           ...sessionOptions,
           tools: [],
-          nativeTools: background ? 'mac-background' : 'disabled',
+          nativeTools: background ? 'mac-hosted' : 'disabled',
           ...(background ? { baseInstructions: 'Use only background window tools.' } : {}),
         });
         if (unsafe || invalidPermissions)
@@ -3042,6 +3042,65 @@ describe('Codex turn resilience', () => {
       expect(events.at(-1)).toMatchObject({ type: 'completion' });
       expect(events.some((event) => event.type === 'error')).toBe(false);
     } finally {
+      await adapter.dispose();
+    }
+  });
+
+  it('shares a pending interruption between abort and repeated explicit Stop', async () => {
+    const interrupted = Promise.withResolvers<void>();
+    const reply = Promise.withResolvers<unknown>();
+    const interrupts: unknown[] = [];
+    let server!: ReturnType<typeof linkedPeers>;
+    const peers = codexServer(
+      async (p) => {
+        server = p;
+        return { turn: { id: 'native-turn' } };
+      },
+      async (params) => {
+        interrupts.push(params);
+        interrupted.resolve();
+        return await reply.promise;
+      },
+    );
+    const adapter = new CodexAppServerAdapter({
+      sessionEphemeral: true,
+      peerFactory: async () => ({
+        peer: peers.client,
+        dispose: async () => {
+          await peers.client.close();
+          await peers.server.close();
+        },
+      }),
+    });
+    try {
+      const session = await adapter.createSession(sessionOptions);
+      const controller = new AbortController();
+      const finished = (async () => {
+        for await (const _event of adapter.sendTurn(
+          session,
+          { turnId: 't1', text: 'hi' },
+          controller.signal,
+        )) {
+          /* drain the provider stream */
+        }
+      })();
+      // A Stop before the start reply must still be delivered once the id arrives.
+      controller.abort();
+      await interrupted.promise;
+      const repeatedStops = Promise.all([
+        adapter.cancelTurn(session, 't1'),
+        adapter.cancelTurn(session, 't1'),
+      ]);
+      reply.resolve({});
+      await repeatedStops;
+      expect(interrupts).toEqual([{ threadId: 'native-thread', turnId: 'native-turn' }]);
+      await server.server.notify('turn/completed', {
+        threadId: 'native-thread',
+        turn: { id: 'native-turn', status: 'interrupted' },
+      });
+      await finished;
+    } finally {
+      reply.resolve({});
       await adapter.dispose();
     }
   });

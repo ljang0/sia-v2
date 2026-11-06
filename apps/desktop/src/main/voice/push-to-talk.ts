@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { visualActivationContext } from '../mac/activation-context.js';
 import { spawn } from 'node:child_process';
 import { z } from 'zod';
 import type { PushToTalkView } from '../../shared/bridge.js';
@@ -67,7 +68,6 @@ type Command = {
   phase?: 'idle' | 'working' | 'waiting';
   enabled?: boolean;
   accessibility?: boolean;
-  mac?: boolean;
   id?: string;
   label?: string;
   text?: string;
@@ -191,7 +191,6 @@ interface Options {
 export class PushToTalkService {
   readonly #options: Options;
   #contextEnabled = false;
-  #macContext = false;
   #practice = false;
   readonly #taskThreads = new Map<string, { task: VoiceTask; generation: number }>();
   #speechGeneration = 0;
@@ -223,11 +222,10 @@ export class PushToTalkService {
     };
   }
 
-  setContextEnabled(enabled: boolean, mac = false): void {
-    this.#macContext = mac;
+  setContextEnabled(enabled: boolean): void {
     this.#contextEnabled = enabled;
     if (!enabled && this.#recording) delete this.#recording.context;
-    this.#helper?.send({ type: 'context', enabled: enabled && !this.#practice, mac });
+    this.#helper?.send({ type: 'context', enabled: enabled && !this.#practice });
   }
 
   /** Onboarding uses the real Fn/audio path without reading app context or starting work. */
@@ -236,7 +234,7 @@ export class PushToTalkService {
     this.cancel();
     this.#practice = enabled;
     this.#view = { ...this.#view, practice: enabled, practiceTranscript: undefined };
-    this.setContextEnabled(this.#contextEnabled, this.#macContext);
+    this.setContextEnabled(this.#contextEnabled);
     this.#changed();
   }
   view(): PushToTalkView {
@@ -348,7 +346,6 @@ export class PushToTalkService {
       helper.send({
         type: 'context',
         enabled: this.#contextEnabled && !this.#practice,
-        mac: this.#macContext,
       });
       this.syncTasks();
     }
@@ -413,7 +410,7 @@ export class PushToTalkService {
       void this.#begin(
         event.id,
         this.#contextEnabled && !this.#practice && event.context
-          ? JSON.stringify(event.context)
+          ? visualActivationContext(event.context)
           : undefined,
       );
       return;

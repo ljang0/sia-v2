@@ -12,6 +12,7 @@ import { normalizeWorkspace } from './workspace-paths.js';
 
 /** The host capabilities a desktop controller runs with, with defaults applied. */
 export interface ControllerDeps {
+  readonly visionOnly: boolean;
   readonly notchHelperPath: string;
   readonly repository: RecordRepository;
   readonly cloud: CloudClient;
@@ -20,6 +21,7 @@ export interface ControllerDeps {
   readonly fakeServices: boolean;
   readonly fakeTurnDelayMs: number;
   readonly openExternal: (url: string) => Promise<void>;
+  readonly returnToAppAfterBrowserSetup: ControllerOptions['returnToAppAfterBrowserSetup'];
   readonly localConnectors: LocalConnectorService | undefined;
   readonly trajectory: TrajectoryRecorder | undefined;
   readonly capabilitySetup: ControllerOptions['capabilitySetup'];
@@ -57,6 +59,7 @@ export interface ControllerDeps {
 
 export function resolveControllerDeps(options: ControllerOptions): ControllerDeps {
   return {
+    visionOnly: options.visionOnly === true,
     notchHelperPath:
       options.notchHelperPath ??
       resolve(import.meta.dirname, '../../../build/native/SiaVoiceHelper'),
@@ -67,6 +70,7 @@ export function resolveControllerDeps(options: ControllerOptions): ControllerDep
     fakeServices: options.fakeServices,
     fakeTurnDelayMs: options.fakeTurnDelayMs ?? 160,
     openExternal: options.openExternal,
+    returnToAppAfterBrowserSetup: options.returnToAppAfterBrowserSetup,
     localConnectors: options.localConnectors,
     trajectory: options.trajectory,
     capabilitySetup: options.capabilitySetup,

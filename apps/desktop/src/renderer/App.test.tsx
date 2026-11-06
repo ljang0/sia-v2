@@ -389,6 +389,82 @@ describe('app privacy routing', () => {
     ).toBeNull();
   });
 
+  it.each([true, false])(
+    'defaults cloud recording on and saves the first-run choice (%s)',
+    async (enabled) => {
+      const snapshot: RendererSnapshot = {
+        ...structuredClone(demoSnapshot),
+        cloudAuth: {
+          state: 'signed-in',
+          email: 'ra@example.com',
+          features: {
+            researchUploads: true,
+            researchArchive: false,
+            connectors: false,
+            schedules: true,
+          },
+        },
+        research: {
+          ...structuredClone(demoSnapshot.research),
+          consented: false,
+          capture: 'paused',
+          promptReviewedVersion: undefined,
+        },
+      };
+      const api = createDemoRendererApi(snapshot);
+      render(<App api={api} />);
+      const dialog = await screen.findByRole('alertdialog', {
+        name: 'Cloud recording is on by default',
+      });
+      const choice = within(dialog).getByRole('checkbox', {
+        name: 'Save prompts, usage, and trajectories to AWS',
+      });
+      expect((choice as HTMLInputElement).checked).toBe(true);
+      expect(screen.queryByRole('button', { name: 'Access' })).toBeNull();
+      expect((await api.getSnapshot()).research.consented).toBe(false);
+      if (!enabled) fireEvent.click(choice);
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Continue' }));
+      await screen.findByRole('button', { name: 'Access' });
+      expect((await api.getSnapshot()).research).toMatchObject({
+        consented: enabled,
+        capture: enabled ? 'recording' : 'paused',
+        promptReviewedVersion: 'alpha-research-v3-raw',
+      });
+    },
+  );
+
+  it.each(['alpha-research-v2', 'alpha-research-v3-raw'])(
+    'preserves a previous decline instead of defaulting it on again (%s)',
+    async (reviewed) => {
+      const snapshot: RendererSnapshot = {
+        ...structuredClone(demoSnapshot),
+        cloudAuth: {
+          state: 'signed-in',
+          email: 'ra@example.com',
+          features: {
+            researchUploads: true,
+            researchArchive: false,
+            connectors: false,
+            schedules: true,
+          },
+        },
+        research: {
+          ...structuredClone(demoSnapshot.research),
+          consented: false,
+          capture: 'paused',
+          promptReviewedVersion: reviewed,
+        },
+      };
+      const api = createDemoRendererApi(snapshot);
+      render(<App api={api} />);
+      await screen.findByRole('button', { name: 'Access' });
+      expect(
+        screen.queryByRole('alertdialog', { name: 'Cloud recording is on by default' }),
+      ).toBeNull();
+      expect((await api.getSnapshot()).research.consented).toBe(false);
+    },
+  );
+
   it('opens core Sia immediately and keeps work apps optional', async () => {
     const snapshot: RendererSnapshot = {
       ...structuredClone(demoSnapshot),
@@ -414,7 +490,7 @@ describe('app privacy routing', () => {
         ...structuredClone(demoSnapshot.research),
         consented: false,
         capture: 'paused',
-        promptReviewedVersion: undefined,
+        promptReviewedVersion: 'alpha-research-v3-raw',
       },
     };
     const api = createDemoRendererApi(snapshot);

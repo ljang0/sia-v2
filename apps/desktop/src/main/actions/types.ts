@@ -6,6 +6,8 @@ import type { CuaService } from '../mac/cua-service.js';
 import type { ConnectionId } from '../../shared/bridge.js';
 import type { LocalConnectorService } from '../connectors/local-connectors.js';
 
+import type { WorkspaceFileMove } from '../mac/workspace-file-move.js';
+
 /** Narrow structural boundary used by the desktop host and by unit tests. */
 export type CuaToolCaller = Pick<CuaService, 'call'>;
 
@@ -49,6 +51,9 @@ export interface ScheduleActionHost {
 }
 
 export interface DesktopActionBackendOptions {
+  /** Vision route under construction; production cutover also requires browser/foreground parity. */
+  readonly visionOnly?: boolean;
+  readonly workspaceFileMove?: WorkspaceFileMove;
   readonly assistantAction?: (
     request: ValidatedActionInvocation,
   ) => Promise<ActionExecutionResult>;
@@ -65,6 +70,10 @@ export interface DesktopActionBackendOptions {
     windowId: number,
     tabsOnly?: boolean,
   ) => Promise<BrowserWindowState>;
+  /** Previously chosen window in the same live browser process; discovery hint, not a grant. */
+  readonly preferredBrowserWindow?: () => Promise<
+    { pid: number; windowId: number } | undefined
+  >;
   readonly readImageText?: (dataBase64: string) => Promise<string | undefined>;
   readonly readWindowContext?: (pid: number, windowId: number) => Promise<WindowContextState>;
   readonly cua: CuaToolCaller;

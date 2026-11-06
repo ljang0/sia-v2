@@ -2,6 +2,8 @@ import ImageIO
 import AppKit
 import Foundation
 
+try testWorkspaceMove()
+
 let observationID = "08E364E9-ED45-459B-895C-0508CA680E53"
 func observationLine(_ changes: [String: Any] = [:]) -> String {
     var fields: [String: Any] = ["id": observationID, "operation": "browser", "pid": 42, "window_id": 91]
@@ -12,11 +14,21 @@ precondition(WindowObserver.request(observationLine())?.pid == 42)
 precondition(WindowObserver.request(observationLine(["operation": "context"]))?.window_id == 91)
 precondition(WindowObserver.request(observationLine(["operation": "tabs"]))?.operation == "tabs")
 precondition(WindowObserver.request(observationLine(["operation": "foreground", "pid": 0, "window_id": 0]))?.operation == "foreground")
+precondition(WindowObserver.request(observationLine(["operation": "foreground_window", "pid": 0, "window_id": 0]))?.operation == "foreground_window")
+let frontIdentity: [String: Any] = [kCGWindowOwnerPID as String: 42, kCGWindowNumber as String: 91, kCGWindowLayer as String: 0, kCGWindowIsOnscreen as String: true]
+precondition(ForegroundWindow.matches(pid: 42, windowID: 91, front: frontIdentity))
+for change: [String: Any] in [
+    [kCGWindowOwnerPID as String: 7], [kCGWindowNumber as String: 92],
+    [kCGWindowLayer as String: 3], [kCGWindowIsOnscreen as String: false],
+] {
+    precondition(!ForegroundWindow.matches(pid: 42, windowID: 91, front: frontIdentity.merging(change) { _, new in new }))
+}
+precondition(!ForegroundWindow.matches(pid: 42, windowID: 91, front: [:]))
 let invalidObservationRequests: [[String: Any]] = [
     ["operation": "execute"], ["id": "invalid"], ["pid": 0], ["pid": -1],
     ["pid": true], ["pid": 2147483648], ["window_id": 0],
     ["window_id": 4294967296], ["path": "/tmp/not-allowed"],
-    ["operation": "foreground"],
+    ["operation": "foreground"], ["operation": "foreground_window"],
     ["operation": "foreground", "pid": 0, "window_id": 1],
     ["operation": "foreground", "pid": 1, "window_id": 0],
 ]
@@ -207,11 +219,6 @@ Task { @MainActor in
     precondition(FnContext.blockedIdentity("com.1password.1password"))
     precondition(FnContext.blockedIdentity("com.apple.Terminal"))
     precondition(!FnContext.blockedIdentity("com.apple.TextEdit"))
-    precondition(FnContext.protectedLabel("AXSecureTextField"))
-    precondition(FnContext.protectedLabel("Sign in to your account"))
-    precondition(FnContext.protectedLabel("Verification code"))
-    precondition(FnContext.protectedLabel("Authentication required"))
-    precondition(!FnContext.protectedLabel("AXTextArea Document"))
     // Retina capture is normalized to logical points before the model sees it.
     let logicalSize = MacScreenshot.imageSize(points: CGSize(width: 1710, height: 1107))
     precondition(logicalSize == CGSize(width: 1710, height: 1107))

@@ -584,18 +584,28 @@ function LocalIntegrations({
               >
                 {snapshot.browser.attached
                   ? 'Attached'
-                  : computerReady
-                    ? 'Ready to choose'
-                    : 'Needs Mac access'}
+                  : snapshot.browser.status === 'error'
+                    ? 'Connection needs attention'
+                    : computerReady
+                      ? 'Ready to choose'
+                      : 'Needs Mac access'}
               </span>
             </div>
             <p>
               Reuses one window you explicitly choose. Sia never copies cookies or controls a
-              sign-in page. Chrome may appear briefly during setup. You review any Chrome
-              permission prompt yourself.
+              sign-in page. Chrome may appear briefly during setup. Choosing a window lets Sia
+              confirm Chrome’s connection prompt for it.
             </p>
             {snapshot.browser.attached ? (
               <div className={styles.rowMeta}>{snapshot.browser.profileName}</div>
+            ) : null}
+            {snapshot.browser.status === 'error' ? (
+              <InlineSettingsError
+                message={
+                  snapshot.browser.snapshotLabel ??
+                  'Chrome could not be connected. Choose the window again to retry.'
+                }
+              />
             ) : null}
           </div>
           <button

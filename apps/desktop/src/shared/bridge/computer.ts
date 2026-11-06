@@ -4,11 +4,14 @@ export interface ComputerPermissionsView {
   status: 'unavailable' | 'needs_permission' | 'ready' | 'error';
   accessibility: boolean;
   screenRecording: boolean;
+  /** macOS has not completed its additional direct window-capture approval. */
+  captureConsentRequired?: boolean;
   /** Granted in System Settings, but macOS applies it to Sia only after one relaunch. */
   relaunchFor?: ('accessibility' | 'screenRecording')[];
   /**
    * Whether Sia actually read a window through the same driver its tools use. `failed` means
-   * macOS reports both grants, but control does not work yet; Sia is not shown as ready.
+   * macOS reports both TCC grants, but capture was not verified. A known missing direct-capture
+   * approval additionally sets captureConsentRequired and keeps setup incomplete.
    */
   verified?: 'confirmed' | 'unconfirmed' | 'failed';
   detail?: string;

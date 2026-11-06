@@ -366,7 +366,6 @@ export class RuntimeEventApplier {
       return;
     }
     if (event.type === 'error') {
-      this.ctx.researchCapture.discardResearchTurn(event.turnId);
       thread.status = 'failed';
       const previous = this.ctx.state.timeline.findLast(
         (item) => item.threadId === event.threadId && item.kind === 'error',
@@ -406,9 +405,6 @@ export class RuntimeEventApplier {
           timestamp: event.timestamp,
         });
       }
-      if (event.payload.status === 'completed')
-        this.ctx.researchCapture.completeResearchTurn(event.turnId);
-      else this.ctx.researchCapture.discardResearchTurn(event.turnId);
     }
   }
 }

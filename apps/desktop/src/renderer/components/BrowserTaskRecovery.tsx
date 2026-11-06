@@ -65,7 +65,8 @@ export function BrowserTaskRecovery({
         <p>
           Choose the window with the website for this task open. Sia will continue this
           conversation once it connects—you don’t need to repeat your request. Chrome may appear
-          briefly during setup. You review any Chrome permission prompt yourself.
+          briefly during setup. Choosing a window lets Sia confirm Chrome’s connection prompt
+          for it.
         </p>
       </div>
       <button
@@ -92,8 +93,8 @@ export function BrowserTaskRecovery({
       ) : null}
       {pending ? (
         <p role="status">
-          Chrome may ask “Allow remote debugging?” That is how Sia connects to your window.
-          Click Allow, then come back here.
+          Connecting your chosen window. Sia will confirm Chrome’s connection prompt and return
+          here before continuing your task.
         </p>
       ) : null}
       {error || (started && browser.status === 'error' && browser.snapshotLabel) ? (

@@ -14,6 +14,21 @@ export function isBaseUser(user: AuthContext): boolean {
   return user.groups.includes('Users') || isParticipant(user) || isMetaTester(user);
 }
 
+/** Cloud recording is available to ordinary users; internal tester-only accounts stay excluded. */
+export function isRecordingUser(user: AuthContext): boolean {
+  return user.groups.includes('Users') || isParticipant(user);
+}
+
+export function requireRecordingUser(user: AuthContext): void {
+  if (!isRecordingUser(user)) {
+    throw new CloudError(
+      403,
+      'participant_access_required',
+      'Cloud recording requires a Sia user account',
+    );
+  }
+}
+
 export function isParticipant(user: AuthContext): boolean {
   return isAdmin(user) || user.groups.includes('Participants');
 }

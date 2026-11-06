@@ -114,19 +114,35 @@ export async function chromeDebugPortOwnerPid(
   }
 }
 
+/** A selection hint may survive Sia restart, but never Chrome process replacement. */
+export async function chromeProcessStartedAt(
+  runCommand: (file: string, args: readonly string[]) => Promise<string>,
+  pid: number,
+): Promise<string | undefined> {
+  if (!Number.isSafeInteger(pid) || pid <= 0 || pid > 2_147_483_647) return undefined;
+  try {
+    const value = (await runCommand('/bin/ps', ['-p', String(pid), '-o', 'lstart='])).trim();
+    return value.length >= 20 && value.length <= 80 && !/[\r\n\0]/.test(value)
+      ? value
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function browserAttachmentError(error: unknown): string {
   const message = error instanceof Error ? error.message : 'Chrome attachment failed.';
   if (message.includes('background_unavailable')) {
     return 'Chrome needs a setup step that may bring its window forward. Choose Connect Chrome or a window in Settings → Connections to start it yourself. Review any Chrome permission prompt; background tasks will not switch modes automatically.';
   }
   if (message.includes('browser_binding_ambiguous')) {
-    return 'Chrome could not distinguish that window from another open window. Choose a window showing a unique page, or close the duplicate and retry.';
+    return 'Sia could not distinguish that Chrome window from another open window. Resize the window to a different size, then choose it again. Another option is to open a page that is not open in any other Chrome window, including its background tabs.';
   }
   if (message.includes('browser_reconnect_exhausted')) {
-    return 'Chrome is waiting for permission. Click Allow in the “Allow remote debugging?” prompt, then try again. This is a one-time Chrome security step.';
+    return 'Sia could not complete the Chrome connection. If Chrome shows “Allow remote debugging?”, review that prompt, then choose your window again. Your website action has not been replayed.';
   }
   if (message.includes('browser_wrong_target_refused')) {
-    return 'Chrome refused the connection. One-time fix: open chrome://inspect in Chrome, tick “Allow remote debugging” (port 9222), restart Chrome — after that Sia connects automatically. Or click Allow on Chrome’s prompt when it appears.';
+    return 'Sia could not verify the selected Chrome window or its connection prompt. Choose your intended window again, or report this connection problem if it persists.';
   }
   return message;
 }

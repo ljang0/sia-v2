@@ -1,7 +1,6 @@
 import { MemorySuggestions } from './MemorySuggestions';
 import { NativeVault } from './NativeVault';
 import { ExecutableSkills } from './ExecutableSkills';
-import { skillExecutionMode } from '../../../shared/skill-execution';
 import { useEffect, useState } from 'react';
 import { useConfirmDialog } from '../ConfirmDialog';
 import type { RendererApi } from '../../types';
@@ -24,17 +23,14 @@ const empty: AssistantLibraryView = {
 export function AssistantSettings({
   agents,
   accessMode = 'connected',
-  backgroundControl = false,
   api,
   onRun,
 }: {
   agents: readonly { id: string; name: string }[];
   accessMode?: 'mac' | 'connected';
-  backgroundControl?: boolean;
   api: Pick<RendererApi, 'assistantLibrary'>;
   onRun(threadId: string): void;
 }) {
-  const skillMode = skillExecutionMode({ accessMode, backgroundControl });
   const [section, setSection] = useState('General');
   const [library, setLibrary] = useState(empty);
   const [agentId, setAgentId] = useState(agents[0]?.id ?? '');
@@ -237,10 +233,10 @@ export function AssistantSettings({
               <span>
                 <strong>Learn from Mac tasks</strong>
                 <small>
-                  Remember brief task summaries and failures, reuse native scripts, and save new
-                  lessons and skills automatically. Uses your agent’s model for an idle review
-                  after new tasks, at most every six hours. Reviews never run scripts or control
-                  apps. Turning this off pauses learning and idle reviews.
+                  Remember brief task summaries and failures and save reusable lessons. Uses
+                  your agent’s model for an idle review after new tasks, at most every six
+                  hours. Reviews never run scripts or control apps. Turning this off pauses
+                  learning and idle reviews.
                 </small>
               </span>
               <Switch
@@ -661,11 +657,10 @@ export function AssistantSettings({
         </div>
         <div className={styles.section} hidden={section !== 'Skills'}>
           <ExecutableSkills
-            key={`${agentId}:${skillMode}`}
+            key={agentId}
             library={library}
             agentId={agentId}
             command={command}
-            mode={skillMode}
           />
         </div>
       </fieldset>

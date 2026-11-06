@@ -98,3 +98,12 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+## Sia macOS Cua SDK patch
+
+Sia builds the macOS SDK from Cua Driver 0.38.0, revision
+`85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19`, with the Chrome native-consent scan fix
+in `patches/cua-driver-0.38.0-chrome-consent.patch`. The upstream JavaScript API and Node
+runtime are unchanged. The patch and per-architecture build provenance are included in
+the application; build instructions and validation limits are in
+`apps/desktop/native/cua/README.md`. Original MIT and MPL-2.0 terms remain in the license corpus.

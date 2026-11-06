@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import type { CuaAuthorizationContext, CuaService } from '../../mac/cua-service.js';
-import { isCuaCallResult } from '../../mac/cua-service.js';
+import { isCuaCallResult } from '../../mac/cua-results.js';
 import { asRecord, findElementRecords, findRecordArray } from '../driver-records.js';
 import type { LabState, ReliabilityCase } from './types.js';
 

@@ -1,3 +1,4 @@
+import { captureGeometry } from './capture-geometry.js';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
@@ -8,6 +9,7 @@ import {
   resultRefusal,
   screenshotDimensions,
   stale,
+  unresolvedComputerWindow,
 } from './action-results.js';
 import { requiredString } from './arguments.js';
 import { windowBackgroundInput, windowInputRecovery } from './background-input.js';
@@ -69,7 +71,7 @@ export class ComputerObservation {
     const windowId = requiredString(request.arguments.window_id, 'window_id');
     const binding = this.ctx.computer.resolveWindow(appId, windowId);
     if (!binding || !(await this.inventory.windowStillValid(binding, request))) {
-      return stale('The computer grant is missing, expired, or no longer matches this window.');
+      return unresolvedComputerWindow();
     }
     if (this.ctx.macBrowserAccess()) {
       const wait = request.arguments.wait_ms;
@@ -99,8 +101,13 @@ export class ComputerObservation {
     // Refresh is an authority boundary even if the new observation is refused,
     // incomplete or bound to a different URL. Only a successful read can replace it.
     this.ctx.computer.invalidateSnapshot(binding.id);
+    const visionOnly = this.ctx.options.visionOnly === true;
     const browser = this.inventory.isNativeBrowser(binding);
     const tabsOnly = request.arguments.tabs_only === true;
+    if (visionOnly && (tabsOnly || request.arguments.continue_from !== undefined))
+      return refused(
+        'Vision control requires a fresh screenshot, not semantic page or tab selection.',
+      );
     if (
       tabsOnly &&
       (!this.ctx.macBrowserAccess() ||
@@ -113,6 +120,9 @@ export class ComputerObservation {
     const hasProtectedControls = (value: unknown) =>
       windowHasProtectedControls(value, {
         browserBundleId: browserState?.status === 'ready' ? browserState.bundleID : undefined,
+        nativeAppBundleId: this.ctx.computer.apps
+          .get(binding.appId)
+          ?.identity?.replace(/^bundle:/, ''),
       });
     // A missing helper AX window is not a driver refusal. Let CUA resolve and
     // initialize the exact window once, then revalidate browser metadata before
@@ -157,26 +167,30 @@ export class ComputerObservation {
       return result;
     };
     let includeImage =
-      browserState?.status !== 'navigation' &&
-      (request.arguments.read_text === true ||
-        request.arguments.include_image === true ||
-        (request.arguments.include_image !== false &&
-          (!this.ctx.macBackgroundControl() || browser)) ||
-        ['type', 'set'].includes(String(request.arguments.action)) ||
-        typeof request.arguments.x === 'number');
+      visionOnly ||
+      (browserState?.status !== 'navigation' &&
+        (request.arguments.read_text === true ||
+          request.arguments.include_image === true ||
+          (request.arguments.include_image !== false &&
+            (!this.ctx.macBackgroundControl() || browser)) ||
+          ['type', 'set'].includes(String(request.arguments.action)) ||
+          typeof request.arguments.x === 'number'));
     let raw: unknown;
     try {
       raw = await capture(includeImage);
-      if (/\bpx_capture_unavailable\b/.test(resultRefusal(raw)?.summary ?? ''))
+      if (!visionOnly && /\bpx_capture_unavailable\b/.test(resultRefusal(raw)?.summary ?? ''))
         raw = await capture(false);
     } catch (error) {
       if (!(error instanceof Error) || !/\bpx_capture_unavailable\b/.test(error.message))
         throw error;
+      if (visionOnly) return this.#missingVisualObservation(binding);
       // A missing image does not make an otherwise usable AX window inaccessible.
       // This retry only observes; no input is replayed and pixel actions stay unavailable.
       raw = await capture(false);
     }
     let refusalResult = resultRefusal(raw);
+    if (visionOnly && /\bpx_capture_unavailable\b/.test(refusalResult?.summary ?? ''))
+      return this.#missingVisualObservation(binding);
     if (refusalResult) return refusalResult;
     if (
       this.ctx.macBrowserAccess() &&
@@ -194,6 +208,8 @@ export class ComputerObservation {
           pixel_actions_available: false,
         },
       };
+    if (visionOnly && browserState?.status === 'navigation')
+      return refused('This browser surface has no permitted visual observation.');
     if (browserState?.status === 'navigation')
       return captureBrowserNavigation(
         this.ctx,
@@ -233,7 +249,12 @@ export class ComputerObservation {
         'The observed browser page does not match expected_url. No page content was returned. Wait for navigation or inspect the intended window; do not assign this page to the requested course or account item.',
       );
 
-    if (browserState && hasProtectedControls(raw) && hasPassiveAccessNotice(raw, browserState))
+    if (
+      !visionOnly &&
+      browserState &&
+      hasProtectedControls(raw) &&
+      hasPassiveAccessNotice(raw, browserState)
+    )
       return captureAccessNotice(this.ctx, this.inventory, binding, request, raw, browserState);
 
     // AX can temporarily return no controls even while a window is usable.
@@ -261,7 +282,7 @@ export class ComputerObservation {
     }
 
     const context =
-      this.ctx.macBrowserAccess() && !hasProtectedControls(raw)
+      !visionOnly && this.ctx.macBrowserAccess() && !hasProtectedControls(raw)
         ? await this.ctx.options.readWindowContext?.(binding.pid, binding.windowId)
         : undefined;
     const readableContext =
@@ -282,6 +303,7 @@ export class ComputerObservation {
       };
     const image = actionImages(raw)?.images?.[0];
     const imageText =
+      !visionOnly &&
       this.ctx.macBrowserAccess() &&
       (request.arguments.read_text === true || readableContext?.partial === true) &&
       image &&
@@ -303,9 +325,19 @@ export class ComputerObservation {
           data: { observation_pending: true },
         };
     }
+    // Inventory titles can outlive navigation within a native window (for example,
+    // Finder changing folders). Prefer the current, uniquely identified AX window.
+    const capturedWindows = findElementRecords(raw, 'window').filter(
+      (record) => firstString(record, ['role', 'type']) === 'AXWindow',
+    );
+    const capturedTitle =
+      capturedWindows.length === 1
+        ? firstString(capturedWindows[0]!, ['title', 'label', 'name'])
+        : undefined;
     const rawTitle =
       readableContext?.title ||
       (browserState?.status === 'ready' ? browserState.title : undefined) ||
+      capturedTitle ||
       binding.title;
     const title = redactOptionalText(rawTitle);
     const privateLinks =
@@ -313,10 +345,75 @@ export class ComputerObservation {
       findElementRecords(raw, 'window').some(observationRecordHasPrivateLinks);
     if (title) this.ctx.computer.windows.set(binding.id, { ...binding, title });
     const snapshotId = randomUUID();
+    if (visionOnly && hasProtectedControls(raw))
+      return {
+        ...refused('Protected controls appeared in this window. No content was returned.'),
+        data: {
+          control_mode: 'vision',
+          app_id: binding.appId,
+          window_id: binding.id,
+          blocker_code: 'protected_window',
+          pixel_actions_available: false,
+        },
+      };
     const pixels =
       !includeImage || privateLinks || hasProtectedControls(raw)
         ? undefined
         : screenshotDimensions(raw);
+    if (visionOnly) {
+      if (!pixels || !image) return this.#missingVisualObservation(binding);
+      const backgroundInput = windowBackgroundInput(raw, binding);
+      const geometry = captureGeometry(raw);
+      const pointerAvailable =
+        Boolean(geometry) &&
+        (!backgroundInput ||
+          backgroundInput.routes.some(
+            (route) => route.route === 'window_pointer' && route.status === 'available',
+          ));
+      this.ctx.computer.rememberSnapshot({
+        id: snapshotId,
+        capturedAt: Date.now(),
+        appId: binding.appId,
+        publicWindowId: binding.id,
+        pid: binding.pid,
+        windowId: binding.windowId,
+        protectedControls: false,
+        pixels,
+        ...(geometry ? { captureGeometry: geometry } : {}),
+        elements: new Map(),
+        ...(browserUrl ? { browserUrl } : {}),
+        ...(backgroundInput ? { backgroundInput } : {}),
+      });
+      return {
+        outcome: 'verified',
+        summary: 'Captured the permitted window for visual control.',
+        images: [image],
+        data: {
+          control_mode: 'vision',
+          snapshot_id: snapshotId,
+          app_id: binding.appId,
+          window_id: binding.id,
+          screenshot_size: pixels,
+          pixel_actions_available: pointerAvailable,
+          ...(backgroundInput
+            ? {
+                background_input: {
+                  exact_window: backgroundInput.exact_window,
+                  routes: backgroundInput.routes.filter(
+                    (route) => route.route !== 'accessibility',
+                  ),
+                },
+              }
+            : {}),
+          coverage_note:
+            'Only the visible screenshot is evidence. Inspect it and scroll to see more.',
+        },
+        verification: {
+          snapshotId,
+          evidence: 'Fresh image bound to the exact permitted window.',
+        },
+      };
+    }
     const elementMap = new Map<string, NativeElementAddress>();
     const elements = findElementRecords(raw, 'window')
       .map((record, position) => {
@@ -511,6 +608,21 @@ export class ComputerObservation {
       verification: {
         snapshotId,
         evidence: 'The snapshot is bound to a short-lived host-verified window grant.',
+      },
+    };
+  }
+
+  #missingVisualObservation(binding: ComputerWindowBinding): ActionExecutionResult {
+    return {
+      ...refused(
+        'A fresh screenshot of this window is unavailable. Capture a new image before continuing.',
+      ),
+      data: {
+        control_mode: 'vision',
+        app_id: binding.appId,
+        window_id: binding.id,
+        blocker_code: 'visual_observation_unavailable',
+        pixel_actions_available: false,
       },
     };
   }

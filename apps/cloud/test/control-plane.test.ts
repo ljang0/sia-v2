@@ -99,11 +99,11 @@ describe('release cohorts', () => {
         base: true,
         hostedModels: true,
         hostedVoice: true,
-        research: false,
+        research: true,
         connectors: false,
       },
       features: {
-        researchUploads: false,
+        researchUploads: true,
         researchArchive: false,
         connectors: false,
         schedules: true,
@@ -119,6 +119,29 @@ describe('release cohorts', () => {
     assert.equal(fixture.services.session.status(metaTester).features.schedules, true);
     assert.equal(fixture.services.session.status(admin).admin, true);
     assert.equal(fixture.services.session.status(admin).features.researchArchive, true);
+  });
+
+  it('stores ordinary user recordings with the same consent, ownership and retry checks', async () => {
+    const fixture = makeFixture();
+    const batch = validBatch();
+    assert.equal((await fixture.services.research.upload(baseUser, batch)).status, 'uploaded');
+    assert.equal(
+      (await fixture.services.research.upload(baseUser, batch)).status,
+      'already_uploaded',
+    );
+    assert.equal(fixture.services.session.status(operator).features.researchUploads, false);
+    assert.equal(fixture.services.session.status(metaTester).features.researchUploads, false);
+    await assert.rejects(
+      fixture.services.research.upload(baseUser, {
+        ...batch,
+        consent: { ...batch.consent, version: 'outdated' },
+      }),
+      hasCode('consent_version_required'),
+    );
+    await assert.rejects(
+      fixture.services.research.upload(operator, batch),
+      hasCode('participant_access_required'),
+    );
   });
 
   it('serves the signed private update manifest only to approved release cohorts', async () => {

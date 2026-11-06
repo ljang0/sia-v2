@@ -14,7 +14,6 @@ func emit(_ value: [String: Any]) {
 @MainActor
 final class VoiceHelper {
     private var contextEnabled = false
-    private var macContext = false
     private var monitor: PushToTalkMonitor?
     private let glow = EdgeGlowWindowController()
     private var capture: AudioCaptureEngine?
@@ -43,7 +42,7 @@ final class VoiceHelper {
             let id = UUID().uuidString
             self.heldID = id
             var event: [String: Any] = ["type": "hold", "id": id]
-            if self.contextEnabled, let context = self.macContext ? ScreenContextProvider().capture()?.siaContext : FnContext.capture() { event["context"] = context }
+            if self.contextEnabled, let context = FnContext.activationApp() { event["context"] = context }
             emit(event)
         }
         monitor?.onReleased = { [weak self] in
@@ -91,7 +90,6 @@ final class VoiceHelper {
             speaker.stop()
         case "context":
             contextEnabled = value["enabled"] as? Bool == true
-            macContext = value["mac"] as? Bool == true
         case "ping":
             lastPing = Date()
             emit(["type": "ready", "accessibility": AXIsProcessTrusted(), "microphone": AVCaptureDevice.authorizationStatus(for: .audio) == .authorized])
@@ -206,6 +204,20 @@ final class VoiceHelper {
     }
 }
 
+if CommandLine.arguments.count >= 2 && CommandLine.arguments[1] == "--workspace-file-move" {
+    guard CommandLine.arguments.count == 6 else { exit(2) }
+    var result: [String: Any]
+    do {
+        result = try WorkspaceMove.move(root: CommandLine.arguments[2], source: CommandLine.arguments[3],
+                                        destination: CommandLine.arguments[4], expected: CommandLine.arguments[5])
+    } catch let error as WorkspaceMove.Failure {
+        result = ["moved": false, "error": error.message]
+    } catch {
+        result = ["moved": false, "error": "Unable to inspect the file; no move was made."]
+    }
+    if let data = try? JSONSerialization.data(withJSONObject: result) { FileHandle.standardOutput.write(data) }
+    exit(0)
+}
 if CommandLine.arguments == [CommandLine.arguments[0], "--notch-engine"] {
     runNotchEngine()
     exit(0)

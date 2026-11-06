@@ -101,9 +101,12 @@ export function macAccessRows(
       id: 'screen',
       name: 'See your screen',
       why: 'Lets Sia see the app it is working in.',
-      guide: options.canRelaunch
-        ? 'In System Settings, open Screen & System Audio Recording and turn on Sia. If macOS offers to quit Sia, choose Later. Sia shows a Reopen button when it’s needed.'
-        : 'In System Settings, open Screen & System Audio Recording and turn on Sia. If macOS asks, quit and reopen Sia.',
+      guide:
+        computer.verified === 'failed' && computer.screenRecording !== 'allowed'
+          ? 'Choose Allow if macOS asks whether Sia may capture your screen directly. This lets Sia see app windows while you keep working.'
+          : options.canRelaunch
+            ? 'In System Settings, open Screen & System Audio Recording and turn on Sia. If macOS offers to quit Sia, choose Later. Sia shows a Reopen button when it’s needed.'
+            : 'In System Settings, open Screen & System Audio Recording and turn on Sia. If macOS asks, quit and reopen Sia.',
       optional: false,
       state: core('screenRecording'),
       guided: true,

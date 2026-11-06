@@ -13,7 +13,6 @@ import type {
   ThreadEventEnvelope,
   UsageLimit,
 } from '@sia/protocol';
-import { toolResultImages, withoutToolResultImages } from '@sia/protocol';
 import { randomUUID } from 'node:crypto';
 import { AsyncQueue } from '../async-queue.js';
 import { discoverCli, type CommandRunner, type SupportedVersionRange } from '../discovery.js';
@@ -23,6 +22,7 @@ import { ProcessSupervisor, waitForProcessSpawn } from '../supervisor.js';
 import { CODEX_SUPPORTED_VERSIONS } from './codex-versions.js';
 import { watchMacTurn } from './codex-watchdog.js';
 import { codexHistoryItems, codexUserInput } from './codex-input.js';
+import { codexToolInstructions, codexToolResponse } from './codex-tool-results.js';
 import {
   codexAppServerArgs,
   codexIsolationConfig,
@@ -266,10 +266,10 @@ export class CodexAppServerAdapter implements ProviderAdapter {
     signal?: AbortSignal,
   ): Promise<ProviderSession> {
     const nativeMac = options.nativeTools === 'mac';
-    const backgroundMac = options.nativeTools === 'mac-background';
-    const macAssistant = nativeMac || options.nativeTools === 'mac-background';
+    const hostedMac = options.nativeTools === 'mac-hosted';
+    const macAssistant = nativeMac || options.nativeTools === 'mac-hosted';
     const nativeDisabled =
-      options.nativeTools === 'disabled' || options.nativeTools === 'mac-background';
+      options.nativeTools === 'disabled' || options.nativeTools === 'mac-hosted';
     if (macAssistant && !options.baseInstructions?.trim())
       throw new Error('Native Mac sessions require the Mac assistant instructions.');
     const peer = await this.#peer();
@@ -287,10 +287,12 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         {
           cwd: options.workspace,
           model: options.model,
-          developerInstructions: options.instructions,
+          developerInstructions: options.tools.length
+            ? codexToolInstructions(options.instructions)
+            : options.instructions,
           ...(macAssistant ? { baseInstructions: options.baseInstructions } : {}),
           // Native Mac mode is the explicitly selected Notch-style host execution path.
-          // Connected tools and background memory reviews keep their existing isolation.
+          // Hosted Mac control keeps native tools disabled in either foreground policy.
           approvalPolicy:
             nativeMac && options.nativeApproval !== 'auto' ? 'untrusted' : 'never',
           sandbox: nativeMac
@@ -302,7 +304,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           ...(this.#options.sessionEphemeral ? { ephemeral: true } : {}),
           config: {
             ...codexIsolationConfig(inventory, customProvider, nativeDisabled, nativeMac),
-            ...(backgroundMac
+            ...(hostedMac
               ? {
                   sandbox_workspace_write: {
                     network_access: false,
@@ -333,7 +335,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
         stringAt(result, ['sandbox', 'type']) !== 'readOnly'
       )
         throw new Error('Dynamic-tool-only session did not retain a read-only sandbox.');
-      if (backgroundMac) {
+      if (hostedMac) {
         const sandbox = strictRecord(strictRecord(result).sandbox);
         if (
           sandbox.type !== 'workspaceWrite' ||
@@ -343,7 +345,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           sandbox.excludeSlashTmp !== true ||
           sandbox.excludeTmpdirEnvVar !== true
         )
-          throw new Error('Background workspace file permissions could not be verified.');
+          throw new Error('Hosted Mac workspace file permissions could not be verified.');
       }
       if (nativeMac) {
         if (stringAt(result, ['sandbox', 'type']) !== 'dangerFullAccess')
@@ -456,7 +458,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
       nativeWorkPending: new Set(),
       commentaryPreviews: new Map(),
       taskGrants: new Set(),
-      mac: ['mac', 'mac-background'].includes(
+      mac: ['mac', 'mac-hosted'].includes(
         this.#sessionOptions.get(session.id)?.nativeTools ?? '',
       ),
       nativeApproval: this.#sessionOptions.get(session.id)?.nativeApproval ?? 'ask',
@@ -560,12 +562,15 @@ export class CodexAppServerAdapter implements ProviderAdapter {
   }
 
   async #interrupt(active: ActiveTurn, nativeTurnId: string): Promise<void> {
-    const peer = await this.#peer();
-    await peer.request(
-      'turn/interrupt',
-      { threadId: active.session.nativeId, turnId: nativeTurnId },
-      { timeoutMs: this.#timeout },
-    );
+    active.interruption ??= (async () => {
+      const peer = await this.#peer();
+      await peer.request(
+        'turn/interrupt',
+        { threadId: active.session.nativeId, turnId: nativeTurnId },
+        { timeoutMs: this.#timeout },
+      );
+    })();
+    await active.interruption;
   }
 
   #learnNativeTurnId(active: ActiveTurn, nativeTurnId: string): void {
@@ -1110,22 +1115,7 @@ export class CodexAppServerAdapter implements ProviderAdapter {
           active.lastActivity = Date.now();
         }
       }
-      return {
-        success: result.success,
-        contentItems: [
-          {
-            type: 'inputText',
-            text:
-              typeof result.content === 'string'
-                ? result.content
-                : JSON.stringify(withoutToolResultImages(result.content)),
-          },
-          ...toolResultImages(result.content).map((image) => ({
-            type: 'inputImage' as const,
-            imageUrl: `data:${image.mimeType};base64,${image.dataBase64}`,
-          })),
-        ],
-      };
+      return codexToolResponse(result);
     }
     if (method.includes('requestApproval')) {
       const active = this.#findActive(params);

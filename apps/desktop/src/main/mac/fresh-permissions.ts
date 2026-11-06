@@ -1,7 +1,7 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { z } from 'zod';
-import type { CorePermissionStatus } from './cua-service.js';
+import type { CorePermissionStatus } from './cua-permissions.js';
 
 const exec = promisify(execFile);
 const statusSchema = z

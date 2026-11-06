@@ -239,6 +239,7 @@ export interface RendererAttachment {
   kind: 'file' | 'image' | 'audio';
   bytes: number;
   generated?: boolean;
+  localOnly?: boolean;
 }
 
 export type AttachmentPreview =

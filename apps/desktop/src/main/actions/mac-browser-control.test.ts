@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  LocalLeaseCoordinator,
+  type TurnLease,
   getActionToolDescriptor,
   parseActionArguments,
   type ValidatedActionInvocation,
 } from '@sia/action-gateway';
 import { DesktopActionBackend } from './desktop-action-backend.js';
+import { decodeDriverResult, type DriverResult } from '../mac/cua-results.js';
+import type { CuaAuthorizationContext } from '../mac/cua-service.js';
 
 function harness() {
   const state = {
@@ -23,79 +27,98 @@ function harness() {
     observationError: '',
     observationRefused: false,
     afterNavigateError: '',
+    navigationFailure: undefined as DriverResult | undefined,
     windowId: 91,
     requireSessionGrant: false,
     grantedSessions: new Set<string>(),
     expiredSessions: new Set<string>(),
   };
-  const call = vi.fn(async (tool: string, args: Record<string, unknown>) => {
-    if (tool === 'list_apps')
-      return { apps: [{ pid: 42, name: 'Google Chrome', bundle_id: 'com.google.Chrome' }] };
-    if (tool === 'list_windows')
-      return { windows: [{ window_id: state.windowId, pid: 42, title: 'Chrome' }] };
-    if (tool === 'browser_prepare') {
-      if (state.preparationError) throw new Error(state.preparationError);
-      if (state.unavailable)
-        return {
-          status: 'refused',
-          refusal: {
-            code: 'background_unavailable',
-            message: 'No background preparation route',
-          },
-        };
-      state.prepared = true;
-      state.grantedSessions.add(String(args.session));
-      return { status: 'ready' };
-    }
-    if (tool === 'get_browser_state') {
-      if (state.expiredSessions.has(String(args.session)))
-        throw new Error('CUA refused: session_ended');
-      if (
-        !state.prepared ||
-        (state.requireSessionGrant && !state.grantedSessions.has(String(args.session)))
-      )
-        throw new Error('CUA refused: browser_consent_required');
-      if (args.pid)
-        return {
-          target_id: 'native-target',
-          tabs: [
-            { tab_id: 'native-tab', url: state.url, title: 'Course page', active: true },
-            ...state.extraTabs,
-          ],
-        };
-      if (args.snapshot_format === 'dom_refs_v1')
+  const call = vi.fn(
+    async (
+      tool: string,
+      args: Record<string, unknown>,
+      _authorization?: CuaAuthorizationContext,
+    ) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Google Chrome', bundle_id: 'com.google.Chrome' }] };
+      if (tool === 'list_windows')
+        return { windows: [{ window_id: state.windowId, pid: 42, title: 'Chrome' }] };
+      if (tool === 'browser_prepare') {
+        if (state.preparationError) throw new Error(state.preparationError);
+        if (state.unavailable)
+          return {
+            status: 'refused',
+            refusal: {
+              code: 'background_unavailable',
+              message: 'No background preparation route',
+            },
+          };
+        state.prepared = true;
+        state.grantedSessions.add(String(args.session));
+        return { status: 'ready' };
+      }
+      if (tool === 'get_browser_state') {
+        if (state.expiredSessions.has(String(args.session)))
+          throw new Error('CUA refused: session_ended');
+        if (
+          !state.prepared ||
+          (state.requireSessionGrant && !state.grantedSessions.has(String(args.session)))
+        )
+          throw new Error('CUA refused: browser_consent_required');
+        if (args.pid)
+          return {
+            target_id: 'native-target',
+            tabs: [
+              { tab_id: 'native-tab', url: state.url, title: 'Course page', active: true },
+              ...state.extraTabs,
+            ],
+          };
+        if (args.snapshot_format === 'dom_refs_v1')
+          return {
+            target_id: 'native-target',
+            tab_id: 'native-tab',
+            url: state.linkStateUrl || state.url,
+            refs: [{ ref: 'dom-link', node: 'a', label: state.linkHref }],
+          };
+        if (state.observationError) throw new Error(state.observationError);
+        if (state.observationRefused) return { error_code: 'browser_tab_not_found' };
         return {
           target_id: 'native-target',
           tab_id: 'native-tab',
-          url: state.linkStateUrl || state.url,
-          refs: [{ ref: 'dom-link', node: 'a', label: state.linkHref }],
+          url: state.captureUrl || state.url,
+          outline: 'Verified fixture course content',
+          elements: [
+            { ref: 'native-link', role: 'link', label: 'Assignments' },
+            { ref: 'native-input', role: 'textbox', label: 'Search' },
+          ],
         };
-      if (state.observationError) throw new Error(state.observationError);
-      if (state.observationRefused) return { error_code: 'browser_tab_not_found' };
-      return {
-        target_id: 'native-target',
-        tab_id: 'native-tab',
-        url: state.captureUrl || state.url,
-        outline: 'Verified fixture course content',
-        elements: [
-          { ref: 'native-link', role: 'link', label: 'Assignments' },
-          { ref: 'native-input', role: 'textbox', label: 'Search' },
-        ],
-      };
-    }
-    if (tool === 'browser_navigate') {
-      state.url = String(args.url);
-      state.observationError = state.afterNavigateError;
-      return { effect: 'confirmed' };
-    }
-    if (tool === 'browser_click' || tool === 'browser_type' || tool === 'browser_pointer') {
-      if (state.afterClickUrl) state.url = state.afterClickUrl;
-      if (state.inputRefusal) return { error_code: 'browser_input_trust_unavailable' };
-      if (state.inputError) throw new Error(state.inputError);
-      return state.focusChanged ? { background_focus_changed: true } : { effect: 'confirmed' };
-    }
-    throw new Error(`Unexpected native route ${tool}`);
-  });
+      }
+      if (tool === 'browser_navigate') {
+        if (state.navigationFailure) {
+          const decoded = decodeDriverResult(tool, args, state.navigationFailure, {
+            started: 0,
+            completed: 0,
+          });
+          if (decoded.nativeToolError) {
+            state.url = String(args.url);
+            throw decoded.navigationFailure ?? new Error('Native tool failed');
+          }
+        }
+        state.url = String(args.url);
+        state.observationError = state.afterNavigateError;
+        return { effect: 'confirmed' };
+      }
+      if (tool === 'browser_click' || tool === 'browser_type' || tool === 'browser_pointer') {
+        if (state.afterClickUrl) state.url = state.afterClickUrl;
+        if (state.inputRefusal) return { error_code: 'browser_input_trust_unavailable' };
+        if (state.inputError) throw new Error(state.inputError);
+        return state.focusChanged
+          ? { background_focus_changed: true }
+          : { effect: 'confirmed' };
+      }
+      throw new Error(`Unexpected native route ${tool}`);
+    },
+  );
   const openUrl = vi.fn();
   const onBrowserSessionEnded = vi.fn();
   const backend = new DesktopActionBackend({
@@ -110,6 +133,7 @@ function harness() {
     name: ValidatedActionInvocation['name'],
     args: Record<string, unknown>,
     turnId = 'turn',
+    lease?: TurnLease,
   ): ValidatedActionInvocation => ({
     name,
     descriptor: getActionToolDescriptor(name)!,
@@ -121,10 +145,11 @@ function harness() {
       provider: 'codex',
       workspace: '/tmp/sia-browser-fixture',
       backgroundOnly: true,
+      ...(lease ? { lease, threadId: lease.threadId } : {}),
     },
   });
-  async function target(turnId = 'turn') {
-    const result = await backend.invoke(request('computer_list', {}, turnId));
+  async function target(turnId = 'turn', lease?: TurnLease) {
+    const result = await backend.invoke(request('computer_list', {}, turnId, lease));
     const data = result.data as { windows: { app_id: string; window_id: string }[] };
     return { app_id: data.windows[0]!.app_id, window_id: data.windows[0]!.window_id };
   }
@@ -132,6 +157,149 @@ function harness() {
 }
 
 describe('Mac background Chromium uses the dedicated Cua browser route', () => {
+  it('keeps a network failure local and can navigate the same tab to a different source without new setup', async () => {
+    const h = harness();
+    h.state.prepared = true;
+    h.state.url = 'https://public.example/guide';
+    const target = await h.target();
+    const first = await h.backend.invoke(h.request('computer_snapshot', target));
+    const data = first.data as {
+      tab_id: string;
+      snapshot_id: string;
+      elements: { element_ref: string }[];
+    };
+    h.state.navigationFailure = {
+      rawJson: JSON.stringify({
+        isError: true,
+        content: [{ type: 'text', text: 'navigation failed: net::ERR_NAME_NOT_RESOLVED' }],
+      }),
+    };
+    const failed = await h.backend.invoke(
+      h.request('computer_open_url', {
+        ...target,
+        tab_id: data.tab_id,
+        url: 'https://unavailable.example/',
+      }),
+    );
+    expect(failed).toMatchObject({
+      outcome: 'accepted_unverified',
+      data: {
+        blocker_code: 'browser_navigation_failed',
+        network_error: 'ERR_NAME_NOT_RESOLVED',
+      },
+    });
+    expect(failed.images).toBeUndefined();
+    expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_navigate')).toHaveLength(1);
+    h.state.navigationFailure = undefined;
+    const recovered = await h.backend.invoke(
+      h.request('computer_open_url', {
+        ...target,
+        tab_id: data.tab_id,
+        url: 'https://search.example/',
+      }),
+    );
+    expect(recovered.outcome).toBe('verified');
+    expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_navigate')).toHaveLength(2);
+    expect(h.call.mock.calls.some(([tool]) => tool === 'browser_prepare')).toBe(false);
+    expect(
+      (
+        await h.backend.invoke(
+          h.request('computer_action', {
+            ...target,
+            snapshot_id: data.snapshot_id,
+            element_ref: data.elements[0]!.element_ref,
+            action: 'click',
+          }),
+        )
+      ).outcome,
+    ).toBe('stale');
+    expect(h.call.mock.calls.some(([tool]) => tool === 'browser_click')).toBe(false);
+  });
+
+  it.each(['explicit', 'implicit'])(
+    'reserves the physical window before %s URL selection can read or navigate',
+    async (selection) => {
+      const h = harness();
+      const leases = new LocalLeaseCoordinator();
+      const a = await leases.startTurn({ turnId: 'a', threadId: 'a' });
+      const b = await leases.startTurn({ turnId: 'b', threadId: 'b' });
+      try {
+        h.state.prepared = true;
+        const first = await h.target('a', a);
+        const second = selection === 'explicit' ? await h.target('b', b) : {};
+        const observed = await h.backend.invoke(h.request('computer_snapshot', first, 'a', a));
+        expect(observed.data).toMatchObject({ tabs: [{ navigation_only: true }] });
+        h.call.mockClear();
+        const pending = h.backend.invoke(
+          h.request(
+            'computer_open_url',
+            { ...second, url: 'https://public.example/guide' },
+            'b',
+            b,
+          ),
+        );
+        await vi.waitFor(() => expect(leases.snapshotQueue()).toHaveLength(1));
+        expect(
+          h.call.mock.calls.some(([tool]) =>
+            ['get_browser_state', 'browser_prepare', 'browser_navigate'].includes(tool),
+          ),
+        ).toBe(false);
+        a.release();
+        expect((await pending).outcome).toBe('verified');
+        expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_navigate')).toHaveLength(
+          1,
+        );
+        expect(h.state.url).toBe('https://public.example/guide');
+      } finally {
+        a.release();
+        b.release();
+      }
+    },
+  );
+
+  it('propagates connection changes into isolated turn sessions and revokes their input refs', async () => {
+    const h = harness();
+    const leases = new LocalLeaseCoordinator();
+    const a = await leases.startTurn({ turnId: 'a', threadId: 'a' });
+    const b = await leases.startTurn({ turnId: 'b', threadId: 'b' });
+    try {
+      const first = await h.target('a', a);
+      const second = await h.target('b', b);
+      h.state.prepared = true;
+      h.state.requireSessionGrant = true;
+      h.state.url = 'https://public.example/guide';
+      h.state.grantedSessions.add('approved');
+      h.backend.acceptBrowserState({}, 'approved', { pid: 42, windowId: 91 });
+      expect(
+        (await h.backend.invoke(h.request('computer_snapshot', first, 'a', a))).outcome,
+      ).toBe('verified');
+      a.release();
+      const read = await h.backend.invoke(h.request('computer_snapshot', second, 'b', b));
+      expect(read.outcome).toBe('verified');
+      const refs = read.data as { snapshot_id: string; elements: { element_ref: string }[] };
+      h.backend.resetBrowserCapabilities();
+      h.call.mockClear();
+      const action = await h.backend.invoke(
+        h.request(
+          'computer_action',
+          {
+            ...second,
+            snapshot_id: refs.snapshot_id,
+            element_ref: refs.elements[0]!.element_ref,
+            action: 'click',
+          },
+          'b',
+          b,
+        ),
+      );
+      expect(action.outcome).toBe('stale');
+      expect(h.call.mock.calls.some(([tool]) => tool === 'browser_click')).toBe(false);
+    } finally {
+      a.release();
+      b.release();
+    }
+  });
+
   it('reuses an explicitly connected exact window across turns without repeating setup', async () => {
     const h = harness();
     h.state.prepared = true;
@@ -574,6 +742,11 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
       strategy: { kind: 'existing_profile' },
       delivery_mode: 'background',
     });
+    expect(h.call.mock.calls.find(([name]) => name === 'browser_navigate')?.[2]).toMatchObject({
+      kind: 'turn',
+      backgroundTargetPid: 42,
+      backgroundTargetWindowId: 91,
+    });
     expect(h.openUrl).not.toHaveBeenCalled();
     expect(
       h.call.mock.calls.some(([name]) =>
@@ -621,6 +794,46 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
     expect(result.data).not.toHaveProperty('visible_text');
     expect(h.call.mock.calls.filter(([name]) => name === 'browser_navigate')).toHaveLength(1);
   });
+
+  it.each(['delayed observation', 'redirect'])(
+    'can observe a chosen start tab after navigation with %s without replaying it',
+    async (scenario) => {
+      const h = harness();
+      h.state.prepared = true;
+      const target = await h.target();
+      const selection = await h.backend.invoke(h.request('computer_snapshot', target));
+      const { tab_id } = (selection.data as { tabs: { tab_id: string }[] }).tabs[0]!;
+      if (scenario === 'delayed observation')
+        h.state.afterNavigateError = 'CUA refused: browser_tab_not_found';
+      else h.state.captureUrl = 'https://visitors.example/museum';
+      const opened = await h.backend.invoke(
+        h.request('computer_open_url', {
+          ...target,
+          tab_id,
+          url: 'https://museum.example/visit/',
+        }),
+      );
+      expect(opened.outcome).toBe('accepted_unverified');
+      expect(opened.data).not.toHaveProperty('snapshot_id');
+      expect(opened.data).not.toHaveProperty('visible_text');
+      h.state.observationError = '';
+      const observed = await h.backend.invoke(
+        h.request('computer_snapshot', { ...target, tab_id }),
+      );
+      expect(observed.outcome).toBe('verified');
+      expect(observed.data).toMatchObject({
+        tab_id,
+        source_url:
+          scenario === 'redirect'
+            ? 'https://visitors.example/museum'
+            : 'https://museum.example/visit/',
+      });
+      expect(h.call.mock.calls.filter(([name]) => name === 'browser_navigate')).toHaveLength(1);
+      expect(
+        h.call.mock.calls.filter(([name, args]) => name === 'get_browser_state' && args.pid),
+      ).toHaveLength(1);
+    },
+  );
 
   it('keeps tab choices stable instead of rebinding and minting new driver ids', async () => {
     const h = harness();
@@ -878,4 +1091,46 @@ describe('Mac background Chromium uses the dedicated Cua browser route', () => {
     expect((await h.backend.invoke(h.request('computer_action', args))).outcome).toBe('stale');
     expect(h.call.mock.calls.filter(([name]) => name === 'browser_type')).toHaveLength(1);
   });
+});
+
+it('reports a pre-dispatch connection failure without claiming lost navigation or replaying it', async () => {
+  const h = harness();
+  h.state.prepared = true;
+  h.state.url = 'https://canvas.cmu.edu/';
+  h.state.navigationFailure = {
+    errorCode: 'authorization_host_failed',
+    rawJson: JSON.stringify({
+      refusal: {
+        code: 'authorization_host_failed',
+        message:
+          'confirmation provider failed: [browser_attestation:browser_wrong_target_refused] private native detail',
+      },
+    }),
+  };
+  const target = await h.target();
+  const observed = await h.backend.invoke(h.request('computer_snapshot', target));
+  const tab = (observed.data as { tab_id: string }).tab_id;
+  const result = await h.backend.invoke(
+    h.request('computer_open_url', {
+      ...target,
+      tab_id: tab,
+      url: 'https://canvas.cmu.edu/courses',
+    }),
+  );
+  expect(result).toMatchObject({
+    outcome: 'refused',
+    data: {
+      blocker_code: 'browser_wrong_target_refused',
+      input_not_sent: true,
+    },
+  });
+  expect(result.data).not.toHaveProperty('input_delivery_uncertain');
+  expect(JSON.stringify(result)).not.toContain('private native detail');
+  expect(h.call.mock.calls.filter(([tool]) => tool === 'browser_navigate')).toHaveLength(1);
+  expect(
+    h.call.mock.calls.some(([tool]) =>
+      ['browser_prepare', 'hotkey', 'type_text'].includes(tool),
+    ),
+  ).toBe(false);
+  expect(h.state.url).toBe('https://canvas.cmu.edu/');
 });

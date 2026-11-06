@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { visualActivationContext } from '../mac/activation-context.js';
 import type { ProviderAttachment } from '@sia/protocol';
 import {
   type BridgeRequestMap,
@@ -183,6 +184,7 @@ export class Turns {
         (attachmentGrants.length ? 'Attached files' : UNTITLED_THREAD_TITLE);
       thread.titleSource = 'message';
     }
+    if (this.ctx.deps.visionOnly) context = visualActivationContext(context);
     const queued: QueuedTurn = {
       ...(context ? { context } : {}),
       id: turnId,
@@ -356,6 +358,13 @@ export class Turns {
       fakeDelayMs: 160,
       ...(failedAttachments?.length ? { attachments: failedAttachments } : {}),
     };
+    // Continue keeps the user turn but creates a new execution and new public window ids.
+    // Old setup buttons cannot be reconciled against those ids. Preserve the history,
+    // retire its actionable marker, and let a fresh refusal request setup if still needed.
+    for (const item of this.ctx.state.timeline) {
+      if (item.threadId === thread.id && item.turnId === failed.turnId)
+        delete item.browserRecovery;
+    }
     this.ctx.appendTimeline(thread.id, {
       id: randomUUID(),
       turnId: failed.turnId,
@@ -402,7 +411,11 @@ export class Turns {
       running.abort();
       if (activeTurnId) {
         this.ctx.approvals.revokeApprovalsForTurn(threadId, activeTurnId);
-        await this.ctx.runtime?.cancel(threadId, activeTurnId).catch(() => undefined);
+        // Stop is acknowledged after aborting local work and revoking its grants.
+        // Provider interruption can take a full RPC timeout; do not keep queued
+        // messages or the Stop button waiting for it. The runner still owns its
+        // workspace/window leases until provider cleanup actually finishes.
+        void this.ctx.runtime?.cancel(threadId, activeTurnId).catch(() => undefined);
       }
     }
     const queuedTurnIds = this.queued
@@ -410,7 +423,8 @@ export class Turns {
       .map((turn) => turn.id);
     this.queued = this.queued.filter((turn) => turn.threadId !== threadId);
     this.heldThreads.delete(threadId);
-    if (activeTurnId) this.ctx.researchCapture.discardResearchTurn(activeTurnId);
+    // The running turn's runner seals capture after late provider usage/results drain.
+    // Queued turns have no runner and can be discarded immediately.
     for (const turnId of queuedTurnIds) this.ctx.researchCapture.discardResearchTurn(turnId);
     // Stop cancels queued follow-ups too; their unsent messages leave the thread.
     const removedFollowUps = this.removeQueuedMessages(threadId, new Set(queuedTurnIds));
@@ -636,8 +650,11 @@ export class Turns {
           this.ctx.computerAccess.accessMode() === 'mac'
             ? this.ctx.computerAccess.backgroundControl()
               ? 'mac_background_cua'
-              : 'mac_foreground_native'
+              : this.ctx.deps.visionOnly
+                ? 'mac_foreground_cua'
+                : 'mac_foreground_native'
             : 'connected_apps',
+        computerControlMode: this.ctx.deps.visionOnly ? 'vision' : 'assisted',
         provider: thread.provider,
         model: thread.model,
         harnessId: thread.harnessId,

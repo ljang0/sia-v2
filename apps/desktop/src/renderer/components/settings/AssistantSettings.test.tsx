@@ -19,12 +19,11 @@ afterEach(async () => {
   await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
 });
 it.each([
-  { accessMode: 'connected' as const, backgroundControl: false, execution: 'gateway' },
-  { accessMode: 'mac' as const, backgroundControl: false, execution: 'native' },
-  { accessMode: 'mac' as const, backgroundControl: true, execution: 'gateway' },
+  { accessMode: 'connected' as const, execution: 'gateway' },
+  { accessMode: 'mac' as const, execution: 'gateway' },
 ])(
-  'creates and enables the appropriate skills for $accessMode, background=$backgroundControl',
-  async ({ accessMode, backgroundControl, execution }) => {
+  'uses gateway skills with visual control for $accessMode',
+  async ({ accessMode, execution }) => {
     const library: AssistantLibraryView = {
       memories: [],
       workflows: [],
@@ -56,7 +55,6 @@ it.each([
         api={api}
         onRun={() => undefined}
         accessMode={accessMode}
-        backgroundControl={backgroundControl}
       />,
     );
     fireEvent.click(screen.getByRole('button', { name: /^Skills/ }));

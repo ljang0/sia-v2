@@ -14,6 +14,7 @@ interface ResearchConsentDialogProps {
   autoOpen?: boolean;
   cloudAvailable?: boolean;
   showTrigger?: boolean;
+  firstRun?: boolean;
 }
 
 export function ResearchConsentDialog({
@@ -22,8 +23,10 @@ export function ResearchConsentDialog({
   autoOpen = false,
   cloudAvailable = false,
   showTrigger = true,
+  firstRun = false,
 }: ResearchConsentDialogProps) {
   const [open, setOpen] = useState(autoOpen);
+  const [recording, setRecording] = useState(true);
   const [saving, setSaving] = useState<'accept' | 'decline'>();
   const [error, setError] = useState<string>();
   const errorRef = useRef<HTMLDivElement>(null);
@@ -67,22 +70,36 @@ export function ResearchConsentDialog({
         <AlertDialog.Content
           className={`${dialogs.alertDialogContent} ${styles.consentDialog}`}
         >
-          <AlertDialog.Title>Join the Sia research release?</AlertDialog.Title>
+          <AlertDialog.Title>
+            {firstRun ? 'Cloud recording is on by default' : 'Join the Sia research release?'}
+          </AlertDialog.Title>
           <AlertDialog.Description>
-            This release records the raw activity Sia observes so researchers can understand
-            complete agent behavior. After you join, eligible tasks are captured automatically,
-            including background computer control. Review this before participating.
+            {firstRun
+              ? 'Sia saves eligible task records to its private AWS archive for evaluation and debugging. Review this choice before your first task. You can turn recording off and still use Sia.'
+              : 'This release records the raw activity Sia observes so researchers can understand complete agent behavior. After you join, eligible tasks are captured automatically, including background computer control. Review this before participating.'}
           </AlertDialog.Description>
+
+          {firstRun ? (
+            <label className={styles.recordingChoice}>
+              <input
+                type="checkbox"
+                checked={recording}
+                disabled={Boolean(saving)}
+                onChange={(event) => setRecording(event.target.checked)}
+              />
+              Save prompts, usage, and trajectories to AWS
+            </label>
+          ) : null}
 
           <div className={styles.consentSummary}>
             <div>
               <CheckCircle size={18} aria-hidden="true" />
               <p>
-                <strong>If you join</strong>
-                Raw prompts, responses, surfaced reasoning, commands and output, tool
-                arguments/results, approvals, browser/computer activity, and captured images are
-                uploaded in an organized event stream, except for turns that use a Google
-                Workspace connector.
+                <strong>{firstRun ? 'With recording on' : 'If you join'}</strong>
+                Raw prompts, responses, provider-reported token usage, surfaced reasoning,
+                commands and output, tool arguments/results, approvals, browser/computer
+                activity, and captured images are uploaded in an organized event stream, except
+                for turns that use a Google Workspace connector.
               </p>
             </div>
             <div>
@@ -110,8 +127,8 @@ export function ResearchConsentDialog({
                   : 'Cloud sync is not configured, so captures stay encrypted on this Mac. If you add cloud later, existing captures remain local and only new eligible captures can sync.'}
               </li>
               <li>
-                Local storage is bounded: records roll off after 90 days or earlier at the 128
-                MB or 500-batch limit.
+                Acknowledged local records roll off after 90 days or earlier at the 128 MB or
+                500-batch limit. Unsynced records remain encrypted until upload succeeds.
               </li>
               <li>
                 Raw task content can contain private or secret information. Do not use this
@@ -142,9 +159,9 @@ export function ResearchConsentDialog({
               type="button"
               className={buttons.primaryButton}
               disabled={Boolean(saving)}
-              onClick={() => void decide('accept')}
+              onClick={() => void decide(firstRun && !recording ? 'decline' : 'accept')}
             >
-              {saving === 'accept' ? 'Joining…' : 'Join research release'}
+              {saving ? 'Saving…' : firstRun ? 'Continue' : 'Join research release'}
             </button>
           </div>
         </AlertDialog.Content>

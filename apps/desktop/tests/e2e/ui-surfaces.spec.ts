@@ -2,7 +2,11 @@ import { expect, test, type Page, type TestInfo } from '@playwright/test';
 import { DatabaseSync } from 'node:sqlite';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { createAgentAndThread, launchIsolatedSia } from '../support/electron-harness';
+import {
+  createAgentAndThread,
+  launchIsolatedSia,
+  reviewCloudRecording,
+} from '../support/electron-harness';
 
 async function capture(page: Page, info: TestInfo, name: string) {
   await page.screenshot({ path: info.outputPath(`${name}.png`), animations: 'disabled' });
@@ -292,6 +296,11 @@ test('cloud, admin and account settings fit without hiding categories', async ({
     const page = sia.page;
     await page.setViewportSize({ width: 960, height: 640 });
     await page.emulateMedia({ colorScheme: 'light', reducedMotion: 'reduce' });
+    await expect(
+      page.getByRole('alertdialog', { name: 'Cloud recording is on by default' }),
+    ).toBeInViewport({ ratio: 1 });
+    await capture(page, info, 'cloud-recording-first-run');
+    await reviewCloudRecording(page);
     await page.getByRole('button', { name: 'Exit setup', exact: true }).click();
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     for (const label of ['Connections', 'Phone remote', 'Release review', 'Research archive']) {

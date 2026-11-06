@@ -1,11 +1,12 @@
 export interface PlainError {
-  kind: 'usage' | 'sign-in' | 'network';
+  kind: 'usage' | 'rate-limit' | 'sign-in' | 'network';
   title: string;
   message: string;
 }
 
 const USAGE =
-  /\b(?:usage|rate)[ _-]?limit|\b429\b|too many requests|quota|insufficient[_ ]quota|limit (?:reached|exceeded)|out of credits/i;
+  /\busage[ _-]?limit|\bquota\b|insufficient[_ ]quota|quota[_ ]exceeded|out of credits/i;
+const RATE_LIMIT = /\brate[ _-]?limit|\b429\b|too many requests/i;
 const SIGN_IN =
   /\b401\b|\bunauthori[sz]ed\b|not (?:signed|logged) in|sign[ -]?in (?:again|required|expired)|log ?in (?:again|required)|login required|authentication (?:failed|required|expired)|(?:access|refresh|auth) token (?:expired|invalid|revoked|is invalid)|token (?:has )?expired|invalid[_ ]grant|session (?:has )?expired|credentials? (?:expired|invalid|missing)/i;
 const NETWORK =
@@ -31,6 +32,15 @@ export function plainError(
       message: resets
         ? `Your plan’s usage limit has been reached. It resets ${resets}. Try again then, or check your plan in Settings → AI.`
         : 'Your plan’s usage limit has been reached for now. Try again later, or check your plan in Settings → AI.',
+    };
+  }
+  // HTTP 429 alone does not identify the exhausted resource. A subscription's
+  // reset time must not turn a request-rate failure into a plan-quota claim.
+  if (RATE_LIMIT.test(raw)) {
+    return {
+      kind: 'rate-limit',
+      title: 'Requests limited',
+      message: 'The AI service is limiting requests right now. Wait a moment, then try again.',
     };
   }
   if (SIGN_IN.test(raw)) {

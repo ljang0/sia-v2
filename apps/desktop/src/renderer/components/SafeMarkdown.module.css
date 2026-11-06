@@ -77,7 +77,6 @@
 .markdownTable th {
   background: var(--bg-subtle);
   font-weight: var(--weight-semibold);
-  white-space: nowrap;
 }
 
 .markdownTable tr:last-child td {

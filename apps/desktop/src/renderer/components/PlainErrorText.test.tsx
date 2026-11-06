@@ -67,7 +67,8 @@ describe('plain failure banner', () => {
         onResolveApproval={async () => undefined}
       />,
     );
-    expect(screen.getByText(/usage limit has been reached/)).toBeTruthy();
+    expect(screen.getByText(/service is limiting requests/)).toBeTruthy();
+    expect(screen.queryByText(/usage limit has been reached/)).toBeNull();
     expect(screen.getByText('429 Too Many Requests').closest('details')).toBeTruthy();
   });
 });
@@ -75,7 +76,7 @@ describe('plain failure banner', () => {
 describe('interrupted task banner', () => {
   it('keeps the reason beside Continue task and shows it once', () => {
     const reason =
-      'The task was interrupted when Sia closed. Completed work is preserved, and it is safe to retry.';
+      'The task was interrupted when Sia closed. Check the last action before continuing; it may have completed.';
     render(
       <Conversation
         thread={{

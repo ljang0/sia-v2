@@ -210,12 +210,13 @@ export class AssistantFeatures {
     const agentId = this.ctx.requireThread(request.context.threadId).agentId;
     const view = this.library.view();
     const reviewWorkspace = this.library.reviewWorkspace(request.context.threadId);
-    const nativeWorkspace =
-      reviewWorkspace ??
-      (this.ctx.computerAccess.accessMode() === 'mac' &&
-      !this.ctx.computerAccess.backgroundControl()
-        ? this.ctx.requireAgent(agentId).workspace
-        : undefined);
+    const nativeWorkspace = this.ctx.deps.visionOnly
+      ? undefined
+      : (reviewWorkspace ??
+        (this.ctx.computerAccess.accessMode() === 'mac' &&
+        !this.ctx.computerAccess.backgroundControl()
+          ? this.ctx.requireAgent(agentId).workspace
+          : undefined));
     const autoApply =
       !!reviewWorkspace &&
       this.ctx.computerAccess.accessMode() === 'mac' &&
@@ -295,6 +296,7 @@ export class AssistantFeatures {
             : args.operation === 'append'
               ? vault.append(args.name, args.text, args.revision)
               : vault.write(args.name, args.text, args.revision);
+        if (review && args.operation !== 'read') vault.recordReviewWrite(file, args.revision);
         return {
           outcome: 'verified',
           summary:
@@ -487,11 +489,15 @@ export class AssistantFeatures {
       const skill = this.libraryView().skills?.find((entry) => entry.id === command.id);
       if (!skill) throw new Error('This skill was deleted.');
       const unavailable = skillUnavailableReason(
-        skillExecutionMode({
-          accessMode: this.ctx.computerAccess.accessMode(),
-          backgroundControl: this.ctx.computerAccess.backgroundControl(),
-        }),
+        skillExecutionMode(
+          {
+            accessMode: this.ctx.computerAccess.accessMode(),
+            backgroundControl: this.ctx.computerAccess.backgroundControl(),
+          },
+          this.ctx.deps.visionOnly,
+        ),
         skill.execution,
+        this.ctx.deps.visionOnly,
       );
       if (unavailable) throw new Error(unavailable);
       const { threadId } = this.ctx.threads.createThread({
@@ -539,7 +545,6 @@ export class AssistantFeatures {
     }
     this.ctx.speech.pushToTalk?.setContextEnabled(
       result.context || this.ctx.computerAccess.accessMode() === 'mac',
-      this.ctx.computerAccess.accessMode() === 'mac',
     );
     this.ctx.commit();
     return {

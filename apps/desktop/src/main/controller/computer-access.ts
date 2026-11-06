@@ -16,6 +16,8 @@ export function backgroundControlUnavailable(
     // Only a permission skipped during setup reaches here; name it plainly.
     if (access.relaunchFor?.length)
       return 'Mac access is turned on, but Sia needs to reopen before it can use it. Quit and reopen Sia, then press Continue task.';
+    if (access.captureConsentRequired)
+      return 'Finish See your screen in Settings → Computer and allow macOS’s direct screen-capture prompt, then press Continue task.';
     const missing = [
       access.accessibility ? '' : 'control your Mac (Accessibility)',
       access.screenRecording ? '' : 'see your screen (Screen Recording)',
@@ -135,7 +137,6 @@ export class ComputerAccess {
     if (fallback !== undefined) this.ctx.state.preferences.macBackgroundFallback = fallback;
     this.ctx.speech.pushToTalk?.setContextEnabled(
       this.ctx.assistant.library.view().context || this.accessMode() === 'mac',
-      this.accessMode() === 'mac',
     );
     this.ctx.commit();
     return this.ctx.resultSnapshot();

@@ -314,7 +314,7 @@ establish a safe CUA input route. No driver guard was bypassed in those checks. 
 background reliability work upgrades the SDK and both Mac native libraries to 0.37.0 after an
 isolated comparison resolved the same test window and delivered an exact background click. Sia
 requests structured controls and route metadata explicitly and uses the current token-only input
-contract. The 100-task matrix in [demo acceptance](./demo.md#background-reliability-matrix) keeps
+contract. The 100-task matrix in [demo acceptance](./demo.md#developer-regression-fixtures) keeps
 native-driver results separate from simulated observations and retains failed attempts.
 
 Native computer sessions are now scoped to each active turn with a fresh opaque label, while Codex

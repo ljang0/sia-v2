@@ -1,7 +1,11 @@
 import { expect, test } from '@playwright/test';
 import { rm } from 'node:fs/promises';
 
-import { exitFirstRunSetup, launchIsolatedSia } from '../support/electron-harness';
+import {
+  exitFirstRunSetup,
+  launchIsolatedSia,
+  reviewCloudRecording,
+} from '../support/electron-harness';
 
 test('configured first run requires Sia sign-in before setup', async () => {
   const harness = await launchIsolatedSia({
@@ -45,6 +49,7 @@ test('a signed-out relaunch locks persisted agents and every app surface', async
   let signedOut: Awaited<ReturnType<typeof launchIsolatedSia>> | undefined;
 
   try {
+    await reviewCloudRecording(signedIn.page);
     await signedIn.page.evaluate(async () => {
       await window.sia.agents.save({
         name: 'Persisted private agent',
@@ -101,6 +106,7 @@ test('core Sia opens first and optional setup connects every work app later', as
   });
 
   try {
+    await reviewCloudRecording(harness.page);
     await exitFirstRunSetup(harness.page);
     await expect(
       harness.page.getByRole('dialog', { name: 'Connect your work apps' }),
@@ -185,6 +191,7 @@ test('a user can connect only a selected set of work apps later', async () => {
   });
 
   try {
+    await reviewCloudRecording(harness.page);
     await exitFirstRunSetup(harness.page);
     await expect(
       harness.page.getByRole('dialog', { name: 'Connect your work apps' }),
@@ -244,6 +251,7 @@ test('Outlook, Notion, and GitHub connect and disconnect on their own from More 
   });
 
   try {
+    await reviewCloudRecording(harness.page);
     await exitFirstRunSetup(harness.page);
     await harness.page.getByRole('button', { name: 'Settings' }).click();
     await harness.page.getByRole('button', { name: 'More settings' }).click();

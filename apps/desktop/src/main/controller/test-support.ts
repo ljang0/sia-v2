@@ -43,6 +43,9 @@ export interface ResearchBatchView {
 export async function createHarness(
   options: {
     fakeServices?: boolean;
+    startupForeground?: () => Promise<boolean>;
+    visionOnly?: boolean;
+    captureMacContext?: ConstructorParameters<typeof DesktopController>[0]['captureMacContext'];
     voice?: ConstructorParameters<typeof DesktopController>[0]['voice'];
     runtime?: unknown;
     cloud?: CloudClient;
@@ -51,6 +54,9 @@ export async function createHarness(
     runCommand?: (file: string, args: readonly string[]) => Promise<string>;
     providerProbe?: ConstructorParameters<typeof DesktopController>[0]['providerProbe'];
     openExternal?: (url: string) => Promise<void>;
+    returnToAppAfterBrowserSetup?: ConstructorParameters<
+      typeof DesktopController
+    >[0]['returnToAppAfterBrowserSetup'];
     openMessages?: () => Promise<void>;
     openMessagesPermissions?: () => Promise<void>;
     requestMicrophonePermission?: () => Promise<void>;
@@ -87,6 +93,8 @@ export async function createHarness(
   const repository =
     options.repository ?? new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
   const controller = new DesktopController({
+    visionOnly: options.visionOnly === true,
+    ...(options.captureMacContext ? { captureMacContext: options.captureMacContext } : {}),
     repository,
     cloud: options.cloud ?? new CloudClient(undefined, { read: async () => undefined }),
     computer: options.computer ?? computer,
@@ -101,6 +109,9 @@ export async function createHarness(
     fakeServices: options.fakeServices ?? true,
     ...(options.voice ? { voice: options.voice } : {}),
     openExternal: options.openExternal ?? (async () => undefined),
+    ...(options.returnToAppAfterBrowserSetup
+      ? { returnToAppAfterBrowserSetup: options.returnToAppAfterBrowserSetup }
+      : {}),
     openMessages: options.openMessages ?? (async () => undefined),
     ...(options.restartApp ? { restartApp: options.restartApp } : {}),
     ...(options.installCodex ? { installCodex: options.installCodex } : {}),
@@ -147,7 +158,7 @@ export async function createHarness(
       ? { pastedAttachmentRoot: options.pastedAttachmentRoot }
       : {}),
   });
-  await controller.initialize();
+  await controller.initialize(options.startupForeground);
   if (
     controller.snapshot().cloud.auth === 'signed_in' ||
     controller.snapshot().cloud.auth === 'unconfigured'

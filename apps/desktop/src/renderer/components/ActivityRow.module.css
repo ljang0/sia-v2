@@ -281,41 +281,6 @@
   color: var(--text-primary);
 }
 
-/* The step in progress carries a slow light sweep across its words, the same one as the live
-   status line, and settles to plain text the moment it finishes. */
-.activity_running .activityLabel {
-  background: linear-gradient(
-      90deg,
-      var(--text-primary) 0%,
-      var(--text-primary) 38%,
-      color-mix(in srgb, var(--text-primary) 45%, transparent) 50%,
-      var(--text-primary) 62%,
-      var(--text-primary) 100%
-    )
-    0 0 / 250% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: stepShimmer var(--motion-sweep) linear infinite;
-}
-
-@keyframes stepShimmer {
-  from {
-    background-position: 100% 0;
-  }
-  to {
-    background-position: 0% 0;
-  }
-}
-
-@media (prefers-reduced-motion: reduce), (forced-colors: active) {
-  .activity_running .activityLabel {
-    background: none;
-    color: inherit;
-    animation: none;
-  }
-}
-
 .activity_error {
   border-left-color: var(--border-strong);
   color: var(--text-secondary);

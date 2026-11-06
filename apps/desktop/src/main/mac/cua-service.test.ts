@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CuaService } from './cua-service.js';
+import { BrowserNavigationError, browserNavigationError } from './browser-navigation-error.js';
+import { classifyFailure, inputWasRefused } from '../actions/action-results.js';
 
 const permissionUi = vi.hoisted(() => ({
   accessibility: vi.fn(),
@@ -38,6 +40,321 @@ function successfulDriver(value: unknown) {
 afterEach(() => {
   vi.useRealTimers();
   vi.clearAllMocks();
+});
+
+it('declares a browser lease only for the explicit connection UI', async () => {
+  const driver = { ...successfulDriver({}), prepareBrowserSession: vi.fn() };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  const args = { session: 'sia-browser-approved', pid: 42, window_id: 91 };
+  try {
+    await service.call('browser_prepare', args, directContext);
+    expect(driver.prepareBrowserSession).toHaveBeenCalledExactlyOnceWith(args.session);
+    driver.prepareBrowserSession.mockClear();
+    await service.call('get_browser_state', args, directContext);
+    await service.call('browser_prepare', args, {
+      kind: 'turn',
+      threadId: 'thread',
+      turnId: 'turn',
+    });
+    expect(driver.prepareBrowserSession).not.toHaveBeenCalled();
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it.each([
+  ['cmd', 'c'],
+  ['command', 'X'],
+  ['super', 'shift', 'c'],
+  ['meta', 'option', 'c'],
+  ['win', 'x'],
+])('refuses background clipboard writes before native delivery: %j', async (...keys) => {
+  const factory = vi.fn(() => successfulDriver({}));
+  const service = new CuaService(authorization(), { driverFactory: factory });
+  await expect(
+    service.call(
+      'hotkey',
+      { pid: 42, window_id: 91, keys, delivery_mode: 'background' },
+      { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+    ),
+  ).rejects.toThrow('would change your clipboard');
+  expect(factory).not.toHaveBeenCalled();
+  await service.shutdown();
+});
+
+it('preserves explicitly permitted foreground Copy', async () => {
+  const driver = successfulDriver({});
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await service.call(
+      'hotkey',
+      { pid: 42, window_id: 91, keys: ['cmd', 'c'], delivery_mode: 'foreground' },
+      { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: false },
+    );
+    expect(driver.callTool).toHaveBeenCalledOnce();
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it('preserves partial drag delivery instead of claiming no input was sent', async () => {
+  const driver = {
+    ...successfulDriver({}),
+    callTool: vi.fn(async () => ({
+      errorCode: 'background_unavailable',
+      rawJson: JSON.stringify({
+        effect: 'no_drop',
+        reason: 'drag_and_drop_session',
+        message: 'private window contents must not escape',
+      }),
+    })),
+  };
+  const service = new CuaService(authorization(), {
+    driverFactory: () => driver,
+    readForegroundPid: async () => 7,
+  });
+  try {
+    await expect(
+      service.call(
+        'drag',
+        { pid: 42, window_id: 91, delivery_mode: 'background' },
+        { kind: 'turn', threadId: 'thread', turnId: 'turn', backgroundOnly: true },
+      ),
+    ).rejects.toThrow(/^CUA incomplete: background_drag_requires_pointer$/);
+    expect(driver.callTool).toHaveBeenCalledOnce();
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it.each([
+  ['request timed out', 'request_timeout'],
+  ['browser observation did not attest a live top-level origin', 'browser_origin_unavailable'],
+])(
+  'records content-free authorization diagnostics without retrying: %s',
+  async (message, hint) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const driver = {
+      ...successfulDriver({}),
+      callTool: vi.fn(async () => ({
+        errorCode: 'authorization_host_failed',
+        rawJson: JSON.stringify({ message, resource: 'private-resource' }),
+      })),
+    };
+    const service = new CuaService(authorization(), { driverFactory: () => driver });
+    try {
+      await expect(service.call('get_browser_state', {}, directContext)).rejects.toThrow(
+        'CUA refused: authorization_host_failed',
+      );
+      expect(driver.callTool).toHaveBeenCalledOnce();
+      expect(warn).toHaveBeenCalledExactlyOnceWith(
+        `[sia:cua-authorization] native_refusal tool=get_browser_state hint=${hint} callback_started=0 callback_completed=0`,
+      );
+    } finally {
+      await service.shutdown();
+      warn.mockRestore();
+    }
+  },
+);
+
+const observationTimeout = {
+  errorCode: 'authorization_host_failed',
+  rawJson: JSON.stringify({
+    message:
+      'could not prove the live top-level browser document: CDP Page.getFrameTree timed out after 20s',
+    resource: 'private-resource',
+  }),
+};
+
+it('does not retry a timed-out observation after a host authorization decision', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const driver = { ...successfulDriver({}), callTool: vi.fn() };
+  const service = new CuaService(
+    { authorize: async () => 'deny' },
+    {
+      driverFactory: (authorize) => {
+        driver.callTool.mockImplementation(async () => {
+          await authorize({
+            adapterId: 'private_observation',
+            riskClass: 'read',
+            permissionMode: 'standard',
+            publicSession: 's',
+            requestDigest: 'd',
+            humanSummary: 'Read approved page',
+            resourceJson: '{}',
+            expiresUnixMs: 0n,
+          });
+          return observationTimeout;
+        });
+        return driver;
+      },
+    },
+  );
+  try {
+    await expect(service.call('get_browser_state', {}, directContext)).rejects.toThrow(
+      /^CUA refused: authorization_host_failed$/,
+    );
+    expect(driver.callTool).toHaveBeenCalledOnce();
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
+});
+
+it('honors cancellation before a timed-out browser read can be retried', async () => {
+  const abort = new AbortController();
+  const driver = {
+    ...successfulDriver({}),
+    callTool: vi.fn(async () => {
+      abort.abort(new Error('Stopped by person.'));
+      return observationTimeout;
+    }),
+  };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(
+      service.call('get_browser_state', {}, directContext, abort.signal),
+    ).rejects.toThrow('Stopped by person.');
+    expect(driver.callTool).toHaveBeenCalledOnce();
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it('refreshes a timed-out browser observation once without changing its target or grant', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const driver = {
+    ...successfulDriver({}),
+    callTool: vi
+      .fn()
+      .mockResolvedValueOnce(observationTimeout)
+      .mockResolvedValueOnce({
+        rawJson: JSON.stringify({ status: 'ok', title: 'Settled page' }),
+      }),
+  };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  const args = { session: 'existing-grant', target_id: 'approved-window', tab_id: 'exact-tab' };
+  try {
+    await expect(service.call('get_browser_state', args, directContext)).resolves.toBeDefined();
+    expect(driver.callTool).toHaveBeenCalledTimes(2);
+    expect(driver.callTool.mock.calls[0]).toEqual(driver.callTool.mock.calls[1]);
+    expect(driver.callTool.mock.calls[0]?.[1]).toBe(JSON.stringify(args));
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      '[sia:cua-browser] observation_transport_retry attempt=1',
+    );
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
+});
+
+it('bounds repeated observation timeouts and reports transport failure without leaking content', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const driver = {
+    ...successfulDriver({}),
+    callTool: vi.fn().mockResolvedValue(observationTimeout),
+  };
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(service.call('get_browser_state', {}, directContext)).rejects.toThrow(
+      /^CUA refused: browser_observation_timeout$/,
+    );
+    expect(driver.callTool).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('private-resource');
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
+});
+
+it.each(['browser_navigate', 'browser_click', 'browser_prepare'])(
+  'never replays %s after an origin transport timeout',
+  async (tool) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const driver = {
+      ...successfulDriver({}),
+      callTool: vi.fn().mockResolvedValue(observationTimeout),
+    };
+    const service = new CuaService(authorization(), { driverFactory: () => driver });
+    try {
+      await expect(service.call(tool, {}, directContext)).rejects.toThrow(
+        /^CUA refused: authorization_host_failed$/,
+      );
+      expect(driver.callTool).toHaveBeenCalledOnce();
+    } finally {
+      await service.shutdown();
+      warn.mockRestore();
+    }
+  },
+);
+
+it.each([
+  ['browser consent observation was truncated', 'consent_observation_incomplete'],
+  [
+    'multiple browser consent actions matched the requested decision',
+    'consent_identity_ambiguous',
+  ],
+  [
+    'Chrome remote-debugging consent did not settle for reconnect attempt 1',
+    'consent_not_settled',
+  ],
+  ['unknown proof failure', 'target_unverified'],
+])(
+  'classifies browser proof failure without exposing native content: %s',
+  async (message, hint) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const driver = {
+      ...successfulDriver({}),
+      callTool: vi.fn(async () => ({
+        errorCode: 'browser_wrong_target_refused',
+        rawJson: JSON.stringify({ message, resource: 'private-resource' }),
+      })),
+    };
+    const service = new CuaService(authorization(), { driverFactory: () => driver });
+    try {
+      await expect(service.call('browser_prepare', {}, directContext)).rejects.toThrow(
+        'CUA refused: browser_wrong_target_refused',
+      );
+      expect(driver.callTool).toHaveBeenCalledOnce();
+      expect(warn).toHaveBeenCalledExactlyOnceWith(
+        `[sia:cua-browser] native_refusal tool=browser_prepare hint=${hint}`,
+      );
+    } finally {
+      await service.shutdown();
+      warn.mockRestore();
+    }
+  },
+);
+
+it.each([
+  ['direct_capture_consent_required', 'direct_capture_consent_required'],
+  ['px_frame_mismatch', 'frame_mismatch'],
+  ['px_capture_unavailable', 'capture_unavailable'],
+  ['unspecified', 'image_missing'],
+])('preserves AX state and classifies an omitted screenshot: %s', async (code, hint) => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const value = {
+    elements: [{ role: 'AXButton', label: 'private-content' }],
+    screenshot_error: { code },
+  };
+  const driver = successfulDriver(value);
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    expect(
+      await service.call(
+        'get_window_state',
+        { pid: 42, window_id: 91, include_screenshot: true },
+        directContext,
+      ),
+    ).toEqual(value);
+    expect(driver.callTool).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      `[sia:cua-capture] screenshot_missing hint=${hint}`,
+    );
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
 });
 
 it.each(['invoke_menu', 'launch_app'])(
@@ -102,6 +419,84 @@ it('refuses browser input without a host-owned process binding', async () => {
       ),
     ).rejects.toThrow('CUA refused: background_focus_unavailable');
     expect(driver.callTool.mock.calls.map(([name]) => name)).toEqual(['list_apps']);
+  } finally {
+    await service.shutdown();
+  }
+});
+
+it.each([
+  'other-app',
+  'target',
+  'unknown',
+  'wrong-tab',
+  'missing-receipt',
+  'focus-side-effect',
+  'native-error',
+])('reconciles exact-tab navigation while desktop focus changes: %s', async (scenario) => {
+  const args = {
+    session: 'approved',
+    target_id: 'target',
+    tab_id: 'tab',
+    url: 'https://example.com/',
+  };
+  const receipt = {
+    status: 'ok',
+    target_id: args.target_id,
+    tab_id: args.tab_id,
+    url: args.url,
+    refs_invalidated: true,
+  };
+  const driver = successfulDriver(
+    scenario === 'native-error'
+      ? { isError: true, content: [{ type: 'text', text: 'failed' }] }
+      : scenario === 'missing-receipt'
+        ? { status: 'ok' }
+        : scenario === 'wrong-tab'
+          ? { ...receipt, tab_id: 'another-tab' }
+          : scenario === 'focus-side-effect'
+            ? { ...receipt, foregrounded_window: true }
+            : receipt,
+  );
+  const readForegroundPid = vi
+    .fn<() => Promise<number | undefined>>()
+    .mockResolvedValue(99)
+    .mockResolvedValueOnce(7)
+    .mockResolvedValueOnce(
+      scenario === 'target' ? 42 : scenario === 'unknown' ? undefined : 99,
+    );
+  const service = new CuaService(authorization(), {
+    driverFactory: () => driver,
+    readForegroundPid,
+  });
+  const context = {
+    kind: 'turn' as const,
+    threadId: 'thread',
+    turnId: 'turn',
+    backgroundOnly: true,
+    backgroundTargetPid: 42,
+  };
+  try {
+    const result = await service.call('browser_navigate', args, context);
+    if (scenario === 'other-app') {
+      expect(result).toEqual(receipt);
+      // The next distinct action remains usable; the first navigation is never replayed.
+      await service.call(
+        'browser_navigate',
+        { ...args, url: 'https://example.com/next' },
+        context,
+      );
+      expect(driver.callTool).toHaveBeenCalledTimes(2);
+    } else {
+      expect(result).toMatchObject(
+        scenario === 'unknown'
+          ? { background_focus_unverified: true }
+          : { background_focus_changed: true },
+      );
+      await expect(service.call('browser_navigate', args, context)).rejects.toThrow(
+        'background_input_paused',
+      );
+      expect(driver.callTool).toHaveBeenCalledTimes(1);
+    }
   } finally {
     await service.shutdown();
   }
@@ -433,6 +828,82 @@ it.each(['get_window_state', 'list_windows'])(
   },
 );
 
+it('preserves a proven DNS navigation failure without replaying it or treating it as unsent input', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const driver = successfulDriver({
+    isError: true,
+    content: [{ type: 'text', text: 'navigation failed: net::ERR_NAME_NOT_RESOLVED' }],
+  });
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    const failure = await service.call('browser_navigate', {}, directContext).catch((e) => e);
+    expect(failure).toBeInstanceOf(BrowserNavigationError);
+    expect(inputWasRefused(failure)).toBe(false);
+    expect(classifyFailure(failure)).toMatchObject({
+      outcome: 'accepted_unverified',
+      data: {
+        blocker_code: 'browser_navigation_failed',
+        network_error: 'ERR_NAME_NOT_RESOLVED',
+        input_delivery_uncertain: true,
+      },
+    });
+    expect(driver.callTool).toHaveBeenCalledOnce();
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
+});
+
+it.each([
+  'navigation failed: net::ERR_CERT_AUTHORITY_INVALID',
+  'navigation failed: net::ERR_BLOCKED_BY_ADMINISTRATOR',
+  'navigation failed: net::ERR_NAME_NOT_RESOLVED private page content',
+  'Page.navigate failed: CDP Page.navigate timed out after 20s',
+  'private page mentions navigation failed: net::ERR_NAME_NOT_RESOLVED',
+])('does not infer a recoverable network failure from %s', (text) => {
+  const envelope = { isError: true, content: [{ type: 'text', text }] };
+  expect(browserNavigationError('browser_navigate', envelope)).toBeUndefined();
+  expect(browserNavigationError('browser_click', envelope)).toBeUndefined();
+});
+
+it('requires a single native navigate error envelope before preserving a network code', () => {
+  const content = [{ type: 'text', text: 'navigation failed: net::ERR_NAME_NOT_RESOLVED' }];
+  expect(browserNavigationError('browser_click', { isError: true, content })).toBeUndefined();
+  expect(browserNavigationError('browser_navigate', { content })).toBeUndefined();
+  expect(
+    browserNavigationError('browser_navigate', {
+      isError: true,
+      content: [...content, ...content],
+    }),
+  ).toBeUndefined();
+});
+
+it('records a browser transport timeout without leaking page content or retrying input', async () => {
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  const driver = successfulDriver({
+    isError: true,
+    content: [
+      {
+        type: 'text',
+        text: 'Page.navigate failed: CDP Page.navigate timed out after 20s; private-page',
+      },
+    ],
+  });
+  const service = new CuaService(authorization(), { driverFactory: () => driver });
+  try {
+    await expect(service.call('browser_navigate', {}, directContext)).rejects.toThrow(
+      'CUA tool browser_navigate failed without a structured result.',
+    );
+    expect(driver.callTool).toHaveBeenCalledOnce();
+    expect(warn).toHaveBeenCalledExactlyOnceWith(
+      '[sia:cua-browser] native_error tool=browser_navigate hint=browser_transport_timeout',
+    );
+  } finally {
+    await service.shutdown();
+    warn.mockRestore();
+  }
+});
+
 it.each(['unchanged', 'changed', 'unknown'])(
   'preserves input uncertainty and the focus check after an MCP error: %s',
   async (focus) => {
@@ -508,24 +979,27 @@ it('does not trust focus metadata supplied with an MCP inventory error', async (
 it.each(['ready', 'unavailable'] as const)(
   'does not request permissions again when computer access is %s',
   async (status) => {
-    const service = new CuaService(authorization(), { platform: 'darwin' });
     const current = {
       status,
       accessibility: status === 'ready',
       screenRecording: status === 'ready',
     };
-    const permissions = vi.spyOn(service, 'permissions').mockResolvedValue(current);
-    expect(await service.requestPermissions()).toBe(current);
-    expect(permissions).toHaveBeenCalledTimes(1);
+    const readPermissions = vi.fn(async () => current);
+    const service = new CuaService(authorization(), {
+      platform: status === 'unavailable' ? 'linux' : 'darwin',
+      readPermissions,
+    });
+    expect(await service.requestPermissions()).toMatchObject(current);
+    expect(readPermissions).toHaveBeenCalledTimes(status === 'ready' ? 1 : 0);
+    expect(permissionUi.getSources).not.toHaveBeenCalled();
+    expect(permissionUi.accessibility).not.toHaveBeenCalled();
   },
 );
 
 it('registers the signed Electron app during an explicit missing-screen permission request', async () => {
-  const service = new CuaService(authorization(), { platform: 'darwin' });
-  vi.spyOn(service, 'permissions').mockResolvedValue({
-    status: 'needs_permission',
-    accessibility: true,
-    screenRecording: false,
+  const service = new CuaService(authorization(), {
+    platform: 'darwin',
+    readPermissions: async () => ({ accessibility: true, screenRecording: false }),
   });
   await service.requestPermissions();
   expect(permissionUi.getSources).toHaveBeenCalledExactlyOnceWith({
@@ -541,11 +1015,9 @@ it('registers the signed Electron app during an explicit missing-screen permissi
 it.each([true, false])(
   'requests Accessibility alone before Screen Recording (screen allowed: %s)',
   async (screenRecording) => {
-    const service = new CuaService(authorization(), { platform: 'darwin' });
-    vi.spyOn(service, 'permissions').mockResolvedValue({
-      status: 'needs_permission',
-      accessibility: false,
-      screenRecording,
+    const service = new CuaService(authorization(), {
+      platform: 'darwin',
+      readPermissions: async () => ({ accessibility: false, screenRecording }),
     });
     await service.requestPermissions();
     expect(permissionUi.getSources).not.toHaveBeenCalled();
@@ -619,6 +1091,47 @@ describe('confirming granted access through the driver', () => {
     });
   });
 
+  it('requires direct capture setup despite TCC grants and prompts only on an explicit request', async () => {
+    let allowed = false;
+    const { cua } = service(async (name) =>
+      name === 'list_windows'
+        ? { rawJson: JSON.stringify({ windows: [finderWindow] }) }
+        : allowed
+          ? { rawJson: '{}', images: [{ mimeType: 'image/png', dataBase64: 'iVBORw0KGgo=' }] }
+          : {
+              rawJson: JSON.stringify({
+                screenshot_error: {
+                  code: 'px_capture_unavailable',
+                  reason: 'direct_capture_consent_required: screen capture skipped.',
+                },
+              }),
+            },
+    );
+    try {
+      await expect(cua.permissions()).resolves.toMatchObject({
+        status: 'needs_permission',
+        accessibility: true,
+        screenRecording: true,
+        captureConsentRequired: true,
+      });
+      expect(permissionUi.getSources).not.toHaveBeenCalled();
+      expect(permissionUi.openExternal).not.toHaveBeenCalled();
+      permissionUi.getSources.mockImplementationOnce(async () => {
+        allowed = true;
+        return [];
+      });
+      await expect(cua.requestPermissions('screenRecording')).resolves.toMatchObject({
+        status: 'ready',
+        verified: 'confirmed',
+      });
+      expect(permissionUi.getSources).toHaveBeenCalledOnce();
+      expect(permissionUi.openExternal).not.toHaveBeenCalled();
+      expect(permissionUi.accessibility).not.toHaveBeenCalled();
+    } finally {
+      await cua.shutdown();
+    }
+  });
+
   it('stays unconfirmed, not failed, when no other window is open', async () => {
     const { cua } = service(async () => ({ rawJson: JSON.stringify({ windows: [] }) }));
     await expect(cua.permissions()).resolves.toMatchObject({
@@ -629,11 +1142,9 @@ describe('confirming granted access through the driver', () => {
 });
 
 it('shares overlapping permission requests and permits a later retry after failure', async () => {
-  const service = new CuaService(authorization(), { platform: 'darwin' });
-  vi.spyOn(service, 'permissions').mockResolvedValue({
-    status: 'needs_permission',
-    accessibility: true,
-    screenRecording: false,
+  const service = new CuaService(authorization(), {
+    platform: 'darwin',
+    readPermissions: async () => ({ accessibility: true, screenRecording: false }),
   });
   permissionUi.openExternal
     .mockRejectedValueOnce(new Error('Permission service unavailable'))
@@ -804,7 +1315,8 @@ describe('CuaService call boundaries', () => {
       expect(JSON.parse(driver.callTool.mock.calls[2]![1]).session).toBe(
         'existing-browser-grant',
       );
-      expect(factory).toHaveBeenCalledOnce();
+      expect(factory).toHaveBeenCalledTimes(2);
+      expect(driver.shutdown).not.toHaveBeenCalled();
     },
   );
 
@@ -1052,33 +1564,295 @@ describe('CuaService call boundaries', () => {
     expect(driverFactory).toHaveBeenCalledTimes(2);
   });
 
-  it('always propagates a caller abort signal to the native driver', async () => {
-    let nativeSignal: AbortSignal | undefined;
-    const driver = {
-      callTool: vi.fn(
-        async (_name: string, _argumentsJson: string, options?: { signal: AbortSignal }) => {
-          nativeSignal = options?.signal;
-          return await new Promise<never>(() => undefined);
-        },
-      ),
-      shutdown: vi.fn(async () => undefined),
-    };
-    const service = new CuaService(authorization(), {
-      driverFactory: () => driver,
+  it('lets paced native typing finish beyond the ordinary one-minute deadline without replay', async () => {
+    vi.useFakeTimers();
+    const driver = successfulDriver({ delivered: true });
+    driver.callTool.mockImplementationOnce(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 75_000));
+      return { rawJson: '{"delivered":true}' };
+    });
+    const service = new CuaService(authorization(), { driverFactory: () => driver });
+    const typing = service.call(
+      'type_text',
+      { text: 'A document', keyboard_only: true },
+      directContext,
+    );
+    const result = expect(typing).resolves.toEqual({ delivered: true });
+    await vi.advanceTimersByTimeAsync(75_000);
+    await result;
+    expect(driver.callTool).toHaveBeenCalledOnce();
+    expect(driver.shutdown).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { tool: 'type_text', override: undefined, deadline: 120_000 },
+    { tool: 'click', override: undefined, deadline: 60_000 },
+    { tool: 'type_text', override: 25, deadline: 25 },
+  ])(
+    'bounds $tool at $deadline ms and releases its queue',
+    async ({ tool, override, deadline }) => {
+      vi.useFakeTimers();
+      const driver = successfulDriver({});
+      driver.callTool.mockImplementationOnce(async () => new Promise<never>(() => undefined));
+      const replacement = successfulDriver({ recovered: true });
+      const factory = vi.fn().mockReturnValueOnce(driver).mockReturnValueOnce(replacement);
+      const service = new CuaService(authorization(), {
+        driverFactory: factory,
+        ...(override === undefined ? {} : { callTimeoutMs: override }),
+      });
+      const call = service.call(tool, {}, directContext);
+      const result = expect(call).rejects.toThrow(`timed out after ${deadline} ms`);
+      await vi.advanceTimersByTimeAsync(deadline - 1);
+      const signal = driver.callTool.mock.calls[0]?.[2]?.signal;
+      expect(signal?.aborted).toBe(false);
+      await vi.advanceTimersByTimeAsync(1);
+      await result;
+      expect(signal?.aborted).toBe(true);
+      await expect(service.call('get_window_state', {}, directContext)).resolves.toEqual({
+        recovered: true,
+      });
+      expect(factory).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it.each(['browser_click', 'type_text'])(
+    'always propagates caller abort to $0',
+    async (tool) => {
+      let nativeSignal: AbortSignal | undefined;
+      const driver = {
+        callTool: vi.fn(
+          async (_name: string, _argumentsJson: string, options?: { signal: AbortSignal }) => {
+            nativeSignal = options?.signal;
+            return await new Promise<never>(() => undefined);
+          },
+        ),
+        shutdown: vi.fn(async () => undefined),
+      };
+      const service = new CuaService(authorization(), {
+        driverFactory: () => driver,
+      });
+      const abort = new AbortController();
+      const call = service.call(tool, {}, directContext, abort.signal);
+      await vi.waitFor(() => expect(nativeSignal).toBeDefined());
+      const abortExpectation = expect(call).rejects.toThrow('Turn cancelled.');
+
+      abort.abort(new Error('Turn cancelled.'));
+
+      await abortExpectation;
+      expect(nativeSignal?.aborted).toBe(true);
+    },
+  );
+});
+
+describe('independent browser and desktop work', () => {
+  const request = {
+    adapterId: 'window',
+    riskClass: 'input',
+    permissionMode: 'standard',
+    publicSession: 's',
+    requestDigest: 'd',
+    humanSummary: 'Edit document',
+    resourceJson: '{}',
+    expiresUnixMs: 0n,
+  };
+
+  it('lets desktop work finish while a browser observation is stalled', async () => {
+    vi.useFakeTimers();
+    const pending = Promise.withResolvers<{ rawJson: string }>();
+    const browser = successfulDriver({});
+    browser.callTool.mockImplementation(() => pending.promise);
+    const desktop = successfulDriver({ saved: true });
+    const factory = vi.fn().mockReturnValueOnce(browser).mockReturnValueOnce(desktop);
+    const service = new CuaService(authorization(), { driverFactory: factory });
+    const observation = service.call('get_browser_state', {}, directContext);
+    await vi.advanceTimersByTimeAsync(0);
+    let saved = false;
+    const edit = service.call('set_value', {}, directContext).then(() => {
+      saved = true;
+    });
+    await vi.advanceTimersByTimeAsync(1);
+    try {
+      expect(saved).toBe(true);
+      expect(desktop.callTool).toHaveBeenCalledOnce();
+    } finally {
+      pending.resolve({ rawJson: '{}' });
+      await Promise.all([observation, edit]);
+      await service.shutdown();
+    }
+  });
+
+  it('cancels a native operation without discarding a connected browser driver', async () => {
+    vi.useFakeTimers();
+    const browser = successfulDriver({ connected: true });
+    const native = successfulDriver({});
+    native.callTool.mockImplementation(() => new Promise(() => {}));
+    const factory = vi.fn().mockReturnValueOnce(browser).mockReturnValueOnce(native);
+    const service = new CuaService(authorization(), { driverFactory: factory });
+    await service.call('get_browser_state', { session: 'sia-browser-approved' }, directContext);
+    const abort = new AbortController();
+    const edit = service.call('set_value', {}, directContext, abort.signal);
+    const cancelled = edit.catch(() => 'cancelled');
+    await vi.advanceTimersByTimeAsync(0);
+    abort.abort(new Error('Stopped native task'));
+    await cancelled;
+    await vi.advanceTimersByTimeAsync(0);
+    try {
+      expect(browser.shutdown).not.toHaveBeenCalled();
+      expect(native.shutdown).toHaveBeenCalledOnce();
+      expect(
+        await service.call(
+          'get_browser_state',
+          { session: 'sia-browser-approved' },
+          directContext,
+        ),
+      ).toEqual({ connected: true });
+      expect(factory).toHaveBeenCalledTimes(2);
+      await service.call('end_session', { session: 'sia-browser-approved' }, directContext);
+      expect(browser.callTool.mock.calls.at(-1)?.[0]).toBe('end_session');
+    } finally {
+      await service.shutdown();
+    }
+  });
+
+  it('rejects callbacks from a retired driver during a fresh direct-user operation', async () => {
+    vi.useFakeTimers();
+    type Authorize = NonNullable<ConstructorParameters<typeof CuaService>[1]>['driverFactory'];
+    let oldAuthorize: Parameters<NonNullable<Authorize>>[0] | undefined;
+    const held = Promise.withResolvers<{ rawJson: string }>();
+    let instance = 0;
+    const broker = { authorize: vi.fn(async () => 'allow' as const) };
+    const service = new CuaService(broker, {
+      driverFactory: (authorize) => {
+        const driver = successfulDriver({});
+        if (++instance === 1) {
+          oldAuthorize = authorize;
+          driver.callTool.mockImplementation(() => new Promise(() => {}));
+        } else driver.callTool.mockImplementation(() => held.promise);
+        return driver;
+      },
     });
     const abort = new AbortController();
-    const call = service.call(
-      'browser_click',
-      { selector: '#save' },
-      directContext,
+    const old = service.call(
+      'click',
+      {},
+      { kind: 'turn', threadId: 'old', turnId: 'old' },
       abort.signal,
     );
-    await vi.waitFor(() => expect(nativeSignal).toBeDefined());
-    const abortExpectation = expect(call).rejects.toThrow('Turn cancelled.');
-
-    abort.abort(new Error('Turn cancelled.'));
-
-    await abortExpectation;
-    expect(nativeSignal?.aborted).toBe(true);
+    const cancelled = old.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    abort.abort();
+    await cancelled;
+    const current = service.call('list_apps', {}, directContext);
+    await vi.advanceTimersByTimeAsync(0);
+    try {
+      expect(await oldAuthorize!(request)).toBe('cancel');
+      expect(broker.authorize).not.toHaveBeenCalled();
+    } finally {
+      held.resolve({ rawJson: '{}' });
+      await current;
+      await service.shutdown();
+    }
   });
+
+  it('does not honor an approval that arrives after its operation was cancelled', async () => {
+    vi.useFakeTimers();
+    const decision = Promise.withResolvers<'allow'>();
+    let lateDecision: string | undefined;
+    const service = new CuaService(
+      { authorize: () => decision.promise },
+      {
+        driverFactory: (authorize) => ({
+          ...successfulDriver({}),
+          callTool: async () => {
+            lateDecision = await authorize(request);
+            return { rawJson: '{}' };
+          },
+        }),
+      },
+    );
+    const abort = new AbortController();
+    const call = service.call(
+      'click',
+      {},
+      { kind: 'turn', threadId: 't', turnId: 'u' },
+      abort.signal,
+    );
+    const cancelled = call.catch(() => undefined);
+    await vi.advanceTimersByTimeAsync(0);
+    abort.abort();
+    await cancelled;
+    decision.resolve('allow');
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lateDecision).toBe('cancel');
+    await service.shutdown();
+  });
+});
+
+it('keeps concurrent authorization contexts and timeout clocks independent', async () => {
+  vi.useFakeTimers();
+  const browserDecision = Promise.withResolvers<'deny'>();
+  const seen: string[] = [];
+  const service = new CuaService(
+    {
+      authorize: async (_request, context) => {
+        if (context.kind !== 'turn') throw new Error('Expected turn');
+        seen.push(context.threadId);
+        return context.threadId === 'browser' ? browserDecision.promise : 'allow';
+      },
+    },
+    {
+      callTimeoutMs: 25,
+      driverFactory: (authorize) => ({
+        ...successfulDriver({}),
+        callTool: async () => ({
+          rawJson: JSON.stringify({
+            decision: await authorize({
+              adapterId: 'test',
+              riskClass: 'input',
+              permissionMode: 'standard',
+              publicSession: 's',
+              requestDigest: 'd',
+              humanSummary: 'Test',
+              resourceJson: '{}',
+              expiresUnixMs: 0n,
+            }),
+          }),
+        }),
+      }),
+    },
+  );
+  const browser = service.call(
+    'get_browser_state',
+    {},
+    { kind: 'turn', threadId: 'browser', turnId: 'b' },
+  );
+  await vi.advanceTimersByTimeAsync(0);
+  const desktop = service.call(
+    'get_window_state',
+    {},
+    { kind: 'turn', threadId: 'desktop', turnId: 'd' },
+  );
+  await vi.advanceTimersByTimeAsync(1000);
+  expect(await desktop).toEqual({ decision: 'allow' });
+  expect(seen).toEqual(['browser', 'desktop']);
+  browserDecision.resolve('deny');
+  expect(await browser).toEqual({ decision: 'deny' });
+  await service.shutdown();
+});
+
+it('cleans up both driver lanes even when one shutdown fails', async () => {
+  const browser = { ...successfulDriver({}), uniffiDestroy: vi.fn() };
+  browser.shutdown.mockRejectedValue(new Error('Shutdown failed'));
+  const native = { ...successfulDriver({}), uniffiDestroy: vi.fn() };
+  const service = new CuaService(authorization(), {
+    driverFactory: vi.fn().mockReturnValueOnce(browser).mockReturnValueOnce(native),
+  });
+  await service.call('get_browser_state', {}, directContext);
+  await service.call('get_window_state', {}, directContext);
+  await service.call('end_session', { session: 'sia-computer-test' }, directContext);
+  expect(native.callTool.mock.calls.at(-1)?.[0]).toBe('end_session');
+  await expect(service.shutdown()).rejects.toThrow('CUA driver shutdown failed');
+  expect(browser.uniffiDestroy).toHaveBeenCalledOnce();
+  expect(native.shutdown).toHaveBeenCalledOnce();
+  expect(native.uniffiDestroy).toHaveBeenCalledOnce();
 });

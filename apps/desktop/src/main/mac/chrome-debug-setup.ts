@@ -11,8 +11,9 @@ export interface ChromeDebugStatusOptions {
 /**
  * Reports whether Chrome's own persistent remote-debugging toggle (the checkbox at
  * chrome://inspect/#remote-debugging) is on for the default profile. Read-only: Sia never edits
- * Chrome's Local State. Attachment otherwise relies on Chrome's own per-attach prompt, which the
- * user approves in Chrome.
+ * Chrome's Local State. The person authorizes a chosen window through explicit connection setup; the native
+ * driver may confirm Chrome's exact per-attach prompt within that flow. Task tools cannot approve
+ * permission dialogs.
  */
 export async function chromeRemoteDebuggingStatus(
   options: ChromeDebugStatusOptions = {},

@@ -1,3 +1,4 @@
+import { captureGeometry, sameCaptureGeometry } from './capture-geometry.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import {
@@ -9,6 +10,7 @@ import {
   screenshotDimensions,
   safeErrorMessage,
   stale,
+  unresolvedComputerWindow,
 } from './action-results.js';
 import { requiredEnum, requiredString } from './arguments.js';
 import {
@@ -41,11 +43,18 @@ export class ComputerInput {
 
   async act(request: ValidatedActionInvocation): Promise<ActionExecutionResult> {
     const args = request.arguments;
+    if (
+      this.ctx.options.visionOnly &&
+      (args.element_ref !== undefined || ['set', 'menu'].includes(String(args.action)))
+    )
+      return refused(
+        'Vision control uses screenshot coordinates and keyboard input; semantic targets are unavailable.',
+      );
     const appId = requiredString(args.app_id, 'app_id');
     const windowId = requiredString(args.window_id, 'window_id');
     const binding = this.ctx.computer.resolveWindow(appId, windowId);
     if (!binding || !(await this.inventory.windowStillValid(binding, request))) {
-      return stale('The computer grant is missing, expired, or no longer matches this window.');
+      return unresolvedComputerWindow();
     }
     const snapshotId = requiredString(args.snapshot_id, 'snapshot_id');
     const capability = this.ctx.computer.snapshots.get(snapshotId);
@@ -59,6 +68,11 @@ export class ComputerInput {
     ) {
       return stale('The window snapshot is missing, superseded, or belongs to another window.');
     }
+    if (
+      this.ctx.options.visionOnly &&
+      (!capability.pixels || Date.now() - capability.capturedAt > 30_000)
+    )
+      return stale('Capture a fresh screenshot before visual pointer or keyboard input.');
     let verifiedBrowserBundleId: string | undefined;
     let nativePDF = false;
     if (this.inventory.isNativeBrowser(binding)) {
@@ -238,13 +252,21 @@ export class ComputerInput {
     const pixel =
       typeof args.x === 'number' &&
       typeof args.y === 'number' &&
-      ['click', 'drag', 'type'].includes(String(args.action));
-    const backgroundDelivery = this.ctx.macBrowserAccess() && args.delivery !== 'foreground';
-    const inputRoute: BackgroundInputRoute = ['type', 'key'].includes(String(args.action))
-      ? 'pid_keyboard'
-      : pixel || args.action === 'scroll'
-        ? 'window_pointer'
-        : 'accessibility';
+      ['click', 'drag', 'type', 'scroll', 'key'].includes(String(args.action));
+    const backgroundDelivery =
+      this.ctx.macBrowserAccess() && !this.ctx.foregroundDelivery(args);
+    // An exact element lets type_text use the driver's semantic-only AX path.
+    // A refused process-keyboard route does not forbid that path; the driver
+    // still proves ancestry and refuses any unsafe keyboard fallback. Pixels
+    // do not carry element authority and retain the keyboard preflight below.
+    const inputRoute: BackgroundInputRoute =
+      args.action === 'type' && address && !pixel
+        ? 'accessibility'
+        : ['type', 'key'].includes(String(args.action))
+          ? 'pid_keyboard'
+          : pixel || args.action === 'scroll'
+            ? 'window_pointer'
+            : 'accessibility';
     if (backgroundDelivery) {
       const unavailable = backgroundRouteRefusal(
         capability.backgroundInput,
@@ -288,17 +310,35 @@ export class ComputerInput {
       });
       const denied = resultRefusal(current);
       if (denied) return denied;
-      if (windowHasProtectedControls(current, { browserBundleId: verifiedBrowserBundleId }))
+      if (
+        windowHasProtectedControls(current, {
+          browserBundleId: verifiedBrowserBundleId,
+          nativeAppBundleId: this.ctx.computer.apps
+            .get(binding.appId)
+            ?.identity?.replace(/^bundle:/, ''),
+        })
+      )
         return refused('Pixel actions are blocked on windows containing protected controls.');
       if (backgroundDelivery) {
         const availability = windowBackgroundInput(current, binding);
-        const routes: BackgroundInputRoute[] =
-          args.action === 'type' ? ['window_pointer', 'pid_keyboard'] : ['window_pointer'];
+        const routes: BackgroundInputRoute[] = ['type', 'key'].includes(String(args.action))
+          ? ['window_pointer', 'pid_keyboard']
+          : ['window_pointer'];
         for (const route of routes) {
           const unavailable = backgroundRouteRefusal(availability, route, request);
           if (unavailable) return unavailable;
         }
       }
+      const observedGeometry = capability.captureGeometry;
+      const currentGeometry = captureGeometry(current);
+      if (
+        (this.ctx.options.visionOnly && !observedGeometry) ||
+        (observedGeometry &&
+          (!currentGeometry || !sameCaptureGeometry(observedGeometry, currentGeometry)))
+      )
+        return stale(
+          'The captured content geometry changed or could not be verified. Take a fresh screenshot before acting.',
+        );
       const currentSize = screenshotDimensions(current);
       if (
         !currentSize ||
@@ -319,7 +359,7 @@ export class ComputerInput {
       window_id: binding.windowId,
       session: this.ctx.computer.session(request),
       delivery_mode: this.ctx.macBrowserAccess()
-        ? args.delivery === 'foreground'
+        ? this.ctx.foregroundDelivery(args)
           ? 'foreground'
           : 'background'
         : !address
@@ -343,6 +383,7 @@ export class ComputerInput {
               delivery_mode: base.delivery_mode,
               x: args.x,
               y: args.y,
+              ...(this.ctx.options.visionOnly ? { pointer_only: true } : {}),
             }
           : base;
         if (tool === 'click') {
@@ -397,7 +438,12 @@ export class ComputerInput {
         tool = 'type_text';
         // Keep focus and insertion in the same driver operation. A separate
         // foreground click restores the previous app before typing begins.
-        input = { ...base, text, ...(pixel ? { x: args.x, y: args.y } : {}) };
+        input = {
+          ...base,
+          text,
+          ...(this.ctx.options.visionOnly ? { keyboard_only: true } : {}),
+          ...(pixel ? { x: args.x, y: args.y } : {}),
+        };
         break;
       }
       case 'set': {
@@ -421,6 +467,7 @@ export class ComputerInput {
           direction: requiredEnum(args.direction, ['up', 'down', 'left', 'right'], 'direction'),
           amount: typeof args.amount === 'number' ? args.amount : 3,
           by: 'line',
+          ...(pixel ? { x: args.x, y: args.y } : {}),
         };
         break;
       case 'key': {
@@ -431,14 +478,22 @@ export class ComputerInput {
           ? args.modifiers.filter((value): value is string => typeof value === 'string')
           : [];
         tool = modifiers.length ? 'hotkey' : 'press_key';
+        const target = {
+          ...base,
+          ...(pixel ? { x: args.x, y: args.y } : {}),
+          ...(pixel && this.ctx.options.visionOnly ? { pointer_only: true } : {}),
+        };
         input = modifiers.length
-          ? { ...base, keys: [...modifiers, normalizedKey] }
-          : { ...base, key: normalizedKey };
+          ? { ...target, keys: [...modifiers, normalizedKey] }
+          : { ...target, key: normalizedKey };
         break;
       }
       default:
         return refused('Unsupported computer action.');
     }
+
+    if (pixel && capability.captureGeometry)
+      input.capture_geometry = capability.captureGeometry;
 
     const knownWindows = new Set(
       [...this.ctx.computer.windows.values()]
@@ -455,16 +510,19 @@ export class ComputerInput {
       if (inputWasRefused(error)) return classifyFailure(error);
       this.ctx.computer.snapshots.delete(snapshotId);
       this.ctx.computer.latestSnapshot.delete(binding.id);
+      const incompleteDrag = message === 'CUA incomplete: background_drag_requires_pointer';
       return {
         outcome: 'accepted_unverified',
-        summary:
-          'The input may have been delivered, but its acknowledgement could not be verified. Observe the exact window and inspect the intended result before continuing; do not replay the action.',
+        summary: incompleteDrag
+          ? 'macOS started a drag-and-drop session, but its drop needs the physical pointer. Inspect the exact window for changes; do not retry this background drag. Use authorized file tools if the task allows them, or explain the remaining step.'
+          : 'The input may have been delivered, but its acknowledgement could not be verified. Observe the exact window and inspect the intended result before continuing; do not replay the action.',
         reason: message,
         data: {
           app_id: binding.appId,
           window_id: binding.id,
           input_delivery_uncertain: true,
           previous_snapshot_id: snapshotId,
+          ...(incompleteDrag ? { blocker_code: 'background_drag_requires_pointer' } : {}),
           next_step:
             'Capture fresh state and reconcile the saved item, receipt, or other semantic result. The previous input target has been revoked. An absent immediate acknowledgement does not prove the write failed.',
         },
@@ -512,7 +570,7 @@ export class ComputerInput {
           return {
             outcome: 'stale',
             summary:
-              'A dialog or sheet is now in front of this window, so input went nowhere. Inspect a new_window and act there; do not repeat the action on this window.',
+              'A dialog or sheet opened and no input was delivered. Inspect a new_window. If that panel has no input route, inspect previous_window_id again: an attached sheet may be controlled through its document. Use only a fresh snapshot with an available route. Do not repeat the action that opened the dialog.',
             data: { new_windows: opened, previous_window_id: binding.id },
           };
       }
@@ -548,7 +606,7 @@ export class ComputerInput {
     if (openedWindows.length && !attachedSheet)
       return {
         outcome: 'accepted_unverified',
-        summary: `${native.summary} New windows appeared. Inspect a new_window before continuing; the previous snapshot belongs to the original window. Do not repeat the action that opened it.`,
+        summary: `${native.summary} New windows appeared. Inspect a new_window before continuing. If that panel has no input route, inspect previous_window_id again: an attached sheet may be controlled through its document. Use only a fresh snapshot with an available route. Do not repeat the action that opened it.`,
         data: {
           observation_pending: true,
           new_windows: openedWindows,

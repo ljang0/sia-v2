@@ -34,6 +34,8 @@ export interface ActiveTurn {
   nativeTurnId?: string;
   /** Stop arrived before Codex reported the native turn id. */
   interruptPending?: boolean;
+  /** AbortSignal and explicit Stop share one in-flight native interruption. */
+  interruption?: Promise<void>;
   /** Steers waiting for the native turn id, which turn/steer requires. */
   nativeTurnIdWaiters?: Array<(nativeTurnId: string | undefined) => void>;
 }

@@ -86,7 +86,7 @@ const computerAction = z
       .string()
       .trim()
       .regex(
-        /^(?:[a-z0-9]|enter|return|tab|escape|up|down|left|right|space|delete|home|end|pageup|pagedown|f(?:[1-9]|1[0-2]))$/i,
+        /^(?:[a-z0-9]|enter|return|tab|escape|up|down|left|right|space|delete|backspace|home|end|pageup|pagedown|f(?:[1-9]|1[0-2]))$/i,
       )
       .optional(),
     modifiers: z
@@ -117,12 +117,14 @@ const computerAction = z
         });
       if (
         (x !== undefined || y !== undefined || to_x !== undefined || to_y !== undefined) &&
-        (!coordinates || element_ref || !['click', 'drag', 'type'].includes(action))
+        (!coordinates ||
+          element_ref ||
+          !['click', 'drag', 'type', 'scroll', 'key'].includes(action))
       )
         context.addIssue({
           code: 'custom',
           message:
-            'Use either an element reference or complete screenshot coordinates for click/drag/type.',
+            'Use either an element reference or complete screenshot coordinates for click/drag/type/scroll/key.',
         });
       if (action !== 'drag' && (to_x !== undefined || to_y !== undefined))
         context.addIssue({ code: 'custom', message: 'End coordinates only apply to drag.' });
@@ -143,11 +145,26 @@ const computerAction = z
 
 const browserTabs = z.object({}).strict();
 
-const workspaceFileName = z
+const workspaceRelativePath = z
   .string()
   .min(1)
-  .max(180)
-  .regex(/^[^./\\\x00-\x1f][^/\\\x00-\x1f]*\.(?:txt|md|csv|tsv|json|ics)$/i);
+  .max(1800)
+  .regex(
+    /^[^./\\:\x00-\x1f\x7f][^/\\:\x00-\x1f\x7f]*(?:\/[^./\\:\x00-\x1f\x7f][^/\\:\x00-\x1f\x7f]*)*$/,
+  );
+const workspaceFileName = workspaceRelativePath.regex(/\.(?:txt|md|csv|tsv|json|ics)$/i);
+
+export const computerListFiles = z
+  .object({ directory: workspaceRelativePath.optional() })
+  .strict();
+
+export const computerMoveFile = z
+  .object({
+    source: workspaceFileName,
+    destination: workspaceFileName,
+    expected_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  })
+  .strict();
 
 export const computerReadFile = z.object({ name: workspaceFileName }).strict();
 
@@ -179,8 +196,19 @@ const browserAction = z
   .object({
     tab_id: id,
     snapshot_id: id,
-    action: z.enum(['click', 'type', 'scroll']),
-    element_ref: id,
+    action: z.enum(['click', 'type', 'scroll', 'drag', 'key']),
+    value: z.string().trim().min(1).max(20).optional(),
+    modifiers: z
+      .array(z.enum(['cmd', 'shift', 'option']))
+      .max(3)
+      .optional(),
+    element_ref: id.optional(),
+    x: z.number().finite().min(0).max(32768).optional(),
+    y: z.number().finite().min(0).max(32768).optional(),
+    to_x: z.number().finite().min(0).max(32768).optional(),
+    to_y: z.number().finite().min(0).max(32768).optional(),
+    button: z.enum(['left', 'right']).optional(),
+    count: z.number().int().min(1).max(2).optional(),
     text: z.string().max(20_000).optional(),
     direction: z.enum(['up', 'down', 'left', 'right']).optional(),
     amount: z.number().int().positive().max(10_000).optional(),
@@ -188,7 +216,48 @@ const browserAction = z
     private: z.boolean().optional(),
     target_role: z.string().max(128).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((args, context) => {
+    const coordinates = args.x !== undefined && args.y !== undefined;
+    if (
+      args.action === 'key'
+        ? !args.value || args.element_ref || args.text !== undefined
+        : args.value !== undefined || args.modifiers !== undefined
+    )
+      context.addIssue({
+        code: 'custom',
+        message:
+          'Page keys require a value and optional modifiers without a semantic target or text.',
+      });
+    if (
+      (args.x !== undefined || args.y !== undefined) &&
+      (!coordinates || args.element_ref || ['type', 'key'].includes(args.action))
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'Use a semantic ref or a complete screenshot point, not both.',
+      });
+    if (!['type', 'key'].includes(args.action) && !args.element_ref && !coordinates)
+      context.addIssue({
+        code: 'custom',
+        message: 'Pointer input needs a screenshot point or current ref.',
+      });
+    if (
+      args.action === 'drag' &&
+      (!coordinates || args.to_x === undefined || args.to_y === undefined)
+    )
+      context.addIssue({
+        code: 'custom',
+        message: 'Drag requires screenshot start and end points.',
+      });
+    if (args.action !== 'drag' && (args.to_x !== undefined || args.to_y !== undefined))
+      context.addIssue({ code: 'custom', message: 'End points apply only to drag.' });
+    if (
+      ((args.button !== undefined || args.count !== undefined) && args.action !== 'click') ||
+      (args.button === 'right' && args.count === 2)
+    )
+      context.addIssue({ code: 'custom', message: 'Button/count require a supported click.' });
+  });
 
 const browserUpload = z
   .object({
@@ -886,9 +955,10 @@ export const actionInputSchemas = {
   computer_open_url: computerOpenUrl,
   computer_snapshot: computerSnapshot,
   computer_action: computerAction,
-  computer_list_files: computerList,
+  computer_list_files: computerListFiles,
   computer_read_file: computerReadFile,
   computer_write_file: computerWriteFile,
+  computer_move_file: computerMoveFile,
   browser_tabs: browserTabs,
   browser_snapshot: browserSnapshot,
   browser_navigate: browserNavigate,

@@ -3,6 +3,51 @@ import { describe, expect, it, vi } from 'vitest';
 import { DesktopActionBackend } from './desktop-action-backend.js';
 import { dataRecord, fakeCua, grantedComputerTarget, request } from './test-support.js';
 
+it.each(['unique', 'ambiguous', 'private-link'] as const)(
+  'uses a fresh native window title without guessing or leaking links: %s',
+  async (variant) => {
+    const label =
+      variant === 'private-link' ? 'https://example.com/?token=private-value' : 'Review packet';
+    const cua = fakeCua(async (tool) => {
+      if (tool === 'list_apps')
+        return { apps: [{ pid: 42, name: 'Finder', bundle_id: 'com.apple.finder' }] };
+      if (tool === 'list_windows')
+        return { windows: [{ pid: 42, window_id: 91, app_name: 'Finder', title: 'Inbox' }] };
+      if (tool === 'get_window_state')
+        return {
+          elements: [
+            { role: 'AXWindow', element_token: 's00000001:0', label },
+            ...(variant === 'ambiguous'
+              ? [{ role: 'AXWindow', element_token: 's00000001:1', label: 'Other window' }]
+              : []),
+          ],
+        };
+      throw new Error(`Unexpected ${tool}`);
+    });
+    const backend = new DesktopActionBackend({
+      cua,
+      macBrowserAccess: () => true,
+      macBackgroundControl: () => true,
+    });
+    const target = await grantedComputerTarget(backend);
+    const observed = await backend.invoke(
+      request('computer_snapshot', {
+        app_id: target.appId,
+        window_id: target.windowId,
+        include_image: false,
+      }),
+    );
+    expect(observed.outcome).toBe('verified');
+    if (variant === 'private-link') {
+      expect(JSON.stringify(observed)).not.toContain('private-value');
+    } else {
+      expect(dataRecord(observed.data).title).toBe(
+        variant === 'unique' ? 'Review packet' : 'Inbox',
+      );
+    }
+  },
+);
+
 it.each(['partial', 'complete', 'protected', 'no-image'] as const)(
   'supplements a partial document excerpt with current-viewport OCR only when safe: %s',
   async (variant) => {
@@ -475,3 +520,32 @@ it.each([
   if (variant === 'protected') expect(result.outcome).toBe('refused');
   else expect(dataRecord(result.data).observation_partial).toBe(true);
 });
+
+it.each(['computer_snapshot', 'computer_action'] as const)(
+  'directs stale window IDs in %s to inventory refresh without requesting permission',
+  async (name) => {
+    const cua = fakeCua(async () => {
+      throw new Error('No native access before a current window grant');
+    });
+    const backend = new DesktopActionBackend({ cua });
+    const result = await backend.invoke(
+      request(name, {
+        app_id: 'old-app',
+        window_id: 'old-window',
+        ...(name === 'computer_action'
+          ? { snapshot_id: 'old-snapshot', action: 'key', value: 'Tab' }
+          : {}),
+      }),
+    );
+    expect(result).toMatchObject({
+      outcome: 'stale',
+      data: {
+        blocker_code: 'computer_window_ids_stale',
+        input_not_sent: true,
+        next_step: expect.stringContaining('computer_list'),
+      },
+    });
+    expect(result.summary).toContain('does not mean macOS permission was denied');
+    expect(cua.call).not.toHaveBeenCalled();
+  },
+);

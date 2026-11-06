@@ -53,6 +53,7 @@ export interface BrowserCapabilitySink {
 }
 
 export interface ControllerOptions {
+  readonly visionOnly?: boolean;
   notchHelperPath?: string;
   repository: RecordRepository;
   cloud: CloudClient;
@@ -73,6 +74,8 @@ export interface ControllerOptions {
   fakeServices: boolean;
   fakeTurnDelayMs?: number;
   openExternal(url: string): Promise<void>;
+  /** Startup passes Chrome's pid: return only if that process still owns foreground. */
+  returnToAppAfterBrowserSetup?(onlyFromPid?: number): Promise<void>;
   /** Signs in to Outlook, Notion, and GitHub from this Mac; absent where unsupported. */
   localConnectors?: LocalConnectorService;
   openMessages?(): Promise<void>;

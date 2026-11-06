@@ -1,13 +1,35 @@
 // @vitest-environment jsdom
-import { renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
-import { useReadOnScreen } from './readOnScreen';
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { useReadOnScreen, useWindowAttended } from './readOnScreen';
 import type { ThreadStatus } from './types';
 
 type Props = {
   conversation: { id: string; status: ThreadStatus; unread?: boolean } | undefined;
   onScreen: boolean;
 };
+
+afterEach(() => vi.restoreAllMocks());
+
+it('does not treat a background-rendered conversation as read until the person returns', () => {
+  vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible');
+  const focus = vi.spyOn(document, 'hasFocus').mockReturnValue(false);
+  const markRead = vi.fn();
+  const hook = renderHook(
+    ({ status }: { status: ThreadStatus }) => {
+      useReadOnScreen({ id: 't1', status, unread: true }, useWindowAttended(), markRead);
+    },
+    { initialProps: { status: 'running' as ThreadStatus } },
+  );
+  hook.rerender({ status: 'idle' });
+  expect(markRead).not.toHaveBeenCalled();
+  act(() => {
+    focus.mockReturnValue(true);
+    window.dispatchEvent(new Event('focus'));
+  });
+  expect(markRead).toHaveBeenCalledExactlyOnceWith('t1');
+  hook.unmount();
+});
 
 function setup(initial: Props) {
   const markRead = vi.fn();

@@ -1,5 +1,21 @@
 import { randomUUID } from 'node:crypto';
+import { CuaPermissions } from './cua-permissions.js';
+import type { CorePermission, CuaPermissionOptions } from './cua-permissions.js';
+import {
+  decodeDriverResult,
+  readForegroundInventory,
+  withDriverImages,
+} from './cua-results.js';
+import type { DriverResult } from './cua-results.js';
 import type { ComputerPermissionsView as ComputerView } from '../../shared/bridge.js';
+import {
+  browserSessionDriver,
+  BROWSER_SESSION_IDLE_SECONDS,
+  BROWSER_SESSION_SECONDS,
+} from './cua-browser-session.js';
+
+import { permitsOtherBrowserWindow } from './browser-background-focus.js';
+import type { ForegroundWindow } from './browser-background-focus.js';
 
 const CUA_TOOLS = new Set([
   'list_apps',
@@ -53,6 +69,7 @@ export type CuaAuthorizationContext =
       readonly backgroundOnly?: boolean;
       /** Host-bound browser target; never supplied by model arguments. */
       readonly backgroundTargetPid?: number;
+      readonly backgroundTargetWindowId?: number;
     }
   | {
       readonly kind: 'direct_user';
@@ -60,14 +77,8 @@ export type CuaAuthorizationContext =
         'browser_attach' | 'browser_navigate' | 'browser_detach' | 'access_check';
     };
 
-interface DriverResult {
-  rawJson: string;
-  structuredJson?: string;
-  errorCode?: string;
-  images?: Array<{ mimeType: string; dataBase64: string }>;
-}
-
 interface DriverLike {
+  prepareBrowserSession?: (label: string) => void;
   callTool(
     name: string,
     argumentsJson: string,
@@ -77,37 +88,22 @@ interface DriverLike {
   uniffiDestroy?: () => void;
 }
 
-export type CorePermission = 'accessibility' | 'screenRecording';
-export interface CorePermissionStatus {
-  accessibility: boolean;
-  screenRecording: boolean;
-}
-
-interface CuaServiceOptions {
-  /** Production uses macOS's live frontmost PID, including non-regular utility apps. */
+interface CuaServiceOptions extends CuaPermissionOptions {
+  /** Production reads macOS's live frontmost PID, including utility apps. */
   readonly readForegroundPid?: () => Promise<number | undefined>;
-  readonly fakePermissions?: boolean;
-  readonly platform?: NodeJS.Platform;
-  /** Test seam for this process's own TCC view; production reads the Cua driver. */
-  readonly readPermissions?: () => Promise<CorePermissionStatus>;
-  /**
-   * Reads the same grants from a brand-new process. macOS applies some grants (notably Screen
-   * Recording) to a running app only after it reopens, so a fresh "yes" next to a stale "no"
-   * means one relaunch finishes setup. Undefined when the check could not run.
-   */
-  readonly freshPermissions?: () => Promise<CorePermissionStatus | undefined>;
+  readonly readForegroundWindow?: () => Promise<ForegroundWindow | undefined>;
   readonly callTimeoutMs?: number;
-  /** Process id that owns Sia's windows; the driver refuses to inspect its own process. */
-  readonly hostPid?: number;
-  /** Confirms granted access by reading another app's window through the driver. */
-  readonly verifyAccess?: boolean;
-  /** Test seam; receives the same authorization callback the native driver would use. */
+  /** Test seam; receives the same authorization callback as the native driver. */
   readonly driverFactory?: (
     authorize: (request: AuthorizationRequest) => Promise<'allow' | 'deny' | 'cancel'>,
   ) => DriverLike | Promise<DriverLike>;
 }
 
 const DEFAULT_CALL_TIMEOUT_MS = 60_000;
+// The pinned native type_text preflight permits 100 seconds of paced input.
+// Include time for exact-window focus and result delivery; the ordinary call
+// deadline otherwise interrupts a valid document write after it has started.
+const DEFAULT_TYPING_TIMEOUT_MS = 120_000;
 const WINDOW_INPUT_TOOLS = new Set([
   'click',
   'double_click',
@@ -126,254 +122,68 @@ const BROWSER_INPUT_TOOLS = new Set([
   'browser_pointer',
 ]);
 
-interface CuaDriverImage {
-  readonly mimeType: string;
-  readonly dataBase64: string;
+interface DriverLane {
+  driver: DriverLike | undefined;
+  generation: number;
+  tail: Promise<void>;
+  inventorySession: string;
+  context: CuaAuthorizationContext | undefined;
+  progress: { started: number; completed: number } | undefined;
+  clock: { pause(): void; resume(): void } | undefined;
+  signal: AbortSignal | undefined;
 }
 
-export interface CuaCallResult {
-  readonly value: unknown;
-  readonly images: readonly CuaDriverImage[];
-}
-
-export function isCuaCallResult(value: unknown): value is CuaCallResult {
-  return (
-    typeof value === 'object' &&
-    value !== null &&
-    !Array.isArray(value) &&
-    Object.hasOwn(value, 'value') &&
-    Array.isArray((value as Record<string, unknown>).images)
-  );
+function driverLane(): DriverLane {
+  return {
+    driver: undefined,
+    generation: 0,
+    tail: Promise.resolve(),
+    inventorySession: `sia-inventory-${randomUUID()}`,
+    context: undefined,
+    progress: undefined,
+    clock: undefined,
+    signal: undefined,
+  };
 }
 
 export class CuaService {
   readonly #readForegroundPid: (() => Promise<number | undefined>) | undefined;
+  readonly #readForegroundWindow: CuaServiceOptions['readForegroundWindow'];
   readonly #authorization: AuthorizationBroker;
-  readonly #fakePermissions: boolean;
   readonly #callTimeoutMs: number;
+  readonly #typingTimeoutMs: number;
   readonly #driverFactory: CuaServiceOptions['driverFactory'];
-  readonly #platform: NodeJS.Platform;
-  readonly #readPermissions: () => Promise<CorePermissionStatus>;
-  readonly #freshPermissions: CuaServiceOptions['freshPermissions'];
-  #driver: DriverLike | undefined;
-  #driverGeneration = 0;
-  /** Inventory may expire independently; renewing it must not drop live browser grants. */
-  #inventorySession = `sia-inventory-${randomUUID()}`;
-  #permissionRequest: Promise<ComputerView> | undefined;
-  #verification:
-    | { result: 'confirmed' | 'unconfirmed' }
-    | { result: 'failed'; checkedAt: number }
-    | undefined;
-  #verifying: Promise<'confirmed' | 'unconfirmed' | 'failed'> | undefined;
-  readonly #hostPid: number;
-  readonly #verifyAccessEnabled: boolean;
-  #callTail: Promise<void> = Promise.resolve();
-  #authorizationContext: CuaAuthorizationContext | undefined;
+  // Each native runtime has its own authorization host. Serialize within a lane,
+  // while a stalled browser transport cannot hold up an unrelated desktop action.
+  readonly #browser = driverLane();
+  readonly #desktop = driverLane();
+  readonly #permissions: CuaPermissions;
   readonly #pausedBackgroundTurns = new Set<string>();
-  /** The running call's timeout, paused while an approval waits on the person. */
-  #callClock: { pause(): void; resume(): void } | undefined;
 
   constructor(authorization: AuthorizationBroker, options: CuaServiceOptions = {}) {
     this.#authorization = authorization;
     this.#readForegroundPid = options.readForegroundPid;
-    this.#fakePermissions = options.fakePermissions ?? false;
+    this.#readForegroundWindow = options.readForegroundWindow;
     const callTimeoutMs = options.callTimeoutMs ?? DEFAULT_CALL_TIMEOUT_MS;
     if (!Number.isFinite(callTimeoutMs) || callTimeoutMs <= 0) {
       throw new Error('CUA call timeout must be a positive number.');
     }
     this.#callTimeoutMs = callTimeoutMs;
+    this.#typingTimeoutMs = options.callTimeoutMs ?? DEFAULT_TYPING_TIMEOUT_MS;
     this.#driverFactory = options.driverFactory;
-    this.#platform = options.platform ?? process.platform;
-    this.#readPermissions =
-      options.readPermissions ??
-      (async () => {
-        const cua = await import('@trycua/cua-driver');
-        const status = cua.currentMacOsPermissionStatus();
-        return {
-          accessibility: Boolean(status.accessibility),
-          screenRecording: Boolean(status.screenRecording),
-        };
-      });
-    this.#freshPermissions = options.freshPermissions;
-    this.#hostPid = options.hostPid ?? process.pid;
-    this.#verifyAccessEnabled = options.verifyAccess ?? false;
+    this.#permissions = new CuaPermissions(
+      (tool, args, signal) =>
+        this.call(tool, args, { kind: 'direct_user', operation: 'access_check' }, signal),
+      options,
+    );
   }
 
-  async permissions(): Promise<ComputerView> {
-    if (this.#fakePermissions)
-      return {
-        status: 'ready',
-        accessibility: true,
-        screenRecording: true,
-        detail: 'Simulated permissions for development.',
-      };
-    if (this.#platform !== 'darwin') {
-      return {
-        status: 'unavailable',
-        accessibility: false,
-        screenRecording: false,
-        detail: 'Sia supports computer use on macOS only.',
-      };
-    }
-    try {
-      const { accessibility, screenRecording } = await this.#readPermissions();
-      const fresh =
-        accessibility && screenRecording
-          ? undefined
-          : await this.#freshPermissions?.().catch(() => undefined);
-      const relaunchFor = fresh
-        ? (['accessibility', 'screenRecording'] as const).filter(
-            (name) => fresh[name] && !{ accessibility, screenRecording }[name],
-          )
-        : [];
-      if (accessibility && screenRecording) {
-        if (!this.#verifyAccessEnabled)
-          return { status: 'ready', accessibility, screenRecording };
-        // The grants decide what Sia may attempt; the check only tells setup whether it works.
-        const verified = await this.#verifyAccess();
-        return {
-          status: 'ready',
-          accessibility,
-          screenRecording,
-          verified,
-          ...(verified === 'failed'
-            ? {
-                detail:
-                  'Mac access is allowed, but Sia could not verify screen access with the available window. Try your task; if it cannot continue, Sia will explain the specific issue. Your permissions have not been reset.',
-              }
-            : {}),
-        };
-      }
-      return {
-        status: 'needs_permission',
-        accessibility,
-        screenRecording,
-        ...(relaunchFor.length ? { relaunchFor: [...relaunchFor] } : {}),
-        ...(!accessibility || !screenRecording
-          ? {
-              detail: relaunchFor.length
-                ? 'Reopen Sia to finish turning on Mac access.'
-                : 'Accessibility and Screen Recording are both required.',
-            }
-          : {}),
-      };
-    } catch (error) {
-      return {
-        status: 'error',
-        accessibility: false,
-        screenRecording: false,
-        detail: error instanceof Error ? error.message : 'CUA permissions could not be read.',
-      };
-    }
+  permissions(): Promise<ComputerView> {
+    return this.#permissions.permissions();
   }
 
-  /**
-   * Asks macOS for one missing grant: the named one, or Accessibility then Screen Recording.
-   * A grant that only waits for a relaunch is not requested again.
-   */
   requestPermissions(permission?: CorePermission): Promise<ComputerView> {
-    // Setup and the inspector can request access together. Keep one OS prompt
-    // sequence in flight; subsequent clicks share its result and can retry later.
-    this.#permissionRequest ??= this.#requestPermissions(permission).finally(() => {
-      this.#permissionRequest = undefined;
-    });
-    return this.#permissionRequest;
-  }
-
-  async #requestPermissions(permission?: CorePermission): Promise<ComputerView> {
-    // An explicit request re-checks a failed functional check right away.
-    if (this.#verification?.result === 'failed') this.#verification = undefined;
-    const current = await this.permissions();
-    if (current.status === 'ready' || current.status === 'unavailable') return current;
-    const missing = (name: CorePermission) =>
-      !current[name] && !current.relaunchFor?.includes(name);
-    const target = permission ?? (['accessibility', 'screenRecording'] as const).find(missing);
-    if (this.#platform === 'darwin' && target && missing(target)) {
-      const { systemPreferences, shell, desktopCapturer } = await import('electron');
-      // Request one permission at a time. Opening Screen Recording while the
-      // Accessibility prompt is still pending hides the first step on macOS.
-      if (target === 'accessibility') {
-        // macOS shows its prompt only the first time an app asks; an app already listed (but
-        // off) gets no prompt at all. Always open the Accessibility pane too, so there is
-        // something to act on either way.
-        systemPreferences.isTrustedAccessibilityClient(true);
-        await shell.openExternal(
-          'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
-        );
-      } else {
-        // Register the responsible, signed Electron app with TCC. This explicit
-        // setup request retains no image and sends nothing to the agent.
-        await desktopCapturer
-          .getSources({
-            types: ['screen'],
-            thumbnailSize: { width: 1, height: 1 },
-            fetchWindowIcons: false,
-          })
-          .catch(() => undefined);
-        const after = await this.permissions();
-        if (!after.screenRecording && !after.relaunchFor?.includes('screenRecording'))
-          await shell.openExternal(
-            'x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture',
-          );
-      }
-    }
-    return this.permissions();
-  }
-
-  /**
-   * Reads one window of another app through the driver Sia's tools use, then discards it.
-   * macOS can list a grant that the running process cannot use yet; this is what turns
-   * "allowed" into "works". Nothing is stored or sent anywhere.
-   */
-  #verifyAccess(): Promise<'confirmed' | 'unconfirmed' | 'failed'> {
-    const cached = this.#verification;
-    if (cached?.result === 'confirmed' || cached?.result === 'unconfirmed')
-      return Promise.resolve(cached.result);
-    if (cached?.result === 'failed' && Date.now() - cached.checkedAt < 15_000)
-      return Promise.resolve('failed');
-    this.#verifying ??= this.#runAccessCheck()
-      .then((result) => {
-        this.#verification =
-          result === 'failed' ? { result, checkedAt: Date.now() } : { result };
-        return result;
-      })
-      .finally(() => {
-        this.#verifying = undefined;
-      });
-    return this.#verifying;
-  }
-
-  async #runAccessCheck(): Promise<'confirmed' | 'unconfirmed' | 'failed'> {
-    const context: CuaAuthorizationContext = { kind: 'direct_user', operation: 'access_check' };
-    const signal = AbortSignal.timeout(10_000);
-    try {
-      const windows = findWindows(
-        await this.call('list_windows', { on_screen_only: true }, context, signal),
-      ).filter(({ pid }) => pid !== this.#hostPid);
-      // Finder is always running and holds no secure fields; prefer it when visible.
-      const target =
-        windows.find(({ appName }) => appName === 'Finder') ?? windows.find(() => true);
-      if (!target) return 'unconfirmed';
-      const state = await this.call(
-        'get_window_state',
-        { pid: target.pid, window_id: target.windowId, include_screenshot: true },
-        context,
-        signal,
-      );
-      const images = isCuaCallResult(state) ? state.images.length : 0;
-      const refused =
-        typeof state === 'object' &&
-        state !== null &&
-        ((isCuaCallResult(state) &&
-          typeof state.value === 'object' &&
-          state.value !== null &&
-          'status' in state.value &&
-          state.value.status === 'refused') ||
-          ('status' in state && state.status === 'refused'));
-      return !refused && images > 0 ? 'confirmed' : 'failed';
-    } catch {
-      return 'failed';
-    }
+    return this.#permissions.requestPermissions(permission);
   }
 
   async call(
@@ -384,6 +194,25 @@ export class CuaService {
   ): Promise<unknown> {
     if (!CUA_TOOLS.has(tool)) throw new Error(`CUA tool ${tool} is not exposed by Sia.`);
     signal?.throwIfAborted();
+    // Copy/Cut changes the system pasteboard even when key delivery stays in
+    // another window. Do not overwrite the person's clipboard to move files.
+    if (
+      context.kind === 'turn' &&
+      context.backgroundOnly &&
+      tool === 'hotkey' &&
+      Array.isArray(args.keys)
+    ) {
+      const keys = args.keys
+        .filter((key): key is string => typeof key === 'string')
+        .map((key) => key.toLowerCase());
+      if (
+        keys.some((key) => ['cmd', 'command', 'super', 'meta', 'win'].includes(key)) &&
+        keys.some((key) => key === 'c' || key === 'x')
+      )
+        throw new Error(
+          'Background Copy and Cut would change your clipboard. Use a supported drag or another clipboard-free action.',
+        );
+    }
     // Native menus have no delivery ceiling, and an app may activate itself
     // after a background launch. Neither can guarantee background-only delivery.
     // Refuse before driver initialization, queueing or input, not after delivery.
@@ -405,14 +234,21 @@ export class CuaService {
           args.delivery_mode !== 'background'))
     )
       throw new Error('CUA refused: background_unavailable');
-    const previous = this.#callTail;
+    const lane =
+      tool === 'get_browser_state' ||
+      tool.startsWith('browser_') ||
+      (tool === 'end_session' &&
+        typeof args.session === 'string' &&
+        args.session.startsWith('sia-browser-'))
+        ? this.#browser
+        : this.#desktop;
+    const previous = lane.tail;
     const next = Promise.withResolvers<void>();
-    this.#callTail = next.promise;
+    lane.tail = next.promise;
     let ownsQueue = false;
     const operation = new AbortController();
-    const timeoutError = new Error(
-      `CUA tool ${tool} timed out after ${this.#callTimeoutMs} ms.`,
-    );
+    const callTimeoutMs = tool === 'type_text' ? this.#typingTimeoutMs : this.#callTimeoutMs;
+    const timeoutError = new Error(`CUA tool ${tool} timed out after ${callTimeoutMs} ms.`);
     let driver: DriverLike | undefined;
     const abortFromCaller = (): void => {
       operation.abort(signal?.reason ?? new Error('CUA action cancelled.'));
@@ -420,7 +256,7 @@ export class CuaService {
     if (signal?.aborted) abortFromCaller();
     else signal?.addEventListener('abort', abortFromCaller, { once: true });
     // Time spent waiting on the person to approve an action is not driver time.
-    let remainingMs = this.#callTimeoutMs;
+    let remainingMs = callTimeoutMs;
     let startedAt = Date.now();
     let timer: ReturnType<typeof setTimeout> | undefined;
     const startTimer = (): void => {
@@ -454,17 +290,28 @@ export class CuaService {
         throw new Error('CUA refused: background_input_paused');
       // Queue time belongs to the preceding call; only this call's execution uses its budget.
       startTimer();
-      this.#authorizationContext = context;
-      this.#callClock = clock;
-      driver = await waitForAbort(this.#getDriver(), operation.signal);
+      lane.context = context;
+      lane.signal = operation.signal;
+      lane.progress = { started: 0, completed: 0 };
+      lane.clock = clock;
+      driver = await waitForAbort(this.#getDriver(lane), operation.signal);
       let foregroundBefore: number | undefined;
       let backgroundTargetPid: number | undefined;
+      let browserForegroundWindow: ForegroundWindow | undefined;
       const result = await waitForAbort(
         Promise.resolve().then(async () => {
           operation.signal.throwIfAborted();
+          if (
+            tool === 'browser_prepare' &&
+            context.kind === 'direct_user' &&
+            context.operation === 'browser_attach' &&
+            typeof args.session === 'string' &&
+            args.session.startsWith('sia-browser-')
+          )
+            driver!.prepareBrowserSession?.(args.session);
           // The driver's compact default omits structured controls and route metadata.
           // Both are required for protected-field checks and exact background grants.
-          const input =
+          let input =
             tool === 'get_window_state'
               ? { ...args, tree_format: 'elements', verbose: true }
               : args;
@@ -473,7 +320,7 @@ export class CuaService {
               context.kind === 'turn' && BROWSER_INPUT_TOOLS.has(tool)
                 ? (context.backgroundTargetPid ?? args.pid)
                 : args.pid;
-            const foreground = await this.#foregroundPid(driver!, operation.signal, true);
+            const foreground = await this.#foregroundPid(lane, driver!, operation.signal, true);
             operation.signal.throwIfAborted();
             if (
               foreground === undefined ||
@@ -482,39 +329,103 @@ export class CuaService {
               targetPid <= 0
             )
               throw new Error('CUA refused: background_focus_unavailable');
-            if (foreground === targetPid) throw new Error('CUA refused: foreground_app_in_use');
+            if (foreground === targetPid) {
+              // Reusing a live, already-consented socket cannot raise Chrome's
+              // setup UI. The native reuse-only route must refuse before dialing
+              // or setup if that socket is unavailable; it cannot fall back.
+              if (tool === 'browser_prepare') input = { ...input, reuse_only: true };
+              const current =
+                context.kind === 'turn' && BROWSER_INPUT_TOOLS.has(tool)
+                  ? await waitForAbort(
+                      this.#readForegroundWindow?.().catch(() => undefined) ??
+                        Promise.resolve(undefined),
+                      operation.signal,
+                    )
+                  : undefined;
+              operation.signal.throwIfAborted();
+              if (
+                context.kind !== 'turn' ||
+                !permitsOtherBrowserWindow(tool, input, context, current)
+              )
+                throw new Error('CUA refused: foreground_app_in_use');
+              browserForegroundWindow = current;
+            }
             foregroundBefore = foreground;
             backgroundTargetPid = targetPid;
           }
-          return ['list_apps', 'list_windows'].includes(tool) && args.session === undefined
-            ? this.#readInventory(driver!, tool, input, operation.signal)
-            : driver!.callTool(tool, JSON.stringify(input), { signal: operation.signal });
+          if (['list_apps', 'list_windows'].includes(tool) && args.session === undefined)
+            return this.#readInventory(lane, driver!, tool, input, operation.signal);
+          const serialized = JSON.stringify(input);
+          const reply = await driver!.callTool(tool, serialized, { signal: operation.signal });
+          // A loading page can time out while the driver attests its origin,
+          // before the host is asked to authorize observation. Refresh that
+          // exact read once, under the same grant and overall timeout. Never
+          // replay navigation/input or retry a host authorization decision.
+          if (
+            tool === 'get_browser_state' &&
+            reply.errorCode === 'authorization_host_failed' &&
+            /CDP [A-Za-z.]+ timed out/.test(reply.structuredJson ?? reply.rawJson) &&
+            lane.progress?.started === 0
+          ) {
+            operation.signal.throwIfAborted();
+            console.warn('[sia:cua-browser] observation_transport_retry attempt=1');
+            return driver!.callTool(tool, serialized, { signal: operation.signal });
+          }
+          return reply;
         }),
         operation.signal,
       );
-      if (result.errorCode) throw new Error(`CUA refused: ${result.errorCode}`);
-      const json = result.structuredJson ?? result.rawJson;
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(json) as unknown;
-      } catch {
-        parsed = { text: json };
-      }
-      if (
-        typeof parsed === 'object' &&
-        parsed !== null &&
-        'error_code' in parsed &&
-        parsed.error_code === 'session_ended'
-      )
-        throw new Error('CUA refused: session_ended');
-      // Some driver failures use an MCP envelope instead of errorCode. Its text
-      // can contain app content, so never release it as an observation or error.
-      const nativeToolError = isNativeToolError(parsed);
-      if (nativeToolError) parsed = { native_tool_error: true };
+      const decoded = decodeDriverResult(tool, args, result, lane.progress);
+      const nativeToolError = decoded.nativeToolError;
+      let parsed = decoded.value;
       if (protectDesktop) {
-        const foreground = await this.#foregroundPid(driver, operation.signal);
+        const currentWindow = browserForegroundWindow
+          ? await waitForAbort(
+              this.#readForegroundWindow?.().catch(() => undefined) ??
+                Promise.resolve(undefined),
+              operation.signal,
+            )
+          : undefined;
+        const foreground = browserForegroundWindow
+          ? currentWindow?.pid
+          : await this.#foregroundPid(lane, driver, operation.signal);
         operation.signal.throwIfAborted();
-        if (foreground === undefined || foreground !== foregroundBefore) {
+        const browserWindowChanged =
+          browserForegroundWindow !== undefined &&
+          currentWindow?.windowId !== browserForegroundWindow.windowId;
+        // Page.navigate addresses an exact CDP tab and sends no desktop input.
+        // A successful, matching receipt remains valid when the person switches
+        // between other apps. BrowserActions still verifies the resulting page.
+        // Keep the conservative guard for native/trusted input, missing receipts,
+        // driver errors, unknown focus and the browser itself becoming active.
+        const acknowledgedNavigation =
+          tool === 'browser_navigate' &&
+          !nativeToolError &&
+          typeof parsed === 'object' &&
+          parsed !== null &&
+          !Array.isArray(parsed) &&
+          'status' in parsed &&
+          parsed.status === 'ok' &&
+          'target_id' in parsed &&
+          parsed.target_id === args.target_id &&
+          'tab_id' in parsed &&
+          parsed.tab_id === args.tab_id &&
+          'url' in parsed &&
+          parsed.url === args.url &&
+          'refs_invalidated' in parsed &&
+          parsed.refs_invalidated === true &&
+          Object.keys(parsed).every((key) =>
+            ['status', 'target_id', 'tab_id', 'url', 'refs_invalidated'].includes(key),
+          );
+        const unrelatedAppSwitch =
+          acknowledgedNavigation &&
+          foreground !== undefined &&
+          foreground !== backgroundTargetPid;
+        if (
+          foreground === undefined ||
+          browserWindowChanged ||
+          (foreground !== foregroundBefore && !unrelatedAppSwitch)
+        ) {
           if (context.kind === 'turn') {
             const key = JSON.stringify([context.threadId, context.turnId, context.executionId]);
             // Install this before releasing the native queue. Tool-signal cleanup
@@ -541,19 +452,24 @@ export class CuaService {
         }
       }
       if (nativeToolError)
-        throw new Error(`CUA tool ${tool} failed without a structured result.`);
+        throw (
+          decoded.navigationFailure ??
+          new Error(`CUA tool ${tool} failed without a structured result.`)
+        );
       return withDriverImages(parsed, result.images);
     } finally {
       clock.pause();
       signal?.removeEventListener('abort', abortFromCaller);
       if (ownsQueue) {
         if (operation.signal.aborted) {
-          const cancelledDriver = this.#driver;
-          if (cancelledDriver) this.#retireDriver(cancelledDriver);
-          else this.#driverGeneration++;
+          const cancelledDriver = lane.driver;
+          if (cancelledDriver) this.#retireDriver(lane, cancelledDriver);
+          else lane.generation++;
         }
-        this.#authorizationContext = undefined;
-        if (this.#callClock === clock) this.#callClock = undefined;
+        lane.context = undefined;
+        lane.signal = undefined;
+        lane.progress = undefined;
+        if (lane.clock === clock) lane.clock = undefined;
         next.resolve();
       } else {
         void previous.then(() => next.resolve());
@@ -562,15 +478,27 @@ export class CuaService {
   }
 
   async shutdown(): Promise<void> {
-    this.#driverGeneration++;
-    const driver = this.#driver;
-    this.#driver = undefined;
-    if (!driver) return;
-    await driver.shutdown();
-    driver.uniffiDestroy?.();
+    const results = await Promise.allSettled(
+      [this.#browser, this.#desktop].map(async (lane) => {
+        lane.generation++;
+        const driver = lane.driver;
+        lane.driver = undefined;
+        if (!driver) return;
+        try {
+          await driver.shutdown();
+        } finally {
+          driver.uniffiDestroy?.();
+        }
+      }),
+    );
+    const errors = results.flatMap((result) =>
+      result.status === 'rejected' ? [result.reason] : [],
+    );
+    if (errors.length) throw new AggregateError(errors, 'CUA driver shutdown failed.');
   }
 
   async #readInventory(
+    lane: DriverLane,
     driver: DriverLike,
     tool: string,
     args: Record<string, unknown>,
@@ -581,7 +509,7 @@ export class CuaService {
       try {
         const result = await driver.callTool(
           tool,
-          JSON.stringify({ ...args, session: this.#inventorySession }),
+          JSON.stringify({ ...args, session: lane.inventorySession }),
           { signal },
         );
         let ended = result.errorCode === 'session_ended';
@@ -607,12 +535,13 @@ export class CuaService {
           throw error;
         // Only host-owned, read-only inventory is renewed. Browser/window sessions
         // and input are never retried, and the shared runtime stays alive.
-        this.#inventorySession = `sia-inventory-${randomUUID()}`;
+        lane.inventorySession = `sia-inventory-${randomUUID()}`;
       }
     }
   }
 
   async #foregroundPid(
+    lane: DriverLane,
     driver: DriverLike,
     signal: AbortSignal,
     refreshUnavailable = false,
@@ -625,14 +554,17 @@ export class CuaService {
           : undefined;
       }
       let focus = readForegroundInventory(
-        await waitForAbort(this.#readInventory(driver, 'list_apps', {}, signal), signal),
+        await waitForAbort(this.#readInventory(lane, driver, 'list_apps', {}, signal), signal),
       );
       // A transient empty inventory before input is safe to observe once more.
       // Never retry input, reuse old focus, or erase uncertainty AFTER delivery.
       if (focus.status === 'empty' && refreshUnavailable) {
         signal.throwIfAborted();
         focus = readForegroundInventory(
-          await waitForAbort(this.#readInventory(driver, 'list_apps', {}, signal), signal),
+          await waitForAbort(
+            this.#readInventory(lane, driver, 'list_apps', {}, signal),
+            signal,
+          ),
         );
       }
       return focus.status === 'ready' ? focus.pid : undefined;
@@ -641,27 +573,30 @@ export class CuaService {
     }
   }
 
-  async #getDriver(): Promise<DriverLike> {
-    if (this.#driver) return this.#driver;
-    const generation = this.#driverGeneration;
-    const driver = await (this.#driverFactory?.((request) => this.#authorize(request)) ??
-      this.#createDriver());
-    if (generation !== this.#driverGeneration) {
+  async #getDriver(lane: DriverLane): Promise<DriverLike> {
+    if (lane.driver) return lane.driver;
+    const generation = lane.generation;
+    const authorize = (request: AuthorizationRequest) =>
+      this.#authorize(lane, generation, request);
+    const driver = await (this.#driverFactory?.(authorize) ?? this.#createDriver(authorize));
+    if (generation !== lane.generation) {
       this.#disposeDriver(driver);
       throw new Error('CUA driver initialization was cancelled.');
     }
-    this.#driver = driver;
+    lane.driver = driver;
     return driver;
   }
 
-  async #createDriver(): Promise<DriverLike> {
+  async #createDriver(
+    authorize: (request: AuthorizationRequest) => Promise<'allow' | 'deny' | 'cancel'>,
+  ): Promise<DriverLike> {
     const cua = await import('@trycua/cua-driver');
     const authorization = cua.RuntimeAuthorizationOptions.new({
       allowedModes: [cua.SessionPermissionMode.Standard, cua.SessionPermissionMode.Bounded],
       compatibilityMode: cua.SessionPermissionMode.Standard,
       unrestrictedAcknowledged: false,
-      maxSessionTtlSeconds: 28_800n,
-      maxIdleTtlSeconds: 900n,
+      maxSessionTtlSeconds: BROWSER_SESSION_SECONDS,
+      maxIdleTtlSeconds: BROWSER_SESSION_IDLE_SECONDS,
     });
     const options = cua.ConfiguredDriverOptions.new({
       claudeCodeCompatibility: false,
@@ -669,7 +604,7 @@ export class CuaService {
     });
     const host = {
       authorize: async (request: AuthorizationRequest) => {
-        const decision = await this.#authorize(request);
+        const decision = await authorize(request);
         const action =
           decision === 'allow'
             ? cua.DriverAuthorizationAction.Allow
@@ -682,19 +617,37 @@ export class CuaService {
         });
       },
     };
-    return cua.CuaDriver.createConfiguredWithAuthorizationHost(options, host) as DriverLike;
+    return browserSessionDriver(
+      cua.CuaDriver.createConfiguredWithAuthorizationHost(options, host),
+    );
   }
 
-  async #authorize(request: AuthorizationRequest): Promise<'allow' | 'deny' | 'cancel'> {
-    const clock = this.#callClock;
+  async #authorize(
+    lane: DriverLane,
+    generation: number,
+    request: AuthorizationRequest,
+  ): Promise<'allow' | 'deny' | 'cancel'> {
+    // A retired FFI runtime can finish late. It must never inherit the next
+    // call's context, especially a direct-user connection setup's authority.
+    if (generation !== lane.generation || !lane.context || lane.signal?.aborted)
+      return 'cancel';
+    const clock = lane.clock;
+    const progress = lane.progress;
+    if (progress) progress.started++;
     clock?.pause();
     try {
-      const context = this.#authorizationContext;
-      return context?.kind === 'direct_user'
-        ? 'allow'
-        : context
-          ? await this.#authorization.authorize(request, context)
-          : 'cancel';
+      const context = lane.context;
+      const decision =
+        context?.kind === 'direct_user'
+          ? 'allow'
+          : context
+            ? await this.#authorization.authorize(request, context)
+            : 'cancel';
+      return generation === lane.generation &&
+        lane.progress === progress &&
+        !lane.signal?.aborted
+        ? decision
+        : 'cancel';
     } catch (error) {
       // Never let an application-side approval failure cross the native FFI callback.
       // The driver must fail closed with a normal cancellation that the UI can explain.
@@ -703,14 +656,15 @@ export class CuaService {
       );
       return 'cancel';
     } finally {
+      if (progress) progress.completed++;
       clock?.resume();
     }
   }
 
-  #retireDriver(driver: DriverLike): void {
-    if (this.#driver !== driver) return;
-    this.#driver = undefined;
-    this.#driverGeneration++;
+  #retireDriver(lane: DriverLane, driver: DriverLike): void {
+    if (lane.driver !== driver) return;
+    lane.driver = undefined;
+    lane.generation++;
     this.#disposeDriver(driver);
   }
 
@@ -726,46 +680,6 @@ export class CuaService {
         }
       });
   }
-}
-
-/** Live native inventory only; never infer focus from a window title or cached snapshot. */
-function readForegroundInventory(
-  result: DriverResult,
-): { status: 'ready'; pid: number } | { status: 'empty' | 'unavailable' } {
-  try {
-    if (result.errorCode) return { status: 'unavailable' };
-    const parsed: unknown = JSON.parse(result.structuredJson ?? result.rawJson);
-    if (isNativeToolError(parsed)) return { status: 'unavailable' };
-    if (
-      !parsed ||
-      typeof parsed !== 'object' ||
-      !('apps' in parsed) ||
-      !Array.isArray(parsed.apps)
-    )
-      return { status: 'unavailable' };
-    if (
-      parsed.apps.every(
-        (value: unknown) =>
-          !!value && typeof value === 'object' && 'active' in value && value.active === false,
-      )
-    )
-      return { status: 'empty' };
-    const active = (parsed.apps as unknown[]).filter(
-      (value): value is Record<string, unknown> =>
-        !!value && typeof value === 'object' && 'active' in value && value.active === true,
-    );
-    if (active.length !== 1) return { status: 'unavailable' };
-    const pid: unknown = active[0]?.pid;
-    return typeof pid === 'number' && Number.isInteger(pid) && pid > 0 && pid <= 2_147_483_647
-      ? { status: 'ready', pid }
-      : { status: 'unavailable' };
-  } catch {
-    return { status: 'unavailable' };
-  }
-}
-
-function isNativeToolError(value: unknown): boolean {
-  return !!value && typeof value === 'object' && 'isError' in value && value.isError === true;
 }
 
 async function waitForAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
@@ -792,33 +706,5 @@ async function waitForAbort<T>(operation: Promise<T>, signal: AbortSignal): Prom
         reject(error);
       },
     );
-  });
-}
-
-function withDriverImages(value: unknown, images: DriverResult['images']): unknown {
-  const safeImages = images?.filter(
-    (image) =>
-      /^image\/[a-z0-9.+-]+$/i.test(image.mimeType) &&
-      image.dataBase64.length > 0 &&
-      image.dataBase64.length <= 40_000_000,
-  );
-  if (!safeImages?.length) return value;
-  return { value, images: safeImages.slice(0, 4) } satisfies CuaCallResult;
-}
-
-function findWindows(value: unknown): { pid: number; windowId: number; appName: string }[] {
-  const root = isCuaCallResult(value) ? value.value : value;
-  const windows =
-    typeof root === 'object' && root !== null && 'windows' in root ? root.windows : undefined;
-  if (!Array.isArray(windows)) return [];
-  return windows.flatMap((window: unknown) => {
-    if (typeof window !== 'object' || window === null) return [];
-    const record = window as Record<string, unknown>;
-    const pid = record.pid;
-    const windowId = record.window_id ?? record.windowId;
-    if (typeof pid !== 'number' || typeof windowId !== 'number') return [];
-    return [
-      { pid, windowId, appName: typeof record.app_name === 'string' ? record.app_name : '' },
-    ];
   });
 }

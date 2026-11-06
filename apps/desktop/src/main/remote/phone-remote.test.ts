@@ -625,7 +625,17 @@ it('downloads only a generated result visible in the current phone conversation'
     timestamp: '',
     kind: 'assistant',
     text: 'Your report is ready.',
-    attachments: [{ id, name: 'Family résumé.csv', bytes: 8, kind: 'file', generated: true }],
+    attachments: [
+      { id, name: 'Family résumé.csv', bytes: 8, kind: 'file', generated: true },
+      {
+        id: 'local-only',
+        name: 'native.rtf',
+        bytes: 8,
+        kind: 'file',
+        generated: true,
+        localOnly: true,
+      },
+    ],
   });
   const file = await fetch(new URL(`results/${id}`, url));
   expect(file.status).toBe(200);
@@ -634,6 +644,7 @@ it('downloads only a generated result visible in the current phone conversation'
   expect(await file.text()).toBe('food,25\n');
   expect(deps.readGeneratedResult).toHaveBeenCalledExactlyOnceWith(state.activeThreadId, id);
   expect((await fetch(new URL(`results/${randomUUID()}`, url))).status).toBe(404);
+  expect((await fetch(new URL('results/local-only', url))).status).toBe(404);
   state.timeline = [];
   expect((await fetch(new URL(`results/${id}`, url))).status).toBe(404);
   expect(deps.readGeneratedResult).toHaveBeenCalledTimes(1);

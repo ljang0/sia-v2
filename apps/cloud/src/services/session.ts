@@ -1,6 +1,12 @@
 import type { AuthContext } from '../contracts.js';
 import type { ServiceDependencies } from '../services.js';
-import { isAdmin, isBaseUser, isConnectorTester, isParticipant } from './access.js';
+import {
+  isAdmin,
+  isBaseUser,
+  isConnectorTester,
+  isParticipant,
+  isRecordingUser,
+} from './access.js';
 
 export class SessionService {
   constructor(private readonly deps: ServiceDependencies) {}
@@ -22,11 +28,11 @@ export class SessionService {
         base: baseUser,
         hostedModels: this.deps.config.features.hostedModels && baseUser,
         hostedVoice: this.deps.config.features.hostedVoice && baseUser,
-        research: participant,
+        research: isRecordingUser(user),
         connectors,
       },
       features: {
-        researchUploads: this.deps.config.features.researchUploads && participant,
+        researchUploads: this.deps.config.features.researchUploads && isRecordingUser(user),
         researchArchive: this.deps.config.features.researchArchive && admin,
         connectors,
         schedules: this.deps.config.features.schedules && baseUser,

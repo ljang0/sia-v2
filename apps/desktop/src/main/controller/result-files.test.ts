@@ -1,5 +1,5 @@
 import { mkdtemp, mkdir, writeFile, symlink, link, realpath, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { Attachments } from './attachments.js';
@@ -13,8 +13,8 @@ const directories: string[] = [];
 afterEach(async () => {
   for (const path of directories.splice(0)) await rm(path, { recursive: true, force: true });
 });
-async function directory() {
-  const path = await mkdtemp(join(tmpdir(), 'sia-results-'));
+async function directory(parent = tmpdir()) {
+  const path = await mkdtemp(join(parent, 'sia-results-'));
   directories.push(path);
   return path;
 }
@@ -64,6 +64,7 @@ it.each([
   'markdown',
   'streamed-markdown',
   'calendar',
+  'native-local',
 ] as const)('delivers a %s result and reopens its grant after reload', async (format) => {
   const name = format === 'calendar' ? 'study-session.ics' : 'Family résumé.csv';
   const content =
@@ -71,13 +72,19 @@ it.each([
       ? 'BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n'
       : 'category,total\nfood,25\n';
   const structured =
-    format === 'structured' || format === 'structured-multiple' || format === 'calendar';
+    format === 'structured' ||
+    format === 'structured-multiple' ||
+    format === 'calendar' ||
+    format === 'native-local';
   const root = await directory();
+  const nativeFolder = format === 'native-local' ? await directory(homedir()) : undefined;
+  let resultPath = '';
   const opened = vi.fn(async () => {});
   const revealed = vi.fn(async () => {});
   const runtime = {
     async *runTurn(input: RuntimeTurnInput) {
-      const path = join(input.thread.workspace, name);
+      const path = join(nativeFolder ?? input.thread.workspace, name);
+      resultPath = path;
       await writeFile(path, content);
       const extras = ['installation.md', 'open-decisions.md'];
       if (format === 'structured-multiple') {
@@ -182,6 +189,11 @@ it.each([
           ?.attachments,
       ).toHaveLength(format === 'structured-multiple' ? 3 : 1),
     );
+    await vi.waitFor(() =>
+      expect(controller.snapshot().threads.find((item) => item.id === threadId)?.status).toBe(
+        'idle',
+      ),
+    );
     const message = controller
       .snapshot()
       .timeline.find((item) => item.id === 'result-message')!;
@@ -210,22 +222,34 @@ it.each([
     const input = { threadId, attachmentId: attachment.id };
     // Attaching a calendar result never opens/imports it automatically.
     expect(opened).not.toHaveBeenCalled();
-    expect(await restored.previewAttachment(input)).toMatchObject({
-      kind: 'text',
-      content,
-    });
+    if (nativeFolder) {
+      expect(attachment.localOnly).toBe(true);
+      expect(await restored.previewAttachment(input)).toMatchObject({
+        kind: 'unavailable',
+        detail: expect.stringContaining(resultPath),
+      });
+      expect(restored.grants.has(attachment.id)).toBe(false);
+      await expect(restored.readGeneratedResult(threadId, attachment.id)).rejects.toThrow(
+        'stays on your Mac',
+      );
+    } else {
+      expect(await restored.previewAttachment(input)).toMatchObject({
+        kind: 'text',
+        content,
+      });
+      const downloaded = await restored.readGeneratedResult(threadId, attachment.id);
+      expect(downloaded.name).toBe(attachment.name);
+      expect(downloaded.data.toString()).toBe(content);
+    }
     await restored.openAttachment(input);
     await restored.revealAttachment(input);
     expect(opened).toHaveBeenCalledWith(expect.stringContaining(attachment.name));
     expect(revealed).toHaveBeenCalledWith(expect.stringContaining(attachment.name));
-    const downloaded = await restored.readGeneratedResult(threadId, attachment.id);
-    expect(downloaded.name).toBe(attachment.name);
-    expect(downloaded.data.toString()).toBe(content);
     await expect(
       restored.openAttachment({ ...input, threadId: 'other-thread' }),
     ).rejects.toThrow('grant');
-    await rm(join(thread.workspace, attachment.name));
-    await symlink(join(root, 'outside.csv'), join(thread.workspace, attachment.name));
+    await rm(resultPath);
+    await symlink(join(root, 'outside.csv'), resultPath);
     await expect(restored.openAttachment(input)).rejects.toThrow();
     expect(opened).toHaveBeenCalledTimes(1);
     restored.forgetThread(threadId);

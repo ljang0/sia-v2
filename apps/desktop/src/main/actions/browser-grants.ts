@@ -5,6 +5,7 @@ import { BrowserUploadVaults } from './browser-uploads.js';
 import { browserUrlLooksSensitive, originFromRecord } from './browser-urls.js';
 import { MAX_CAPABILITIES, trimMap } from './computer-grants.js';
 import { collectTabRecords, firstBoolean, firstString } from './driver-records.js';
+import type { BrowserImageGeometry } from './browser-vision.js';
 
 export interface BrowserBinding {
   readonly targetId: string;
@@ -20,6 +21,12 @@ export interface BrowserSnapshotCapability {
   readonly session: string;
   readonly origin: string;
   readonly url: string;
+  readonly capturedAt?: number;
+  readonly visualDocument?: string;
+  /** Host-only top-level document/viewport and exact PNG fingerprints. */
+  readonly visualRoot?: string;
+  readonly imageHash?: string;
+  readonly pixels?: BrowserImageGeometry;
   /** Driver-owned read continuation; never sent directly to the model. */
   readonly continuation?: string;
   readonly elements: ReadonlyMap<

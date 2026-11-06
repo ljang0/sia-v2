@@ -30,8 +30,10 @@ defines the maximum and notes that rotation retains the original session's remai
 Public `POST /v1/auth/register` is enumeration-resistant and creates a passwordless Cognito account
 in the `Users` group; it does not require a research invite or research acknowledgment. If the
 address also has a non-failed research invite, registration additionally grants `Participants` and
-activates the existing invite record. Research uploads still require `Participants` and the current
-per-upload consent receipt.
+activates the existing invite record. Cloud recording accepts ordinary `Users`, `Participants` and
+`Admins`, subject to the enabled upload feature and current per-batch consent receipt. Internal
+`Operators`/`MetaTesters` accounts without one of those eligible roles remain excluded. First-run
+setup discloses default-on recording before saving the choice; opt-out does not prevent sign-in.
 
 The update route is authenticated and limited to `Users`, `Operators`, `MetaTesters`, `Participants`,
 and `Admins`. `Operators` can retrieve the private release but do not receive participant,
@@ -46,9 +48,11 @@ decoded S3 object path differs from the signed artifact key.
 Research captures expire from S3 after `ResearchRetentionDays` (90 by default), while noncurrent
 versions expire after 30 days. DynamoDB is on-demand and the three Lambda concurrency reservations
 are deployment parameters, so raise them only after checking the regional Lambda quota and the
-error/throttle alarms. The desktop bounds a local research batch below the API's 4 MiB limit and
-keeps at most one eligible screenshot per turn. It retains unsynced batches, prunes synced copies
-after 90 days, and evicts only the oldest synced copies if encrypted local research storage reaches
+error/throttle alarms. The desktop bounds each raw research batch below the API's 4 MiB limit.
+Eligible action images are retained within raw turn events, with large events split into
+reconstructable chunks; the raw recording path is not limited to one screenshot per turn.
+It retains unsynced batches, prunes synced copies after 90 days, and evicts only the oldest synced
+copies if encrypted local research storage reaches
 128 MiB or 500 batches.
 
 The hosted-model secret keeps the legacy `MetaSecret` resource name but is a catalog-driven model-lab configuration:
@@ -120,6 +124,8 @@ expires after 15 minutes; the long-lived key never reaches the desktop. Token mi
 API Gateway throttle and a per-user UTC-day DynamoDB quota. Keep `EnableHostedVoice=false` until
 the secret and allowlists are populated, then use either that parameter or the secret's `enabled`
 field as an emergency kill switch.
+
+For an installed app reporting **Sia voice is temporarily unavailable**, check both `EnableHostedVoice` and the secret's `enabled` field, then verify the configured credential against the voice catalog and required single-use-token endpoints. A populated secret does not establish validity: a rejected provider key caused the November 2 alpha.118 outage. Rotate only `apiKey` after validating the replacement, preserving allowlists and quotas; never ship the shared key or print it in logs. Secret values are cached for up to 60 seconds. Recheck through an ordinary authenticated account and the desktop speech pipeline, then verify physical Fn/microphone behavior separately. The [acceptance record](../docs/public-release.md#recording-and-voice-baseline) distinguishes those checks.
 
 The Composio secret contains `apiKey`, `baseUrl`, exact per-tool `toolVersions`, the reviewed Slack
 OAuth `authConfigIds` (plus the five superseded Google IDs during alpha migration), and an exact

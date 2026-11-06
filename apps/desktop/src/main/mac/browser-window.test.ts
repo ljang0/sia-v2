@@ -5,6 +5,25 @@ import { WindowObservationError } from './window-observer.js';
 const run = vi.fn();
 const observer = { read: run, close: vi.fn() };
 
+it('reads exact foreground identity without accepting content or incomplete ownership', async () => {
+  const service = new BrowserWindowService('/helper', observer);
+  run.mockReset();
+  run.mockResolvedValueOnce({ status: 'ready', pid: 42, window_id: 91 });
+  expect(await service.foregroundWindow()).toEqual({ pid: 42, windowId: 91 });
+  expect(run).toHaveBeenCalledExactlyOnceWith('foreground_window', 0, 0);
+  for (const value of [
+    { status: 'ready', pid: 42 },
+    { status: 'ready', pid: 42, window_id: 0 },
+    { status: 'ready', pid: 42, window_id: 4294967296 },
+    { status: 'ready', pid: 0, window_id: 91 },
+    { status: 'ready', pid: 42, window_id: 91, title: 'private' },
+    { status: 'unavailable' },
+  ]) {
+    run.mockResolvedValueOnce(value);
+    expect(await service.foregroundWindow()).toBeUndefined();
+  }
+});
+
 it('preserves only the signed reader’s recognized document classification', async () => {
   const service = new BrowserWindowService('/helper', observer);
   run.mockReset();

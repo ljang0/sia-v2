@@ -1,4 +1,5 @@
 // @ts-check
+import { builtinModules } from 'node:module';
 import js from '@eslint/js';
 import { defineConfig } from 'eslint/config';
 import prettier from 'eslint-config-prettier/flat';
@@ -118,6 +119,61 @@ export default defineConfig(
       '@typescript-eslint/no-misused-promises': [
         'error',
         { checksVoidReturn: { attributes: false } },
+      ],
+    },
+  },
+
+  // Keep browser/shared code behind the typed bridge. Tests may use Node fixtures.
+  {
+    files: ['apps/desktop/src/{renderer,mobile,shared}/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: builtinModules.map((name) => ({
+            name,
+            message: 'Node services belong in main; use the typed preload bridge.',
+          })),
+          patterns: [
+            {
+              group: [
+                '**/main/**',
+                '**/preload/**',
+                'node:*',
+                'electron',
+                'electron/*',
+                '@trycua/*',
+                '@sia/runtime',
+                '@sia/runtime/*',
+                '@sia/action-gateway',
+                '@sia/action-gateway/*',
+                '@sia/tool-bridge',
+                '@sia/tool-bridge/*',
+              ],
+              message:
+                'Use shared contracts and the typed preload bridge; host services belong in main.',
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ['apps/desktop/src/main/**/*.{ts,tsx}'],
+    ignores: ['**/*.test.{ts,tsx}', '**/*.spec.{ts,tsx}'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          patterns: [
+            {
+              group: ['**/renderer/**', '**/mobile/**', '**/preload/**'],
+              message:
+                'Main owns host services; move shared contracts to shared instead of importing UI code.',
+            },
+          ],
+        },
       ],
     },
   },

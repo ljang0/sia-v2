@@ -65,7 +65,7 @@ export function remoteState(
     const resultFiles = attempt
       .filter((entry) => entry.kind === 'assistant')
       .flatMap((entry) => entry.attachments ?? [])
-      .filter((file) => file.generated);
+      .filter((file) => file.generated && !file.localOnly);
     const fileIds = Object.fromEntries(resultFiles.map((file) => [file.name, file.id]));
     const files: string[] = Object.keys(fileIds);
     response = response.replace(/\[Open result\]\(<([^>]+)>\)/g, (_match, path: string) => {

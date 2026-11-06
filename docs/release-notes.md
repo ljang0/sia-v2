@@ -1,85 +1,45 @@
-# Sia 0.1.0-alpha.38
+# Sia 0.1.0-alpha.122
 
-Pilot candidate — acceptance and distribution pending.
+**Held — do not distribute this DMG to the RA.** This signed and notarized alpha.122 installer targets macOS 14+, Apple silicon and Intel, but lacks subsequent internal fixes. It was installed and checked on Apple silicon; Intel received static package checks. The current internal app also has unresolved native background-input failures. These notes describe the held installer, not an approved handoff; see [current evidence and blockers](./release-status.md).
 
-Sia is a private macOS 14+ alpha of a personal assistant that works in your apps for you. Sign in
-with your invited email, then connect your ChatGPT plan in Settings → AI. You don't need to install
-anything else or paste an API key.
+## Start using Sia
 
-## What's new since alpha.24
+1. Drag Sia from the DMG into Applications and open it.
+2. Sign in with your own email and review the cloud-recording notice.
+3. Connect your ChatGPT plan in **Settings → AI**. No source checkout or API key is needed.
+4. Follow **Set up Sia** and approve the macOS permissions. Choose the Chrome window Sia should use.
+5. Start with public research or a document in the agent's working folder. Ask Sia to save the result; click its result attachment to open Preview. Keep Sia open and the Mac awake.
 
-- **Use my Mac works in the background.** Sia can work in your apps while you keep using your Mac.
-  Choose On my screen in Settings → Computer if you'd rather watch it work. Sia keeps your display
-  awake during a Mac task and pauses if your Mac locks or sleeps; unlock it and press Continue task.
-- **Simpler setup.** One setup flow covers AI access and the Mac permissions Sia needs. Google
-  Workspace, Slack, GitHub, and Notion connections stay optional. Chrome setup is included, with an
-  explicit option to continue without it. Use my Mac walks through
-  Accessibility, Screen Recording, app Automation, and Full Disk Access; macOS approves each grant.
-  Connected-app setup skips Mac permissions, and ordinary chat remains available before screen access.
-- **Visible setup progress.** Codex setup shows downloaded megabytes and handles slow connections;
-  a stalled download offers a clear retry without replacing a working installation.
-- **Reports you can open.** Final file links from ordinary provider replies now also receive
-  verified result controls. Generated documents have Preview, Open, and Reveal controls that
-  remain available when you reopen the conversation. Phone remote can download saved results.
-- **Monthly and yearly schedules.** Create schedules directly from Scheduled. Month-end and
-  leap-day dates are preserved, and successful monitoring checks with no new findings stay quiet.
-- **Clearer conversations.** Sia shows what it is doing while it works, folds finished steps,
-  formats replies, and lets you queue follow-up messages. Messages you send while offline wait and
-  go out when you're back online.
-- **Approvals that wait for you.** Sia waits for your answer instead of timing out, names the files
-  it wants to change, and notifies you when it needs your OK. Turning off approvals asks first.
-- **Safer everyday controls.** Deleting or disconnecting asks first, archiving offers Undo, and
-  quitting while a task runs asks before stopping it. The window reopens where you left it.
-- **Faster startup and streaming.** The window opens while startup checks finish, streamed replies
-  use smaller updates, and long tasks show their progress with calmer animations.
-- **GitHub and Notion.** Connect them from Settings → Connections. Calendar, Tasks, and Outlook
-  remain unavailable in this candidate; Slack behavior is unchanged.
-- **Your own API key.** Settings → AI can optionally use an OpenAI Responses-compatible model.
-  The key is encrypted and never shown again after saving.
-- **Scotty and phone access.** The desktop companion and Wi-Fi remote remain available. Text Sia
-  adds iMessage, Telegram, and Discord channels, off by default. Your own paired phone and texting numbers follow your Computer approval setting; trusted
-  people's Sia and the plain-HTTP Wi-Fi link always ask. Optional YES/NO replies approve one exact step. Voice notes, photos, and
-  result files are implemented. Real phone and bot acceptance remains a release gate.
-- **Native iPhone companion.** Pair the TestFlight app with your Mac to send tasks and view
-  results over the encrypted relay. Your Mac must remain awake with Sia running.
-- **Voice.** Hold Fn to talk to Sia and hear results read back.
-- **Feedback.** Rate finished tasks with thumbs up or down and optional reasons. Notes are previewed
-  before sending. Ratings queue for cloud sync; account deletion removes their cloud notes and
-  report contributions.
-- **Refreshed interface.** More readable controls, clearer working states, responsive menus, and
-  reduced-motion support on Mac and phone.
-- **Computer-use recovery.** When a dialog takes focus, Sia can find it and continue the task.
-- **Setup and pairing fixes.** Included AI can finish setup without ChatGPT sign-in; another phone
-  can pair while one is connected; self-addressed replies no longer start an echo task.
+Computer use is vision-only by default: the model observes screenshots and chooses pointer and keyboard actions. Background work and automatic action approval are the defaults. **Ask before each action** and **On my screen** are explicit alternatives in Settings → Computer. Initial macOS and Chrome grants still need your approval; Sia reuses granted access and silently checks the target before acting. Use Stop to end a task and review the result before relying on it.
 
-## Changes since alpha.37
+## What changed
 
-- **Chrome setup before the first task.** Default Mac setup offers a window connection and checks
-  that a website is available. Chrome's own permission prompts still require your approval.
-- **Continue after browser access expires.** A conversation offers Connect Chrome & continue when
-  the host reports missing browser access. It preserves the request and asks for the task window.
-- **All saved documents are accessible.** A multi-file response gives each verified result its
-  own Preview and Open controls, including file links returned alongside the primary result.
-- **Independent document tasks.** Background file and planning work no longer reserves the whole
-  computer before it starts. GUI action loops still wait for exclusive control, and tasks sharing
-  a folder still queue to protect each other’s files.
-- **Clearer file guidance.** When a source document is outside the task folder, Sia points to
-  Add files instead of asking you to copy it into an internal workspace.
+Background browser input can continue while a different Chrome window is active when Sia proves the exact window identities before and after input. If identity is unavailable or the task window is active, Sia pauses. Automated checks pass; reliable live coexistence is still under evaluation.
 
-These changes are undergoing signed-app acceptance. Real-work and concurrent-use checks are
-tracked in [release status](./release-status.md).
+Chrome setup returns to Sia before continuing. If the chooser cannot distinguish windows, resize the intended window to a different size and choose it again. Duplicate pages in another window's background tabs can cause ambiguity. This build successfully attached a resized public test window.
 
-## Earlier Chrome setup changes
+This build also includes native-sheet recognition, a fix for memory reviews repeatedly scheduling themselves, and clearer guidance distinguishing temporary request limits from exhausted plan quota.
 
-- **Clearer Chrome connection.** Connect Chrome explains that setup may briefly show Chrome.
-  You review any Chrome permission prompt yourself. Automatic background connection never starts
-  this foreground setup, and a refused browser read no longer reports a successful connection.
+## Cloud recording
 
-## Good to know
+First-run setup selects **Save prompts, usage, and trajectories to AWS** and explains the choice before Continue. Eligible prompts, replies, provider-reported token usage, actions/results and task screenshots then upload automatically to Sia's encrypted private AWS archive. Authorized administrators can inspect them for evaluation and debugging. Active cloud records expire after 90 days; they are not used for model training.
 
-- Sia and your Mac need to stay on and awake for tasks and schedules to run.
-- Sia won't type into password fields, sign-in screens, Keychain, or password managers.
-- Research sharing is off unless you separately agree to it in Privacy.
+**Settings → Privacy** shows recording status, queued uploads and errors, with pause/export/delete controls. Existing declines and pauses remain off. Local historical records are not uploaded retroactively. Google Workspace connector turns and internal operator/model-tester-only accounts are excluded. Real installed-app uploads have been independently verified; see the [recording evidence](./public-release.md#recording-and-voice-baseline).
 
-Read [`PRIVACY.md`](../PRIVACY.md) before connecting an app or joining research. Report problems
-through the private alpha support channel described in [`SUPPORT.md`](../SUPPORT.md).
+## Voice
+
+ElevenLabs voice runs through Sia's authenticated AWS service; no shared key is bundled. In **Settings → Voice**, choose **Enable voice**, select an agent for **Hold Fn to talk to Sia**, and grant microphone access. Hold Fn until the screen edges glow, speak, then release; Escape cancels. **Manage voices → Refresh voices** refreshes an existing setup.
+
+The reported credential outage was repaired server-side. Speech-service checks pass and the owner confirmed the microphone works. Physical Fn and a complete spoken-command round trip have not been independently verified by CUA. Avoid enabling the Fn shortcut in two Sia installations at once.
+
+## Current limits
+
+These limits describe this DMG. Later internal QA completed additional personal tasks, but those
+corrections are not in this installer; see [current evidence](./release-status.md#current-evidence-and-open-gates).
+
+- A visitor pocket guide was saved and read back, then opened in Preview by the operator after sleep recovery. Browser meal research stopped on an access-check failure before saving a complete plan.
+- Native filename entry is unreliable. Unexpected pending text appeared during an earlier test; its origin remains unresolved. The original filename and document contents were restored and verified. Rename/move/reopen acceptance remains open.
+- Chrome restart/error recovery, two completed concurrent tasks, continuous foreground/clipboard preservation, off-Space capture, and lock/sleep recovery remain unverified or unreliable. Two document tasks overlapped but both paused on sleep.
+- A fresh Mac/account has not been tested. iPhone distribution follows the Mac pilot.
+
+Lawrence Jang owns pilot support. Report the version, task, time and visible error; avoid private content in screenshots or feedback.

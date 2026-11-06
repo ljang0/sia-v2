@@ -17,6 +17,46 @@ vi.mock('node:timers/promises', async (original) => ({
 }));
 
 describe('Use my Mac browser routing', () => {
+  it.each([
+    [42, 91, 'com.google.Chrome', true],
+    [43, 91, 'com.google.Chrome', false],
+    [42, 92, 'com.google.Chrome', false],
+    [42, 91, 'com.apple.Safari', false],
+  ])(
+    'identifies only the previously selected live Chrome window (%s/%s/%s)',
+    async (pid, windowId, bundleId, selected) => {
+      const cua = fakeCua(async (tool) => {
+        if (tool === 'list_apps')
+          return { apps: [{ pid, name: 'Browser', bundle_id: bundleId }] };
+        if (tool === 'list_windows')
+          return { windows: [{ pid, window_id: windowId, title: 'Task window' }] };
+        throw new Error(`Discovery must not prepare or act: ${tool}`);
+      });
+      const backend = new DesktopActionBackend({
+        cua,
+        macBrowserAccess: () => true,
+        macBackgroundControl: () => true,
+        inspectBrowserWindow: async () => ({ status: 'unavailable' }),
+        preferredBrowserWindow: async () => ({ pid: 42, windowId: 91 }),
+      });
+      const result = dataRecord((await backend.invoke(request('computer_list', {}))).data);
+      const windows = result.windows as Record<string, unknown>[];
+      expect(windows[0]?.selected_for_browser_tasks).toBe(selected ? true : undefined);
+      if (selected) {
+        expect(result.preferred_browser_window).toEqual({
+          app_id: windows[0]!.app_id,
+          window_id: windows[0]!.window_id,
+        });
+        expect(result.next_step).toContain('computer_snapshot');
+        expect(result.next_step).toContain('not an access grant');
+      } else expect(result.preferred_browser_window).toBeUndefined();
+      expect(cua.call.mock.calls.map(([tool]) => tool).sort()).toEqual([
+        'list_apps',
+        'list_windows',
+      ]);
+    },
+  );
+
   function browserHarness() {
     let enabled = true;
     let url = 'https://example.com/';

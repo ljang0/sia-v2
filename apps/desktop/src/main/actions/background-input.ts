@@ -13,7 +13,7 @@ export interface BackgroundInputStatus {
   readonly exact_window: { readonly status: string };
   readonly routes: readonly {
     readonly route: BackgroundInputRoute;
-    readonly status: 'available' | 'refused';
+    readonly status: 'available' | 'requires_check' | 'refused';
     readonly reason?: string;
   }[];
 }
@@ -59,9 +59,18 @@ export function windowBackgroundInput(
       return invalid;
     // An unresolved/foreign window can never advertise usable background input.
     if (exact.status !== 'matched' && entry.status !== 'refused') return invalid;
+    // Cua 0.38's observation report describes generic process keyboard input.
+    // Its actuator separately checks whether exact-window key transport exists
+    // and confirms the target key window before sending anything. Do not turn
+    // that narrower, runtime-checked route into a blanket availability claim.
+    const requiresCheck =
+      exact.status === 'matched' &&
+      name === 'pid_keyboard' &&
+      entry.status === 'refused' &&
+      entry.reason === 'same_pid_keyboard_ambiguity';
     routes.push({
       route: name,
-      status: entry.status as 'available' | 'refused',
+      status: requiresCheck ? 'requires_check' : (entry.status as 'available' | 'refused'),
       ...(entry.status === 'refused' &&
       typeof entry.reason === 'string' &&
       /^[a-z_]{1,80}$/.test(entry.reason)
@@ -84,7 +93,7 @@ export function backgroundRouteRefusal(
   request: ValidatedActionInvocation,
 ): ActionExecutionResult | undefined {
   const status = report?.routes.find((entry) => entry.route === route);
-  if (!status || status.status === 'available') return undefined;
+  if (!status || status.status !== 'refused') return undefined;
   if (['not_found', 'owner_mismatch', 'unverified'].includes(report!.exact_window.status))
     return stale(
       'The driver could not verify this exact window for input. Discover and inspect the intended window again.',

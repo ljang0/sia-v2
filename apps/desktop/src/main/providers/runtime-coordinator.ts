@@ -1,3 +1,5 @@
+import { visualTools } from '../actions/visual-tools.js';
+import { macVisualGuidance } from '../actions/mac-visual-guidance.js';
 import { randomUUID } from 'node:crypto';
 import type {
   ProviderAdapter,
@@ -118,6 +120,7 @@ export interface RuntimeHarnessRegistration {
  */
 export class RuntimeCoordinator {
   readonly #gateway: ActionGateway;
+  readonly #visionOnly: boolean;
   readonly #macContext: (() => Promise<string>) | undefined;
   readonly #adapters = new Map<ProviderId, ProviderAdapter>();
   readonly #routeAdapters = new Map<string, ProviderAdapter>();
@@ -133,6 +136,8 @@ export class RuntimeCoordinator {
   constructor(
     gateway: ActionGateway,
     options: {
+      /** Must match the action backend; enabled only after visual route acceptance. */
+      visionOnly?: boolean;
       codexCommand?: string;
       macContext?: () => Promise<string>;
       metaTransport?: MetaTransport;
@@ -165,6 +170,7 @@ export class RuntimeCoordinator {
     } = {},
   ) {
     this.#gateway = gateway;
+    this.#visionOnly = options.visionOnly ?? false;
     this.#macContext = options.macContext;
     this.#onDispose = options.onDispose;
     this.#onSessionsReset = options.onSessionsReset;
@@ -502,7 +508,9 @@ export class RuntimeCoordinator {
     }
     input.onPhase?.('working');
     const nativeContext =
-      mac && !input.thread.macBackgroundControl ? await this.#macContext?.() : undefined;
+      mac && !this.#visionOnly && !input.thread.macBackgroundControl
+        ? await this.#macContext?.()
+        : undefined;
     for await (const event of this.#runSession(
       input.thread,
       input.turnId,
@@ -609,7 +617,11 @@ export class RuntimeCoordinator {
         ? { backgroundOnly: thread.macBackgroundFallback !== 'foreground' }
         : {}),
       ...(thread.computerAccessMode === 'mac' && thread.nativeTools !== 'disabled'
-        ? { allowedTools: new Set(macExecutionTools(thread.macBackgroundControl)) }
+        ? {
+            allowedTools: new Set(
+              macExecutionTools(thread.macBackgroundControl || this.#visionOnly),
+            ),
+          }
         : thread.notchReview
           ? { allowedTools: new Set(['memory_vault']) }
           : {}),
@@ -736,6 +748,10 @@ export class RuntimeCoordinator {
       resolutionSource: 'legacy_default' as const,
     };
     assertTargetContext(thread, target);
+    if (this.#visionOnly && target.harnessId !== 'codex_app_server')
+      throw new Error(
+        'Vision-only control requires the verified Codex App Server tool boundary.',
+      );
     // A lab harness reaches Sia's tools through MCP, not Codex's native Mac tools.
     const mac =
       thread.computerAccessMode === 'mac' &&
@@ -752,15 +768,19 @@ export class RuntimeCoordinator {
           ? false
           : thread.notchReview
             ? tool.name === 'memory_vault'
-            : (tool.name !== 'memory_vault' || (mac && thread.macBackgroundControl)) &&
+            : (tool.name !== 'memory_vault' ||
+                (mac && (thread.macBackgroundControl || this.#visionOnly))) &&
               (thread.nativeTools !== 'disabled' ||
                 ['assistant_library', 'memory_suggest'].includes(tool.name)),
       );
-    const sessionTools = mac
+    const permittedTools = mac
       ? tools.filter((tool) =>
-          macExecutionTools(thread.macBackgroundControl).includes(tool.name),
+          macExecutionTools(thread.macBackgroundControl || this.#visionOnly).includes(
+            tool.name,
+          ),
         )
       : tools;
+    const sessionTools = this.#visionOnly ? visualTools(permittedTools) : permittedTools;
     const fingerprint = JSON.stringify([
       thread.provider,
       thread.model,
@@ -768,6 +788,7 @@ export class RuntimeCoordinator {
       thread.workspace,
       thread.instructions,
       thread.nativeTools,
+      this.#visionOnly,
       thread.computerAccessMode,
       thread.computerTrust,
       thread.macBackgroundControl,
@@ -831,19 +852,27 @@ export class RuntimeCoordinator {
             }
           : mac
             ? {
-                nativeTools: thread.macBackgroundControl
-                  ? ('mac-background' as const)
-                  : ('mac' as const),
+                nativeTools:
+                  thread.macBackgroundControl || this.#visionOnly
+                    ? ('mac-hosted' as const)
+                    : ('mac' as const),
                 nativeApproval: thread.computerTrust === 'ask' ? 'ask' : 'auto',
-                baseInstructions: macExecutionGuidance(
-                  thread.macBackgroundControl,
-                  thread.macBackgroundFallback,
-                  thread.notchVault ?? notchVaultRoot(thread.workspace),
-                ),
+                baseInstructions: this.#visionOnly
+                  ? macVisualGuidance(
+                      thread.macBackgroundControl === true,
+                      thread.macBackgroundFallback === 'foreground',
+                    )
+                  : macExecutionGuidance(
+                      thread.macBackgroundControl,
+                      thread.macBackgroundFallback,
+                      thread.notchVault ?? notchVaultRoot(thread.workspace),
+                    ),
               }
-            : thread.nativeTools
-              ? { nativeTools: thread.nativeTools }
-              : {}),
+            : this.#visionOnly
+              ? { nativeTools: 'disabled' as const }
+              : thread.nativeTools
+                ? { nativeTools: thread.nativeTools }
+                : {}),
         threadId: thread.id,
         model: target.harnessModelId,
         resolvedExecutionTarget: target,

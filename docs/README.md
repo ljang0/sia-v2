@@ -12,6 +12,7 @@ superseded records stay in Git history and at their release tags.
   and the remaining release work.
 - [`ra-onboarding.md`](./ra-onboarding.md) — fresh-clone setup, first contribution, and safe
   testing. Start here.
+- [`desktop-reference.md`](./desktop-reference.md) — detailed Mac, Chrome, voice and optional phone behavior, plus development permission troubleshooting.
 - [`architecture.md`](./architecture.md) — process, trust, data, and action boundaries.
 - [`harness-policy.md`](./harness-policy.md) — how a thread resolves and pins its provider, model,
   and harness.

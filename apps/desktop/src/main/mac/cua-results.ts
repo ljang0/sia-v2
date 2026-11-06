@@ -1,0 +1,282 @@
+import { browserAttestationFailure } from './browser-attestation.js';
+import {
+  browserNavigationError,
+  type BrowserNavigationError,
+} from './browser-navigation-error.js';
+
+export interface DriverResult {
+  rawJson: string;
+  structuredJson?: string;
+  errorCode?: string;
+  images?: Array<{ mimeType: string; dataBase64: string }>;
+}
+
+interface CuaDriverImage {
+  readonly mimeType: string;
+  readonly dataBase64: string;
+}
+
+export interface CuaCallResult {
+  readonly value: unknown;
+  readonly images: readonly CuaDriverImage[];
+}
+
+export function isCuaCallResult(value: unknown): value is CuaCallResult {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.hasOwn(value, 'value') &&
+    Array.isArray((value as Record<string, unknown>).images)
+  );
+}
+
+/** Classify only known guard messages; never return native page or target content. */
+export function browserGuardRefusalCode(code: string, message = ''): string | undefined {
+  if (code !== 'browser_action_unavailable') return undefined;
+  if (message.includes("the chosen point's browsing context could not be checked"))
+    return 'browser_point_context_unavailable';
+  if (message.includes("the link's browsing context could not be checked"))
+    return 'browser_link_context_unavailable';
+  return undefined;
+}
+
+// Classify only the capture error, never AX labels, paths, or arbitrary native text.
+function captureFailureHint(raw: string): string | undefined {
+  let reason: unknown;
+  try {
+    const parsed = JSON.parse(raw) as {
+      reason?: unknown;
+      screenshot_error?: { reason?: unknown };
+    } | null;
+    reason = parsed?.screenshot_error?.reason ?? parsed?.reason;
+  } catch {
+    return;
+  }
+  if (typeof reason !== 'string') return;
+  const stages = [
+    ['popup subtree is unreadable', 'popup_tree_unreadable'],
+    ['popup scan limit exceeded', 'popup_scan_limit'],
+    ['popup belongs to another document', 'popup_document_mismatch'],
+    ['popup process is unavailable', 'popup_process_unavailable'],
+    ['popup has no matching window', 'popup_window_unmatched'],
+    ['popup window identity is ambiguous', 'popup_window_ambiguous'],
+    ['popup has no geometry', 'popup_geometry_missing'],
+    ['invalid popup geometry', 'popup_geometry_invalid'],
+    ['sheet changed during popup lookup', 'popup_sheet_changed'],
+    ['document changed before popup capture', 'popup_document_changed'],
+    ['popup capture does not match its owned surface', 'popup_capture_mismatch'],
+    ['invalid layer crop', 'popup_crop_invalid'],
+    ['layer lies outside composite', 'popup_composite_bounds'],
+    ['popover has no matching window', 'popover_window_unmatched'],
+    ['popover window identity is ambiguous', 'popover_window_ambiguous'],
+    ['popover document ancestry is unproven', 'popover_document_unproven'],
+    ['popover process does not match its document', 'popover_process_mismatch'],
+    ['popover geometry is unreadable', 'popover_geometry_missing'],
+    ['popover disappeared', 'popover_disappeared'],
+    ['popover changed during lookup', 'popover_changed'],
+    ['is on another Space', 'capture_off_space'],
+    ['SLSHWCaptureWindowList returned no image', 'capture_backing_missing'],
+    ['fully transparent (no window content)', 'capture_backing_transparent'],
+    ['attached sheets require paired stream geometry', 'capture_sheet_needs_stream'],
+    ['no completed window frame', 'capture_stream_frame_missing'],
+    ['sample contains an unproven surface', 'capture_surface_unproven'],
+    ['invalid parameter', 'capture_backend_invalid_parameter'],
+    ['legacy parent capture frame', 'capture_backing_frame_mismatch'],
+  ] as const;
+  // The driver retains both backend failures. Keep every recognized stage so
+  // one failure cannot hide the reason the fallback also refused capture.
+  const hints = stages.filter(([message]) => reason.includes(message)).map(([, hint]) => hint);
+  return hints.length ? hints.join(',') : undefined;
+}
+
+/** Keep focus relationships from the native refusal, never window IDs or content. */
+function keyWindowFailureHint(raw: string): string {
+  let reason: unknown;
+  try {
+    reason = (JSON.parse(raw) as { reason?: unknown } | null)?.reason;
+  } catch {
+    return 'unavailable';
+  }
+  if (typeof reason !== 'string') return 'unavailable';
+  const match =
+    /^window (\d+) could not be confirmed as the app's key window \(the app's focused window is (None|Some\(\d+\)), its focused element is in window (None|Some\(\d+\))\), so no keys were sent:/.exec(
+      reason,
+    );
+  if (!match) return 'unavailable';
+  const relation = (value: string): string =>
+    value === 'None' ? 'missing' : value === `Some(${match[1]})` ? 'target' : 'other';
+  return `window_${relation(match[2]!)}_element_${relation(match[3]!)}`;
+}
+
+/** Decode native envelopes without exposing content-bearing failure payloads. */
+export function decodeDriverResult(
+  tool: string,
+  args: Record<string, unknown>,
+  result: DriverResult,
+  progress: { started: number; completed: number },
+): { value: unknown; nativeToolError: boolean; navigationFailure?: BrowserNavigationError } {
+  if (result.errorCode) {
+    if (result.errorCode === 'window_not_key')
+      console.warn(
+        `[sia:cua-input] window_not_key hint=${keyWindowFailureHint(result.structuredJson ?? result.rawJson)}`,
+      );
+    if (tool === 'get_window_state' && result.errorCode === 'px_capture_unavailable') {
+      const hint =
+        captureFailureHint(result.structuredJson ?? result.rawJson) ?? 'capture_unavailable';
+      console.warn(`[sia:cua-capture] screenshot_missing hint=${hint}`);
+    }
+    const guardCode = browserGuardRefusalCode(
+      result.errorCode,
+      result.structuredJson ?? result.rawJson,
+    );
+    if (guardCode) throw new Error(`CUA refused: ${guardCode}`);
+    if (
+      tool === 'drag' &&
+      result.errorCode === 'background_unavailable' &&
+      (result.structuredJson ?? result.rawJson).includes('drag_and_drop_session')
+    ) {
+      // This arrives AFTER mouse-down/drag/release. Do not flatten it into
+      // the pre-input refusal used for a missing background delivery route.
+      throw new Error('CUA incomplete: background_drag_requires_pointer');
+    }
+    if (result.errorCode === 'browser_wrong_target_refused') {
+      // Classify known native proof failures without logging page/clipboard
+      // content, target identities, or the raw native error payload.
+      const raw = result.structuredJson ?? result.rawJson;
+      const hint = raw.includes('browser consent observation was truncated')
+        ? 'consent_observation_incomplete'
+        : /multiple.*consent|consent.*conflicting decisions/.test(raw)
+          ? 'consent_identity_ambiguous'
+          : raw.includes('consent did not settle')
+            ? 'consent_not_settled'
+            : 'target_unverified';
+      console.warn(`[sia:cua-browser] native_refusal tool=${tool} hint=${hint}`);
+    }
+    if (result.errorCode === 'authorization_host_failed') {
+      // Keep callback/transport diagnostics without recording resource identities,
+      // URLs, request digests or the driver's potentially content-bearing message.
+      const raw = result.structuredJson ?? result.rawJson;
+      const attestation = browserAttestationFailure(tool, result, progress);
+      const hint = /CDP [A-Za-z.]+ timed out/.test(raw)
+        ? 'browser_transport_timeout'
+        : attestation
+          ? attestation.code
+          : raw.includes('live top-level')
+            ? 'browser_origin_unavailable'
+            : raw.includes('request timed out')
+              ? 'request_timeout'
+              : /denied in (?:standard|bounded) mode/.test(raw)
+                ? 'mode_denied'
+                : 'unspecified';
+      console.warn(
+        `[sia:cua-authorization] native_refusal tool=${tool} hint=${hint} callback_started=${progress.started} callback_completed=${progress.completed}`,
+      );
+      if (
+        tool === 'get_browser_state' &&
+        hint === 'browser_transport_timeout' &&
+        progress.started === 0
+      )
+        throw new Error('CUA refused: browser_observation_timeout');
+      if (attestation) throw attestation;
+    }
+    throw new Error(`CUA refused: ${result.errorCode}`);
+  }
+  if (
+    tool === 'get_window_state' &&
+    args.include_screenshot === true &&
+    !result.images?.length
+  ) {
+    // A valid AX observation can omit an unprovable screenshot. Preserve the
+    // usable controls, but retain a content-free reason for live diagnostics.
+    const raw = result.structuredJson ?? result.rawJson;
+    const hint = raw.includes('direct_capture_consent_required')
+      ? 'direct_capture_consent_required'
+      : raw.includes('px_frame_mismatch')
+        ? 'frame_mismatch'
+        : raw.includes('px_capture_unavailable')
+          ? (captureFailureHint(raw) ?? 'capture_unavailable')
+          : 'image_missing';
+    console.warn(`[sia:cua-capture] screenshot_missing hint=${hint}`);
+  }
+  const json = result.structuredJson ?? result.rawJson;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json) as unknown;
+  } catch {
+    parsed = { text: json };
+  }
+  if (
+    typeof parsed === 'object' &&
+    parsed !== null &&
+    'error_code' in parsed &&
+    parsed.error_code === 'session_ended'
+  )
+    throw new Error('CUA refused: session_ended');
+  // Some driver failures use an MCP envelope instead of errorCode. Its text
+  // can contain app content, so never release it as an observation or error.
+  const nativeToolError = isNativeToolError(parsed);
+  const navigationFailure = browserNavigationError(tool, parsed);
+  if (nativeToolError && tool.startsWith('browser_')) {
+    console.warn(
+      `[sia:cua-browser] native_error tool=${tool} hint=${/CDP [A-Za-z.]+ timed out/.test(json) ? 'browser_transport_timeout' : 'unspecified'}`,
+    );
+  }
+  if (nativeToolError) parsed = { native_tool_error: true };
+  return {
+    value: parsed,
+    nativeToolError,
+    ...(navigationFailure ? { navigationFailure } : {}),
+  };
+}
+
+/** Live native inventory only; never infer focus from a window title or cached snapshot. */
+export function readForegroundInventory(
+  result: DriverResult,
+): { status: 'ready'; pid: number } | { status: 'empty' | 'unavailable' } {
+  try {
+    if (result.errorCode) return { status: 'unavailable' };
+    const parsed: unknown = JSON.parse(result.structuredJson ?? result.rawJson);
+    if (isNativeToolError(parsed)) return { status: 'unavailable' };
+    if (
+      !parsed ||
+      typeof parsed !== 'object' ||
+      !('apps' in parsed) ||
+      !Array.isArray(parsed.apps)
+    )
+      return { status: 'unavailable' };
+    if (
+      parsed.apps.every(
+        (value: unknown) =>
+          !!value && typeof value === 'object' && 'active' in value && value.active === false,
+      )
+    )
+      return { status: 'empty' };
+    const active = (parsed.apps as unknown[]).filter(
+      (value): value is Record<string, unknown> =>
+        !!value && typeof value === 'object' && 'active' in value && value.active === true,
+    );
+    if (active.length !== 1) return { status: 'unavailable' };
+    const pid: unknown = active[0]?.pid;
+    return typeof pid === 'number' && Number.isInteger(pid) && pid > 0 && pid <= 2_147_483_647
+      ? { status: 'ready', pid }
+      : { status: 'unavailable' };
+  } catch {
+    return { status: 'unavailable' };
+  }
+}
+
+function isNativeToolError(value: unknown): boolean {
+  return !!value && typeof value === 'object' && 'isError' in value && value.isError === true;
+}
+
+export function withDriverImages(value: unknown, images: DriverResult['images']): unknown {
+  const safeImages = images?.filter(
+    (image) =>
+      /^image\/[a-z0-9.+-]+$/i.test(image.mimeType) &&
+      image.dataBase64.length > 0 &&
+      image.dataBase64.length <= 40_000_000,
+  );
+  if (!safeImages?.length) return value;
+  return { value, images: safeImages.slice(0, 4) } satisfies CuaCallResult;
+}

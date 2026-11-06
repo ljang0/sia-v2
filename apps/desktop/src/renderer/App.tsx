@@ -20,10 +20,11 @@ import { Inspector } from './components/Inspector';
 import { RoomHeader } from './components/RoomHeader';
 import { QuickSwitcher } from './components/QuickSwitcher';
 import { KeyboardShortcuts } from './components/KeyboardShortcuts';
-import { useReadOnScreen, useWindowVisible } from './readOnScreen';
+import { useReadOnScreen, useWindowAttended } from './readOnScreen';
 import { Settings } from './components/Settings';
 import { Sidebar } from './components/Sidebar';
 import { AppearanceContext } from './components/effects/appearance';
+import { ResearchConsentDialog } from './components/settings/ResearchConsentDialog';
 import { SiaSignInDialog } from './components/settings/SiaSignInDialog';
 import {
   ScheduledPage,
@@ -91,14 +92,14 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   }
   const endInspectorClose = useCallback(() => setInspectorClosing(false), []);
   useTextSize(app.snapshot?.preferences.textSize);
-  const windowVisible = useWindowVisible();
+  const windowAttended = useWindowAttended();
   const markRead = useCallback(
     (threadId: string) => void app.api.setThreadUnread(threadId, false).catch(() => undefined),
     [app.api],
   );
   useReadOnScreen(
     app.snapshot?.activeThread,
-    windowVisible && viewKey.startsWith('thread:'),
+    windowAttended && viewKey.startsWith('thread:'),
     markRead,
   );
   const [reveal, setReveal] = useState(0);
@@ -201,6 +202,25 @@ export default function App({ api: suppliedApi, forceAuditMode }: AppProps) {
   }
 
   const { api, snapshot, run } = app;
+  if (
+    snapshot.cloudAuth.state === 'signed-in' &&
+    snapshot.cloudAuth.features?.researchUploads === true &&
+    !snapshot.research.consented &&
+    !snapshot.research.promptReviewedVersion
+  ) {
+    return (
+      <ResearchConsentDialog
+        key={snapshot.cloudAuth.email}
+        firstRun
+        autoOpen
+        showTrigger={false}
+        cloudAvailable
+        onAccept={() => api.setCapturePaused(false)}
+        onDecline={() => api.declineResearchConsent()}
+      />
+    );
+  }
+
   const selectedAgent = snapshot.agents.find((agent) => agent.id === snapshot.selectedAgentId);
   const activeThread = snapshot.activeThread;
   // The room belongs to whoever owns the visible thread; otherwise to the selected agent.

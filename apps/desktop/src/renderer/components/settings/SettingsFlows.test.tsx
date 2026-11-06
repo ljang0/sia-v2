@@ -242,6 +242,54 @@ describe('cloud account settings', () => {
     await waitFor(() => expect(onOpenMessages).toHaveBeenCalledOnce());
   });
 
+  it('keeps Chrome attachment failures visible beside the retry control until recovery', () => {
+    const snapshot = withCloud('unconfigured');
+    snapshot.computer.accessibility = 'allowed';
+    snapshot.computer.screenRecording = 'allowed';
+    snapshot.browser = {
+      status: 'error',
+      attached: false,
+      profileName: 'Chrome',
+      tabs: [],
+      availableWindows: [],
+      snapshotLabel: 'The chosen Chrome window could not be verified. Choose it again.',
+    };
+    const props = {
+      snapshot,
+      onConnectSelected: vi.fn(),
+      onConnectGoogle: vi.fn(),
+      onConnect: vi.fn(),
+      onDisconnect: vi.fn(),
+      onStartCloudSignIn: vi.fn(),
+      onCompleteCloudSignIn: vi.fn(),
+      onSignOutCloud: vi.fn(),
+      onDeleteCloudAccount: vi.fn(),
+    };
+    const view = render(<AppsSettings {...props} />);
+    expect(screen.getByText('Connection needs attention')).toBeTruthy();
+    expect(screen.getByRole('alert').textContent).toContain(
+      'chosen Chrome window could not be verified',
+    );
+    expect(screen.queryByText('Ready to choose')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Choose window' })).toBeTruthy();
+    view.rerender(
+      <AppsSettings
+        {...props}
+        snapshot={{
+          ...snapshot,
+          browser: {
+            ...snapshot.browser,
+            status: 'attached',
+            attached: true,
+            snapshotLabel: undefined,
+          },
+        }}
+      />,
+    );
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(screen.getByText('Attached')).toBeTruthy();
+  });
+
   it('starts one read-only Google approval and explains the provider consent boundary', async () => {
     const onConnectSelected = vi.fn().mockResolvedValue(undefined);
     render(

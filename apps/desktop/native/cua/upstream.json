@@ -1,0 +1,9 @@
+{
+  "repository": "https://github.com/trycua/cua.git",
+  "tag": "cua-driver-rs-v0.38.0",
+  "commit": "85e2b1318bd77ccf3cfa88ccdf875a4bb7eaed19",
+  "version": "0.38.0",
+  "rustToolchain": "1.97.1",
+  "minimumMacOS": "14.0",
+  "patch": "patches/cua-driver-0.38.0-chrome-consent.patch"
+}

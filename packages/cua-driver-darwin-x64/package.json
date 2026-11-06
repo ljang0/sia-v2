@@ -1,0 +1,18 @@
+{
+  "name": "@trycua/cua-driver-darwin-x64",
+  "version": "0.38.0-sia.1",
+  "private": true,
+  "description": "Sia build of the pinned Cua Driver SDK for macOS x64",
+  "license": "MIT AND MPL-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ljang0/sia-v2"
+  },
+  "files": [
+    "libcua_driver_sdk.dylib",
+    "cua_driver_node_runtime.node",
+    "node-runtime-NOTICE.md",
+    "build-provenance.json",
+    "RUST_LICENSES.txt"
+  ]
+}

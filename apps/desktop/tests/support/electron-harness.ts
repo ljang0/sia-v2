@@ -262,3 +262,20 @@ export async function reopenClosedWindow(application: ElectronApplication): Prom
   await expect.poll(() => page.evaluate(() => Boolean(window.sia))).toBe(true);
   return page;
 }
+
+export async function reviewCloudRecording(page: Page, enabled = true): Promise<void> {
+  const dialog = page.getByRole('alertdialog', { name: 'Cloud recording is on by default' });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole('checkbox', { name: 'Save prompts, usage, and trajectories to AWS' }),
+  ).toBeChecked();
+  if (!enabled)
+    await dialog
+      .getByRole('checkbox', { name: 'Save prompts, usage, and trajectories to AWS' })
+      .uncheck();
+  await dialog.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(dialog).toBeHidden();
+  expect((await page.evaluate(() => window.sia.bootstrap())).capture.status).toBe(
+    enabled ? 'recording' : 'not_consented',
+  );
+}

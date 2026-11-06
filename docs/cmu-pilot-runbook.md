@@ -1,6 +1,6 @@
 # Invited Mac pilot runbook
 
-This runbook is for the controlled `0.1.0-alpha.37` Mac-first handoff. The owner selected Mac first
+This runbook is for the controlled Mac-first handoff. The owner selected Mac first
 and iPhone later on October 30, 2026. It keeps the first session short and easy to support; it does
 not authorize distribution or a research launch. See [release status](./release-status.md) for the
 current acceptance gates.
@@ -8,7 +8,7 @@ current acceptance gates.
 ## Five-minute first session
 
 1. Install the signed Sia build and sign in with the approved pilot email. Sia sends a one-time code;
-   there is no password or signed-out access to the app.
+   there is no password or signed-out access to the app. First-run setup selects **Save prompts, usage, and trajectories to AWS** by default. Review the notice and Continue, or turn it off. Settings → Privacy shows recording and upload status.
 2. Open **Settings → AI**, choose **Sign in with ChatGPT**, and complete OpenAI's browser flow.
    Codex is the recommended pilot provider. Do not paste an OpenAI API key into Sia.
 3. In onboarding, keep **Use my Mac** (it is preselected with full bypass). Before the first task,
@@ -83,6 +83,4 @@ For any failure, record the Sia version, macOS version, feature/provider, attemp
 time, and exact visible error text. Include a screenshot only if it contains no private data.
 
 Lawrence Jang is the support/incident owner for the first invited Mac pilot (confirmed October 30, 2026).
-The owner must maintain the approved recipient list and support contact. Research collection
-stays off unless the tester separately opts in after reviewing Privacy and the required research,
-privacy, and security approvals are complete.
+The owner must maintain the approved recipient list and support contact. The RA build selects cloud recording by default, with a visible first-run notice and a saved choice before tasks start. Preserve opt-outs. Broader research recruitment remains subject to the research release gates.

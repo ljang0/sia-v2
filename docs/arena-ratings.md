@@ -81,7 +81,9 @@ rating was made under.
 
 ## Privacy guarantees
 
-- No prompt, reply, file, or screen content is stored with a rating or sent. The shared schema
+These guarantees apply to the rating payload. Separately, default-on first-run cloud recording can upload eligible prompts, replies, usage, actions/results and screenshots after the disclosed setup choice. Users can opt out or pause in Privacy; ratings do not turn recording on. See [release notes](./release-notes.md#cloud-recording).
+
+- No prompt, reply, file, or screen content is stored with or sent in a rating. The shared schema
   has no field for it and rejects unknown fields on the Mac and in the cloud.
 - The only free text is the optional note, which the person types and sees in full before Send.
 - The route and task facts come from the main process, not the renderer.

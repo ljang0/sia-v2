@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { BrowserNavigationError } from '../mac/browser-navigation-error.js';
 import { actionExecutionId } from './action-execution.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
@@ -71,6 +72,11 @@ export class MacBrowserControl {
   constructor(
     private readonly ctx: ActionBackendContext,
     private readonly inventory: ComputerInventory,
+    private readonly withWindow: (
+      window: ComputerWindowBinding,
+      request: ValidatedActionInvocation,
+      run: () => Promise<ActionExecutionResult>,
+    ) => Promise<ActionExecutionResult>,
   ) {}
 
   /** Only the trusted connection picker may supply this exact-window grant. */
@@ -115,7 +121,11 @@ export class MacBrowserControl {
             tool,
             args,
             authorization.kind === 'turn'
-              ? { ...authorization, backgroundTargetPid: window.pid }
+              ? {
+                  ...authorization,
+                  backgroundTargetPid: window.pid,
+                  backgroundTargetWindowId: window.windowId,
+                }
               : authorization,
             signal,
           );
@@ -262,7 +272,7 @@ export class MacBrowserControl {
             ? { browser_connection_required: true }
             : {}),
           next_step: this.#preparationAttempted.has(window.id)
-            ? 'Background setup was already attempted for this window. Do not repeat setup. If Chrome shows its own permission prompt, the person must review it; Sia must not approve it. This is browser access, not website sign-out. Never fall back to native off-Space input or foreground control.'
+            ? 'Background setup was already attempted for this window. Do not repeat setup. Do not approve Chrome permission prompts from task tools. Use the explicit Connect Chrome & continue flow. This is browser access, not website sign-out. Never fall back to native off-Space input or foreground control.'
             : 'Use computer_open_url with prepare_only:true, this exact app_id and window_id, and the ordinary website needed for the task. That acting tool can restore browser access and list existing tabs without navigating. Never fall back to native off-Space browser input or foreground control.',
         },
       };
@@ -400,6 +410,7 @@ export class MacBrowserControl {
         windowId: window.windowId,
         browserUrl: capability.url,
         protectedControls: false,
+        ...(capability.pixels ? { pixels: capability.pixels } : {}),
         elements: new Map(
           [...capability.elements].map(([ref, e]) => [
             ref,
@@ -425,7 +436,7 @@ export class MacBrowserControl {
           ? { source_url: new URL(capability.url).origin + new URL(capability.url).pathname }
           : {}),
         ...(typeof data?.text === 'string' ? { visible_text: data.text } : {}),
-        pixel_actions_available: false,
+        pixel_actions_available: Boolean(capability?.pixels),
       },
     };
   }
@@ -521,6 +532,17 @@ export class MacBrowserControl {
             'Use computer_list and pass an exact existing Chromium app_id and window_id. Safari retains its native window controls. Do not use an OS opener or assume a default profile.',
         },
       };
+    // Resolve implicit single-window selection before locking, so callers cannot
+    // bypass another turn's reservation by omitting the public window reference.
+    const target = window;
+    return this.withWindow(target, request, () => this.#openWindowUrl(target, request, url));
+  }
+
+  async #openWindowUrl(
+    window: ComputerWindowBinding,
+    request: ValidatedActionInvocation,
+    url: string,
+  ): Promise<ActionExecutionResult> {
     if (!(await this.inventory.windowStillValid(window, request)))
       return stale('The browser window changed.');
     const tabs = await this.#read(
@@ -568,6 +590,10 @@ export class MacBrowserControl {
       return stale('The browser connection changed during navigation. Do not replay it.');
     const outcome = actionResult(raw, 'Background browser navigation was accepted.');
     if (terminalWithoutVerification(outcome)) return outcome;
+    // Navigation invalidates the old start-page classification even if the first
+    // capture is delayed or redirects. Allow a fresh read of this same pinned tab;
+    // BrowserActions still checks its live URL and grants input only after capture.
+    tab.navigationOnly = false;
     this.#client(window).context.browser.bindings.set(tab.nativeId, {
       targetId: tab.targetId,
       tabId: tab.nativeId,
@@ -652,9 +678,10 @@ export class MacBrowserControl {
       return refused('This browser route stays in the background.');
     const action = String(request.arguments.action);
     if (
-      !['click', 'type', 'set', 'scroll'].includes(action) ||
-      request.arguments.count === 2 ||
-      (request.arguments.button && request.arguments.button !== 'left')
+      !this.ctx.options.visionOnly &&
+      (!['click', 'type', 'set', 'scroll'].includes(action) ||
+        request.arguments.count === 2 ||
+        (request.arguments.button && request.arguments.button !== 'left'))
     )
       return refused(
         'Use an observed browser control for this step. This background browser route supports element clicks, text entry and scrolling; it does not send native keys or pointer input.',
@@ -669,6 +696,16 @@ export class MacBrowserControl {
       ...(request.arguments.direction ? { direction: request.arguments.direction } : {}),
       ...(typeof request.arguments.amount === 'number'
         ? { amount: request.arguments.amount }
+        : {}),
+      ...(this.ctx.options.visionOnly
+        ? {
+            action,
+            ...Object.fromEntries(
+              ['x', 'y', 'to_x', 'to_y', 'button', 'count', 'value', 'modifiers']
+                .filter((name) => request.arguments[name] !== undefined)
+                .map((name) => [name, request.arguments[name]]),
+            ),
+          }
         : {}),
     };
     let result: ActionExecutionResult;
@@ -707,7 +744,8 @@ export class MacBrowserControl {
   ): ActionExecutionResult {
     if (error instanceof Error && /\bsession_ended\b/.test(error.message))
       this.#expire(window, session);
-    if (inputWasRefused(error)) return classifyFailure(error);
+    if (error instanceof BrowserNavigationError || inputWasRefused(error))
+      return classifyFailure(error);
     return {
       outcome: 'accepted_unverified',
       summary:

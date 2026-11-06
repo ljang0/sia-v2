@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { launchIsolatedSia } from '../support/electron-harness';
+import { launchIsolatedSia, reviewCloudRecording } from '../support/electron-harness';
 
 test('one-click setup opens a working conversation and stays complete across relaunch', async () => {
   let sia = await launchIsolatedSia({ prefix: 'sia-onboarding-' });
@@ -79,6 +79,7 @@ test('one checklist action connects the selected accounts and keeps connected ac
     },
   });
   try {
+    await reviewCloudRecording(sia.page);
     await sia.completeSetup();
     await expect(sia.page.getByRole('textbox', { name: 'Message', exact: true })).toBeVisible();
     await sia.page.getByRole('button', { name: 'Settings', exact: true }).click();

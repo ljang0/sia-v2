@@ -22,16 +22,19 @@ for an OpenAI Responses-compatible endpoint. Setup does not require an API key.
 - **Your own encrypted phone follows your Computer setting.** Requests from trusted people and
   the plain-HTTP Wi-Fi link require confirmation on the Mac. See the exact remote boundaries in
   [the product contract](./AGENTS.md).
-- **Sia-hosted tools block protected surfaces**, including password fields, sign-in screens,
-  Keychain and password managers. Provider-native shell and file tools have their own boundary;
-  see [architecture](./docs/architecture.md).
+- **Vision-only computer control is the default.** The model uses screenshots and pointer/keyboard
+  actions. Provider-native tools are disabled for these sessions; explicit file outputs use the
+  verified workspace boundary. Host checks block protected surfaces, including password fields,
+  sign-in screens, Keychain and password managers. See [architecture](./docs/architecture.md).
 - **Default setup includes Chrome.** Choose its task window or explicitly continue without it;
   Chrome still owns its permission prompt. Google Workspace, Slack, Notion and GitHub are optional. Calendar, Tasks and Outlook connectors are disabled. **Use my Mac** requires its
-  macOS grants before finishing setup; **Connected apps only** does not require Mac permissions.
+  macOS grants before finishing setup: Accessibility, Screen Recording, Automation for installed
+  supported apps, and Full Disk Access for Messages history. **Set up Sia** walks those grants
+  in order; macOS still requires the person to approve them. **Connected apps only** does not
+  require Mac permissions.
 - **Schedules** repeat until paused or deleted; one-time schedules run once. Sia must stay open and
   the Mac awake for local tasks and schedules.
-- **Research capture is off** unless a person separately agrees to it. The pilot is not a research
-  release.
+- **Cloud recording is selected by default** in first-run setup. The notice explains prompts, usage, actions and screenshots before Continue saves the choice. People can turn it off, pause, export or delete it; existing opt-outs remain off. The broader research release has separate gates.
 
 The full product contract, safety boundaries, and change rules are in [`AGENTS.md`](./AGENTS.md).
 
@@ -45,8 +48,8 @@ The full product contract, safety boundaries, and change rules are in [`AGENTS.m
    released engine; other adapters retain their explicit admission gates.
 4. [`packages/action-gateway`](./packages/action-gateway) validates and authorizes Sia-hosted
    actions; [`main/actions`](./apps/desktop/src/main/actions) executes scoped computer/browser
-   operations. Provider-native tools have a separate boundary described in
-   [architecture](./docs/architecture.md).
+   operations. The [architecture walkthrough](./docs/architecture.md#reviewing-the-computer-use-path)
+   names the modules that own grants, driver execution, permissions and result decoding.
 5. [`main/controller/ratings.ts`](./apps/desktop/src/main/controller/ratings.ts) records task
    feedback; [`packages/protocol/src/ratings.ts`](./packages/protocol/src/ratings.ts) defines
    the strict shared payload. [Arena ratings](./docs/arena-ratings.md) explains the report.
@@ -71,13 +74,15 @@ and feedback; it is not a remote desktop or an always-on task runner. The iPhone
 
 ## Try real work
 
-The [demo guide](./docs/demo.md) has copyable requests for a real reviewer packet, release-week
-plan, and codebase reading guide, with actual rehearsal outcomes and independent output checks.
-It also states which browser, background and concurrent-use checks remain unfinished.
+The [demo guide](./docs/demo.md) includes a five-dinner plan with consolidated groceries, a budgeted
+local outing, a reviewer packet and native document editing. It records which signed build produced
+checked outputs, the interventions needed, and the background/concurrent-use checks still open.
 
 ## Set up
 
-Requirements: macOS 14+, Node 24+, pnpm 11+, and Xcode command-line tools.
+Requirements: macOS 14+, Node 24+, pnpm 11+, Xcode command-line tools, and
+[rustup](https://rustup.rs) for the pinned native driver build. The first build compiles the
+driver; later builds reuse verified outputs. See [native provenance](apps/desktop/native/cua/README.md).
 
 ```sh
 pnpm install --frozen-lockfile

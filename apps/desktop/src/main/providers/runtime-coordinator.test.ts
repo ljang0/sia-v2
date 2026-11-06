@@ -14,9 +14,15 @@ import {
 import type { RuntimeThreadConfig } from './runtime-coordinator.js';
 
 describe('Use my Mac native execution', () => {
-  it.each([false, true])(
-    'prepares before foreground ownership, while background document work runs independently (background=%s)',
-    async (background) => {
+  it.each(
+    [false, true].flatMap((visionOnly) => [
+      { background: false, visionOnly, accessMode: 'mac' as const },
+      { background: true, visionOnly, accessMode: 'mac' as const },
+      { background: false, visionOnly, accessMode: 'connected' as const },
+    ]),
+  )(
+    'prepares with the selected tool and focus boundary (mode=$accessMode, background=$background, visionOnly=$visionOnly)',
+    async ({ background, visionOnly, accessMode }) => {
       const leases = new LocalLeaseCoordinator();
       const busy = await leases.startTurn({ threadId: 'busy', turnId: 'busy-turn' });
       await busy.acquire({ kind: 'global_focus', id: 'foreground' });
@@ -62,6 +68,7 @@ describe('Use my Mac native execution', () => {
         }),
         {
           macContext,
+          visionOnly,
           harnessAdapters: [{ provider: 'meta', harnessId: 'codex_app_server', adapter }],
         },
       );
@@ -75,7 +82,7 @@ describe('Use my Mac native execution', () => {
             model: 'included',
             workspace: '/tmp/ready',
             instructions: '',
-            computerAccessMode: 'mac',
+            computerAccessMode: accessMode,
             macBackgroundControl: background,
             macBackgroundFallback: 'pause',
             resolvedExecutionTarget: {
@@ -95,7 +102,19 @@ describe('Use my Mac native execution', () => {
       const first = stream.next();
       try {
         await vi.waitFor(() => expect(created).toHaveBeenCalledTimes(1));
-        if (background) {
+        if (visionOnly) {
+          const options = created.mock.calls[0]![0];
+          expect(options.nativeTools).toBe(accessMode === 'mac' ? 'mac-hosted' : 'disabled');
+          if (accessMode === 'mac')
+            expect(options.baseInstructions).toContain('UI control is vision-only');
+          expect(options.tools.map((tool) => tool.name)).toContain('computer_action');
+          if (accessMode === 'mac')
+            expect(options.tools.map((tool) => tool.name)).toContain('memory_vault');
+          const action = options.tools.find((tool) => tool.name === 'computer_action')!;
+          expect(action.inputSchema.properties).not.toHaveProperty('element_ref');
+          expect(action.inputSchema.properties).not.toHaveProperty('menu_path');
+        }
+        if (background || accessMode === 'connected') {
           expect((await first).value?.type).toBe('completion');
           expect(sent).toHaveBeenCalled();
           expect(macContext).not.toHaveBeenCalled();
@@ -111,7 +130,13 @@ describe('Use my Mac native execution', () => {
         );
         busy.release();
         expect((await first).value?.type).toBe('completion');
-        expect(sent).toHaveBeenCalledWith(expect.stringContaining('Fresh screen context'));
+        if (visionOnly) {
+          expect(macContext).not.toHaveBeenCalled();
+          expect(sent.mock.calls[0]?.[0]).not.toContain('Fresh screen context');
+        } else {
+          expect(macContext).toHaveBeenCalledOnce();
+          expect(sent).toHaveBeenCalledWith(expect.stringContaining('Fresh screen context'));
+        }
         expect(lease.holds({ kind: 'global_focus', id: 'foreground' })).toBe(true);
         expect(onPhase).toHaveBeenLastCalledWith('working');
         expect(onTiming).toHaveBeenCalledWith('computer_wait', expect.any(Number));
@@ -153,7 +178,7 @@ describe('Use my Mac native execution', () => {
       async *sendTurn(session, input) {
         passes++;
         schemas.push(input.outputSchema);
-        if (['mac', 'mac-background'].includes(created.at(-1)?.nativeTools ?? '')) {
+        if (['mac', 'mac-hosted'].includes(created.at(-1)?.nativeTools ?? '')) {
           expect(input.text).toContain('Current request time:');
           expect(input.outputSchema).toMatchObject({
             required: expect.arrayContaining(['response', 'success']),
@@ -308,11 +333,12 @@ describe('Use my Mac native execution', () => {
           'skill_run',
           'computer_read_file',
           'computer_write_file',
+          'computer_move_file',
           'memory_vault',
         ]),
       );
       expect(created[1]?.baseInstructions).toContain('EXPERIMENTAL WINDOW CONTROL');
-      expect(created[1]?.nativeTools).toBe('mac-background');
+      expect(created[1]?.nativeTools).toBe('mac-hosted');
       expect(created[1]?.baseInstructions).not.toContain('screencapture');
       // Foreground uses the pinned Notch recipe; the window driver has its own
       // tool-specific guidance. Do not stack that second recipe onto Notch.
@@ -346,7 +372,7 @@ describe('Use my Mac native execution', () => {
       expect(created[2]?.nativeApproval).toBe('ask');
       thread.macBackgroundFallback = 'foreground';
       await run();
-      expect(created[3]?.nativeTools).toBe('mac-background');
+      expect(created[3]?.nativeTools).toBe('mac-hosted');
       expect(backend.invoke).toHaveBeenLastCalledWith(
         expect.objectContaining({
           context: expect.objectContaining({ backgroundOnly: false }),

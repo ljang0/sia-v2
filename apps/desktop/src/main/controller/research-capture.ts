@@ -119,6 +119,11 @@ export class ResearchCapture {
     this.staging.delete(turnId);
   }
 
+  /** A privacy change discards both formats and survives Resume until each task ends. */
+  excludePendingTurns(): void {
+    for (const turnId of this.staging.keys()) this.excludeResearchTurn(turnId);
+  }
+
   discardResearchTurn(turnId: string): void {
     if (this.excludedTurns.delete(turnId)) {
       this.staging.delete(turnId);

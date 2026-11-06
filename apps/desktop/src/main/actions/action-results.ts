@@ -1,7 +1,9 @@
 /** Builds the ActionExecutionResult shapes the backend returns, and classifies driver refusals. */
 
 import type { ActionExecutionResult } from '@sia/action-gateway';
-import { isCuaCallResult } from '../mac/cua-service.js';
+import { BrowserAttestationError } from '../mac/browser-attestation.js';
+import { BrowserNavigationError } from '../mac/browser-navigation-error.js';
+import { browserGuardRefusalCode, isCuaCallResult } from '../mac/cua-results.js';
 import { asRecord, compact, findNestedString, findString } from './driver-records.js';
 
 export function refused(reason: string): ActionExecutionResult {
@@ -12,15 +14,45 @@ export function stale(reason: string): ActionExecutionResult {
   return { outcome: 'stale', summary: reason, reason };
 }
 
+/** An old public identifier is not evidence that the OS denied access. */
+export function unresolvedComputerWindow(): ActionExecutionResult {
+  return {
+    outcome: 'stale',
+    summary:
+      'These app/window IDs are missing, expired, or no longer match the window. This does not mean macOS permission was denied. No input was sent.',
+    reason: 'computer_window_ids_stale',
+    data: {
+      blocker_code: 'computer_window_ids_stale',
+      input_not_sent: true,
+      next_step:
+        'Call computer_list for current IDs, identify the same intended window, then take computer_snapshot with those IDs. Do not reuse transcript IDs or request permission unless fresh evidence reports missing access. Do not replay earlier uncertain input.',
+    },
+  };
+}
+
 /** Only these explicit validation/authorization refusals prove that no input was posted. */
 export function inputWasRefused(error: unknown): boolean {
-  return /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|background_focus_unavailable|background_input_paused|foreground_app_in_use|window_not_key|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window|browser_ref_stale|browser_frame_changed|browser_tab_not_found|browser_binding_stale|browser_consent_required|browser_requires_setup|browser_action_unavailable)$/.test(
+  if (error instanceof BrowserAttestationError) return true;
+  if (
+    /^(?:CUA refused: )?browser_(?:point|link)_context_unavailable$/.test(
+      safeErrorMessage(error),
+    )
+  )
+    return true;
+  return /^(?:CUA refused: )?(?:permission_denied|authorization_denied|invalid_arguments|invalid_element|element_index_required|element_outside_target_window|stale_snapshot|snapshot_expired|session_ended|background_unavailable|background_focus_unavailable|background_input_paused|foreground_app_in_use|window_not_key|no_focused_text_input|off_space_or_ax_unresolved|minimized_or_hidden_window|same_pid_keyboard_ambiguity|secure_field|protected_window|browser_ref_stale|browser_frame_changed|browser_tab_not_found|browser_binding_stale|browser_consent_required|browser_requires_setup|browser_action_unavailable|browser_new_context_refused)$/.test(
     safeErrorMessage(error),
   );
 }
 
 /** The driver can report this after a click has already changed the page. */
 export function browserInputTrustFailure(error: unknown): ActionExecutionResult | undefined {
+  if (/^(?:CUA refused: )?browser_input_incomplete$/.test(safeErrorMessage(error)))
+    return {
+      outcome: 'accepted_unverified',
+      summary:
+        'Browser input or cleanup was incomplete. Input may have arrived; inspect a fresh screenshot without replaying the action.',
+      data: { input_delivery_uncertain: true, blocker_code: 'browser_input_incomplete' },
+    };
   if (!/^(?:CUA refused: )?browser_input_trust_unavailable$/.test(safeErrorMessage(error)))
     return undefined;
   return {
@@ -32,8 +64,61 @@ export function browserInputTrustFailure(error: unknown): ActionExecutionResult 
 }
 
 export function classifyFailure(error: unknown): ActionExecutionResult {
+  if (error instanceof BrowserNavigationError)
+    return {
+      outcome: 'accepted_unverified',
+      summary:
+        'The requested website failed to load because of a network error. This is not a missing browser permission. Do not repeat setup or replay the failed navigation. For research, use a known public search page in the same exact tab to find a current alternative instead of guessing another website address. If the search page also cannot be observed, stop browser attempts and save verified findings with the gaps clearly stated.',
+      data: {
+        blocker_code: 'browser_navigation_failed',
+        network_error: error.networkCode,
+        input_delivery_uncertain: true,
+      },
+    };
+  if (error instanceof BrowserAttestationError)
+    return {
+      outcome: 'refused',
+      summary:
+        'The chosen browser connection could not be verified before this action, so no input was sent. Refresh the same window’s connection state before continuing. Only repeat connection setup if it reports missing consent; do not switch windows or replay earlier actions with uncertain results.',
+      reason: error.message,
+      data: { blocker_code: error.code, input_not_sent: true },
+    };
   const message = safeErrorMessage(error);
   const normalized = message.toLowerCase();
+  if (/^(?:cua refused: )?browser_(?:point|link)_context_unavailable$/.test(normalized))
+    return {
+      outcome: 'refused',
+      summary:
+        'No click was sent because the link or pointer target could not be checked for opening another window. Do not repeat this click. Inspect the page and use permitted visible keyboard navigation or a known public destination in the existing tab; report the gap if neither is available.',
+      reason: message,
+      data: { blocker_code: normalized.replace(/^cua refused: /, ''), input_not_sent: true },
+    };
+  if (/^(?:cua refused: )?browser_input_incomplete$/.test(normalized))
+    return browserInputTrustFailure(error)!;
+  if (/^(?:cua refused: )?browser_new_context_refused$/.test(normalized))
+    return {
+      outcome: 'refused',
+      summary:
+        'No click was sent because this link opens another tab or window and could interrupt your work. Use computer_open_url only with a permitted destination already visible in the screenshot or supplied by the person to navigate the existing tab. If no destination is known, report this blocked step; do not extract hidden link targets. Do not retry this click or switch to foreground input.',
+      reason: message,
+      data: { blocker_code: 'browser_new_context_refused', input_not_sent: true },
+    };
+  if (normalized === 'cua refused: browser_observation_timeout')
+    return {
+      outcome: 'refused',
+      summary:
+        'The browser page did not respond after one bounded read retry. This does not mean permission was denied. Treat this source as unavailable, not the whole task. Continue independent work and save verified findings with the gap clearly stated. For research, use computer_open_url to navigate the same exact tab to a known public search page and find a current alternative, instead of guessing another website address. This is a new navigation, not a retry of the failed one. If the search page also cannot be observed, stop browser attempts and report the remaining gap. Do not repeat setup or replay earlier navigation or input whose result is uncertain, and do not claim the unfinished parts are complete.',
+      reason: message,
+      data: { blocker_code: 'browser_observation_timeout' },
+    };
+  if (normalized === 'cua refused: authorization_host_failed')
+    return {
+      outcome: 'refused',
+      summary:
+        'Computer access could not be authorized. This is an access-check failure, not evidence that a website needs sign-in. Stop this task and report the failure; do not repeat setup or replay an action with an uncertain result.',
+      reason: message,
+      data: { blocker_code: 'authorization_host_failed' },
+    };
   if (normalized === 'cua refused: background_input_paused')
     return {
       outcome: 'needs_foreground',
@@ -42,6 +127,19 @@ export function classifyFailure(error: unknown): ActionExecutionResult {
         background_interrupted: true,
         input_paused_for_turn: true,
         blocker_code: 'background_input_paused',
+      },
+    };
+  if (/^(?:cua refused: )?window_not_key$/.test(normalized))
+    return {
+      outcome: 'refused',
+      summary:
+        'Keyboard focus could not be established in this window; no keys were sent. This does not mean Mac permission is missing or all background controls are unavailable.',
+      reason: message,
+      data: {
+        blocker_code: 'window_not_key',
+        keyboard_input_not_sent: true,
+        next_step:
+          'Observe the same intended window again. If its fresh screenshot confirms the current state and an available background route, choose another visible control or dialog for the same task. Do not replay uncertain input, change permissions, or switch to foreground delivery.',
       },
     };
   if (/\b(?:foreground_app_in_use|background_focus_unavailable)\b/.test(normalized)) {
@@ -101,6 +199,7 @@ export function looksLikeErrorCode(value: string | undefined): boolean {
 export function resultRefusal(value: unknown): ActionExecutionResult | undefined {
   const record = asRecord(value);
   const refusal =
+    findNestedString(value, 'error', ['code']) ??
     findNestedString(value, 'refusal', ['code', 'error_code', 'errorCode']) ??
     findString(value, ['refusal', 'error_code', 'errorCode']);
   const code = findString(value, ['code']);
@@ -117,7 +216,12 @@ export function resultRefusal(value: unknown): ActionExecutionResult | undefined
     code ??
     findString(record, ['message', 'status']) ??
     'The driver refused the action.';
-  return classifyFailure(new Error(reason));
+  const guardCode = browserGuardRefusalCode(
+    reason,
+    findNestedString(value, 'error', ['hint']) ??
+      findNestedString(value, 'refusal', ['hint', 'message']),
+  );
+  return classifyFailure(new Error(guardCode ?? reason));
 }
 
 export function actionResult(

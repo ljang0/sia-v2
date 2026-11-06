@@ -6,7 +6,8 @@ import {
   OUTLOOK_FOLDERS,
   SCHEDULE_CADENCES,
   SCHEDULE_DAYS,
-  computerList,
+  computerListFiles,
+  computerMoveFile,
   computerReadFile,
   computerWriteFile,
   libraryList,
@@ -131,14 +132,14 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_list_files: {
     name: 'computer_list_files',
     description:
-      'List ordinary text/data files in this task’s workspace folder. Returns the workspace path and eligible top-level txt/md/csv/tsv/json/ics files. Hidden files, credentials, links and subdirectories are excluded.',
-    inputSchema: z.toJSONSchema(computerList),
+      'List ordinary UTF-8 txt/md/csv/tsv/json/ics files up to 256 KB and subfolders in the task workspace. Omit directory for its root; otherwise pass a relative directory. Returns root-relative names and file_details with bytes and sha256 revisions for moves. Hidden paths, credentials and links are excluded. Listing is not recursive; inspect subdirectories separately.',
+    inputSchema: z.toJSONSchema(computerListFiles),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },
   computer_read_file: {
     name: 'computer_read_file',
     description:
-      'Read one UTF-8 text/data file by its exact name in the task workspace, up to 256 KB. Returns the complete content, path and SHA-256 revision. Use fresh app evidence for account facts; old files do not replace current investigation.',
+      'Read one UTF-8 text/data file by its exact relative path in the task workspace, up to 256 KB. Returns the complete content, path and SHA-256 revision. Use fresh app evidence for account facts; old files do not replace current investigation.',
     inputSchema: z.toJSONSchema(computerReadFile),
     annotations: { readOnly: true, requiresApproval: false, takesForeground: false },
   },
@@ -147,6 +148,13 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
     description:
       'Create or edit a UTF-8 txt/md/csv/tsv/json/ics file in the task workspace without opening an app. An ICS file is saved only; it is not imported into a calendar or sent. Pass its name and complete text (up to 256 KB). To edit an existing file, first read it and pass its returned sha256 as expected_sha256; a changed revision is refused. Without expected_sha256, an existing file is never overwritten. Returns data.path, data.sha256 and data.text read back from disk. Verify the content before reporting success or returning output_file.',
     inputSchema: z.toJSONSchema(computerWriteFile),
+    annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
+  },
+  computer_move_file: {
+    name: 'computer_move_file',
+    description:
+      'Move or rename one ordinary UTF-8 txt/md/csv/tsv/json/ics file up to 256 KB within the task workspace without using Finder, clipboard or focus. Pass root-relative source and destination and the current expected_sha256 from list/read. Creates missing destination folders. Existing destinations are never overwritten; changed revisions and links are refused. Returns the verified destination path and unchanged SHA-256. If the outcome is uncertain, inspect both paths before continuing.',
+    inputSchema: z.toJSONSchema(computerMoveFile),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
   },
   assistant_library: {
@@ -166,7 +174,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   memory_vault: {
     name: 'memory_vault',
     description:
-      'Read this agent’s shared Notch-style vault during a background Mac task or authorized memory consolidation. Write/append require automatic learning; background tasks save executable workflows with skill_save instead. list: empty name/text/revision. read: name, empty text/revision; returns up to 60000 characters, defaulting to the tail for journal/failures. Use offset to read another portion and check truncated/totalCharacters. write: full text and exact revision from read (empty only for a missing file); never replace a file from a partial read. append: add text to journal.md, failures.log or lessons.md using the exact revision. Consolidation can save native skills but never executes them. preferences.md is read-only. No other folders, accounts, apps or network.',
+      'Read this agent’s shared Notch-style vault during a background Mac task or authorized memory consolidation. Write/append require automatic learning; background tasks save executable workflows with skill_save instead. list: empty name/text/revision. read: exact filename from list (for example lessons.md), not a display title or guessed name; empty text/revision; returns up to 60000 characters, defaulting to the tail for journal/failures. Use offset to read another portion and check truncated/totalCharacters. write: full text and exact revision from read (empty only for a missing file); never replace a file from a partial read. append: add text to journal.md, failures.log or lessons.md using the exact revision. Consolidation can save native skills but never executes them. preferences.md is read-only. No other folders, accounts, apps or network.',
     inputSchema: z.toJSONSchema(memoryVault),
     annotations: { readOnly: false, requiresApproval: false, takesForeground: false },
   },
@@ -311,7 +319,7 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   computer_action: {
     name: 'computer_action',
     description:
-      'Perform one action against the exact freshly captured application window. Use my Mac defaults to background delivery; unsupported actions return needs_foreground. Explicit delivery:foreground is available when necessary. Do not use an AXWindow reference as an editable field. Prefer an element_ref for actual controls. If an Electron or canvas app exposes no usable element, type, key, and scroll may omit element_ref to use the focused control in that exact window. Click and type can use x/y screenshot pixels; type with x/y focuses the field and types in ONE driver call, avoiding focus loss between separate calls. Use this when browser AX focus/setters fail. When a control has pixel_bounds, use its center_x/center_y as x/y rather than guessing. Otherwise choose the inside of the input box from the fresh image, not its label. Drag uses x/y plus to_x/to_y. Pixel actions require pixel_actions_available. Coordinates use the original window screenshot, top-left origin; set requires a ref. "type" inserts only new text at the current caret. "set" replaces the entire editable value. For shortcuts, put one non-modifier key in value and list modifiers separately. The result already includes a fresh post-action snapshot; use it to check the rendered effect without another snapshot unless observation_pending/loading is true or the result is unclear. Delivery alone does not prove success. Shortcuts and buttons often open a dialog, save panel or sheet: when a result lists new_windows, continue on that window, not the one behind it. If an app opens to an Open panel, create a new document with File > New instead.',
+      'Perform one action against the exact freshly captured application window. Use my Mac defaults to background delivery; unsupported actions return needs_foreground. Explicit delivery:foreground is available when necessary. Do not use an AXWindow reference as an editable field. Prefer an element_ref for actual controls. If an Electron or canvas app exposes no usable element, type, key, and scroll may omit element_ref to use the focused control in that exact window. Click, type, and key can use x/y screenshot pixels; type or key with x/y focuses the chosen field and sends its input in ONE driver call, avoiding focus loss between separate calls. Use this when browser AX focus/setters fail. When a control has pixel_bounds, use its center_x/center_y as x/y rather than guessing. Otherwise choose the inside of the input box from the fresh image, not its label. Drag uses x/y plus to_x/to_y. Pixel actions require pixel_actions_available. Coordinates use the original window screenshot, top-left origin; set requires a ref. "type" inserts only new text at the current caret. "set" replaces the entire editable value. For shortcuts, put one non-modifier key in value and list modifiers separately. The result already includes a fresh post-action snapshot; use it to check the rendered effect without another snapshot unless observation_pending/loading is true or the result is unclear. Delivery alone does not prove success. Shortcuts and buttons often open a dialog, save panel or sheet: when a result lists new_windows, continue on that window, not the one behind it. If an app opens to an Open panel, create a new document with File > New instead.',
     inputSchema: object(
       {
         app_id: string('Exact application id'),
@@ -425,23 +433,39 @@ const descriptors: Record<ActionToolName, ToolDescriptor> = {
   },
   browser_action: {
     name: 'browser_action',
-    description: 'Perform one ref-based action in a granted tab without raw JavaScript or CDP.',
+    description:
+      'Perform one action in a granted tab. Visual control uses original screenshot coordinates and sends text or named keys to the visually focused page control. Assisted snapshots use their current element refs. No raw JavaScript or CDP.',
     inputSchema: object(
       {
         tab_id: string('Granted tab id'),
         snapshot_id: string('Fresh browser snapshot id'),
         action: string('Action', {
-          enum: ['click', 'type', 'scroll'],
+          enum: ['click', 'type', 'scroll', 'drag', 'key'],
         }),
-        element_ref: string('Element reference'),
+        element_ref: string('Assisted snapshot element reference; unavailable in visual mode'),
+        x: { type: 'number', minimum: 0, maximum: 32768 },
+        y: { type: 'number', minimum: 0, maximum: 32768 },
+        to_x: { type: 'number', minimum: 0, maximum: 32768 },
+        to_y: { type: 'number', minimum: 0, maximum: 32768 },
+        button: string('Mouse button', { enum: ['left', 'right'] }),
+        count: { type: 'integer', minimum: 1, maximum: 2 },
         text: string('Text to type'),
+        value: string(
+          'Page key: enter, tab, escape, arrows, space, delete, home/end, pageup/pagedown or one letter/digit',
+        ),
+        modifiers: {
+          type: 'array',
+          items: { type: 'string', enum: ['cmd', 'shift', 'option'] },
+          description:
+            'Page editing shortcuts only; clipboard and browser-wide commands are unavailable.',
+        },
         direction: string('Scroll direction', { enum: ['up', 'down', 'left', 'right'] }),
         amount: { type: 'integer', minimum: 1, maximum: 10000 },
         origin: string('Current origin'),
         private: { type: 'boolean' },
         target_role: string('Accessible role'),
       },
-      ['tab_id', 'snapshot_id', 'action', 'element_ref', 'origin'],
+      ['tab_id', 'snapshot_id', 'action', 'origin'],
     ),
     annotations: { readOnly: false, requiresApproval: true, takesForeground: false },
   },

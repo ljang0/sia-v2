@@ -115,7 +115,7 @@ describe('access dialog', () => {
       'Asks before each action',
     );
     expect(
-      screen.getByText(/Sia’s own browser and computer actions can’t use password/),
+      screen.getByText(/Sia’s browser and computer actions can’t use password/),
     ).toBeTruthy();
     expect(screen.queryByText(/stay blocked/)).toBeNull();
     expect(screen.queryByText('alpha-flow.pdf')).toBeNull();
@@ -132,7 +132,7 @@ describe('access dialog', () => {
     await waitFor(() => expect(document.activeElement).toBe(trigger));
   });
 
-  it('shows full bypass plainly and does not over-claim for native Mac commands', () => {
+  it('shows automatic actions and the protected-step handoff', () => {
     render(
       <Inspector
         browser={demoSnapshot.browser}
@@ -155,7 +155,7 @@ describe('access dialog', () => {
       'Acts without asking',
     );
     expect(
-      screen.getByText(/Commands your agent runs directly on this Mac aren’t covered/),
+      screen.getByText(/Complete those steps yourself, then continue the task/),
     ).toBeTruthy();
   });
 });

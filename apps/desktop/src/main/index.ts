@@ -1,4 +1,7 @@
+import { workspaceFileMover } from './mac/workspace-file-move.js';
 import { BrowserWindowService } from './mac/browser-window.js';
+import { returnAfterBrowserSetup } from './window/browser-setup-return.js';
+import { configureBackgroundRendering } from './window/background-rendering.js';
 import { backgroundControlUnavailable } from './controller/computer-access.js';
 import { AutomationPermissionService } from './mac/automation-permissions.js';
 import {
@@ -249,6 +252,9 @@ async function revealApplicationWindow(revealConversation = false): Promise<void
     } satisfies import('../shared/bridge.js').DesktopPushEvent);
   if (!quietFixture) {
     mainWindow.show();
+    // Explicitly opening Sia must activate the app as well as its window.
+    // A window focus request alone can leave another macOS app receiving keys.
+    if (process.platform === 'darwin') app.focus({ steal: true });
     mainWindow.focus();
   }
 }
@@ -318,6 +324,7 @@ async function performApplicationCreation(): Promise<void> {
     },
   });
   mainWindow = window;
+  configureBackgroundRendering(window);
   const matchSystemAppearance = () => {
     if (!window.isDestroyed())
       window.setBackgroundColor(windowBackgroundColor(nativeTheme.shouldUseDarkColors));
@@ -488,7 +495,12 @@ async function performApplicationCreation(): Promise<void> {
       },
       {
         fakePermissions: fakeServices,
-        ...(!fakeServices ? { readForegroundPid: () => browserWindows.foregroundPid() } : {}),
+        ...(!fakeServices
+          ? {
+              readForegroundPid: () => browserWindows.foregroundPid(),
+              readForegroundWindow: () => browserWindows.foregroundWindow(),
+            }
+          : {}),
         verifyAccess: true,
         freshPermissions: freshPermissionProbe({
           executable: process.execPath,
@@ -528,7 +540,9 @@ async function performApplicationCreation(): Promise<void> {
           return { harnesses: [], previewHarnesses: [] };
         })
       : { harnesses: [], previewHarnesses: [] };
+    const visionOnly = true;
     activeController = new DesktopController({
+      visionOnly,
       previewHarnesses,
       labHarnesses: labHarnesses.map(({ id, name, disclosure, models }) => ({
         id,
@@ -597,6 +611,25 @@ async function performApplicationCreation(): Promise<void> {
         shell.showItemInFolder(path);
       },
       openExternal: openSafeExternal,
+      returnToAppAfterBrowserSetup: async (onlyFromPid) => {
+        // Explicit connection setup can activate Chrome. Return to the existing Sia window
+        // before the saved background task resumes; never reopen a window the person closed.
+        if (quietFixture) return;
+        if (onlyFromPid !== undefined && (await browserWindows.foregroundPid()) !== onlyFromPid)
+          return;
+        const window = mainWindow;
+        if (!window || shutdownStarted || window.isDestroyed())
+          throw new Error('Open Sia again before continuing Chrome setup.');
+        await returnAfterBrowserSetup({
+          window,
+          available: () => !shutdownStarted && mainWindow === window,
+          activate: () => app.focus({ steal: true }),
+          isForeground: async () =>
+            fakeServices || process.platform !== 'darwin'
+              ? window.isFocused()
+              : (await browserWindows.foregroundPid()) === process.pid,
+        });
+      },
       ...(localConnectors ? { localConnectors } : {}),
       openMessages: () => shell.openExternal('sms:', { activate: true }),
       ...(!fakeServices ? { requestMicrophonePermission } : {}),
@@ -690,6 +723,12 @@ async function performApplicationCreation(): Promise<void> {
     rendererLoad = loadRenderer(window, rendererDevUrl);
     rendererLoad.catch(() => undefined);
     const actionBackend = new DesktopActionBackend({
+      visionOnly,
+      workspaceFileMove: workspaceFileMover(
+        app.isPackaged
+          ? join(process.resourcesPath, 'native', 'SiaVoiceHelper')
+          : join(app.getAppPath(), 'build', 'native', 'SiaVoiceHelper'),
+      ),
       computerUnavailable: async () =>
         backgroundControlUnavailable(await computer.permissions()),
       macAutomation: runMacAutomation,
@@ -732,6 +771,7 @@ async function performApplicationCreation(): Promise<void> {
       macBackgroundControl: () => activeController.macBackgroundControl(),
       inspectBrowserWindow: (pid, windowId, tabsOnly) =>
         browserWindows.inspect(pid, windowId, tabsOnly),
+      preferredBrowserWindow: () => activeController.preferredBrowserWindow(),
       readImageText: (dataBase64) => browserWindows.imageText(dataBase64),
       readWindowContext: (pid, windowId) => browserWindows.context(pid, windowId),
       ...(localConnectors ? { localConnectors } : {}),
@@ -786,6 +826,7 @@ async function performApplicationCreation(): Promise<void> {
       });
     }
     activeRuntime = new RuntimeCoordinator(gateway, {
+      visionOnly,
       ...(codexCommand ? { codexCommand } : {}),
       macContext: () => browserWindows.macContext(),
       metaTransport: cloud,
@@ -856,7 +897,17 @@ async function performApplicationCreation(): Promise<void> {
         : {}),
     });
     activeController.attachRuntime(activeRuntime);
-    await activeController.initialize();
+    await activeController.initialize(
+      !quietFixture && !keepWindowHidden && process.platform === 'darwin'
+        ? async () =>
+            !shutdownStarted &&
+            !keepWindowHidden &&
+            mainWindow === window &&
+            !window.isDestroyed() &&
+            window.isVisible() &&
+            (await browserWindows.foregroundPid()) === process.pid
+        : undefined,
+    );
     unsubscribeDockBadge?.();
     let dockBadge: string | undefined;
     const updateDockBadge = ({
@@ -1152,6 +1203,7 @@ function installApplicationMenu(developerTools = false): void {
         label: 'Sia',
         submenu: [
           { role: 'about' },
+          { label: 'Open Sia', click: showOrCreateApplicationWindow },
           {
             label: 'Show Scotty',
             click: () => {

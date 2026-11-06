@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { browserVisualInput, browserVisualSnapshot } from './browser-vision.js';
 import { rm } from 'node:fs/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import type { ActionExecutionResult, ValidatedActionInvocation } from '@sia/action-gateway';
 import {
   actionImages,
@@ -184,6 +186,15 @@ export class BrowserActions {
     if (binding.origin && !this.ctx.browser.bindingOriginAllowed(binding)) {
       return refused('The tab origin is outside the current browser grant.');
     }
+    if (
+      this.ctx.options.visionOnly &&
+      (request.arguments.continue_from !== undefined || request.arguments.read_links === true)
+    ) {
+      this.ctx.browser.invalidateSnapshot(binding.tabId);
+      return refused(
+        'Visual browser observation does not expose semantic continuations or hidden link destinations.',
+      );
+    }
     let continuation: string | undefined;
     if (request.arguments.continue_from !== undefined) {
       const previous = await this.ctx.browser.capability(
@@ -199,6 +210,36 @@ export class BrowserActions {
   }
 
   async #captureBrowser(
+    binding: BrowserBinding,
+    request: ValidatedActionInvocation,
+    continuation?: string,
+  ): Promise<ActionExecutionResult> {
+    try {
+      const result = await this.#captureBrowserOnce(binding, request, continuation);
+      if (
+        !this.ctx.options.visionOnly ||
+        result.outcome !== 'stale' ||
+        !/^(?:CUA refused: )?browser_ref_stale$/.test(result.reason ?? '')
+      )
+        return result;
+    } catch (error) {
+      // Scroll/reflow can invalidate the protection/image pair during capture.
+      // Retry only this read, once, with all identity/protection checks intact.
+      // Never replay navigation or input, or retry permissions/transport failures.
+      if (
+        !this.ctx.options.visionOnly ||
+        !(error instanceof Error) ||
+        error.message !== 'CUA refused: browser_ref_stale'
+      )
+        throw error;
+    }
+    // Native browser refusals are structured successful envelopes, not necessarily
+    // transport exceptions. Both forms share the same single read-only retry.
+    await delay(100, undefined, { signal: request.context.signal });
+    return this.#captureBrowserOnce(binding, request, continuation);
+  }
+
+  async #captureBrowserOnce(
     binding: BrowserBinding,
     request: ValidatedActionInvocation,
     continuation?: string,
@@ -224,11 +265,27 @@ export class BrowserActions {
       target_id: binding.targetId,
       tab_id: binding.tabId,
       snapshot_format: 'semantic_v2',
-      include_screenshot: request.arguments.include_image !== false,
+      ...(this.ctx.options.visionOnly ? { require_visual_identity: true } : {}),
+      include_screenshot:
+        this.ctx.options.visionOnly || request.arguments.include_image !== false,
       ...(continuation ? { continuation } : {}),
     });
     const refusalResult = resultRefusal(raw);
     if (refusalResult) return refusalResult;
+    const document = asRecord(raw);
+    if (
+      document?.url === 'chrome-error://chromewebdata/' &&
+      (!document.target_id || document.target_id === binding.targetId) &&
+      (!document.tab_id || document.tab_id === binding.tabId)
+    ) {
+      return {
+        outcome: 'refused',
+        reason: 'browser_error_document',
+        summary:
+          'The tab contains a browser-generated error page, not the requested website. This does not establish a missing permission or a sign-in requirement. No page content or input references were returned. For research, navigate this same exact tab to a known public search page and find a current alternative instead of guessing another website address. Do not interact with or bypass security warnings; do not repeat setup or replay uncertain actions. Save verified findings if research cannot continue.',
+        data: { blocker_code: 'browser_error_document', pixel_actions_available: false },
+      };
+    }
     this.ctx.browser.indexBindings(raw);
     const location = findBrowserLocation(raw, binding.targetId, binding.tabId);
     const origin = location?.origin;
@@ -280,6 +337,8 @@ export class BrowserActions {
     const privateLinks =
       [title, text].some(observationHasPrivateLinks) ||
       findElementRecords(raw, 'browser').some(observationRecordHasPrivateLinks);
+    if (this.ctx.options.visionOnly)
+      return browserVisualSnapshot(this.ctx, binding, raw, liveUrl, privateLinks);
     const elementMap = new Map<string, { nativeRef: string; label?: string; role?: string }>();
     const elements = findElementRecords(raw, 'browser')
       .map((record, position) => {
@@ -407,62 +466,117 @@ export class BrowserActions {
       target_id: capability.targetId,
       tab_id: capability.tabId,
     };
-    switch (args.action) {
-      case 'click':
-        if (!nativeRef)
-          return refused(
-            `browser_action ${String(args.action)} requires an exact element reference.`,
+    if (this.ctx.options.visionOnly) {
+      const visual = browserVisualInput(capability, args);
+      if ('outcome' in visual) return visual;
+      // Recheck current page protection and geometry before dispatch. The model receives
+      // none of this guard's semantic data; a failed read revokes the earlier image.
+      const observed = await this.#captureBrowser(binding, request);
+      if (observed.outcome !== 'verified') return observed;
+      const latest = await this.ctx.browser.capability(
+        binding.tabId,
+        asRecord(observed.data)?.snapshot_id,
+      );
+      if ('outcome' in latest) return latest;
+      // A child frame can refresh without changing the observed pixels. Reuse the
+      // requested action only with exact image equality and a native proof that the
+      // top-level document AND viewport are unchanged. Root reloads still revoke it.
+      const identicalView =
+        capability.visualRoot !== undefined &&
+        capability.visualRoot === latest.visualRoot &&
+        capability.imageHash !== undefined &&
+        capability.imageHash === latest.imageHash;
+      const documentChanged =
+        latest.visualDocument !== capability.visualDocument && !identicalView;
+      if (
+        capability.capturedAt === undefined ||
+        Date.now() - capability.capturedAt > 30_000 ||
+        latest.url !== capability.url ||
+        documentChanged ||
+        JSON.stringify(latest.pixels) !== JSON.stringify(capability.pixels)
+      ) {
+        const code =
+          latest.url !== capability.url
+            ? 'browser_page_changed'
+            : documentChanged
+              ? 'browser_document_changed'
+              : JSON.stringify(latest.pixels) !== JSON.stringify(capability.pixels)
+                ? 'browser_geometry_changed'
+                : 'browser_snapshot_expired';
+        // The preflight already captured and validated this replacement image.
+        // Return its new authority for inspection; never dispatch the old input.
+        return {
+          ...observed,
+          outcome: 'stale',
+          summary:
+            'The browser page or screenshot geometry changed before input. No input was sent. Inspect the returned fresh screenshot and choose the next action from it; do not reuse the old snapshot.',
+          reason: code,
+          data: {
+            ...asRecord(observed.data),
+            blocker_code: code,
+            input_not_sent: true,
+          },
+        };
+      }
+      tool = visual.tool;
+      // The driver rechecks the entire fresh frame tree immediately before input.
+      // This is the first dispatch, never a replay of an uncertain write.
+      input = { ...visual.input, visual_document: latest.visualDocument };
+    } else
+      switch (args.action) {
+        case 'click':
+          if (!nativeRef)
+            return refused(
+              `browser_action ${String(args.action)} requires an exact element reference.`,
+            );
+          tool = 'browser_click';
+          input = {
+            ...base,
+            ref: nativeRef,
+            input_route: 'trusted',
+            delivery_mode: 'background',
+          };
+          break;
+        case 'type': {
+          if (!nativeRef)
+            return refused('browser_action type requires an exact element reference.');
+          const text = typeof args.text === 'string' ? args.text : undefined;
+          if (text === undefined) return refused('browser_action type requires text.');
+          tool = 'browser_type';
+          input = {
+            ...base,
+            ref: nativeRef,
+            text,
+            mode: 'insert_text',
+            replace: args.replace === true,
+            delivery_mode: 'background',
+          };
+          break;
+        }
+        case 'scroll': {
+          const direction = requiredEnum(
+            args.direction,
+            ['up', 'down', 'left', 'right'],
+            'direction',
           );
-        tool = 'browser_click';
-        input = {
-          ...base,
-          ref: nativeRef,
-          input_route: 'trusted',
-          delivery_mode: 'background',
-        };
-        break;
-      case 'type': {
-        if (!nativeRef)
-          return refused('browser_action type requires an exact element reference.');
-        const text = typeof args.text === 'string' ? args.text : undefined;
-        if (text === undefined) return refused('browser_action type requires text.');
-        tool = 'browser_type';
-        input = {
-          ...base,
-          ref: nativeRef,
-          text,
-          mode: 'insert_text',
-          replace: args.replace === true,
-          delivery_mode: 'background',
-        };
-        break;
+          const amount = typeof args.amount === 'number' ? args.amount : 480;
+          tool = 'browser_pointer';
+          input = compact({
+            ...base,
+            action: 'scroll',
+            input_route: 'trusted',
+            delivery_mode: 'background',
+            ref: nativeRef,
+            delta_x: direction === 'left' ? -amount : direction === 'right' ? amount : 0,
+            delta_y: direction === 'up' ? -amount : direction === 'down' ? amount : 0,
+          });
+          break;
+        }
+        default:
+          return refused('Unsupported browser action.');
       }
-      case 'scroll': {
-        const direction = requiredEnum(
-          args.direction,
-          ['up', 'down', 'left', 'right'],
-          'direction',
-        );
-        const amount = typeof args.amount === 'number' ? args.amount : 480;
-        tool = 'browser_pointer';
-        input = compact({
-          ...base,
-          action: 'scroll',
-          input_route: 'trusted',
-          delivery_mode: 'background',
-          ref: nativeRef,
-          delta_x: direction === 'left' ? -amount : direction === 'right' ? amount : 0,
-          delta_y: direction === 'up' ? -amount : direction === 'down' ? amount : 0,
-        });
-        break;
-      }
-      default:
-        return refused('Unsupported browser action.');
-    }
     // Native refs are single-use authority. A transport error cannot prove a write failed.
-    this.ctx.browser.snapshots.delete(capability.id);
-    if (this.ctx.browser.latestSnapshot.get(capability.tabId) === capability.id)
-      this.ctx.browser.latestSnapshot.delete(capability.tabId);
+    this.ctx.browser.invalidateSnapshot(capability.tabId);
     let raw: unknown;
     try {
       raw = await this.ctx.callCua(request, tool, input);

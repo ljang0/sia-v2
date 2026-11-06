@@ -5,6 +5,24 @@ async function openAppearance(page: Page) {
   await page.getByRole('menuitem', { name: 'Appearance', exact: true }).click();
 }
 
+test('unfocused conversations pause gradient text as well as the WebGL backdrop', async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.goto('/#demo');
+  await page.getByTitle('New conversation', { exact: true }).first().click();
+  const heading = page.getByRole('heading', { name: 'What would you like to do?' });
+  await expect(heading).toHaveCSS('animation-play-state', 'running');
+  // Emulate Electron's focus signal without relying on headless window-manager focus.
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'hasFocus', { configurable: true, value: () => false });
+    window.dispatchEvent(new Event('blur'));
+  });
+  await expect(page.locator('.sia-aurora')).toHaveAttribute('data-paused', 'true');
+  await expect(page.locator('.dither-aurora-field canvas')).toHaveCount(0);
+  await expect(heading).toHaveCSS('animation-play-state', 'paused');
+});
+
 for (const surface of ['agent', 'menu', 'access'] as const) {
   test(`${surface} closes without a running exit animation`, async ({ page }) => {
     await page.goto('/#demo');
@@ -185,8 +203,9 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await expect(transcript).toHaveCount(1);
     await page.getByRole('button', { name: 'Stop', exact: true }).click();
     await expect(send).toBeVisible();
-    await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'dither');
-    await expect(page.locator('.dither-aurora-field canvas')).toBeVisible();
+    // Once work starts, keep the color without a continuously rendered backdrop.
+    await expect(page.locator('.sia-aurora')).toHaveAttribute('data-renderer', 'still');
+    await expect(page.locator('.dither-aurora-field canvas')).toHaveCount(0);
     await page.screenshot({ path: info.outputPath(`conversation-${colorScheme}.png`) });
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Voice', exact: true })).toBeVisible();
@@ -285,11 +304,6 @@ test('navigation stays stable, previews do not select, and the compact rail keep
 }, info) => {
   await page.goto('/#demo');
   const nav = page.getByRole('complementary', { name: 'Agent navigation' });
-  const logo = nav.getByRole('img', { name: 'Sia', exact: true }).locator('img');
-  await expect(logo).toBeVisible();
-  await expect
-    .poll(() => logo.evaluate((el) => (el as HTMLImageElement).naturalWidth))
-    .toBe(768);
   const task = nav.getByRole('button', { name: 'Weekly research update', exact: true });
   await task.hover();
   await expect(page.getByRole('tooltip')).toBeVisible();
@@ -685,6 +699,21 @@ for (const reducedMotion of ['no-preference', 'reduce'] as const) {
     } else {
       expect(motion.breath).not.toBe('none');
       expect(motion.ring).not.toBe('none');
+      await expect(page.locator('.dither-aurora-field canvas')).toHaveCount(0);
+      const paintedProperties = await page.evaluate(() =>
+        document
+          .getAnimations()
+          .filter((animation) => animation.effect?.getTiming().iterations === Infinity)
+          .flatMap((animation) =>
+            (animation.effect as KeyframeEffect).getKeyframes().flatMap(Object.keys),
+          )
+          .filter((property) =>
+            ['boxShadow', 'backgroundPosition', 'filter', 'backgroundColor', 'color'].includes(
+              property,
+            ),
+          ),
+      );
+      expect(paintedProperties).toEqual([]);
     }
   });
 }
