@@ -6941,9 +6941,20 @@ index ad64bdf..5a9faa7 100644
              .iter()
              .map(|event| create_bare_keyboard_event(event.key_code, event.key_down))
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
-index 1b34151..882bacd 100644
+index 1b34151..107fd1b 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/input/mouse.rs
+@@ -372,8 +372,8 @@ extern "C" {
+ 
+ /// Like `click_at_xy` but also targets a specific window. Foreground delivery
+ /// uses the supplied window-local point with one public pid post. Background
+-/// delivery keeps the translated screen point through the SkyLight route, with
+-/// a public fallback only when the private symbol is unavailable.
++/// delivery posts the screen point and stamps the window-local point through
++/// SkyLight, with a public fallback only when the private symbol is unavailable.
+ // The flattened arguments mirror the native event fields used by existing callers.
+ #[allow(clippy::too_many_arguments)]
+ pub fn click_at_xy_with_window_local(
 @@ -403,6 +403,27 @@ pub fn click_at_xy_with_window_local(
      }
  }
@@ -6972,7 +6983,59 @@ index 1b34151..882bacd 100644
  /// `screen` is the click point in screen coordinates.
  fn click_at_xy_inner(
      pid: i32,
-@@ -1879,6 +1900,8 @@ mod post_sink {
+@@ -578,14 +599,14 @@ fn chromium_click_route_plan(
+     count: usize,
+ ) -> Vec<ChromiumClickRouteStep> {
+     let screen_target = (screen_x, screen_y);
+-    let _ = (win_local_x, win_local_y);
++    let local_target = (win_local_x, win_local_y);
+     let off_screen = (-1.0, -1.0);
+     let mut steps = vec![
+         ChromiumClickRouteStep {
+             kind: ChromiumClickEventKind::Move,
+             event_location: screen_target,
+-            skylight_window_location: screen_target,
+-            public_window_location: screen_target,
++            skylight_window_location: local_target,
++            public_window_location: local_target,
+             click_state: 0,
+             phase: 2,
+             button_number: 0,
+@@ -622,8 +643,8 @@ fn chromium_click_route_plan(
+         steps.push(ChromiumClickRouteStep {
+             kind: ChromiumClickEventKind::Down,
+             event_location: screen_target,
+-            skylight_window_location: screen_target,
+-            public_window_location: screen_target,
++            skylight_window_location: local_target,
++            public_window_location: local_target,
+             click_state,
+             phase: 3,
+             button_number: 0,
+@@ -633,8 +654,8 @@ fn chromium_click_route_plan(
+         steps.push(ChromiumClickRouteStep {
+             kind: ChromiumClickEventKind::Up,
+             event_location: screen_target,
+-            skylight_window_location: screen_target,
+-            public_window_location: screen_target,
++            skylight_window_location: local_target,
++            public_window_location: local_target,
+             click_state,
+             phase: 3,
+             button_number: 0,
+@@ -647,9 +668,8 @@ fn chromium_click_route_plan(
+ 
+ /// Post the route plan for the Chromium-compatible background left-click
+ /// recipe. `CGEvent::new_mouse_event` starts with the screen-space location.
+-/// `CGEventSetWindowLocation` uses the screen point for both SkyLight and the
+-/// public PID fallback. macOS interprets the stamped location in screen space
+-/// even when the public route is used for a background process.
++/// `CGEventSetWindowLocation` carries the window-local point, matching a real
++/// click, for both SkyLight and the public PID fallback. See upstream #6126.
+ #[allow(clippy::too_many_arguments)]
+ pub fn click_at_xy_chromium(
+     pid: i32,
+@@ -1879,6 +1899,8 @@ mod post_sink {
          /// Modifier flags carried by each posted event, parallel to `posted`.
          modifiers: Vec<u64>,
          window_routing: Vec<[i64; 4]>,
@@ -6981,7 +7044,7 @@ index 1b34151..882bacd 100644
      }
  
      thread_local! {
-@@ -1897,6 +1920,8 @@ mod post_sink {
+@@ -1897,6 +1919,8 @@ mod post_sink {
                      posted: Vec::new(),
                      modifiers: Vec::new(),
                      window_routing: Vec::new(),
@@ -6990,7 +7053,7 @@ index 1b34151..882bacd 100644
                  });
              });
              Self
-@@ -1925,6 +1950,14 @@ mod post_sink {
+@@ -1925,6 +1949,14 @@ mod post_sink {
              })
          }
  
@@ -7005,7 +7068,7 @@ index 1b34151..882bacd 100644
          pub(super) fn window_routing(&self) -> Vec<[i64; 4]> {
              STATE.with(|state| state.borrow().as_ref().unwrap().window_routing.clone())
          }
-@@ -1952,6 +1985,26 @@ mod post_sink {
+@@ -1952,6 +1984,26 @@ mod post_sink {
              let Some(state) = state.as_mut() else {
                  return false;
              };
@@ -7032,7 +7095,7 @@ index 1b34151..882bacd 100644
              state.posted.push(Posted {
                  event: format!("{:?}", event.get_type()),
                  route,
-@@ -1973,6 +2026,75 @@ mod tests {
+@@ -1973,6 +2025,75 @@ mod tests {
      use super::post_sink::{Capture, Posted};
      use super::*;
  
@@ -7108,10 +7171,12 @@ index 1b34151..882bacd 100644
      #[test]
      fn background_middle_click_preserves_exact_window_routing() {
          let capture = Capture::start(true);
-@@ -2026,19 +2148,42 @@ mod tests {
+@@ -2025,20 +2146,43 @@ mod tests {
+     }
  
      #[test]
-     fn capture_bound_background_route_preserves_nonzero_origin_hit() {
+-    fn capture_bound_background_route_preserves_nonzero_origin_hit() {
++    fn background_route_stamps_window_local_points() {
 +        use crate::capture::frame::{Geometry, Rect, Surface};
 +        let parent = Rect {
 +            x: 170.0,
@@ -7161,6 +7226,70 @@ index 1b34151..882bacd 100644
          assert_eq!((screen_x, screen_y), (564.0, 504.0));
          assert_eq!((local_x, local_y), capture_local);
  
+@@ -2049,8 +2193,8 @@ mod tests {
+                 ChromiumClickRouteStep {
+                     kind: ChromiumClickEventKind::Move,
+                     event_location: (564.0, 504.0),
+-                    skylight_window_location: (564.0, 504.0),
+-                    public_window_location: (564.0, 504.0),
++                    skylight_window_location: (394.0, 310.0),
++                    public_window_location: (394.0, 310.0),
+                     click_state: 0,
+                     phase: 2,
+                     button_number: 0,
+@@ -2082,8 +2226,8 @@ mod tests {
+                 ChromiumClickRouteStep {
+                     kind: ChromiumClickEventKind::Down,
+                     event_location: (564.0, 504.0),
+-                    skylight_window_location: (564.0, 504.0),
+-                    public_window_location: (564.0, 504.0),
++                    skylight_window_location: (394.0, 310.0),
++                    public_window_location: (394.0, 310.0),
+                     click_state: 1,
+                     phase: 3,
+                     button_number: 0,
+@@ -2093,8 +2237,8 @@ mod tests {
+                 ChromiumClickRouteStep {
+                     kind: ChromiumClickEventKind::Up,
+                     event_location: (564.0, 504.0),
+-                    skylight_window_location: (564.0, 504.0),
+-                    public_window_location: (564.0, 504.0),
++                    skylight_window_location: (394.0, 310.0),
++                    public_window_location: (394.0, 310.0),
+                     click_state: 1,
+                     phase: 3,
+                     button_number: 0,
+@@ -2104,28 +2248,13 @@ mod tests {
+             ]
+         );
+ 
+-        let screen_to_canvas = (-frame.bounds.x, -frame.bounds.y);
+-        let unconverted_journal_point = (
+-            capture_local.0 + screen_to_canvas.0,
+-            capture_local.1 + screen_to_canvas.1,
+-        );
+-        assert_eq!(unconverted_journal_point, (224.0, 116.0));
+-        assert!(!(292.0..=496.0).contains(&unconverted_journal_point.0));
+-
+         let delivered = plan
+             .iter()
+             .find(|step| step.kind == ChromiumClickEventKind::Down && step.phase == 3)
+             .expect("target mouse-down step");
+         assert_eq!(delivered.event_location, (564.0, 504.0));
+-        assert_eq!(delivered.skylight_window_location, (564.0, 504.0));
+-        assert_eq!(delivered.public_window_location, (564.0, 504.0));
+-        let skylight_journal_point = (
+-            delivered.skylight_window_location.0 + screen_to_canvas.0,
+-            delivered.skylight_window_location.1 + screen_to_canvas.1,
+-        );
+-        assert_eq!(skylight_journal_point, capture_local);
+-        assert!((292.0..=496.0).contains(&skylight_journal_point.0));
+-        assert!((132.0..=310.0).contains(&skylight_journal_point.1));
++        assert_eq!(delivered.skylight_window_location, capture_local);
++        assert_eq!(delivered.public_window_location, capture_local);
+     }
+ 
+     #[test]
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs b/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
 index 136e0c9..7cd1795 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/input/skylight.rs
@@ -9669,10 +9798,10 @@ index e4d007f..5e62833 100644
                  .await
                  {
 diff --git a/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs b/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
-index d24fee7..6414ea2 100644
+index d24fee7..baf5288 100644
 --- a/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
 +++ b/libs/cua-driver/rust/crates/platform-macos/src/tools/px_frame.rs
-@@ -12,15 +12,15 @@
+@@ -12,118 +12,85 @@
  
  use cua_driver_core::protocol::ToolResult;
  
@@ -9692,14 +9821,16 @@ index d24fee7..6414ea2 100644
  }
  
  impl WindowPxFrame {
-@@ -28,102 +28,70 @@ impl WindowPxFrame {
-     /// local_pt_y)`. Public PID event routes use the local-point pair for
-     /// `CGEventSetWindowLocation`; the SkyLight PID/window-routed click keeps
-     /// the screen-point pair because WindowServer derives local coordinates.
+     /// Window-local capture pixels → `(screen_x, screen_y, local_pt_x,
+-    /// local_pt_y)`. Public PID event routes use the local-point pair for
+-    /// `CGEventSetWindowLocation`; the SkyLight PID/window-routed click keeps
+-    /// the screen-point pair because WindowServer derives local coordinates.
 -    pub fn to_screen(&self, cx: f64, cy: f64) -> (f64, f64, f64, f64) {
 -        let lx = cx / self.scale;
 -        let ly = cy / self.scale;
 -        (self.bounds.x + lx, self.bounds.y + ly, lx, ly)
++    /// local_pt_y)`. Routed clicks use the screen pair as the event location
++    /// and the local pair as its window location, matching a real click.
 +    pub fn to_screen(&self, cx: f64, cy: f64) -> Option<(f64, f64, f64, f64)> {
 +        let point = self.to_sheet_or_parent(cx, cy)?;
 +        self.geometry
@@ -9844,7 +9975,7 @@ index d24fee7..6414ea2 100644
  }
  
  /// The shared refusal for a pixel action whose window cannot be framed.
-@@ -206,9 +174,23 @@ pub fn error_structured(error: &PxFrameError) -> serde_json::Value {
+@@ -206,9 +173,23 @@ pub fn error_structured(error: &PxFrameError) -> serde_json::Value {
  
  /// Resolve the frame off the async path, mapping both the task error and the
  /// refusal onto a `ToolResult` the caller can return directly.
@@ -9870,7 +10001,7 @@ index d24fee7..6414ea2 100644
          Ok(Err(e)) => Err(refusal(&e)),
          Err(e) => Err(ToolResult::error(format!(
              "window frame lookup for window_id {window_id} failed: {e}. Not dispatching."
-@@ -221,20 +203,42 @@ mod tests {
+@@ -221,20 +202,42 @@ mod tests {
      use super::*;
  
      fn frame(scale: f64) -> WindowPxFrame {
@@ -9921,7 +10052,7 @@ index d24fee7..6414ea2 100644
          assert_eq!((sx, sy), (130.0, 620.0));
          assert_eq!((lx, ly), (30.0, 40.0));
      }
-@@ -242,55 +246,38 @@ mod tests {
+@@ -242,55 +245,38 @@ mod tests {
      #[test]
      fn resolves_2x_retina_scale() {
          // A point 60 capture px in is 30 pt in.
@@ -10002,7 +10133,7 @@ index d24fee7..6414ea2 100644
      }
  
      /// Locks the exact regression: a stale window_id used to fall through to
-@@ -311,3 +298,30 @@ mod tests {
+@@ -311,3 +297,30 @@ mod tests {
          );
      }
  }

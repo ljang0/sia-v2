@@ -84,6 +84,17 @@ any input guard. Sia's separate signed observer already runs a main loop and is 
 This backport removes the known native query defect; it is not proof that it caused Sia's
 observed Chrome recovery or input failures. Signed-app background acceptance remains required.
 
+## Background click coordinates
+
+The left-click route now stamps window-local coordinates into `CGEventSetWindowLocation`,
+while keeping the event location in screen coordinates. The off-screen primer stays unchanged.
+This adapts [upstream #6126](https://github.com/trycua/cua/pull/6126), head
+`a265a7542835b8154c03a8700a743632f3dd0f8e`, whose author reproduced a window-origin offset
+on a two-display Mac. The previous route ignored its already-computed local point. The
+nonzero-origin regression fails with the old stamp and passes after correction. Window identity,
+geometry checks, background activation and keyboard transport are unchanged. This is a functional
+trial; signed-app verification must determine whether it addresses Sia's native panel failure.
+
 ## Coordinate keyboard focus
 
 Vision-only coordinate typing and keys use pointer events when they must focus a field. The
