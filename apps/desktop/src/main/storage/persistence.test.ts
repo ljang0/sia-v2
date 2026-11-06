@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -11,6 +12,54 @@ import {
 } from './persistence.js';
 
 describe('SqliteRecordRepository', () => {
+  it('loads legacy records in timestamp order without sorting encrypted payloads to disk', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'sia-persistence-index-'));
+    const path = join(directory, 'sia.sqlite');
+    const cipher = prefixedCipher('existing-key');
+    const legacy = new DatabaseSync(path);
+    legacy.exec(`CREATE TABLE records (
+      scope TEXT NOT NULL, id TEXT NOT NULL, payload BLOB NOT NULL,
+      updated_at INTEGER NOT NULL, PRIMARY KEY (scope, id)
+    ) STRICT;`);
+    const insert = legacy.prepare('INSERT INTO records VALUES (?, ?, ?, ?)');
+    insert.run('research', 'z', cipher.encrypt(JSON.stringify({ id: 'z' })), 1);
+    insert.run('research', 'b', cipher.encrypt(JSON.stringify({ id: 'b' })), 2);
+    insert.run('research', 'a', cipher.encrypt(JSON.stringify({ id: 'a' })), 2);
+    insert.run('agents', 'other', cipher.encrypt(JSON.stringify({ id: 'other' })), 0);
+    const before = legacy.prepare('SELECT * FROM records ORDER BY scope, id').all();
+    legacy.close();
+
+    try {
+      const opened = openRecoverableRecordRepository(path, cipher);
+      try {
+        expect(opened.archivedPath).toBeUndefined();
+        expect(opened.repository.list('research')).toEqual([
+          { id: 'z' },
+          { id: 'a' },
+          { id: 'b' },
+        ]);
+        const inspection = new DatabaseSync(path, { readOnly: true });
+        try {
+          expect(inspection.prepare('SELECT * FROM records ORDER BY scope, id').all()).toEqual(
+            before,
+          );
+          const plan = inspection
+            .prepare(
+              'EXPLAIN QUERY PLAN SELECT payload FROM records WHERE scope = ? ORDER BY updated_at ASC, id ASC',
+            )
+            .all('research');
+          expect(plan.map((row) => row.detail).join('\n')).not.toContain('TEMP B-TREE');
+        } finally {
+          inspection.close();
+        }
+      } finally {
+        opened.repository.close();
+      }
+    } finally {
+      rmSync(directory, { recursive: true, force: true });
+    }
+  });
+
   it('round-trips, lists, removes, and securely clears records', () => {
     const repository = new SqliteRecordRepository(':memory:', new PlaintextTestCipher());
     repository.put('agents', 'a', { id: 'a', secret: 'not plaintext in production' });

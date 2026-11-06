@@ -91,7 +91,8 @@ export class SqliteRecordRepository implements RecordRepository {
     if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
     this.#database = new DatabaseSync(path);
     this.#cipher = cipher;
-    this.#database.exec(`
+    try {
+      this.#database.exec(`
       PRAGMA journal_mode = WAL;
       PRAGMA foreign_keys = ON;
       PRAGMA secure_delete = ON;
@@ -103,7 +104,13 @@ export class SqliteRecordRepository implements RecordRepository {
         updated_at INTEGER NOT NULL,
         PRIMARY KEY (scope, id)
       ) STRICT;
-    `);
+      CREATE INDEX IF NOT EXISTS records_scope_updated_at_id
+        ON records (scope, updated_at, id);
+      `);
+    } catch (error) {
+      this.#database.close();
+      throw error;
+    }
   }
 
   get<T>(scope: string, id: string): T | undefined {
@@ -115,9 +122,12 @@ export class SqliteRecordRepository implements RecordRepository {
 
   list<T>(scope: string): T[] {
     const rows = this.#database
-      .prepare('SELECT payload FROM records WHERE scope = ? ORDER BY updated_at ASC')
-      .all(scope) as unknown as StoredRow[];
-    return rows.map((row) => this.#decode<T>(row.payload));
+      .prepare('SELECT payload FROM records WHERE scope = ? ORDER BY updated_at ASC, id ASC')
+      .iterate(scope);
+    // Decode one ciphertext at a time; recordings can contain large screenshot batches.
+    const values: T[] = [];
+    for (const row of rows) values.push(this.#decode<T>((row as unknown as StoredRow).payload));
+    return values;
   }
 
   put<T>(scope: string, id: string, value: T): void {
@@ -147,12 +157,10 @@ export class SqliteRecordRepository implements RecordRepository {
 
   /** Eagerly checks every row so an old Keychain failure is handled before app startup. */
   assertReadable(): void {
-    const rows = this.#database
-      .prepare('SELECT payload FROM records')
-      .all() as unknown as StoredRow[];
+    const rows = this.#database.prepare('SELECT payload FROM records').iterate();
     for (const row of rows) {
       try {
-        this.#decode(row.payload);
+        this.#decode((row as unknown as StoredRow).payload);
       } catch (error) {
         throw new UnreadableEncryptedPayloadError(error);
       }

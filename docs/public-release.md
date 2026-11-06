@@ -27,6 +27,43 @@ full-gate log: `startup-repaint-pilot.log`. Automated checks do not replace usef
 
 ## Live results that determine readiness
 
+### Save acceptance and rejected pointer-coordinate trial
+
+A bounded comparison on retained `1a1b7e5` explicitly clicked Save As, selected its text and typed
+once. The filename did not change; Cancel and Escape also failed. This diagnostic took 103.071
+seconds and does not establish ordinary-task acceptance. Post-terminal operator CUA dismissed the
+panel and verified the draft. AWS matched 93 events across two batches, 28 usage events, 12 actions
+and ten PNGs. Receipt: `pointer-save-comparison.json`.
+
+An upstream-inspired window-local pointer stamp was then tried in signed `24683bb`. A fresh
+conversation requested saving the existing draft through background TextEdit. Save opened, but
+filename input through the panel and parent did not change it. The task failed after 76.138 seconds;
+no output file exists and all seven protected RTFs remain byte-identical. Operator cleanup happened
+only after terminal failure. AWS matched the complete prompt, eight actions, six PNGs, 20 usage
+events and terminal failure in one encrypted 69-event batch. Receipts:
+`pointer-coordinate-acceptance.json` and
+`native-archive-verification-9153d41d-fed6-4cfd-b3f7-f7654875e955.json`.
+
+The trial was reverted in `d7d92bd`; the installed app was restored to signed `1a1b7e5` before the
+storage repair. This result does not establish that the upstream coordinate change is incorrect;
+it did not resolve Sia's ordinary Save workflow on this Mac. No unsuccessful trial remains in the
+retained native patch.
+
+### Recording-store startup repair
+
+The pointer trial's first launch again reported “database or disk is full.” A read-only integrity
+check passed, and a second explicit QA-profile launch loaded. Inspection found that ordered record
+reads sorted large encrypted payloads into a temporary SQLite B-tree and materialized all ciphertexts
+before decoding. This is unnecessary startup work; the evidence does not prove it caused the error.
+
+The repair adds a `(scope, updated_at, id)` index and decodes rows as they are read. Existing
+ciphertexts, chronological ordering and deterministic ID ordering for timestamp ties are preserved.
+A legacy-database regression fails before and passes after the repair. On a disposable copy using
+Electron 43.8.1, the 133,588,937-byte recording read dropped from 1,040.8 ms to 84.8 ms; index creation
+took 22.2 ms. Hashes confirmed identical payloads and order. This is one database-read measurement,
+not total startup latency or proof that every storage failure is fixed. Receipt:
+`storage-index-benchmark.json`. Signed startup acceptance and the full pilot gate are pending.
+
 ### Background rendering and secure-startup repaint
 
 `28c5a50` disables throttling for an open Sia window and restores it when hidden or minimized.
@@ -73,7 +110,8 @@ has exactly the same ASAR as signed `28c5a50`.
 
 The local pilot run on `18f3881` stopped at one five-second browser-test timeout; the complete
 21-test file then passed in isolation. That is not a clean full-gate pass.
-[CI 410](https://github.com/ljang0/sia-v2/actions/runs/42118175786) is the independent full run.
+[CI 412](https://github.com/ljang0/sia-v2/actions/runs/42122709805) subsequently passed the full
+pilot gate and unsigned universal packaging on `63d3a36`; signing/notarization were skipped.
 Private receipts: `public-readiness-audit-after.json`, `matcher-compatibility-result.json`,
 `dependency-pilot.log` and `dependency-browser-recheck.log`.
 
